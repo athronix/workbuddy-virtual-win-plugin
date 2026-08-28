@@ -1,0 +1,13 @@
+{
+  "name": "@winvm/vm-capabilities",
+  "version": "0.1.0",
+  "description": "Windows 能力层：四大能力域（system/app/storage/gui）的能力注册表与 ps-bridge 常驻 PowerShell 进程客户端",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "psmod"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": { "@winvm/contracts": "0.1.0", "@winvm/core": "0.1.0" },
+  "layer": "L2-vm-capabilities"
+}

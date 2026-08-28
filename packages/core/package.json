@@ -1,0 +1,13 @@
+{
+  "name": "@winvm/core",
+  "version": "0.1.0",
+  "description": "宿主机 Agent 插件核心功能模块：传输抽象、能力注册表与路由、策略引擎、哈希链审计、会话保活、标准 Agent 服务桥接 SPI 加载器",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": { "@winvm/contracts": "0.1.0" },
+  "layer": "L1a-core"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@winvm/a2a-framework",
+  "version": "0.1.0",
+  "description": "A2A v1.0 架构框架：Agent Card、Task 状态机、message/send、message/stream(SSE)、tasks/get、tasks/list、tasks/cancel、artifacts、input-required 审批闸",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": { "@winvm/contracts": "0.1.0", "@winvm/core": "0.1.0" },
+  "layer": "L1b-a2a-framework"
+}

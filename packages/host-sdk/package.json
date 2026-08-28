@@ -1,0 +1,13 @@
+{
+  "name": "@winvm/host-sdk",
+  "version": "0.1.0",
+  "description": "宿主机 Agent 插件规范 SDK：中性插件模型（NeutralPlugin）与 Renderer 契约，宿主无关",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": { "@winvm/contracts": "0.1.0" },
+  "layer": "L1c-host-sdk"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@winvm/adapter-host-workbuddy",
+  "version": "0.1.0",
+  "description": "宿主机 WorkBuddy 适配器（V1）：把中性插件模型渲染为 WorkBuddy plugin.json / marketplace.json / connector mcp.json / connector-skills 布局",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": { "@winvm/contracts": "0.1.0", "@winvm/host-sdk": "0.1.0" },
+  "layer": "L2-adapter-host"
+}

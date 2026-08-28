@@ -1,0 +1,17 @@
+{
+  "name": "@winvm/contracts",
+  "version": "0.1.0",
+  "description": "WinVM Bridge 唯一契约源：能力模型、风险分级、传输配置、桥接 SPI、宿主插件模型、A2A v1.0 类型",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "schemas"],
+  "scripts": { "build": "tsc -b" },
+  "layer": "L0-contracts"
+}

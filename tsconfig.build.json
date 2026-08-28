@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/core" },
+    { "path": "packages/mcp-framework" },
+    { "path": "packages/a2a-framework" },
+    { "path": "packages/host-sdk" },
+    { "path": "packages/adapter-host-workbuddy" },
+    { "path": "packages/vm-capabilities" },
+    { "path": "packages/adapter-agent-workbuddy" },
+    { "path": "packages/adapter-agent-workbuddy-llm" },
+    { "path": "packages/vm-service" }
+  ]
+}

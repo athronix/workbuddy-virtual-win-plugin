@@ -1,0 +1,22 @@
+{
+  "name": "@winvm/vm-service",
+  "version": "0.1.0",
+  "description": "VM 侧标准 Agent 服务：同时暴露 MCP /mcp 与 A2A /a2a + Agent Card，统一编排 能力注册表→策略引擎→审批闸→审计链→桥接层→能力执行",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": { "winvm-service": "dist/cli.js" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": {
+    "@winvm/contracts": "0.1.0",
+    "@winvm/core": "0.1.0",
+    "@winvm/mcp-framework": "0.1.0",
+    "@winvm/a2a-framework": "0.1.0",
+    "@winvm/vm-capabilities": "0.1.0",
+    "@winvm/adapter-agent-workbuddy": "0.1.0",
+    "@winvm/adapter-agent-workbuddy-llm": "0.1.0"
+  },
+  "layer": "L2-vm-service"
+}

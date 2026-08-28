@@ -1,0 +1,131 @@
+---
+id: winvm-gui-automation
+name: Windows GUI 与桌面自动化
+description: >
+  在 Windows 虚拟机内做图形化操作：截图与判读、键鼠模拟、窗口枚举与控制、
+  UIA 元素定位与点击、剪贴板、等待条件、浏览器自动化。用于"看看虚拟机屏幕"
+  "点开某个窗口""在虚拟机里登录某网站"等。
+version: 0.1.0
+domains: [gui]
+triggers:
+  - 看看虚拟机屏幕
+  - 截图
+  - 点击/输入/操作窗口
+  - 打开浏览器并访问
+  - 自动化某个桌面应用
+relatedSkills:
+  - winvm-orchestrator
+---
+
+# Windows GUI 与桌面自动化
+
+## ⚠ 最重要的前提：交互式会话
+
+本域所有能力都**要求 Windows 交互式会话**（`WinSta0\Default`，Session ≥ 1）。
+
+| 症状 | 根因 | 处置 |
+|---|---|---|
+| 截图全黑、键鼠 `Access denied` | 服务跑在 **Session 0**（被注册成了 Windows 服务） | 改为在用户登录会话内启动（登录自启 / 计划任务「仅在用户登录时运行」/ 托盘程序） |
+| 之前能用，RDP 断开后失效 | 会话被挂起为无头状态 | `tscon <sessionId> /dest:console` 归还控制台；或配置自动登录 |
+| 锁屏状态 | LogonUI 占据前台 | 先解锁 |
+
+**规则**：`meta.session.status` 返回 `unavailable` 或 `black-screen` 时，
+**不要重试** —— 明确告知用户并给出上述修复建议。系统对此有专门检测，
+黑屏会被识别并报 `SESSION_BLACK_SCREEN`，而不是静默返回一张黑图。
+
+## 适用与不适用
+
+**适用**：需要"看见并操作"的任务 —— 图形应用、安装向导、浏览器流程、无法用命令行的界面。
+
+**不适用**：能用命令行/API 完成的事。GUI 自动化**更慢、更脆**，
+能用 `winget`/PowerShell 完成时应优先走命令行（见 `winvm-system-admin` / `winvm-app-manager`）。
+
+## 前置检查（本域额外增加）
+
+1. 总控 §前置检查（隧道 / 健康）
+2. **会话检查**：`meta.session.status` 必须 `state == healthy`
+3. **屏幕校验**：`gui.screen.analyze` 确认非黑屏
+
+## 通道选择
+
+- **单次截图** → **MCP 直调**（`gui.screen.capture`，结果直接作为 artifact 回传）
+- **"看屏幕→决定→再操作"的循环** → **A2A 委派**（截图作为 artifact，Agent 内部完成闭环）
+- **多步 GUI 流程** → **A2A 委派**（有进度流与逐步 artifact）
+
+## 能力清单
+
+| 能力 ID | 风险 | 说明 |
+|---|---|---|
+| `gui.session.status` | L0 | 会话健康检查（SessionId/窗口站/桌面/锁屏/黑屏） |
+| `gui.screen.capture` | L0 | 全屏/窗口/区域截图，base64 PNG 回传 |
+| `gui.screen.analyze` | L0 | 黑屏检测（灰度方差） |
+| `gui.window.list` | L0 | 枚举有主窗口的进程 |
+| `gui.window.control` | L1 | 最小化/最大化/还原/关闭/激活 |
+| `gui.input.keyboard` | L1 | 文本（Unicode）或组合键 |
+| `gui.input.mouse` | L1 | 移动/点击/双击/右键/滚轮/拖拽 |
+| `gui.uia.tree` | L0 | UIA 元素树 |
+| `gui.uia.invoke` | L1 | 按 AutomationId/Name/ControlType 点击/设值/切换 |
+| `gui.clipboard.manage` | L1 | 读写剪贴板 |
+| `gui.wait.condition` | L0 | 等窗口出现/消失/进程退出/屏幕稳定 |
+
+## 标准流程：观察—决策—操作 循环
+
+```
+1. gui.screen.capture  { asBase64: true }        # 看现状
+2. 判读截图 → 决定下一步
+3. gui.uia.tree 或 window.list                    # 优先 UIA，其次坐标
+4. gui.uia.invoke / gui.input.mouse               # 操作
+5. gui.wait.condition { condition: "screenStable" }   # 等界面稳定
+6. gui.screen.capture                             # 验证结果
+7. 未达预期 → 回到 1，但要**限制重试次数**（建议 ≤5 次）并逐步报告
+```
+
+**关键**：每一步的截图都回传给你（作为 artifact）。**先看图再决定下一步**，
+不要盲发点击序列。
+
+## 定位策略：UIA 优先于坐标
+
+| 方式 | 何时用 | 稳定性 |
+|---|---|---|
+| **UIA**（`gui.uia.invoke` 按 `AutomationId`） | 首选 | 高 —— 不随分辨率/主题变化 |
+| UIA 按 `Name` | 无 AutomationId 时 | 中 —— 受多语言影响 |
+| **坐标**（`gui.input.mouse`） | 自定义绘制、游戏、无 UIA 的界面 | 低 —— 分辨率/缩放一变就失效 |
+
+**先 `gui.uia.tree` 拿到元素树，再按 ID 定位**；坐标点击是最后手段。
+
+## 浏览器自动化
+
+`gui.browser.control` 通过 CDP（Chrome DevTools Protocol）驱动 Chrome/Edge。
+能力：导航、点击、填表、截图、取 DOM。
+
+- 优先用 CDP 的 DOM 定位，而非屏幕坐标
+- 浏览器需以可调试端口启动；若浏览器未开调试端口，退化为 UIA + 键鼠
+
+## 高危清单
+
+| 操作 | 风险 | 强制动作 |
+|---|---|---|
+| `gui.window.control { state: "close" }` | L1（可能丢失未保存工作） | **先确认窗口内容**；关闭前截图，提示用户可能有未保存数据 |
+| 在登录/支付/权限弹窗中输入 | L1（凭据风险） | **必须先取得用户明确许可**；输入的凭据经脱敏后入审计 |
+| `gui.clipboard.manage` 写入 | L1 | 剪贴板是共享资源，操作后告知用户 |
+
+## 已知陷阱
+
+- **黑屏 ≠ 成功**：本系统会检出黑屏并报错。若你拿到一张纯黑截图，
+  说明是会话问题，**不是界面本来就是黑的**
+- **DPI 缩放**：高 DPI 下坐标与截图尺寸可能不一致；用 UIA 规避
+- **Unicode 文本输入**：`gui.input.keyboard` 的 `text` 走
+  `KEYEVENTF_UNICODE`，中文可直接输入，无需切输入法
+- **组合键写法**：`keys: ["ctrl", "s"]` 表示按下并释放 Ctrl+S
+  （支持 enter/tab/esc/space/backspace/delete/方向键/home/end/f1-f5/win 等）
+- **等待优于硬 sleep**：用 `gui.wait.condition` 代替固定延时，
+  界面响应慢时尤其重要
+- **拖拽**：用 `action: "drag"` 并给 `toX/toY`，不要拆成 move+click
+- **剪贴板读到的可能是旧内容**：写入后稍等再读
+
+## 参考
+
+- 会话保活与降级矩阵：`docs/02-design/SECURITY-GOVERNANCE.md` §5
+- 能力定义：`docs/02-design/CAPABILITY-MODEL.md` §3.4
+- 接口契约：`docs/02-design/INTERFACES.md` §2
+- 错误码：`SESSION_UNAVAILABLE` / `SESSION_BLACK_SCREEN`（均可重试，需先恢复会话）

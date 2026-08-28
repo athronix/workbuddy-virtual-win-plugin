@@ -1,0 +1,13 @@
+{
+  "name": "@winvm/mcp-framework",
+  "version": "0.1.0",
+  "description": "MCP 架构框架：Server（工具注册/校验/执行/审计织入）与 Client（连接/重试/超时），支持 Streamable HTTP 与 stdio",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": { "@winvm/contracts": "0.1.0", "@winvm/core": "0.1.0" },
+  "layer": "L1b-mcp-framework"
+}

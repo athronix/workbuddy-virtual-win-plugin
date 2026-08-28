@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "src" },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../contracts" },
+    { "path": "../core" },
+    { "path": "../mcp-framework" },
+    { "path": "../a2a-framework" },
+    { "path": "../vm-capabilities" },
+    { "path": "../adapter-agent-workbuddy" }
+  ]
+}

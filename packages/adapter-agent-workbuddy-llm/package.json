@@ -1,0 +1,18 @@
+{
+  "name": "@winvm/adapter-agent-workbuddy-llm",
+  "version": "0.1.0",
+  "description": "VM 内 Agent 适配器（LLM 选型 V1）：以 VM 内 WorkBuddy codebuddy CLI 为推理运行时，承接开放/创意类 A2A 任务。实现 AgentServiceProvider SPI。",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": {
+    "@winvm/contracts": "0.1.0",
+    "@winvm/core": "0.1.0",
+    "@winvm/vm-capabilities": "0.1.0",
+    "@winvm/adapter-agent-workbuddy": "0.1.0"
+  },
+  "layer": "L2-adapter-agent-llm"
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://winvm.local/schemas/vm-service.config.json",
+  "comment": "Windows 虚拟机侧服务配置。安全基线：仅监听 127.0.0.1，强默认策略，审计落盘。",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 18443
+  },
+  "transport": {
+    "preferred": ["mcp-streamable-http", "a2a-http"]
+  },
+  "agent": {
+    "provider": "workbuddy-deterministic",
+    "providers": {
+      "workbuddy-deterministic": {
+        "package": "@winvm/adapter-agent-workbuddy",
+        "options": {
+          "maxConcurrency": 4,
+          "enableLlmPlanning": false
+        }
+      },
+      "workbuddy": {
+        "package": "@winvm/adapter-agent-workbuddy-llm",
+        "options": {
+          "runtime": "codebuddy",
+          "cliPath": "codebuddy",
+          "endpoint": "http://127.0.0.1:18443/mcp",
+          "maxConcurrency": 2,
+          "outputDir": "%USERPROFILE%\\WinVMWorkspace\\out"
+        }
+      }
+    }
+  },
+  "policy": {
+    "comment": "留空表示沿用 core 内置 DEFAULT_POLICY（含系统路径黑名单、命令黑名单、进程黑名单、默认最高风险 L1）。如需收紧可在此覆盖，例如把 defaultMaxRisk 降到 L0。"
+  },
+  "audit": {
+    "dir": "%LOCALAPPDATA%/WinVMBridge/audit",
+    "redactParams": true,
+    "maxFileBytes": 5242880
+  },
+  "session": {
+    "probeIntervalMs": 15000
+  },
+  "security": {
+    "requireLoopbackBind": true,
+    "tokenEnv": "WINVM_BEARER_TOKEN"
+  }
+}

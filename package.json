@@ -1,0 +1,25 @@
+{
+  "name": "winvm-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WinVM Bridge - 分层解耦、标准协议驱动、强监管的插件体系，使宿主机 AI Agent 完全操作 Windows 虚拟机",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b tsconfig.build.json",
+    "clean": "tsc -b tsconfig.build.json --clean",
+    "test": "npm run build && node --test",
+    "test:unit": "node --test tests/unit/*.test.js",
+    "typecheck": "tsc -b tsconfig.build.json",
+    "layout": "node scripts/dep-lint.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
