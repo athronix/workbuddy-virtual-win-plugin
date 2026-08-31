@@ -50,3 +50,43 @@
 - 124/124 通过；`tsc -b` 10/10 包编译通过。
 - `vm-service --self-test`：`workbuddy-deterministic` 与 `workbuddy`（LLM）均通过 provider 目录校验。
 - `vm-service`（provider=workbuddy）`/health`：`provider.id="workbuddy", state="ready"`，暴露 54 能力；AgentCard 暴露 5 个 A2A Skill。
+
+---
+
+## 第三轮新增（双通道完善：宿主 A2A 委派桥 + 空闲自愈）
+
+### 修复的设计缺陷：宿主侧 A2A 断链
+原实现 VM 侧 A2A 服务端完备，但宿主侧**没有发起 A2A 的接入点**——`adapter-host-workbuddy` 只渲染 MCP 条目（指向 `/mcp`），54 个 MCP 工具里没有任何能发起 `runGoal` 的委派工具。VM 侧 A2A 服务端一直在等一个永远不会从宿主发起的请求。
+
+### 新增
+- **`packages/host-a2a-bridge`（新包，L3）**：宿主侧 A2A 委派桥，以本地 stdio MCP server 形态落地。
+  - `src/client.ts`：`A2aDelegateClient` 抽象（`A2AClient` 结构上满足，便于注入 mock）+ `createLazyClientProvider`（懒连接，隧道未建立时首次调用才连，失败丢弃缓存可重试）。
+  - `src/tools.ts`：`a2a.delegate`（流式收集 status-update/artifact-update，图片回传 image content）、`a2a.task.get`、`a2a.approval.reply`、`a2a.task.cancel`、`a2a.health`；`extractApproval` 从 data part 提取审批请求。
+  - `src/stdio.ts`：自行实现 NDJSON stdio 循环（mcp-framework 无 stdio server transport）；stdout 只承载协议消息，日志走 stderr。
+  - `src/cli.ts`：`--endpoint/--a2a-path/--timeout/--max-risk/--token-env`。
+- **contracts**：`NeutralPlugin` 增加可选 `a2aBridge?: ConnectorDecl`；`StreamableHttpTransport.tokenEnv` 放宽为可选（回环隧道无需 bearer token）。
+- **host-sdk**：校验新增 `a2aBridge`（id 合法、不得与 connector 同 id、transports 非空、stdio 需 command）；`tokenEnv` 仅对**非回环** URL 强制。
+- **adapter-host-workbuddy**：`a2aBridge` 存在时额外渲染 `connector:winvm-a2a` 条目；`uninstall` 一并移除两个条目。
+- **install-host.mjs**：把桥 dist 复制到插件目录，装配 `a2aBridge`（stdio → `a2a-bridge/cli.js`），dry-run 输出 **2 个增量补丁**。
+- **VM 内 Agent 技能下发**：`setup.mjs` 把 `skills/` 随产物打包传到 VM；provider 按 `skillsRoot` 加载 SKILL.md，`writeSkillPack()` 落盘 + `buildSystemPrompt()` 注入摘要与工作方式（可自行编写脚本用 `appops.cli.invoke` 执行）。
+- **CLI 契约配置化**：`DEFAULT_CLI_ARG_TEMPLATE` + `renderCliArgs()`，支持 `{goal}{prompt}{endpoint}{output}{skillsDir}` 占位符，真机参数不同经 `cliArgTemplate` 覆盖。
+- **产物逐步回传**：`CliLlmBridge` 任务过程中节流扫描 outputDir（默认 2s），新增文件经 `sink.onArtifact` 实时推送（此前只在结束时一次性收集）；单文件 >20MB 跳过。
+- **VM 分发改打包传输**：`setup.mjs` 用 tar 打包（保留 `packages/<name>/dist` 层级，避免同名 dist 互相覆盖），先 `New-Item -Force` 建目录，VM 侧 `--skip-install --skip-build`（dist 已分发）。
+- **`install-vm.mjs`**：新增 `--skip-install`（跳过 npm ci，产物已由宿主机构建分发）。
+- **Skill**：`winvm-orchestrator` 明确两条通道各自的工具（`winvm` 点分能力 ID / `winvm-a2a` 的 `a2a.delegate` 等），补审批与超时处理示例。
+
+### 修复的严重缺陷：ps-bridge 空闲后永久失效
+- **现象**：VM 服务启动后可用，**空闲约 45s 后所有调用失败**（`ps-bridge 未就绪`）且永不恢复，必须重启服务。
+- **根因**：① `ps-bridge.ps1` 主循环在等 stdin 时阻塞，空闲期发不出心跳；② TS 侧看门狗仅凭"心跳超时"直接 `kill()`，注释声称"将重启"但**代码没有重启逻辑**；③ 进程引用被清空后无人拉起。
+- **修复**：看门狗超时后**先主动 ping 探测**（ping 通即视为健康、仅刷新时间戳，不再误杀；不通才重启）；抽出 `spawnAndReady()` 真正实现 `restart()`（`failAll → kill → spawn`），`restarting` 防重入、`stopped` 避免 stop 后被拉起；并修复"旧进程 exit 回调晚于新进程 spawn、把新进程引用误清为 undefined"的竞态（比对 `this.child === spawned` 才清理）。
+- **验证**：启动后立即委派 → `completed`；空闲 55s 后再委派 → `completed`（修复前必失败）。
+
+### 关键决策（沉淀）
+1. **宿主桥用 stdio 而非 HTTP 端口**：零端口占用、随宿主连接器生命周期启停、不新增暴露面。
+2. **同一条 SSH 隧道承载 `/mcp` 与 `/a2a`**：`establishTransport(path='/a2a')` 即可复用，与 MCP 通道并存。
+3. **回环免 token**：宿主→VM 走本机回环隧道，VM 侧本身只监听 127.0.0.1，`tokenEnv` 仅对非回环直连强制（既安全又不阻碍部署）。
+
+### 测试结果（第三轮）
+- 143/143 通过；`tsc -b` 11/11 包编译通过。
+- 端到端冒烟（真实进程）：宿主桥 stdio MCP → `initialize`/`tools/list`/`a2a.health` → `a2a.delegate` "查看系统信息" → `state: completed` 并回传产物。
+- 宿主安装器 dry-run：8 文件 + **2 个增量补丁**（`connector:winvm`、`connector:winvm-a2a`）。

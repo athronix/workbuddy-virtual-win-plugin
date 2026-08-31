@@ -73,6 +73,47 @@ relatedSkills:
 | "用 Photoshop 把照片大山背景换成海洋" | A2A（LLM VM Agent）| 开放意图、需常识、多步 GUI |
 | "列出最近 10 条系统错误日志" | MCP | 单步 |
 
+### 两条通道分别用什么工具
+
+部署后宿主侧会有**两个连接器**，各司其职：
+
+| 连接器 | 形态 | 用途 | 工具 |
+|---|---|---|---|
+| `winvm` | Streamable HTTP → VM `/mcp`（经 SSH 隧道） | **简单任务**：单步、结构化、可精确控制 | 点分能力 ID，如 `system.info.get`、`appops.cli.invoke`、`gui.screen.capture` |
+| `winvm-a2a` | 本地 stdio MCP server（A2A 委派桥） | **复杂任务**：多步自主规划 / 强 GUI / 开放意图 | `a2a.delegate`、`a2a.task.get`、`a2a.approval.reply`、`a2a.task.cancel`、`a2a.health` |
+
+> 宿主工具名中的点号通常渲染为下划线：`system.info.get` → `winvm__system_info.get`，
+> `a2a.delegate` → `winvm-a2a__a2a_delegate`。以宿主 `tools/list` 实际返回为准。
+
+**简单任务（MCP 直调，一步到位）**：
+
+```
+winvm__system_info.get()
+winvm__appops_cli.invoke({
+  "app": "ffmpeg",
+  "command": "ffmpeg -i in/a.mp4 -vf scale=1280:720 out/a_720p.mp4",
+  "outputDirectory": "C:\\WinVMWorkspace\\out"
+})
+```
+
+**复杂任务（A2A 委派给 VM 内 AI Agent）**：
+
+```
+winvm-a2a__a2a.delegate({
+  "goal": "用 Photoshop 帮我把这张照片里的大山背景换成海洋，调色自然一点",
+  "allowedCapabilities": ["appops.*", "gui.*"],
+  "maxRisk": "L2",
+  "timeoutMs": 600000
+})
+// 返回：{ ok, taskId, state, summary, progress[], artifacts[], approval? }
+```
+
+`a2a.delegate` 会**流式接收** VM 内 Agent 的执行过程：
+- `progress[]` —— 阶段性进展（中间产物会实时回传，不是最后一次性给）
+- `artifacts[]` —— 产物摘要（图片直接作为图像内容回传）
+- `approval` —— 若某步为 L2/L3，任务挂起等待审批（见 §审批闸协议）
+- 超时未结束：返回 `timedOut: true` 与 `taskId`，用 `a2a.task.get` 继续取结果
+
 ## 标准流程
 
 1. **前置检查**（隧道 / 健康 / 会话）
@@ -102,13 +143,21 @@ relatedSkills:
 （含 `impact` 影响清单与 dry-run 预览）。
 **向用户展示影响清单**，取得确认后，用同一参数并附 `__approvalId` 重新调用。
 
-### A2A 通道
-任务置 `input-required`，`status.message` 含结构化审批请求。
-展示后以 `message/send`（同一 `taskId`）回复：
+### A2A 通道（经 winvm-a2a 连接器）
+`a2a.delegate` 返回 `state: "input-required"`，并带
+`approval { approvalId, message, risk, capabilityId }`。
+**先向用户展示 `approval.message` 与影响清单**，取得确认后再调用：
 
-```json
-{ "kind": "data", "data": { "approvalId": "apr_xxx", "approved": true } }
 ```
+winvm-a2a__a2a.approval.reply({
+  "taskId": "task_xxx",
+  "approvalId": "apr_8f3c",
+  "approved": true
+})
+```
+
+拒绝用 `"approved": false`（任务终止）；要中止整个任务用 `a2a.task.cancel`。
+审批期间 VM 侧任务挂起，超时按拒绝处理（fail-closed）。
 
 **规则**：未经展示与确认，不得代替用户批准。审批超时按拒绝处理（fail-closed）。
 

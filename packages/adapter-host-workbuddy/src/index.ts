@@ -230,6 +230,26 @@ export class WorkBuddyRenderer implements HostRenderer {
       },
     ];
 
+    /* ---- 4b. A2A 委派桥连接器（可选） ----
+     * 宿主 Agent 只有 MCP client，无法直接发 A2A；本条目以本地 stdio MCP server 形态
+     * 提供 a2a.delegate 等工具，桥内部再用 A2A client 调 VM 侧 /a2a。 */
+    const bridge = plugin.a2aBridge;
+    if (bridge) {
+      const bridgeTransport = bridge.transports[0];
+      if (!bridgeTransport) {
+        throw new Error('a2aBridge.transports 为空，无法生成 A2A 连接器配置');
+      }
+      jsonPatches.push({
+        path: paths.connectorMcpJson,
+        pointer: `/mcpServers/connector:${bridge.id}`,
+        value: renderConnectorEntry(bridge, bridgeTransport),
+      });
+      warnings.push(
+        `已注册 A2A 委派桥连接器 connector:${bridge.id}：复杂 / 开放性任务用 a2a.delegate 交给 VM 内 AI Agent；` +
+          `单步、结构化任务仍走 connector:${plugin.connector.id} 的 MCP 能力工具（点分能力 ID）。`,
+      );
+    }
+
     /* ---- 5. 风险与后置提示 ---- */
     if (transport.kind === 'ssh-tunnel') {
       warnings.push(
@@ -379,7 +399,10 @@ export class WorkBuddyRenderer implements HostRenderer {
       const raw = await readFile(mcpPath, 'utf8');
       const json = JSON.parse(raw) as Record<string, unknown>;
       if (json['mcpServers'] && typeof json['mcpServers'] === 'object') {
-        delete (json['mcpServers'] as Record<string, unknown>)[`connector:${pluginId}`];
+        const servers = json['mcpServers'] as Record<string, unknown>;
+        delete servers[`connector:${pluginId}`];
+        // A2A 委派桥（若安装过）：约定 id 为 `${pluginId}-a2a`
+        delete servers[`connector:${pluginId}-a2a`];
         await writeFile(mcpPath, JSON.stringify(json, null, 2) + '\n', 'utf8');
       }
     } catch {

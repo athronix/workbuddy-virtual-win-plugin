@@ -3,11 +3,11 @@
 ## 顶层
 ```
 workbuddy-virtual-win-plugin/
-├── package.json              # workspace 根（npm workspaces，10 包）
+├── package.json              # workspace 根（npm workspaces，11 包）
 ├── tsconfig.base.json        # 共享 TS 配置（strict, ESM）
 ├── tsconfig.build.json       # 构建引用图
 ├── docs/                     # 调研 / 设计 / 交付文档
-├── packages/                 # 10 个可独立编译/发布的 npm 包
+├── packages/                 # 11 个可独立编译/发布的 npm 包
 ├── skills/                   # 6 个 WorkBuddy Skill（1 总控 + 5 领域）
 ├── tests/                    # unit/ + e2e/
 ├── delivery/                 # 安装器 + 部署配置
@@ -22,7 +22,8 @@ workbuddy-virtual-win-plugin/
 | `mcp-framework` | L2 协议 | MCP server/client（Streamable HTTP + stdio） |
 | `a2a-framework` | L2 协议 | A2A v1.0 server/client（AgentCard/message/send/stream/tasks/*/artifacts/input-required） |
 | `host-sdk` | L3 宿主规范 | 中性插件模型 SDK（patch/skill-loader/渲染抽象） |
-| `adapter-host-workbuddy` | L3 适配 | 把中性模型渲染为 WorkBuddy 原生 plugin.json/marketplace.json/connector mcp.json |
+| `adapter-host-workbuddy` | L3 适配 | 把中性模型渲染为 WorkBuddy 原生 plugin.json/marketplace.json/connector mcp.json（两个连接器：MCP 直调 + A2A 委派桥） |
+| `host-a2a-bridge` | L3 宿主 A2A 桥 | stdio MCP server，暴露 `a2a.delegate`/`task.get`/`approval.reply`/`task.cancel`/`health`，内部用 A2A client 调 VM `/a2a` |
 | `vm-capabilities` | L3 VM 能力 | ps-bridge 常驻进程 + system/app/storage/gui/appops 五大 PowerShell 模块 + 能力注册表 |
 | `adapter-agent-workbuddy` | L3 VM 适配 | VM 内确定性执行器（agent.provider=workbuddy-deterministic），实现桥接 SPI（可替换） |
 | `adapter-agent-workbuddy-llm` | L3 VM 适配 | **LLM Agent 执行器**（agent.provider=workbuddy，V1 实现），组合复用确定性执行器、仅 runGoal 为 LLM 驱动 |

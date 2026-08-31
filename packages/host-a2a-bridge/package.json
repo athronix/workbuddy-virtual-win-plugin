@@ -1,0 +1,21 @@
+{
+  "name": "@winvm/host-a2a-bridge",
+  "version": "0.1.0",
+  "description": "宿主机侧 A2A 委派桥：以本地 stdio MCP server 形态运行，把宿主 Agent 的 MCP 工具调用翻译为对 Windows VM 侧 /a2a 的 A2A v1.0 委派，并把进度、产物与审批事件按 A2A 规范回传宿主",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": { "winvm-a2a-bridge": "dist/cli.js" },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "files": ["dist"],
+  "scripts": { "build": "tsc -b" },
+  "dependencies": {
+    "@winvm/contracts": "0.1.0",
+    "@winvm/core": "0.1.0",
+    "@winvm/mcp-framework": "0.1.0",
+    "@winvm/a2a-framework": "0.1.0"
+  },
+  "layer": "L3-host-bridge"
+}

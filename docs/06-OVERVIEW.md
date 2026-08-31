@@ -1,9 +1,10 @@
 # 交付概览 · WinVM 跨机 Agent 插件（1+5 双通道方案）
 
 > 让宿主机 WorkBuddy 完全操作一台 Windows 虚拟机的完整实现已交付。
-> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 10 个包编译通过，124/124 测试通过。
+> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 11 个包编译通过，143/143 测试通过。
 > 已补齐"操作 Windows 软件应用进行生产活动"这一被遗漏的关键维度（appops 域 + winvm-app-operation Skill + LLM provider 开放任务路径）。
 > **VM 侧 AI Agent 已可经 `agent.provider` 一键切换**：`workbuddy-deterministic`（确定性，默认）/ `workbuddy`（LLM Agent，V1 已实现）。
+> **双通道已完整闭环**：简单任务 → 宿主 MCP client 直调 VM 的 MCP 工具；复杂任务 → 宿主经 A2A 委派桥（`host-a2a-bridge`）把目标交给 VM 内 AI Agent，过程与产物按 A2A 规范回流。
 
 ---
 
@@ -54,8 +55,8 @@
 
 | 项 | 结果 |
 |----|------|
-| 全量编译 `tsc -b` | ✅ 10/10 包通过 |
-| 单元测试 + 端到端 | ✅ **124/124 通过**（含 LLM provider 5 项 + 双端脚本 6 项） |
+| 全量编译 `tsc -b` | ✅ 11/11 包通过 |
+| 单元测试 + 端到端 | ✅ **143/143 通过**（含 LLM provider 10 项 + 委派桥 11 项 + 双端脚本 6 项） |
 | ps-bridge 真实链路 | ✅ 真实 PowerShell 5.1，五大模块加载，返回真实系统数据 |
 | 安装器 dry-run | ✅ 6 Skill / 7 文件 / 1 增量补丁 / 静态禁用 8 高危工具 |
 | VM 服务配置校验 | ✅ 0 错误 0 警告，强制回环绑定 |
@@ -71,7 +72,10 @@
 - `05-peripherals/` 部署指南 + 用户手册
 - `06-OVERVIEW.md` 本文件
 
-**代码（packages/ 10 包）**：contracts · core · mcp-framework · a2a-framework · host-sdk · adapter-host-workbuddy · vm-capabilities · adapter-agent-workbuddy · **adapter-agent-workbuddy-llm（LLM Agent）** · vm-service
+| 端到端委派冒烟 | ✅ 宿主桥（stdio MCP）→ A2A → VM provider → ps-bridge → PowerShell，目标"查看系统信息"返回 `completed` 并带回产物 |
+| 空闲自愈 | ✅ ps-bridge 空闲 55s 后仍可正常委派（修复前必失败，见 `HOST-A2A-BRIDGE.md` §7） |
+
+**代码（packages/ 11 包）**：contracts · core · mcp-framework · a2a-framework · host-sdk · adapter-host-workbuddy · **host-a2a-bridge（宿主 A2A 委派桥）** · vm-capabilities · adapter-agent-workbuddy · **adapter-agent-workbuddy-llm（LLM Agent）** · vm-service
 
 **Skills（skills/ 6）**：winvm-orchestrator + system/app/storage/gui + **app-operation（应用生产操作）**
 

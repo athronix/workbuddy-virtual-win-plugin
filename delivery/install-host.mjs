@@ -5,8 +5,10 @@
  * 把中性 Skills 与连接器声明渲染并安装到 WorkBuddy：
  *   ~/.workbuddy/plugins/cache/winvm/winvm-bridge/<ver>/   （插件清单）
  *   ~/.workbuddy/plugins/marketplaces/winvm/               （市场清单）
- *   ~/.workbuddy/connectors/skills/connector-winvm/<skill>/ （1+4 Skills）
- *   ~/.workbuddy/connectors/<account>/mcp.json              （增量合并，不覆盖）
+ *   ~/.workbuddy/connectors/skills/connector-winvm/<skill>/ （1+5 Skills）
+ *   ~/.workbuddy/connectors/<account>/mcp.json              （增量合并，不覆盖：
+ *                                                              connector:winvm     = MCP 直调通道
+ *                                                              connector:winvm-a2a = A2A 委派桥）
  *
  * 用法：
  *   node delivery/install-host.mjs [--dry-run] [--host <ip>] [--user <name>]
@@ -14,12 +16,16 @@
  *                                  [--account <id>] [--uninstall]
  */
 
+import { existsSync, mkdirSync, cpSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadSkillBundles, validateNeutralPlugin } from '@winvm/host-sdk';
-import { WorkBuddyRenderer } from '@winvm/adapter-host-workbuddy';
+import {
+  WorkBuddyRenderer,
+  resolveWorkBuddyPaths,
+} from '@winvm/adapter-host-workbuddy';
 import { WINDOWS_CAPABILITIES } from '@winvm/vm-capabilities';
 
 /* ------------------------------ 参数 ------------------------------ */
@@ -125,7 +131,7 @@ async function main() {
 
   if (args.uninstall) {
     await renderer.uninstall('winvm', ctx);
-    console.log('已卸载 winvm 连接器条目（插件与 Skills 目录未删除，可手动清理）');
+    console.log('已卸载 winvm 与 winvm-a2a 连接器条目（插件与 Skills 目录未删除，可手动清理）');
     return;
   }
 
@@ -136,6 +142,47 @@ async function main() {
   console.log('');
 
   const plugin = await buildPlugin(args, skillsRoot);
+
+  /* ---- A2A 委派桥：随插件落地，并注册为第二个连接器条目 ----
+   * 宿主 Agent 只有 MCP client，桥以本地 stdio MCP server 提供 a2a.delegate，
+   * 内部再用 A2A client 调 VM 侧 /a2a，补齐"复杂任务委派"这一跳。 */
+  const paths = resolveWorkBuddyPaths(plugin, ctx);
+  const bridgeSrc = join(repoRoot, 'packages', 'host-a2a-bridge', 'dist');
+  const bridgeDest = join(paths.pluginRoot, 'a2a-bridge');
+  if (!existsSync(bridgeSrc)) {
+    throw new Error(`未找到 A2A 桥构建产物：${bridgeSrc}（请先执行 npm run build）`);
+  }
+  if (args.dryRun) {
+    console.log(`A2A 委派桥 : ${bridgeSrc} → ${bridgeDest}  [dry-run 未复制]`);
+  } else {
+    mkdirSync(bridgeDest, { recursive: true });
+    cpSync(bridgeSrc, bridgeDest, { recursive: true });
+    console.log(`A2A 委派桥 : 已复制到 ${bridgeDest}`);
+  }
+  plugin.a2aBridge = {
+    id: 'winvm-a2a',
+    displayName: 'Windows 虚拟机 · A2A 委派',
+    transports: [
+      {
+        kind: 'stdio',
+        command: process.execPath,
+        args: [
+          join(bridgeDest, 'cli.js'),
+          '--endpoint',
+          `http://127.0.0.1:${args.localPort}`,
+          '--timeout',
+          '600000',
+        ],
+      },
+    ],
+    disabledTools: [],
+    timeoutMs: 600000,
+  };
+
+  const bridgeReport = validateNeutralPlugin(plugin);
+  for (const i of bridgeReport.issues) console.log(`  [${i.level}] ${i.message}`);
+  if (!bridgeReport.ok) throw new Error('中性插件模型校验失败（含 A2A 委派桥），已中止');
+
   const plan = renderer.plan(plugin, ctx);
 
   console.log(`已加载 ${plugin.skills.length} 个 Skill：`);

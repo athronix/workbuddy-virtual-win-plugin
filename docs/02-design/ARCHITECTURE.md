@@ -122,7 +122,8 @@
 | L1b | `packages/mcp-framework` | **MCP 架构框架**：Server（工具注册/校验/执行/audit 织入）、Client（连接/重试/超时）、Streamable HTTP + stdio 传输适配 | MCP 架构框架 |
 | L1b | `packages/a2a-framework` | **A2A 架构框架**：Agent Card 生成与签名、Task 状态机、`message/send`、`message/stream`(SSE)、`tasks/get`、`tasks/list`、`tasks/cancel`、`tasks/subscribe`、artifact 管理、`input-required` 审批闸 | A2A 架构框架 |
 | L1c | `packages/host-sdk` | **宿主机 Agent 插件规范 SDK**：抽象插件模型（PluginManifest / SkillBundle / ConnectorDecl / LifecycleHooks），负责把中性规范**渲染**为具体宿主格式 | 宿主插件规范 |
-| L2 | `packages/adapter-host-workbuddy` | **宿主 WorkBuddy 适配器**：产出 `.codebuddy-plugin/plugin.json`、`marketplace.json`、`connectors/.../mcp.json`、`connectors/skills/connector-winvm/<6 skills>` | 宿主 V1 |
+| L2 | `packages/adapter-host-workbuddy` | **宿主 WorkBuddy 适配器**：产出 `.codebuddy-plugin/plugin.json`、`marketplace.json`、`connectors/.../mcp.json`（两个连接器：MCP 直调 + A2A 委派桥）、`connectors/skills/connector-winvm/<6 skills>` | 宿主 V1 |
+| L2 | `packages/host-a2a-bridge` | **宿主侧 A2A 委派桥**：以本地 stdio MCP server 形态补齐宿主的 A2A 一跳；对外暴露 `a2a.delegate` 等工具，内部用 `A2AClient` 调 VM 侧 `/a2a`，把进度/产物/审批事件翻译回 MCP 结果（见 `HOST-A2A-BRIDGE.md`） | 宿主 A2A 通道 |
 | L2 | `packages/vm-service` | **VM 侧标准 Agent 服务**：同时暴露 MCP `/mcp` 与 A2A `/a2a` + `/.well-known/agent-card.json`；编排 能力注册表→策略→审计→能力执行 | VM 服务层 |
 | L2 | `packages/vm-capabilities` | **Windows 能力实现**：`ps-bridge` 常驻 PowerShell 进程 + 五大能力域（system / app / storage / gui / appops）的 PowerShell 模块与安全封装 | 能力层 |
 | L2 | `packages/adapter-agent-workbuddy` | **VM 内 Agent 适配器 V1**：实现 `AgentServiceProvider` SPI；默认 `workbuddy-deterministic`（确定性轻量执行器，不依赖 LLM），可通过改 `agent.provider` 平滑升级为 LLM provider（如 VM 内 WorkBuddy `codebuddy` CLI，开放任务大脑） | VM Agent V1 |
@@ -323,6 +324,8 @@ skills/<name>/
 | ADR-8 | 契约集中在 `contracts` 包 | 各包自建类型 | 单一事实源，契约校验可 CI 化 |
 | ADR-9 | 新增 **appops（应用生产操作）第五能力域** | 仅在 gui 域堆叠 | 用户要的"操作 Windows 软件应用进行生产活动"是独立维度：与 gui（交互/自动化原语）解耦，承载 应用状态/CLI 调度/工作流/ COM 自动化/ GUI 生产；确定性 V1 与后续 LLM provider 共用同一契约 |
 | ADR-10 | `agent.provider` 作 VM 侧 AI Agent 总开关；V1 落地 `workbuddy`（LLM）选型 | 把 LLM 写死进确定性执行器 | 可插拔 provider 经 loader 动态 `import`，切换仅改 `agent.provider` 一行；V1 先实现 `workbuddy`（VM 内 `codebuddy` CLI 运行时），后续可加 `hermes`/`remote-proxy` 等，框架零改动（见 `LLM-PROVIDER.md`） |
+| ADR-11 | 宿主侧以 **stdio MCP 桥** 补齐 A2A 一跳；简单任务走 MCP 直调、复杂任务走 A2A 委派 | 要求宿主原生支持 A2A；或把委派塞进 VM 侧某个 MCP 工具 | 宿主（WorkBuddy）是 MCP client 而非 A2A client，扩展点只有 MCP 连接器；桥以本地 stdio MCP server 落地，宿主零改造即可发 A2A，且同一条 SSH 隧道同时承载 `/mcp` 与 `/a2a`，不新增暴露面（见 `HOST-A2A-BRIDGE.md`） |
+| ADR-12 | ps-bridge 看门狗**先 ping 探测再重启**，并真正实现自动重启 | 仅凭"心跳超时"直接 kill（原注释声称重启但未实现） | ps-bridge.ps1 主循环在等 stdin 时阻塞、空闲期发不出心跳，原逻辑会把健康进程误杀且永不恢复（服务空闲约 45s 后必废）。改为 ping 得通即视为健康；ping 不通才 kill + 重新 spawn，并修复"旧进程 exit 回调误清新进程引用"的竞态 |
 
 ---
 

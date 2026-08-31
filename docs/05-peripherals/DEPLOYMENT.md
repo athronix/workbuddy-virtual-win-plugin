@@ -166,8 +166,21 @@ node delivery/install-host.mjs \
 安装器会：
 1. 把 6 个 Skill 渲染为 WorkBuddy `connector-skills/connector-winvm/*/SKILL.md`
 2. 生成插件清单 `plugin.json` + `marketplace.json`
-3. 以 **增量 JSON patch** 方式写入 `connectors/default/mcp.json`（pointer `/mcpServers/connector:winvm`），**绝不整体覆盖**用户已有连接器
-4. **静态禁用 8 个高危工具**（`disabledTools`），需显式解除 + 审批才可用
+3. 以 **增量 JSON patch** 方式写入 `connectors/default/mcp.json`，产出 **两个连接器条目**，**绝不整体覆盖**用户已有连接器：
+
+   | 连接器 | 指针 | 形态 | 用途 |
+   |---|---|---|---|
+   | `winvm` | `/mcpServers/connector:winvm` | `streamableHttp` → VM `/mcp` | 简单任务：MCP 直调点分能力 ID |
+   | `winvm-a2a` | `/mcpServers/connector:winvm-a2a` | `stdio` → 本地 `a2a-bridge/cli.js` | 复杂任务：`a2a.delegate` 委派给 VM 内 AI Agent |
+
+4. 把 A2A 委派桥产物复制到插件目录 `plugins/cache/winvm/winvm-bridge/<ver>/a2a-bridge/`
+5. **静态禁用 8 个高危工具**（`disabledTools`），需显式解除 + 审批才可用
+
+> **为什么宿主侧要跑一个本地桥**：宿主（WorkBuddy）是 **MCP client，不是 A2A client**，
+> 它的扩展点只有 MCP 连接器。`host-a2a-bridge` 以本地 stdio MCP server 形态补齐这一跳——
+> 宿主调 `a2a.delegate`，桥内部再用 A2A client 调 VM 侧 `/a2a`。
+> 桥与 MCP 通道**共用同一条 SSH 隧道**（`/mcp` 与 `/a2a` 并存），不新增任何暴露面。
+> 详见 `docs/02-design/HOST-A2A-BRIDGE.md`。
 
 ### 4.2 建立 SSH 隧道（关键）
 

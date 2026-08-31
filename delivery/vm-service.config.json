@@ -25,7 +25,8 @@
           "cliPath": "codebuddy",
           "endpoint": "http://127.0.0.1:18443/mcp",
           "maxConcurrency": 2,
-          "outputDir": "%USERPROFILE%\\WinVMWorkspace\\out"
+          "outputDir": "%USERPROFILE%\\WinVMWorkspace\\out",
+          "skillsRoot": "C:/WinVMBridge/skills"
         }
       }
     }

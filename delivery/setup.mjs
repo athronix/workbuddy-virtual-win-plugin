@@ -8,8 +8,9 @@
  * 所有副作用（构建/安装/ssh）均在 --apply 下发生，且单步失败不影响其它步骤（仅汇总报错）。
  */
 
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { readFileSync, existsSync, rmSync } from 'node:fs';
+import { readdir } from 'node:fs/promises';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 
@@ -103,7 +104,7 @@ export function buildPlan(cfg) {
       steps.push({
         phase: 'VM',
         description: `部署 VM 侧（scp 产物 → ssh ${cfg.vmUser}@${cfg.vmHost} 运行 install-vm.mjs，provider=${cfg.vmProvider}）[${mode}]`,
-        command: `scp -P ${cfg.vmSshPort} -r delivery packages/*/dist package.json ${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir} && ssh ${cfg.vmUser}@${cfg.vmHost} "cd ${cfg.vmDeployDir} && npm ci --omit=dev && node delivery/install-vm.mjs --provider ${cfg.vmProvider} --cli ${cfg.workbuddyCli}"`,
+        command: `tar -czf ${VM_ARCHIVE} delivery skills packages/*/dist package.json && scp -P ${cfg.vmSshPort} ${VM_ARCHIVE} ${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir} && ssh ${cfg.vmUser}@${cfg.vmHost} "${vmInstallCommand(cfg)}"`,
         apply: !cfg.dryRun,
       });
     } else {
@@ -130,6 +131,79 @@ export function buildPlan(cfg) {
     apply: !cfg.dryRun,
   });
   return steps;
+}
+
+/* ----------------------------- VM 分发 ----------------------------- */
+
+/** 传到 VM 的产物包名（打包保留 packages/<name>/dist 层级，避免同名 dist 互相覆盖） */
+export const VM_ARCHIVE = 'winvm-dist.tgz';
+
+/** 已构建包的 dist 相对路径列表 */
+export async function distPaths() {
+  const pkgRoot = join(ROOT, 'packages');
+  let names = [];
+  try {
+    names = await readdir(pkgRoot);
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const n of names) {
+    if (existsSync(join(pkgRoot, n, 'dist'))) out.push(`packages/${n}/dist`);
+  }
+  return out;
+}
+
+/** VM 侧安装命令（dist 已随包分发，故跳过依赖安装与构建） */
+export function vmInstallCommand(cfg) {
+  return (
+    `cd ${cfg.vmDeployDir} && tar -xzf ${VM_ARCHIVE} && del /Q ${VM_ARCHIVE} && ` +
+    `node delivery/install-vm.mjs --skip-install --skip-build ` +
+    `--provider ${cfg.vmProvider} --cli ${cfg.workbuddyCli}`
+  );
+}
+
+/**
+ * VM 侧分发：确保目录 → 打包（delivery + skills + 各包 dist）→ 传输 → 解压 → 安装
+ * skills 一并下发，作为 VM 内 AI Agent 的技能规范与操作指引。
+ */
+export async function deployVm(cfg) {
+  const sources = ['delivery', 'skills', ...(await distPaths()), 'package.json'].filter((p) =>
+    existsSync(join(ROOT, p)),
+  );
+  if (sources.length === 0) return { ok: false, code: -1, out: '没有任何可分发产物，请先执行 npm run build' };
+
+  const mkdir = await run(
+    'ssh',
+    [
+      '-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`,
+      `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${cfg.vmDeployDir}' | Out-Null"`,
+    ],
+    { timeoutMs: 60_000 },
+  );
+  if (!mkdir.ok) return { ok: false, code: mkdir.code, out: `创建 VM 部署目录失败：${mkdir.out.slice(0, 300)}` };
+
+  const pack = await run('tar', ['-czf', VM_ARCHIVE, ...sources], { timeoutMs: 120_000 });
+  if (!pack.ok) return { ok: false, code: pack.code, out: `打包产物失败：${pack.out.slice(0, 300)}` };
+
+  const cp = await run(
+    'scp',
+    ['-P', String(cfg.vmSshPort), VM_ARCHIVE, `${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir}`],
+    { timeoutMs: 300_000 },
+  );
+  if (!cp.ok) return { ok: false, code: cp.code, out: `传输产物失败：${cp.out.slice(0, 300)}` };
+
+  const r = await run(
+    'ssh',
+    ['-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`, vmInstallCommand(cfg)],
+    { timeoutMs: 300_000 },
+  );
+  try {
+    rmSync(join(ROOT, VM_ARCHIVE), { force: true });
+  } catch {
+    /* 清理失败不影响部署结果 */
+  }
+  return r;
 }
 
 /* ----------------------------- 执行辅助 ----------------------------- */
@@ -255,15 +329,12 @@ async function main() {
         failed++;
         continue;
       }
-      const r = await run('ssh', [
-        '-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`,
-        `cd ${cfg.vmDeployDir} && npm ci --omit=dev && node delivery/install-vm.mjs --provider ${cfg.vmProvider} --cli ${cfg.workbuddyCli}`,
-      ], { timeoutMs: 180_000 });
+      const r = await deployVm(cfg);
       if (!r.ok) {
         log(`   VM 部署失败：${r.out.slice(0, 400)}`);
         failed++;
       } else {
-        log('   VM 部署完成');
+        log('   VM 部署完成（产物 + skills 技能规范已分发，已注册自启并自检）');
       }
       continue;
     }

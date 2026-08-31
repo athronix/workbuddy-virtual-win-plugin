@@ -59,7 +59,16 @@ export interface LifecycleHooks {
 export interface NeutralPlugin {
   readonly manifest: PluginManifest;
   readonly skills: readonly SkillBundle[];
+  /** 主连接器：MCP 直调通道（简单任务，单步、结构化、可精确控制） */
   readonly connector: ConnectorDecl;
+  /**
+   * A2A 委派桥连接器（可选）：宿主侧 A2A client 通道（复杂任务，多步自主规划 / 强 GUI / 开放意图）。
+   *
+   * 宿主 Agent 通常只具备 MCP client 能力，不直接说 A2A。因此本连接器以
+   * **本地 stdio MCP server** 形态落地：宿主经 MCP 调它的委派工具，桥内部再用
+   * A2A client 调 VM 侧 /a2a，并把 A2A 的进度 / 产物 / 审批事件翻译回 MCP 结果。
+   */
+  readonly a2aBridge?: ConnectorDecl;
   readonly lifecycle?: LifecycleHooks;
 }
 

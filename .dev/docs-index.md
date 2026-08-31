@@ -8,6 +8,7 @@
 5. `docs/02-design/SPEC-HOST-AGENT-PLUGIN.md` —— 宿主机 Agent 插件规范（解耦）
 6. `docs/02-design/SPEC-AGENT-SERVICE-BRIDGE.md` —— 标准 Agent 服务桥接转换层规范（SPI）
 6.5 `docs/02-design/LLM-PROVIDER.md` —— LLM provider（双 provider / `workbuddy` 选型）实现设计
+6.6 `docs/02-design/HOST-A2A-BRIDGE.md` —— 宿主侧 A2A 委派桥与双通道完善（简单任务 MCP 直调 / 复杂任务 A2A 委派 + ps-bridge 空闲自愈）
 7. `docs/02-design/SPEC-SKILLS.md` —— Skills 框架规范
 8. `docs/02-design/INTERFACES.md` —— MCP tools / A2A skills / 内部 API 契约
 9. `docs/02-design/SECURITY-GOVERNANCE.md` —— 风险分级/策略引擎/审批闸/防篡改审计/会话保活

@@ -76,6 +76,8 @@ export class PsBridge {
     { resolve: (v: PsCallResult) => void; reject: (e: Error) => void; timer: NodeJS.Timeout }
   >();
   private lastHeartbeatAtMs = 0;
+  /** 自动重启进行中（防止看门狗重入） */
+  private restarting = false;
   private heartbeatTimer: NodeJS.Timeout | undefined;
   private startedAtMs = 0;
   private stderrTail = '';
@@ -114,6 +116,11 @@ export class PsBridge {
     }
 
     this.stopped = false;
+    await this.spawnAndReady();
+  }
+
+  /** 拉起子进程、挂上看门狗并等待握手就绪（start 与自动重启共用） */
+  private async spawnAndReady(): Promise<void> {
     this.lastHeartbeatAtMs = Date.now();
     this.startedAtMs = Date.now();
 
@@ -133,30 +140,72 @@ export class PsBridge {
       this.stderrTail = (this.stderrTail + s).slice(-8192);
       this.onStderr?.(s);
     });
-    this.child.once('exit', (code) => {
+    // 捕获本次子进程引用：exit 是异步事件，自动重启后旧进程的 exit 可能晚于新进程 spawn，
+    // 若不比对就把 this.child 置空，会把**新进程**误清成 undefined，导致 running 永久 false。
+    const spawned = this.child;
+    spawned.once('exit', (code) => {
       const err = new PsBridgeError(
         'PSBRIDGE_EXITED',
         `ps-bridge 进程退出（code=${code}）。stderr: ${this.stderrTail.trim() || '(空)'}`,
       );
       this.failAll(err);
-      this.child = undefined;
+      if (this.child === spawned) this.child = undefined;
     });
 
     // 心跳看门狗
-    this.heartbeatTimer = setInterval(() => {
-      if (!this.running) return;
-      if (Date.now() - this.lastHeartbeatAtMs > this.heartbeatTimeoutMs) {
-        const err = new PsBridgeError(
-          'PSBRIDGE_HEARTBEAT_TIMEOUT',
-          `ps-bridge 超过 ${this.heartbeatTimeoutMs}ms 未心跳，判定僵死，将重启`,
-        );
-        this.failAll(err);
-        this.kill();
-      }
-    }, 5_000);
-    this.heartbeatTimer.unref?.();
+    if (!this.heartbeatTimer) {
+      this.heartbeatTimer = setInterval(() => {
+        void this.watchdog();
+      }, 5_000);
+      this.heartbeatTimer.unref?.();
+    }
 
     await this.ready();
+  }
+
+  /**
+   * 看门狗：心跳超时后**先主动 ping 探测**，再决定是否重启。
+   *
+   * 背景（关键修复）：ps-bridge.ps1 的主循环在等待 stdin 时是阻塞的，
+   * 空闲期间发不出心跳。若仅凭"长时间未收到心跳"就直接 kill，
+   * 常驻服务会在空闲约 45s 后被误杀且永不恢复（表现为"刚装好能用，过一会儿就废"）。
+   * 因此改为：ping 得通 → 只是没发心跳，刷新时间戳即可；ping 不通 → 判定僵死并重启。
+   */
+  private async watchdog(): Promise<void> {
+    if (!this.running || this.restarting || this.stopped) return;
+    if (Date.now() - this.lastHeartbeatAtMs <= this.heartbeatTimeoutMs) return;
+    try {
+      const res = await this.rawCall('__meta', 'ping', {}, 5_000);
+      if (res.ok) {
+        // 进程健康，仅补记心跳时间，避免误杀
+        this.lastHeartbeatAtMs = Date.now();
+        return;
+      }
+      await this.restart('ping 返回 not ok');
+    } catch {
+      await this.restart('ping 超时或失败');
+    }
+  }
+
+  /** 判定僵死后自动重启（防重入；stop() 之后不再重启） */
+  private async restart(reason: string): Promise<void> {
+    if (this.restarting || this.stopped) return;
+    this.restarting = true;
+    try {
+      this.failAll(
+        new PsBridgeError(
+          'PSBRIDGE_HEARTBEAT_TIMEOUT',
+          `ps-bridge 超过 ${this.heartbeatTimeoutMs}ms 未心跳且探测失败（${reason}），正在重启`,
+        ),
+      );
+      this.kill();
+      await this.spawnAndReady();
+      this.onStderr?.(`[ps-bridge] 已自动重启（原因：${reason}）`);
+    } catch (e) {
+      this.onStderr?.(`[ps-bridge] 自动重启失败：${(e as Error).message}`);
+    } finally {
+      this.restarting = false;
+    }
   }
 
   /** 等待 bridge 就绪（握手） */

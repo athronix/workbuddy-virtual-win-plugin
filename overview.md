@@ -53,3 +53,43 @@
 
 - VM 真机跑一次 `install-vm.mjs` + `cli.js --self-test`；建立 SSH 隧道后从宿主机 WorkBuddy 实际调用工具闭环双通道。
 - "大山→海洋"类开放任务现已可直接将 `.env` 的 `WINVM_VM_PROVIDER=workbuddy` 切到 LLM provider，无需改任何桥接层 / MCP / A2A / Skill 代码。
+- 真机确认 `codebuddy --help` 的参数形态（当前默认契约见下 §八）；若不同，用 `cliArgTemplate` 覆盖。
+
+---
+
+## 八、第三轮：双通道完善（宿主 A2A 委派桥 + 空闲自愈）
+
+### 修复的设计缺陷：宿主侧 A2A 断链
+
+原实现里 VM 侧 A2A 服务端（`/a2a` + AgentCard + SSE）已完备，但**宿主侧没有发起 A2A 的接入点**：`adapter-host-workbuddy` 只渲染 MCP 条目（指向 `/mcp`），54 个 MCP 工具里没有任何能发起 `runGoal` 的委派工具。VM 侧的 A2A 服务端一直在等一个永远不会从宿主发起的请求。
+
+根因是宿主的能力边界：**WorkBuddy 是 MCP client，不是 A2A client**，它的扩展点只有 MCP 连接器。
+
+### 方案：两条通道各司其职
+
+| 任务 | 通道 | 宿主侧连接器 | 工具 |
+|---|---|---|---|
+| 简单任务（单步、结构化、可精确控制） | MCP 直调 | `winvm`（streamableHttp → VM `/mcp`） | 点分能力 ID：`system.info.get`、`appops.cli.invoke`… |
+| 复杂任务（多步自主规划 / 强 GUI / 开放意图） | A2A 委派 | `winvm-a2a`（stdio → 本地 `a2a-bridge/cli.js`） | `a2a.delegate`、`a2a.task.get`、`a2a.approval.reply`、`a2a.task.cancel`、`a2a.health` |
+
+新增包 **`packages/host-a2a-bridge`**：以本地 stdio MCP server 形态补齐宿主的 A2A 一跳——宿主经 MCP 调 `a2a.delegate`，桥内部用 `A2AClient` 调 VM 侧 `/a2a`，把进度（`status-update`）、产物（`artifact-update`，图片直接作为图像内容回传）、审批（`input-required`）翻译回 MCP 结果。桥与 MCP 通道**共用同一条 SSH 隧道**，不新增暴露面。
+
+### VM 内 Agent 的技能下发
+
+`setup.mjs` 把 `skills/` 随产物打包传到 VM；provider 按 `skillsRoot` 加载各 `SKILL.md`，落盘到工作区 `.winvm/skills/` 并把摘要注入系统提示。VM 内 Agent 据此拆解步骤，技能未覆盖时可**自行编写脚本**并用 `appops.cli.invoke` 执行。产物也不再只在结束时一次性收集——任务过程中节流扫描输出目录，新增文件经 `sink.onArtifact` **实时回传**宿主。
+
+### 顺带修复的严重缺陷：ps-bridge 空闲后永久失效
+
+**现象**：VM 服务启动后可用，**空闲约 45 秒后所有调用失败**（`ps-bridge 未就绪`）且永不恢复。
+**根因**：① `ps-bridge.ps1` 主循环在等 stdin 时阻塞，空闲期发不出心跳；② 看门狗仅凭"心跳超时"直接 `kill()`，注释声称"将重启"但代码里**没有重启逻辑**；③ 进程引用被清空后无人拉起。
+**修复**：看门狗超时后**先主动 ping 探测**（通即视为健康、只刷新时间戳，不再误杀），不通才真正重启；并修复"旧进程 exit 回调晚于新进程 spawn、把新进程引用误清"的竞态。
+**验证**：启动后立即委派 → `completed`；空闲 55 秒后再委派 → `completed`（修复前必失败）。
+
+### 验证结果（第三轮）
+
+- `npm run build` ✅ 11/11 包；`npm test` ✅ **143/143 通过**（新增委派桥 11 项 + 技能/CLI 契约 5 项）
+- 宿主安装器 dry-run ✅ 8 文件 + **2 个增量补丁**（`connector:winvm`、`connector:winvm-a2a`）
+- 端到端冒烟（真实进程）✅ `initialize` → `tools/list`（5 个委派工具）→ `a2a.health`（拉到 Agent Card 5 个技能）→ `a2a.delegate` "查看系统信息" → **`state: completed`** 并回传产物
+- 空闲自愈 ✅（见上）
+
+> ⚠ 仍未真机验证：`codebuddy` CLI 参数契约（可用 `cliArgTemplate` 覆盖）、宿主是否同时启用两个连接器、GUI 类开放任务。已记入 `.dev/changing-log.md`。

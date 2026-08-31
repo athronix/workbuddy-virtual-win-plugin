@@ -67,11 +67,39 @@ export function validateNeutralPlugin(plugin: NeutralPlugin): ValidationReport {
       else if (!t.url.startsWith('https://')) {
         push('warning', `url 使用 http（${t.url}）：明文传输，仅限受信任内网或本机回环`, path);
       }
-      if (!t.tokenEnv) push('error', 'streamable-http 必须指定 tokenEnv（禁止明文 token）', path);
+      if (!t.tokenEnv) {
+        // 回环地址（SSH 隧道映射到本机）无需 token；直连非回环必须凭据
+        const isLoopback = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/.test(t.url);
+        if (!isLoopback) {
+          push('error', 'streamable-http 直连非回环地址必须指定 tokenEnv（禁止明文 token）', path);
+        }
+      }
     }
   }
 
   if (c.timeoutMs < 1000) push('warning', `connector.timeoutMs=${c.timeoutMs} 过小`, 'connector.timeoutMs');
+
+  /* ---- a2aBridge（可选）：A2A 委派桥连接器 ---- */
+  const b = plugin.a2aBridge;
+  if (b) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(b.id)) {
+      push('error', `a2aBridge.id 非法（需小写字母数字与连字符）：${b.id}`, 'a2aBridge.id');
+    }
+    if (b.id === c.id) {
+      push('error', `a2aBridge.id 不得与 connector.id 相同（${b.id}）`, 'a2aBridge.id');
+    }
+    if (b.transports.length === 0) push('error', 'a2aBridge.transports 为空', 'a2aBridge.transports');
+    for (const [i, t] of b.transports.entries()) {
+      const path = `a2aBridge.transports[${i}]`;
+      if (t.kind === 'stdio' && !t.command) push('error', 'stdio 传输缺少 command', path);
+      if (t.kind === 'ssh-tunnel') {
+        if (!t.host) push('error', 'ssh-tunnel 缺少 host', path);
+        if (!t.user) push('error', 'ssh-tunnel 缺少 user', path);
+        if (t.localPort < 1 || t.localPort > 65535) push('error', `localPort 非法：${t.localPort}`, path);
+        if (t.remotePort < 1 || t.remotePort > 65535) push('error', `remotePort 非法：${t.remotePort}`, path);
+      }
+    }
+  }
 
   // 凭据红线：任何传输都不得内联明文凭据
   const serialized = JSON.stringify(plugin);

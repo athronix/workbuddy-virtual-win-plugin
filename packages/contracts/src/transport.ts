@@ -24,8 +24,12 @@ export interface SshTunnelTransport {
 export interface StreamableHttpTransport {
   readonly kind: 'streamable-http';
   readonly url: string;
-  /** token 的环境变量名（禁止明文落盘，NFR-511） */
-  readonly tokenEnv: string;
+  /**
+   * token 的环境变量名（禁止明文落盘，NFR-511）。
+   * 可选：**回环地址**（经 SSH 隧道映射到本机的 127.0.0.1）无需 bearer token，
+   * 因为 VM 侧服务本身只监听 127.0.0.1 且不对外暴露；直连非回环地址时必须指定。
+   */
+  readonly tokenEnv?: string;
   readonly timeoutMs?: number;
 }
 

@@ -41,6 +41,7 @@ function parseArgs(argv) {
     selfTest: false,
     uninstall: false,
     skipBuild: false,
+    skipInstall: false,
     config: undefined,
     port: 18443,
     taskName: 'WinVMBridge.Service',
@@ -53,6 +54,7 @@ function parseArgs(argv) {
       case '--self-test': out.selfTest = true; break;
       case '--uninstall': out.uninstall = true; break;
       case '--skip-build': out.skipBuild = true; break;
+      case '--skip-install': out.skipInstall = true; break;
       case '--config': out.config = argv[++i]; break;
       case '--port': out.port = Number(argv[++i]); break;
       case '--provider': out.provider = argv[++i]; break;
@@ -158,7 +160,7 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg) {
 function planSteps(args, cfgPath) {
   const steps = [];
   steps.push(`校验配置: ${cfgPath}`);
-  steps.push(`npm ci （按 lockfile 精确还原依赖）${args.skipBuild ? '  [跳过]' : ''}`);
+  steps.push(`npm ci （按 lockfile 精确还原依赖）${args.skipInstall ? '  [跳过 --skip-install]' : ''}`);
   if (!args.skipBuild) steps.push('npm run build （编译所有 packages → dist/）');
   steps.push(`生成运行配置: ${runtimeConfig}（强制 host=127.0.0.1, port=${args.port}）`);
   steps.push(`注册任务计划程序任务: ${args.taskName}（登录即启 / 崩溃重启 / 仅交互式会话）`);
@@ -249,10 +251,15 @@ function main() {
     return;
   }
 
-  /* 1. npm ci */
-  console.log('[1/5] npm ci ...');
-  let r = run('npm', ['ci', '--registry=https://registry.npmmirror.com'], { stdio: 'inherit' });
-  if (r.status !== 0) { console.error('npm ci 失败'); process.exit(1); }
+  /* 1. npm ci（产物已分发时可跳过） */
+  let r;
+  if (args.skipInstall) {
+    console.log('[1/5] 跳过依赖安装（--skip-install：dist 已由宿主机构建并分发）');
+  } else {
+    console.log('[1/5] npm ci ...');
+    r = run('npm', ['ci', '--registry=https://registry.npmmirror.com'], { stdio: 'inherit' });
+    if (r.status !== 0) { console.error('npm ci 失败'); process.exit(1); }
+  }
 
   /* 2. build */
   if (!args.skipBuild) {
