@@ -86,8 +86,8 @@ node delivery/setup.mjs --apply --env=/path/to/.env
 
 | 角色 | 要求 |
 |------|------|
-| 宿主机 | 已安装 WorkBuddy；Node.js ≥ 18；能 SSH 到虚拟机（密钥或密码）；可读取 `~/.workbuddy` 配置目录 |
-| 虚拟机 | Windows 10/11 或 Server 2016+；PowerShell 5.1+（代码已兼容 5.1，无需 PS7）；网络可达宿主机 SSH 端口；防火墙放行 18443 仅 `127.0.0.1` |
+| 宿主机 | 已安装 WorkBuddy；Node.js ≥ 18；能 SSH 到被控端（**推荐密钥**，见 §7.2）；可读取 `~/.workbuddy` 配置目录 |
+| 虚拟机 | Windows 10/11 或 Server 2016+；PowerShell 5.1+（代码已兼容 5.1，无需 PS7）；**若被控端是远程 Windows，需开启 OpenSSH Server 且 22 端口从宿主可达**（本地 VM 通常已具备）；`vm-service` 仅监听 `127.0.0.1` |
 
 > ⚠️ **安全红线**：VM 侧 `vm-service` **只允许监听 `127.0.0.1`**。任何将 `0.0.0.0` 暴露到公网的配置都属高危，违反 SECURITY-GOVERNANCE 规范。
 
@@ -234,3 +234,95 @@ node delivery/install-host.mjs --uninstall --home "$HOME/.workbuddy"
 ```
 
 卸载同样走增量 patch（移除 `/mcpServers/connector:winvm` 指针），保留用户其他连接器。
+
+---
+
+## 7. 远程 Windows（非本地 VM）部署与 SSH 认证
+
+本插件对"被控端是不是真·虚拟机"无感知——`vm-service` 只要跑在一台 Windows 上、经 SSH 隧道在 `127.0.0.1:18443` 可达即可。因此**把 `VM_HOST` 指向一台远程 Windows（物理机 / 云主机 / 内网机器），把本地当宿主、远程 Windows 当"VM"，完全适用**，效果就是"本地操作远程 Windows"。
+
+### 7.1 与本地 VM 的唯一差别：远程 Windows 需开 SSH 服务
+
+| 项 | 本地 VM | 远程 Windows |
+|----|---------|--------------|
+| 被控端 OS | Windows 10/11/Server | 同左 |
+| 可达性 | 宿主已能 ssh/虚拟化访问 | **需 OpenSSH Server 监听 22 且宿主可路由** |
+| 部署命令 | `setup.mjs`（scp + ssh） | 同左，仅 `VM_HOST` 换成远程 IP |
+| 隧道 | `ssh -L … user@VM` | `ssh -L … user@远程IP`（完全一样） |
+
+远程 Windows 上一次性前置（管理员 PowerShell）：
+
+```powershell
+# 安装 OpenSSH Server（Windows 可选功能）
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+Start-Service sshd
+Set-Service -Name sshd -StartupType 'Automatic'
+# 防火墙放行 22
+New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' `
+  -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
+```
+
+> `vm-service` 仍**只绑 `127.0.0.1`**（安全红线），对外只暴露 22（SSH），不直接暴露 18443。所有 18443 流量都走隧道；非回环直连会被 `requireLoopbackBind` 拒绝，且会触发 `tokenEnv`（`WINVM_BEARER_TOKEN`）bearer 校验。
+
+### 7.2 SSH 通道怎么认证：用密钥，不用密码
+
+`setup.mjs` / `install-vm.mjs` / `install-host.mjs` 内部的 `ssh` / `scp` / `ssh -L` 都是**直接调用系统 `ssh`**，脚本本身**不接收、不传递任何密码**（`.env` 里也没有密码字段，只有 `VM_HOST` / `VM_USER` / `VM_SSH_PORT`）。因此隧道与文件推送的认证**完全交给操作系统 SSH**——推荐且唯一能无人值守跑通的方式是 **SSH 公钥**。
+
+**① 推荐：SSH 密钥（免密、`--apply` 可无人值守）**
+
+```bash
+# 1) 在宿主生成密钥（已有可跳过）
+ssh-keygen -t ed25519 -C "winvm-host"      # 产物 ~/.ssh/id_ed25519.pub
+
+# 2) 把公钥写入远程 Windows 用户的 authorized_keys
+#    远程 Windows 的 authorized_keys 路径是 %USERPROFILE%\.ssh\authorized_keys
+ssh <VM_USER>@<VM_HOST> "mkdir -p %USERPROFILE%\.ssh"
+cat ~/.ssh/id_ed25519.pub | ssh <VM_USER>@<VM_HOST> "cat >> %USERPROFILE%\.ssh\authorized_keys"
+
+# 3) 在远程 Windows 上修 ACL（OpenSSH 对权限极敏感，ACL 不对会直接无视该文件）
+#    （在远程 PowerShell 执行，仅保留本人完全控制）
+$acl = Get-Acl "$env:USERPROFILE\.ssh\authorized_keys"
+$acl.SetAccessRuleProtection($true, $false)
+# 然后按需移除多余继承项、仅留当前用户完全控制
+```
+
+> 若宿主 `~/.ssh` 下默认密钥不是 `id_ed25519`，脚本不会自动带 `-i`。请在宿主 `~/.ssh/config` 里按 `VM_HOST` 匹配一段 `IdentityFile`，或使用同名默认密钥，否则 `setup.mjs --apply` 仍会交互式要密码。
+
+**② 密码：不建议，且基本无法无人值守**
+
+- Windows 自带 `ssh`/`scp` 是交互式读密码的，脚本没有、也不会传密码；`.env` 也无密码字段。
+- `sshpass` 在原生 Windows 上不随系统提供（需 WSL / Git-Bash 里的 `sshpass`，或改用 PuTTY `plink -pw`，但本插件调用的是 `ssh`/`scp` 而非 `plink`）。
+- 因此若坚持用密码，只能**手动**在终端跑通一次 `ssh user@host`（让系统记住），或借助 ssh agent；`setup.mjs --apply` 这种一次性拉起多步 SSH 的流程会出现交互卡顿或失败。
+
+> 结论：**远程 Windows 场景一律用 SSH 密钥**。密码只适合你本人在终端偶尔手动连一下。
+
+### 7.3 首次连接的主机密钥确认
+
+脚本不会自动带 `-o StrictHostKeyChecking=…`。第一次 `ssh`/`scp` 到新远程机会提示 `Are you sure you want to continue connecting (yes/no)?`，无人值守时会卡住。提前处理：
+
+```bash
+# 手动接受一次主机密钥（写入 known_hosts）
+ssh -o StrictHostKeyChecking=accept-new <VM_USER>@<VM_HOST> echo ok
+```
+
+或在宿主 `~/.ssh/config` 对应 Host 块加 `StrictHostKeyChecking accept-new`、`UserKnownHostsFile ~/\.ssh/known_hosts`。
+
+### 7.4 端到端验证（远程目标）
+
+```bash
+# 1) 确认密钥能免密登远程 Windows
+ssh <VM_USER>@<VM_HOST> "powershell -c 'Get-ComputerInfo -Property CsDNSHostName'"
+
+# 2) 跑 setup 一键（VM_HOST 已是远程 IP）
+node delivery/setup.mjs --apply
+
+# 3) 确认隧道打通 + 远端 /health
+curl -s http://127.0.0.1:18443/health      # 应返回 VM 侧健康态
+```
+
+### 7.5 能力边界（与本地 VM 一致）
+
+- 54 个能力在**远程 Windows 本机**执行 PowerShell（ps-bridge 在远端 spawn PowerShell 5.1），操作的正是那台远程机——即"本地操作远程 Windows"。
+- **GUI 自动化**仍依赖远程 Windows 有活跃交互会话/显示器；无头远程机可能跑不了 GUI 模块（与本地 VM 同源限制）。
+- 仅支持 Windows 被控端（强依赖 PowerShell 5.1），远程 Linux 不可作此"VM"。
+- 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道是回环，bearer 免校验；只有非回环直连才需要 `WINVM_BEARER_TOKEN` + `tokenEnv`。
