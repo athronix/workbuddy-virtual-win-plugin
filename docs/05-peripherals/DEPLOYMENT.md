@@ -16,7 +16,8 @@ Windows 虚拟机
   └─ vm-service（MCP+A2A 双协议服务端）
         └─ agent.provider 总开关（VM 侧 AI Agent 选型）
               ├─ workbuddy-deterministic → adapter-agent-workbuddy（确定性执行器）
-              └─ workbuddy             → adapter-agent-workbuddy-llm（LLM Agent，V1 已实现）
+              ├─ workbuddy             → adapter-agent-workbuddy-llm（LLM Agent，V1 已实现）
+              └─ hermes-agent         → adapter-agent-hermes（Nous Research Hermes Agent，MCP 预注册）
               └─ vm-capabilities（ps-bridge 常驻进程 + 五大 PowerShell 模块）
 ```
 
@@ -56,6 +57,8 @@ node delivery/setup.mjs --apply --env=/path/to/.env
 | `VM_DEPLOY_DIR` | VM 内部部署根目录 | `C:/WinVMBridge` |
 | `WINVM_VM_PROVIDER` | **VM 侧 AI Agent 选型**（`agent.provider`） | `workbuddy-deterministic` |
 | `WINVM_WORKBUDDY_CLI` | LLM 运行时可执行名（仅 `workbuddy` 选型生效） | `codebuddy` |
+| `WINVM_HERMES_CLI` | LLM 运行时可执行名（仅 `hermes-agent` 选型生效） | `hermes` |
+| `WINVM_SKILLS_ROOT` | 共享 Skills 根（覆盖 provider 默认 `C:/WinVMBridge/shared-skills`） | 空（用 provider 默认） |
 | `WINVM_SETUP_TUNNEL` | 是否建立 SSH 本地转发 | `1` |
 | `WINVM_DRY_RUN` | `1`=只规划；传 `--apply` 才真执行 | `1` |
 
@@ -67,6 +70,7 @@ node delivery/setup.mjs --apply --env=/path/to/.env
 |------|----|------|
 | `workbuddy-deterministic` | `@winvm/adapter-agent-workbuddy` | 确定性执行器（可预测、易监管，默认） |
 | `workbuddy` | `@winvm/adapter-agent-workbuddy-llm` | LLM Agent（VM 内 `codebuddy` CLI 承接开放/创意任务，V1 已实现） |
+| `hermes-agent` | `@winvm/adapter-agent-hermes` | LLM Agent（Nous Research **Hermes Agent** CLI 承接开放/创意任务；`init` 时把本服务 `/mcp` 预注册进 hermes 配置，无 `--mcp` 参数故走预注册，见 ADR-13） |
 
 `setup.mjs` 会把该选型透传给 `install-vm.mjs --provider <id> --cli <exe>`，生成的运行配置即 `agent.provider=<id>`；`vm-service` 启动时据此动态加载对应 provider 包。详见 `docs/02-design/LLM-PROVIDER.md` 与 `SPEC-AGENT-SERVICE-BRIDGE.md §6.1`。
 
@@ -100,10 +104,12 @@ node delivery/install-vm.mjs --dry-run
 # 确认无误后正式部署（npm ci + build + 生成配置 + 注册任务计划程序自启 + 自检）
 node delivery/install-vm.mjs
 
-# 指定 VM 侧 AI Agent 选型（agent.provider）：确定性 / LLM
-#   等价写法还支持环境变量 WINVM_VM_PROVIDER / WINVM_WORKBUDDY_CLI
+# 指定 VM 侧 AI Agent 选型（agent.provider）：确定性 / LLM / Hermes Agent
+#   等价写法还支持环境变量 WINVM_VM_PROVIDER / WINVM_WORKBUDDY_CLI / WINVM_HERMES_CLI
+#   provider 为 hermes-agent 时 CLI 自动解析为 hermes（可 --cli 覆盖）
 node delivery/install-vm.mjs --provider workbuddy --cli codebuddy
 node delivery/install-vm.mjs --provider workbuddy-deterministic
+node delivery/install-vm.mjs --provider hermes-agent        # CLI 自动取 hermes；init 时把本服务 /mcp 注册进 hermes 配置
 
 # 仅自检（验证 ps-bridge 五大模块、服务配置、provider 能力目录）
 node delivery/install-vm.mjs --self-test
@@ -115,9 +121,10 @@ node delivery/install-vm.mjs --uninstall
 安装器会：
 1. `npm ci`（按 lockfile 精确还原依赖，保证可复现）
 2. `npm run build` 编译所有 packages 到 `dist/`
-3. 基于 `delivery/vm-service.config.json` 生成运行配置（强制 `host=127.0.0.1`），并写入 `agent.provider`（来自 `--provider` / `WINVM_VM_PROVIDER` / 配置默认）
-4. 注册 **Windows 任务计划程序** 任务（`WinVMBridge.Service`），登录即启、崩溃重启、仅在交互式会话运行（**不注册为 Windows 服务**，避免 Session 0 黑屏）
-5. 运行自检：ps-bridge 五大模块可加载、配置校验通过、端口回环绑定、provider 能力目录可解析
+3. 基于 `delivery/vm-service.config.json` 生成运行配置（强制 `host=127.0.0.1`），并写入 `agent.provider`（来自 `--provider` / `WINVM_VM_PROVIDER` / 配置默认）及所选 LLM provider 的 `cliPath`
+4. **部署共享 Skills**：把仓库 `skills/` 发布到独立共享根（默认 `C:/WinVMBridge/shared-skills`，单一事实源），并为各候选 VM AI Agent 的 skills 目录建立 **junction 引用**（不复制、不覆盖用户技能；可用 `--skills-root` / `WINVM_SKILLS_ROOT` 覆盖，`--skip-skills` 跳过）。详见 `docs/02-design/SPEC-SKILLS.md`
+5. 注册 **Windows 任务计划程序** 任务（`WinVMBridge.Service`），登录即启、崩溃重启、仅在交互式会话运行（**不注册为 Windows 服务**，避免 Session 0 黑屏）
+6. 运行自检：ps-bridge 五大模块可加载、配置校验通过、端口回环绑定、provider 能力目录可解析
 
 ### 3.2 手动部署（备选）
 

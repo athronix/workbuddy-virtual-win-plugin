@@ -90,3 +90,33 @@
 - 143/143 通过；`tsc -b` 11/11 包编译通过。
 - 端到端冒烟（真实进程）：宿主桥 stdio MCP → `initialize`/`tools/list`/`a2a.health` → `a2a.delegate` "查看系统信息" → `state: completed` 并回传产物。
 - 宿主安装器 dry-run：8 文件 + **2 个增量补丁**（`connector:winvm`、`connector:winvm-a2a`）。
+
+---
+
+## 第四轮新增（`hermes-agent` 选项 + 共享 Skills 独立部署）
+
+### 背景
+VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩展为「三选项」，新增 **`hermes-agent`**（Nous Research 的 Hermes Agent）。同时按用户要求，把 54 个 Windows VM 操作能力包装的 Skills 改为**独立于各候选 VM Agent 部署**：单一真源在仓库 `skills/`，经 `delivery/deploy-shared-skills.mjs` publish 到共享根 `C:/WinVMBridge/shared-skills`，各候选 Agent 仅通过 junction 引用，避免多份副本漂移。
+
+### 新增
+- **`packages/adapter-agent-hermes`（新包，L3）**：`HermesAgentProvider` 实现桥接 SPI（`declareCapabilities`/`init`/`execute`/`health`/`shutdown`/`runGoal`）。复用 `DeterministicAgentProvider` 的执行/健康/初始化路径与 `CliLlmBridge`、`loadSkillDocs`，仅 `runGoal` 经 Hermes CLI（`hermes chat -q -Q --yolo --source`）驱动。
+  - **关键架构约束**：Hermes CLI **无 `--mcp` 参数**，故 MCP 必须预注册进 `config.yaml` 的 `mcp_servers`（url 类型，Bearer auth 经 `.env` 的 `MCP_WINVM_API_KEY`）；`mcp-registrar.ts` 在 `init()` 幂等 upsert 该块并写 `.env` token，失败时降级（warn 不阻断）。CLI 模板**不含 `--mcp`**（对拍 workbuddy 路径）。
+  - 写入 `tsconfig.build.json` 引用、`core` 的 provider 注册表、`vm-service` 依赖。
+- **`delivery/deploy-shared-skills.mjs`**：共享 Skills 部署器。两阶段：① `publishSharedSkills` 把仓库 `skills/` 复制到共享根（同一目录时跳过重拷贝，避免 `cp EINVAL`）；② `planSharedSkillLinks` 让各候选 VM Agent 目录经 junction 引用共享根下的 Skill（已存在则跳过，冲突/被非 junction 占用则跳过并告警）。纯函数可单测，支持 `--dry-run`。
+- **`delivery/vm-service.config.json`**：新增 `hermes-agent` provider 条目（package `@winvm/adapter-agent-hermes`，endpoint `http://127.0.0.1:18443/mcp`，`skillsRoot: C:/WinVMBridge/shared-skills`，`registerMcp: true`）；并把 `workbuddy` / `hermes-agent` 的 `skillsRoot` 统一改为 `C:/WinVMBridge/shared-skills`。
+- **`delivery/install-vm.mjs`**：新增共享 Skills 部署步骤（解析优先级 `--skills-root > WINVM_SKILLS_ROOT > provider.options.skillsRoot > 默认值`），`--dry-run` 打印 6 步计划；导入 `deploySharedSkills`。
+- **`delivery/setup.mjs`**：`resolveConfig` 新增 `hermesCli`（`WINVM_HERMES_CLI` 回退），`resolveVmCli(cfg)` 在 provider=hermes-agent 时返回 hermes CLI；两处硬编码 `--cli ${cfg.workbuddyCli}` 改为 `${resolveVmCli(cfg)}`。
+- **`packages/core/src/config/index.ts`**：`skillsRoot` 默认值 `C:/WinVMBridge/skills` → `C:/WinVMBridge/shared-skills`。
+- **测试**：`tests/unit/hermes-provider.test.js`（10 项）、`tests/unit/mcp-registrar.test.js`（13 项）、`tests/unit/deploy-shared-skills.test.js`（8 项），共 **31 项新增**。
+- **文档**：`docs/02-design/HERMES-AGENT-PROVIDER.md`（ADR-13/14：选型 + MCP 预注册模型）、`SPEC-SKILLS.md` 同步共享 Skills 部署范式；`DEPLOYMENT.md` / `LLM-PROVIDER.md` / `06-OVERVIEW.md` 同步三选项与共享根路径；各 Skill 内置 `mcps-reference.md`（MCP server 部署/管理参考）。
+
+### 关键决策（沉淀）
+1. **MCP 预注册而非 CLI 透传**：Hermes 不支持 `--mcp`，只能把 `winvm` MCP server 写进 `config.yaml.mcp_servers` 并在 `.env` 放 `MCP_WINVM_API_KEY`，Hermes 启动时 `mcp_startup.py` 自动加载——这是 hermes 生态的标准做法（agentskills.io 规范）。
+2. **Skills 单一真源 + junction 引用**：共享根 `C:/WinVMBridge/shared-skills` 与仓库 `skills/` 分离，避免「VM 部署目录 == 仓库目录」时 `cp` 自拷贝；各 Agent 仅 junction 引用，保证单一真源、零副本漂移。
+3. **降级不阻断**：Hermes MCP 注册失败（如 config 不可写）仅 warn，VM 服务照常启动，能力暴露不依赖 MCP 预注册成功。
+
+### 测试结果（第四轮）
+- **158/158 通过**（143 + 31 新增）；`tsc -b` 12/12 包编译通过。
+- `install-vm.mjs --dry-run --provider hermes-agent`：正确打印 6 步计划。
+- `deploy-shared-skills.mjs --source skills --publish-from skills`：dry-run 正确识别 7 个 Skill + 读取 Agent 目录 + 跳过已有 link。
+- `vm-service --self-test`（provider=hermes-agent）：通过 provider 目录校验（hermes 真机 CLI 调用待真实环境终验）。

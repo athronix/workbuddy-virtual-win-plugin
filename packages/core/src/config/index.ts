@@ -70,8 +70,8 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
           endpoint: 'http://127.0.0.1:18443/mcp',
           maxConcurrency: 2,
           outputDir: '%USERPROFILE%\\WinVMWorkspace\\out',
-          // 随部署复制到 VM 的技能规范目录，作为 VM 内 Agent 的操作指引
-          skillsRoot: 'C:/WinVMBridge/skills',
+          // 随部署复制到 VM 的技能规范目录，作为 VM 内 Agent 的操作指引（共享根，独立于仓库 skills/）
+          skillsRoot: 'C:/WinVMBridge/shared-skills',
         },
       },
     },

@@ -26,7 +26,20 @@
           "endpoint": "http://127.0.0.1:18443/mcp",
           "maxConcurrency": 2,
           "outputDir": "%USERPROFILE%\\WinVMWorkspace\\out",
-          "skillsRoot": "C:/WinVMBridge/skills"
+          "skillsRoot": "C:/WinVMBridge/shared-skills"
+        }
+      },
+      "hermes-agent": {
+        "package": "@winvm/adapter-agent-hermes",
+        "options": {
+          "runtime": "hermes",
+          "cliPath": "hermes",
+          "endpoint": "http://127.0.0.1:18443/mcp",
+          "maxConcurrency": 2,
+          "outputDir": "%USERPROFILE%\\WinVMWorkspace\\out",
+          "skillsRoot": "C:/WinVMBridge/shared-skills",
+          "registerMcp": true,
+          "mcpServerName": "winvm"
         }
       }
     }

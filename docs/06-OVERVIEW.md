@@ -1,9 +1,9 @@
 # 交付概览 · WinVM 跨机 Agent 插件（1+5 双通道方案）
 
 > 让宿主机 WorkBuddy 完全操作一台 Windows 虚拟机的完整实现已交付。
-> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 11 个包编译通过，143/143 测试通过。
+> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，158/158 测试通过。
 > 已补齐"操作 Windows 软件应用进行生产活动"这一被遗漏的关键维度（appops 域 + winvm-app-operation Skill + LLM provider 开放任务路径）。
-> **VM 侧 AI Agent 已可经 `agent.provider` 一键切换**：`workbuddy-deterministic`（确定性，默认）/ `workbuddy`（LLM Agent，V1 已实现）。
+> **VM 侧 AI Agent 已可经 `agent.provider` 一键切换**：`workbuddy-deterministic`（确定性，默认）/ `workbuddy`（LLM Agent，V1 已实现）/ `hermes-agent`（Nous Research Hermes Agent，MCP 预注册）。
 > **双通道已完整闭环**：简单任务 → 宿主 MCP client 直调 VM 的 MCP 工具；复杂任务 → 宿主经 A2A 委派桥（`host-a2a-bridge`）把目标交给 VM 内 AI Agent，过程与产物按 A2A 规范回流。
 
 ---
@@ -15,7 +15,7 @@
 - **5** 个领域 Skill（系统 / 应用 / 存储 / GUI / **应用生产操作 appops**）+ **1** 个总控编排 Skill
 - **双通道**：MCP（工具级精确执行）+ A2A v1.0（任务级委派），VM 侧**同端口双协议**暴露
 
-落地选型：V1 宿主与 VM 内 Agent 均以 **WorkBuddy** 为例实现，但通过 **宿主插件规范 / 桥接 SPI / 适配器** 三层解耦，后续可零改上层适配其他宿主 Agent（Claude/Cursor）或 VM 内 Agent（LangGraph 等）。VM 内 Agent 的选型由 `agent.provider` 统一开关控制——V1 提供 `workbuddy-deterministic`（确定性执行器）与 `workbuddy`（LLM Agent，VM 内 `codebuddy` CLI 承接开放/创意任务）两种，桥接层 / MCP / A2A / 6 个 Skill **零改动**即可切换。
+落地选型：V1 宿主与 VM 内 Agent 均以 **WorkBuddy** 为例实现，但通过 **宿主插件规范 / 桥接 SPI / 适配器** 三层解耦，后续可零改上层适配其他宿主 Agent（Claude/Cursor）或 VM 内 Agent（Hermes Agent / LangGraph 等）。VM 内 Agent 的选型由 `agent.provider` 统一开关控制——提供 `workbuddy-deterministic`（确定性执行器）、`workbuddy`（LLM Agent，VM 内 `codebuddy` CLI 承接开放/创意任务，V1 实现）与 `hermes-agent`（Nous Research **Hermes Agent** CLI 承接开放/创意任务，`init` 时把本服务 `/mcp` 预注册进 hermes 配置）三种，桥接层 / MCP / A2A / 共享 Skills **零改动**即可切换。
 
 ---
 
@@ -34,6 +34,7 @@
 [知识] skills×6          1 总控 + 5 领域（含应用生产操作 appops）
 [VM Agent] adapter-agent-workbuddy       确定性执行器（agent.provider=workbuddy-deterministic）
           adapter-agent-workbuddy-llm     LLM Agent（agent.provider=workbuddy，V1 实现）
+          adapter-agent-hermes           LLM Agent（agent.provider=hermes-agent，Nous Research Hermes Agent，MCP 预注册）
 [交付] delivery          安装器 + VM 服务配置
 ```
 
@@ -56,11 +57,12 @@
 | 项 | 结果 |
 |----|------|
 | 全量编译 `tsc -b` | ✅ 11/11 包通过 |
-| 单元测试 + 端到端 | ✅ **143/143 通过**（含 LLM provider 10 项 + 委派桥 11 项 + 双端脚本 6 项） |
+| 单元测试 + 端到端 | ✅ **158/158 通过**（新增 hermes provider / registrar / 共享 Skills 规划 3 个测试文件，合计 31 用例；既有测试无回归） |
 | ps-bridge 真实链路 | ✅ 真实 PowerShell 5.1，五大模块加载，返回真实系统数据 |
 | 安装器 dry-run | ✅ 6 Skill / 7 文件 / 1 增量补丁 / 静态禁用 8 高危工具 |
 | VM 服务配置校验 | ✅ 0 错误 0 警告，强制回环绑定 |
-| self-test（含 provider 目录） | ✅ 默认 + `workbuddy` LLM 均打印并校验 provider 能力目录，`/health` 报告 `provider.id` 正确 |
+| self-test（含 provider 目录） | ✅ 默认 + `workbuddy` + `hermes-agent` LLM 均打印并校验 provider 能力目录，`/health` 报告 `provider.id` 正确 |
+| 共享 Skills 部署 dry-run | ✅ 发布 7 技能 + 为 workbuddy/hermes-agent 建 symlink 规划（不写盘、不触碰只读 hermes 目录） |
 
 ---
 
@@ -75,11 +77,11 @@
 | 端到端委派冒烟 | ✅ 宿主桥（stdio MCP）→ A2A → VM provider → ps-bridge → PowerShell，目标"查看系统信息"返回 `completed` 并带回产物 |
 | 空闲自愈 | ✅ ps-bridge 空闲 55s 后仍可正常委派（修复前必失败，见 `HOST-A2A-BRIDGE.md` §7） |
 
-**代码（packages/ 11 包）**：contracts · core · mcp-framework · a2a-framework · host-sdk · adapter-host-workbuddy · **host-a2a-bridge（宿主 A2A 委派桥）** · vm-capabilities · adapter-agent-workbuddy · **adapter-agent-workbuddy-llm（LLM Agent）** · vm-service
+**代码（packages/ 12 包）**：contracts · core · mcp-framework · a2a-framework · host-sdk · adapter-host-workbuddy · **host-a2a-bridge（宿主 A2A 委派桥）** · vm-capabilities · adapter-agent-workbuddy · **adapter-agent-workbuddy-llm（LLM Agent）** · **adapter-agent-hermes（Hermes Agent）** · vm-service
 
 **Skills（skills/ 6）**：winvm-orchestrator + system/app/storage/gui + **app-operation（应用生产操作）**
 
-**交付（delivery/）**：`setup.mjs`（双端一键：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行，读 `.env`）· `install-host.mjs` / `install-vm.mjs`（幂等/增量/dry-run/--provider/uninstall）· `vm-service.config.json`（含双 provider 定义）· `.env.example`
+**交付（delivery/）**：`setup.mjs`（双端一键：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行，读 `.env`）· `install-host.mjs` / `install-vm.mjs`（幂等/增量/dry-run/--provider/--cli/--skills-root/--skip-skills/uninstall）· `deploy-shared-skills.mjs`（共享 Skills 发布 + 各候选 Agent symlink 规划，可 `--apply`）· `vm-service.config.json`（含三 provider 定义：`workbuddy-deterministic` / `workbuddy` / `hermes-agent`）· `.env.example`
 
 **DDD 索引（.dev/ 6 文件）**：README / project-dir-file-index / docs-index / project-dev-status / changed-log / changing-log
 

@@ -11,6 +11,7 @@
     { "path": "packages/vm-capabilities" },
     { "path": "packages/adapter-agent-workbuddy" },
     { "path": "packages/adapter-agent-workbuddy-llm" },
+    { "path": "packages/adapter-agent-hermes" },
     { "path": "packages/vm-service" }
   ]
 }

@@ -3,12 +3,12 @@
 ## 顶层
 ```
 workbuddy-virtual-win-plugin/
-├── package.json              # workspace 根（npm workspaces，11 包）
+├── package.json              # workspace 根（npm workspaces，12 包）
 ├── tsconfig.base.json        # 共享 TS 配置（strict, ESM）
 ├── tsconfig.build.json       # 构建引用图
 ├── docs/                     # 调研 / 设计 / 交付文档
-├── packages/                 # 11 个可独立编译/发布的 npm 包
-├── skills/                   # 6 个 WorkBuddy Skill（1 总控 + 5 领域）
+├── packages/                 # 12 个可独立编译/发布的 npm 包
+├── skills/                   # 6 个 WorkBuddy Skill（1 总控 + 5 领域）+ 各 Skill 内的 mcps-reference 参考
 ├── tests/                    # unit/ + e2e/
 ├── delivery/                 # 安装器 + 部署配置
 └── .dev/                     # DDD 六大索引
@@ -27,17 +27,21 @@ workbuddy-virtual-win-plugin/
 | `vm-capabilities` | L3 VM 能力 | ps-bridge 常驻进程 + system/app/storage/gui/appops 五大 PowerShell 模块 + 能力注册表 |
 | `adapter-agent-workbuddy` | L3 VM 适配 | VM 内确定性执行器（agent.provider=workbuddy-deterministic），实现桥接 SPI（可替换） |
 | `adapter-agent-workbuddy-llm` | L3 VM 适配 | **LLM Agent 执行器**（agent.provider=workbuddy，V1 实现），组合复用确定性执行器、仅 runGoal 为 LLM 驱动 |
-| `vm-service` | 装配 | 同端口双协议服务端 + CLI 入口（agent.provider 总开关） |
+| `adapter-agent-hermes` | L3 VM 适配 | **Hermes Agent 执行器**（agent.provider=hermes-agent，Nous Research 的 Hermes Agent），复用确定性执行器/CLI 桥/SKILL 加载；MCP 经 `config.yaml` 的 `mcp_servers` 预注册（无 `--mcp` 参数） |
+| `vm-service` | 装配 | 同端口双协议服务端 + CLI 入口（agent.provider 总开关，3 选项：workbuddy-deterministic / workbuddy / hermes-agent） |
 
 ## skills/
 - `winvm-orchestrator` 总控 · `winvm-system-admin` · `winvm-app-manager` · `winvm-storage-manager` · `winvm-gui-automation` · `winvm-app-operation`（应用生产操作 appops）
+- 每个 Skill 内含 `mcps-reference.md`：各 MCP server 部署/管理参考（供 VM AI Agent 参考调用）
+- **单一真源 + symlink 部署**：各候选 VM Agent 仅通过 junction 引用 `C:/WinVMBridge/shared-skills` 下的 Skill，避免多份副本
 
 ## delivery/
 - `setup.mjs` 双端一键部署总入口（读 `.env`：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行）
 - `install-host.mjs` 宿主机安装器（幂等/增量/dry-run/uninstall）
-- `install-vm.mjs` VM 侧安装器（npm ci/build/自启任务/自检，支持 `--provider <id>`/`--cli <exe>`）
-- `vm-service.config.json` VM 侧服务配置（策略/审计/监听，含双 provider 定义）
-- `.env.example` 双端部署配置模板
+- `install-vm.mjs` VM 侧安装器（npm ci/build/自启任务/自检，支持 `--provider <id>`/`--cli <exe>`/`--skills-root <dir>`）
+- `deploy-shared-skills.mjs` 共享 Skills 部署器（① publish 仓库 `skills/` → 共享根 `C:/WinVMBridge/shared-skills`；② 各候选 VM Agent 经 junction 引用，幂等/dry-run）
+- `vm-service.config.json` VM 侧服务配置（策略/审计/监听，含三 provider 定义：workbuddy-deterministic / workbuddy / hermes-agent）
+- `.env.example` 双端部署配置模板（含 `WINVM_VM_PROVIDER` / `WINVM_HERMES_CLI` / `WINVM_SKILLS_ROOT`）
 
 ## 关键文件速查
 - 风险模型：`packages/contracts/src/risk.ts`

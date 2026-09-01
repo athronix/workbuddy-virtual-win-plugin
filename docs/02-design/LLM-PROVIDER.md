@@ -21,6 +21,15 @@
 - **V1 范围**：先实现一个选型——`workbuddy`（VM 内 WorkBuddy `codebuddy` CLI 作为 LLM 推理运行时）。
 - **架构约束**：复用既有 `AgentServiceProvider` SPI 与 loader（动态 `import(entry.package)`），**桥接层 / MCP / A2A / skills 零改动**；新增 provider 只需"新包 + 配置一条 entry"。
 
+### 1.3 后续扩展：hermes-agent（Nous Research Hermes Agent）
+
+在 V1 `workbuddy` 之后，按**同一架构约束**新增了第三个选型 `hermes-agent`（`@winvm/adapter-agent-hermes`）：
+
+- 复用 `CliLlmBridge` / `DeterministicAgentProvider` / `loadSkillDocs`，仅替换 CLI 运行时为 `hermes`；
+- 关键差异：Hermes Agent CLI **无 `--mcp` 参数**，故 `init` 时经 `HermesMcpRegistrar` 把本服务 `/mcp` 幂等预注册进 hermes `config.yaml`（Bearer 凭据走 `MCP_WINVM_API_KEY` 环境变量），详见 `HERMES-AGENT-PROVIDER.md`（ADR-13 / ADR-14）；
+- 共享 Skills 部署独立于各候选 Agent（单一事实源 + symlink 引用），见 `SPEC-SKILLS.md`。
+- 切换方式不变：改 `agent.provider='hermes-agent'`（或 `WINVM_VM_PROVIDER=hermes-agent`）一行，框架零改动。
+
 ---
 
 ## 2. 需求
@@ -285,6 +294,8 @@ export interface LlmBridge { runGoal(input: LlmGoalInput, sink: ProgressSink): P
 | `docs/05-peripherals/DEPLOYMENT.md` | 增加"双端一键 `setup.mjs` + `.env` + provider 切换" |
 | `docs/05-peripherals/SCENARIOS.md` | 增加 `workbuddy` LLM provider 端到端示例（大山→海洋） |
 | `docs/06-OVERVIEW.md` | 双 provider、双端一键、1+5 skills 同步 |
+| `docs/02-design/HERMES-AGENT-PROVIDER.md` | 后续扩展 `hermes-agent` 选型（ADR-13 预注册 MCP / ADR-14 共享 Skills symlink 部署），复用本 V1 架构 |
+| `docs/02-design/SPEC-SKILLS.md` | 共享 Skills 单一事实源 + 各候选 Agent symlink 引用（含 `mcps-reference.md`） |
 | `.dev/` 五大索引 | 本变更原子化登记 |
 
 > 实现严格遵循上述文档；代码不引入文档未定义的 LLM provider 行为。

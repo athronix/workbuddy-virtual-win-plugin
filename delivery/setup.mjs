@@ -76,6 +76,7 @@ export function resolveConfig(env, opts = {}) {
     vmDeployDir: env['VM_DEPLOY_DIR'] || 'C:/WinVMBridge',
     vmProvider: env['WINVM_VM_PROVIDER'] || 'workbuddy-deterministic',
     workbuddyCli: env['WINVM_WORKBUDDY_CLI'] || 'codebuddy',
+    hermesCli: env['WINVM_HERMES_CLI'] || 'hermes',
     setupTunnel: bool('WINVM_SETUP_TUNNEL'),
     tunnelLocalPort: num('WINVM_TUNNEL_LOCAL_PORT', 18443),
     tunnelRemotePort: num('WINVM_TUNNEL_REMOTE_PORT', 18443),
@@ -111,7 +112,7 @@ export function buildPlan(cfg) {
       steps.push({
         phase: 'VM',
         description: 'VM_HOST 未配置 → 打印本地手动部署指引（不自动 ssh）',
-        command: `node delivery/install-vm.mjs --dry-run --provider ${cfg.vmProvider} --cli ${cfg.workbuddyCli}`,
+        command: `node delivery/install-vm.mjs --dry-run --provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)}`,
         apply: false,
       });
     }
@@ -154,12 +155,18 @@ export async function distPaths() {
   return out;
 }
 
+/** VM 侧 AI Agent CLI 运行时：随 provider 解析（与 install-vm.mjs 一致） */
+export function resolveVmCli(cfg) {
+  if (cfg.vmProvider === 'hermes-agent') return cfg.hermesCli;
+  return cfg.workbuddyCli;
+}
+
 /** VM 侧安装命令（dist 已随包分发，故跳过依赖安装与构建） */
 export function vmInstallCommand(cfg) {
   return (
     `cd ${cfg.vmDeployDir} && tar -xzf ${VM_ARCHIVE} && del /Q ${VM_ARCHIVE} && ` +
     `node delivery/install-vm.mjs --skip-install --skip-build ` +
-    `--provider ${cfg.vmProvider} --cli ${cfg.workbuddyCli}`
+    `--provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)}`
   );
 }
 

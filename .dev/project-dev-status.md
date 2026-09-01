@@ -18,7 +18,7 @@
 | LLM-PROVIDER | ✅ |
 | SCENARIOS / 06-OVERVIEW | ✅ |
 
-## 代码包（11 个）
+## 代码包（12 个）
 | 包 | 编译 | 测试 | 备注 |
 |----|------|------|------|
 | contracts | ✅ | — | 契约唯一源 |
@@ -31,10 +31,11 @@
 | vm-capabilities | ✅ | ✅ e2e 真实 PS | ps-bridge 常驻（五大模块）＋ 空闲自愈（ping 探测 + 自动重启） |
 | adapter-agent-workbuddy | ✅ | ✅ | 确定性执行器（agent.provider=workbuddy-deterministic，可替换） |
 | adapter-agent-workbuddy-llm | ✅ | ✅ 10 项单测 | **LLM Agent（agent.provider=workbuddy，V1 已实现）**＋技能下发 |
-| vm-service | ✅ | ✅ e2e 双通道 | 装配 + CLI（agent.provider 总开关） |
+| adapter-agent-hermes | ✅ | ✅ 10 项单测 | **Hermes Agent（agent.provider=hermes-agent）**：复用确定性执行器/CLI 桥/SKILL 加载；MCP 经 `config.yaml` 预注册（`mcp-registrar.ts` 幂等 upsert + 写 `.env` token）；init 失败降级不阻断 |
+| vm-service | ✅ | ✅ e2e 双通道 | 装配 + CLI（agent.provider 总开关，3 选项：workbuddy-deterministic / workbuddy / hermes-agent） |
 
 ## 测试
-- 单元测试 96 + 端到端 16 + LLM provider/技能 10 + 委派桥 11 + 双端脚本 6 = **143/143 通过**
+- 单元测试 96 + 端到端 16 + LLM provider/技能 10 + 委派桥 11 + 双端脚本 6 + hermes provider/registrar/shared-skills 31 = **158/158 通过**
 - ps-bridge 真实拉起 PowerShell 5.1，五大模块加载并返回真实系统数据
 - 端到端委派冒烟通过：宿主桥 → A2A → VM provider → ps-bridge → PowerShell，`completed` 并回传产物
 - 空闲自愈验证通过：常驻 55s 空闲后委派仍成功（修复前必失败）
@@ -44,6 +45,7 @@
 
 ## 交付物
 - 安装器 `delivery/install-host.mjs`：dry-run/正式/uninstall 验证通过
-- VM 侧 `delivery/install-vm.mjs`：支持 `--provider <id>`/`--cli <exe>`，dry-run/self-test/uninstall 验证通过
+- VM 侧 `delivery/install-vm.mjs`：支持 `--provider <id>`/`--cli <exe>`/`--skills-root <dir>`，dry-run/self-test/uninstall 验证通过
+- **共享 Skills 部署器 `delivery/deploy-shared-skills.mjs`**：publish 仓库 `skills/` → 共享根 `C:/WinVMBridge/shared-skills`，再经 junction 让各候选 VM Agent 引用（单一真源，幂等/dry-run 验证通过）
 - **双端一键 `delivery/setup.mjs`**（读 `.env`）+ `.env.example`：dry-run 生成五阶段计划验证通过
-- VM 服务配置 `delivery/vm-service.config.json`：含双 provider 定义，待在真实 VM 上跑一次 `--self-test` 做终验
+- VM 服务配置 `delivery/vm-service.config.json`：含三 provider 定义（workbuddy-deterministic / workbuddy / hermes-agent），待在真实 VM 上跑一次 `--self-test` 做终验

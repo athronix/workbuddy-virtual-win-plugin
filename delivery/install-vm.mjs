@@ -6,8 +6,9 @@
  *   1. npm ci          按 lockfile 精确还原依赖（可复现）
  *   2. npm run build   编译所有 packages 到 dist/
  *   3. 生成运行配置     基于 delivery/vm-service.config.json，强制 host=127.0.0.1
- *   4. 注册任务计划程序  登录即启、崩溃重启、仅在交互式会话运行（不注册为 Windows 服务）
- *   5. 自检            ps-bridge 模块加载 / 配置校验 / 端口回环绑定
+ *   4. 共享 Skills      发布仓库 skills/ 到独立共享根，并为各候选 Agent 建 symlink 引用
+ *   5. 注册任务计划程序  登录即启、崩溃重启、仅在交互式会话运行（不注册为 Windows 服务）
+ *   6. 自检            ps-bridge 模块加载 / 配置校验 / 端口回环绑定
  *
  * 与宿主侧 install-host.mjs 配对：宿主装"控制端插件"，本脚本装"被控端服务"。
  *
@@ -15,11 +16,16 @@
  *   node delivery/install-vm.mjs [--dry-run] [--self-test] [--uninstall]
  *                                [--config <path>] [--port 18443]
  *                                [--provider <id>] [--cli <exe>]
+ *                                [--skills-root <dir>] [--skip-skills]
  *                                [--task-name WinVMBridge.Service] [--skip-build]
  *
  * provider / cli 取值来源优先级：显式 --provider/--cli 参数 > 环境变量
- *   WINVM_VM_PROVIDER / WINVM_WORKBUDDY_CLI > 配置文件 agent.provider。
- * 选 workbuddy 即启用 LLM Agent（VM 内 codebuddy CLI 承接开放/创意任务）。
+ *   WINVM_VM_PROVIDER > 配置文件 agent.provider；CLI 运行时按 provider 取：
+ *   workbuddy→WINVM_WORKBUDDY_CLI（默认 codebuddy）/ hermes-agent→WINVM_HERMES_CLI（默认 hermes）。
+ * 可用 provider：workbuddy-deterministic（确定性）/ workbuddy（codebuddy LLM）/ hermes-agent（Hermes Agent LLM）。
+ *
+ * 共享 Skills 根取值优先级：--skills-root > 环境变量 WINVM_SKILLS_ROOT >
+ *   所选 provider 的 options.skillsRoot > C:/WinVMBridge/shared-skills。
  */
 
 import { spawnSync } from 'node:child_process';
@@ -32,6 +38,7 @@ import {
 } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deploySharedSkills, DEFAULT_SHARED_SKILLS_ROOT } from './deploy-shared-skills.mjs';
 
 /* ------------------------------ 参数 ------------------------------ */
 
@@ -42,11 +49,13 @@ function parseArgs(argv) {
     uninstall: false,
     skipBuild: false,
     skipInstall: false,
+    skipSkills: false,
     config: undefined,
     port: 18443,
     taskName: 'WinVMBridge.Service',
     provider: undefined,
     cli: undefined,
+    skillsRoot: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -55,10 +64,12 @@ function parseArgs(argv) {
       case '--uninstall': out.uninstall = true; break;
       case '--skip-build': out.skipBuild = true; break;
       case '--skip-install': out.skipInstall = true; break;
+      case '--skip-skills': out.skipSkills = true; break;
       case '--config': out.config = argv[++i]; break;
       case '--port': out.port = Number(argv[++i]); break;
       case '--provider': out.provider = argv[++i]; break;
       case '--cli': out.cli = argv[++i]; break;
+      case '--skills-root': out.skillsRoot = argv[++i]; break;
       case '--task-name': out.taskName = argv[++i]; break;
       default: break;
     }
@@ -163,14 +174,50 @@ function planSteps(args, cfgPath) {
   steps.push(`npm ci （按 lockfile 精确还原依赖）${args.skipInstall ? '  [跳过 --skip-install]' : ''}`);
   if (!args.skipBuild) steps.push('npm run build （编译所有 packages → dist/）');
   steps.push(`生成运行配置: ${runtimeConfig}（强制 host=127.0.0.1, port=${args.port}）`);
+  steps.push(`部署共享 Skills: 仓库 skills/ → 共享根（${args.skillsRoot || 'C:/WinVMBridge/shared-skills'}），并为各候选 Agent 建 symlink 引用${args.skipSkills ? '  [跳过 --skip-skills]' : ''}`);
   steps.push(`注册任务计划程序任务: ${args.taskName}（登录即启 / 崩溃重启 / 仅交互式会话）`);
   steps.push(`自检: node ${cliEntry} --self-test`);
   return steps;
 }
 
+/* ------------------------------ 共享 Skills 部署 ------------------------------ */
+
+/**
+ * 第 4 步：把仓库 skills/ 发布到独立共享根（单一事实源），
+ * 并为各候选 VM AI Agent 的 skills 目录建立 junction 引用（不复制、不覆盖用户技能）。
+ *
+ * skillsRoot 取值优先级：--skills-root > WINVM_SKILLS_ROOT >
+ *   所选 provider 的 options.skillsRoot > C:/WinVMBridge/shared-skills。
+ */
+async function deploySkillsStep(args, cfg, provider) {
+  const skillsRoot =
+    args.skillsRoot ??
+    process.env['WINVM_SKILLS_ROOT'] ??
+    cfg?.agent?.providers?.[provider]?.options?.skillsRoot ??
+    DEFAULT_SHARED_SKILLS_ROOT;
+  const repoSkillsDir = join(repoRoot, 'skills');
+  const { publish, skills, plan, results } = await deploySharedSkills({
+    sourceDir: skillsRoot,
+    publishFrom: repoSkillsDir,
+    dryRun: args.dryRun,
+    log: (m) => console.log(`       ${m}`),
+  });
+  if (publish?.plan) {
+    console.log(
+      `      发布：新增 ${publish.plan.summary.add} / 刷新 ${publish.plan.summary.refresh} / 共享根独有保留 ${publish.plan.summary.keepExtra}`,
+    );
+  } else {
+    console.log(`      发布：仓库 skills 源为空或不存在（${repoSkillsDir}），跳过`);
+  }
+  console.log(
+    `      链接：技能 ${skills.length} 个 → 新建 ${plan?.summary.create ?? 0} / 已就位 ${plan?.summary.skipOk ?? 0} / 冲突跳过 ${plan?.summary.conflict ?? 0} / Agent 缺失 ${plan?.summary.skipAgent ?? 0}`,
+  );
+  void results;
+}
+
 /* ------------------------------ 主流程 ------------------------------ */
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   const cfgPath = args.config ?? defaultConfig;
 
@@ -193,14 +240,18 @@ function main() {
     process.env['WINVM_VM_PROVIDER'] ??
     cfg?.agent?.provider ??
     'workbuddy-deterministic';
-  const cli = args.cli ?? process.env['WINVM_WORKBUDDY_CLI'] ?? 'codebuddy';
+  // CLI 运行时按所选 LLM provider 解析：workbuddy→WINVM_WORKBUDDY_CLI(默认 codebuddy) / hermes-agent→WINVM_HERMES_CLI(默认 hermes)
+  const isLlmProvider = provider === 'workbuddy' || provider === 'hermes-agent';
+  const cliEnvVar = provider === 'hermes-agent' ? 'WINVM_HERMES_CLI' : 'WINVM_WORKBUDDY_CLI';
+  const cliDefault = provider === 'hermes-agent' ? 'hermes' : 'codebuddy';
+  const cli = args.cli ?? process.env[cliEnvVar] ?? cliDefault;
   if (!cfg?.agent?.providers?.[provider]) {
     console.error(
       `agent.provider="${provider}" 未在配置 providers 中定义。可用：${Object.keys(cfg?.agent?.providers ?? {}).join(', ') || '(空)'}`,
     );
     process.exit(1);
   }
-  console.log(`VM Agent   : agent.provider=${provider}${provider === 'workbuddy' ? `（LLM 运行时=${cli}）` : ''}`);
+  console.log(`VM Agent   : agent.provider=${provider}${isLlmProvider ? `（LLM 运行时=${cli}）` : ''}`);
   console.log('');
 
   /* ----- 卸载 ----- */
@@ -271,24 +322,33 @@ function main() {
   }
 
   /* 3. 生成运行配置（强制回环 + 应用 provider 选型） */
-  console.log('[3/5] 生成运行配置 ...');
+  console.log('[3/6] 生成运行配置 ...');
   const runtime = readJson(cfgPath);
   if (!runtime.server) runtime.server = {};
   runtime.server.host = '127.0.0.1';
   runtime.server.port = args.port;
   runtime.agent = runtime.agent ?? {};
   runtime.agent.provider = provider;
-  if (provider === 'workbuddy' && runtime.agent.providers?.['workbuddy']) {
-    runtime.agent.providers['workbuddy'] = {
-      ...runtime.agent.providers['workbuddy'],
-      options: { ...runtime.agent.providers['workbuddy'].options, cliPath: cli },
+  // 把 CLI 运行时注入所选 LLM provider 的 options（workbuddy / hermes-agent 通用）
+  if (isLlmProvider && runtime.agent.providers?.[provider]) {
+    runtime.agent.providers[provider] = {
+      ...runtime.agent.providers[provider],
+      options: { ...runtime.agent.providers[provider].options, cliPath: cli },
     };
   }
   writeJson(runtimeConfig, runtime);
   console.log(`      已写入 ${runtimeConfig}（provider=${provider}）`);
 
-  /* 4. 注册任务计划程序 */
-  console.log('[4/5] 注册任务计划程序任务 ...');
+  /* 4. 共享 Skills 部署（发布仓库 skills/ → 共享根，并为各候选 Agent 建 symlink） */
+  console.log('[4/6] 部署共享 Skills ...');
+  if (args.skipSkills) {
+    console.log('      跳过（--skip-skills）');
+  } else {
+    await deploySkillsStep(args, cfg, provider);
+  }
+
+  /* 5. 注册任务计划程序 */
+  console.log('[5/6] 注册任务计划程序任务 ...');
   if (taskExists(args.taskName)) {
     console.log(`      任务 ${args.taskName} 已存在，先移除再重建`);
     run('schtasks', ['/Delete', '/TN', args.taskName, '/F']);
@@ -299,8 +359,8 @@ function main() {
   if (r.status !== 0) { console.error('注册任务计划程序失败（需以管理员身份运行）'); process.exit(1); }
   console.log(`      已注册任务 ${args.taskName}（登录即启 / 崩溃重启 ×3 / 仅交互式会话）`);
 
-  /* 5. 自检 */
-  console.log('[5/5] 自检 ...');
+  /* 6. 自检 */
+  console.log('[6/6] 自检 ...');
   r = run('node', [cliEntry, '--self-test'], {});
   if (r.status !== 0) { console.error('自检失败，请检查上方输出'); process.exit(1); }
 
@@ -311,4 +371,7 @@ function main() {
   console.log('宿主侧建立 SSH 隧道后即可从 WorkBuddy 调用（见 DEPLOYMENT.md §4.2）。');
 }
 
-main();
+main().catch((e) => {
+  console.error(e && e.stack ? e.stack : e);
+  process.exit(1);
+});

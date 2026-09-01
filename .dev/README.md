@@ -6,10 +6,11 @@
 为 **宿主机 WorkBuddy（AI Agent）** 构建的插件，使其能**完全操作一台 Windows 虚拟机**——系统管理、应用管理、存储管理、GUI 自动化，几乎覆盖所有 Windows 事务。
 
 ## 方案选型
-**1+4 双通道方案**（评估建议结论 + 用户拍板）：
+**1+5 双通道方案**（评估建议结论 + 用户拍板）：
 - **1**：一套统一能力模型 + 一套可替换 Agent 服务桥接层（标准 SPI）
-- **4**：4 个领域 Skill（系统 / 应用 / 存储 / GUI）+ 1 个总控编排 Skill
+- **5**：5 个领域 Skill（系统 / 应用 / 存储 / GUI / 应用生产操作 appops）+ 1 个总控编排 Skill
 - **双通道**：MCP（工具级精确执行）+ A2A v1.0（任务级委派），VM 侧同端口双协议暴露
+- **3 VM Agent 选项**：`workbuddy-deterministic`（确定性执行器）/ `workbuddy`（LLM 执行器，VM 内 codebuddy CLI）/ `hermes-agent`（Nous Research 的 Hermes Agent，经 `WINVM_VM_PROVIDER=hermes-agent` 切换）；三者实现同一桥接 SPI，Skills 与协议零改动。Skills 以 **单一真源 + 各 Agent symlink 引用** 方式独立部署（见 `delivery/deploy-shared-skills.mjs`），含 `mcps-reference.md` 指导 MCP server 部署管理。
 
 ## 六大索引导航
 | 文件 | 内容 |
