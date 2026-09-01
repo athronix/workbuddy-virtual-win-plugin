@@ -13,7 +13,7 @@
 7. `docs/02-design/SPEC-SKILLS.md` —— Skills 框架规范
 8. `docs/02-design/INTERFACES.md` —— MCP tools / A2A skills / 内部 API 契约
 9. `docs/02-design/SECURITY-GOVERNANCE.md` —— 风险分级/策略引擎/审批闸/防篡改审计/会话保活
-10. `docs/05-peripherals/DEPLOYMENT.md` —— 部署指南（含双端一键 `setup.mjs` + `agent.provider` 选型）
+10. `docs/05-peripherals/DEPLOYMENT.md` —— 部署指南（双端一键 `setup.mjs` + `agent.provider` 选型 + §7 远程 Windows 部署与 SSH 密钥认证）
 11. `docs/05-peripherals/SCENARIOS.md` —— 应用场景故事/流程/机制/demo（含 Photoshop 大山→海洋 LLM 端到端）
 12. `docs/05-peripherals/USER-MANUAL.md` —— 用户手册
 13. `docs/06-OVERVIEW.md` —— 交付概览

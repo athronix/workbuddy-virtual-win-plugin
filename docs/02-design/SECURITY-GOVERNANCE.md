@@ -208,9 +208,29 @@ record_n.prevHash = hash_(n-1)
 | 凭据 | 处理 |
 |---|---|
 | SSH 私钥 | 宿主侧 `~/.ssh/`；**不进插件包、不进仓库** |
-| Bearer token（HTTP 模式） | 环境变量占位符 `${WINVM_TOKEN}`，由宿主注入；**不落明文配置** |
+| Bearer token（非回环直连） | 环境变量 `WINVM_BEARER_TOKEN`，由宿主注入；**不落明文配置** |
 | WorkBuddy header 覆盖 | 走宿主 `connector-states.v3.json` 的 AEAD 加密机制（实测 `aes-256-gcm` + `hkdf-sha256`） |
 | VM 自动登录凭据 | 用 Windows DPAPI / 凭据管理器；**禁止**明文写注册表 |
+
+### 6.1 认证是两件事，别混为一谈（双层模型）
+
+| 层 | 认证对象 | 机制 | 何时需要 |
+|----|----------|------|----------|
+| **SSH 层** | 宿主 ↔ 被控端 Windows（scp 推包 / `ssh -L` 开隧道） | **SSH 公钥**（默认）；密码不可行 | 始终（部署 + 隧道） |
+| **Bearer 层** | 宿主 connector ↔ `vm-service`（MCP/A2A 协议） | `WINVM_BEARER_TOKEN` | **仅非回环直连**；走回环隧道时免校验 |
+
+> 默认部署走 `ssh -L … 127.0.0.1:18443`，隧道两端都是回环地址，Bearer 层**免校验**；`vm-service.config.json` 仅当 `bind ≠ 127.0.0.1` 才强制 `tokenEnv: WINVM_BEARER_TOKEN`。所以绝大多数场景你**只需要配好 SSH 密钥**，无需碰 bearer token。
+
+### 6.2 SSH 认证：只用密钥，不用密码
+
+`setup.mjs` / `install-vm.mjs` / `install-host.mjs` 内部的 `ssh` / `scp` / `ssh -L` 都是**直接调用系统 `ssh`**，脚本本身**不接收、不传递任何密码**——`.env` 里只有 `VM_HOST` / `VM_USER` / `VM_SSH_PORT`，**没有密码字段**。因此认证完全交给操作系统 SSH：
+
+- ✅ **密钥（推荐，可无人值守）**：`ssh-keygen -t ed25519` 生成，把 `~/.ssh/id_ed25519.pub` 追加进远端 `%USERPROFILE%\.ssh\authorized_keys`，并修 ACL（仅本人可读，否则 OpenSSH 会无视该文件）。若默认密钥非 `id_ed25519`，须在宿主 `~/.ssh/config` 按 `VM_HOST` 配 `IdentityFile`。
+- ❌ **密码（不建议）**：Windows 自带 `ssh`/`scp` 交互式读密码，脚本不传密码、`.env` 无密码字段；原生 Windows 不随附 `sshpass`（脚本调用 `ssh`/`scp` 而非 PuTTY `plink`），`setup.mjs --apply` 这类一次性多步 SSH 流程会卡在交互要密码。密码只适合本人终端偶尔手动连一下。
+
+### 6.3 远程 Windows（非本地 VM）同样适用
+
+被控端是不是真·虚拟机不影响架构——`vm-service` 只要跑在一台 Windows 上、经隧道在 `127.0.0.1:18443` 可达即可。把 `VM_HOST` 指向远程 Windows（物理机 / 云主机 / 内网机器），本地当宿主、远程当"VM"，即"本地操作远程 Windows"。唯一额外前置：远程 Windows 需 **OpenSSH Server 监听 22 且宿主可路由**（完整步骤见 `DEPLOYMENT.md §7`）。其余认证、隧道、能力边界与本地 VM 完全一致。
 
 ---
 
