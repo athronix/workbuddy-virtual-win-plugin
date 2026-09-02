@@ -37,8 +37,11 @@ workbuddy-virtual-win-plugin/
 
 ## delivery/
 - `setup.mjs` 双端一键部署总入口（读 `.env`：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行）
+  - VM 侧产物 = `delivery` + `skills` + 各包**运行时资产**（排除 `src`/`node_modules`/`tsconfig*`，见 `packagePayloadPaths()`）+ 根 `package.json`
+  - 含 `psmod/`（54 能力的 PS 实现）与 `contracts/schemas/`；**不含 node_modules**（远端改由软链解析）
 - `install-host.mjs` 宿主机安装器（幂等/增量/dry-run/uninstall）
-- `install-vm.mjs` VM 侧安装器（npm ci/build/自启任务/自检，支持 `--provider <id>`/`--cli <exe>`/`--skills-root <dir>`）
+- `install-vm.mjs` VM 侧安装器（依赖解析/build/自启任务/自检，支持 `--provider <id>`/`--cli <exe>`/`--skills-root <dir>`/`--skip-install`/`--skip-links`）
+- `link-workspace.mjs` **@winvm workspace 软链器**：为「仅含 dist 的分发产物」建 `node_modules/@winvm/<pkg>` → `packages/<pkg>` 的 junction（免管理员/免联网/幂等），解决 dist 中裸包名 import 无法解析的问题
 - `deploy-shared-skills.mjs` 共享 Skills 部署器（① publish 仓库 `skills/` → 共享根 `C:/WinVMBridge/shared-skills`；② 各候选 VM Agent 经 junction 引用，幂等/dry-run）
 - `vm-service.config.json` VM 侧服务配置（策略/审计/监听，含三 provider 定义：workbuddy-deterministic / workbuddy / hermes-agent）
 - `.env.example` 双端部署配置模板（含 `WINVM_VM_PROVIDER` / `WINVM_HERMES_CLI` / `WINVM_SKILLS_ROOT`）

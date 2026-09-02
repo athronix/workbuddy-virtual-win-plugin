@@ -119,7 +119,7 @@ node delivery/install-vm.mjs --uninstall
 ```
 
 安装器会：
-1. `npm ci`（按 lockfile 精确还原依赖，保证可复现）
+1. **依赖解析**：默认 `npm ci`（按 lockfile 精确还原依赖，保证可复现）；若以宿主 `setup.mjs` 推送的「仅 dist」产物部署（带 `--skip-install`），则跳过 `npm ci`，改由 `link-workspace.mjs` 建 `@winvm/*` workspace junction 软链来解析裸包名 import（详见 §7.6）。加 `--skip-links` 可跳过软链步骤。
 2. `npm run build` 编译所有 packages 到 `dist/`
 3. 基于 `delivery/vm-service.config.json` 生成运行配置（强制 `host=127.0.0.1`），并写入 `agent.provider`（来自 `--provider` / `WINVM_VM_PROVIDER` / 配置默认）及所选 LLM provider 的 `cliPath`
 4. **部署共享 Skills**：把仓库 `skills/` 发布到独立共享根（默认 `C:/WinVMBridge/shared-skills`，单一事实源），并为各候选 VM AI Agent 的 skills 目录建立 **junction 引用**（不复制、不覆盖用户技能；可用 `--skills-root` / `WINVM_SKILLS_ROOT` 覆盖，`--skip-skills` 跳过）。详见 `docs/02-design/SPEC-SKILLS.md`
@@ -326,3 +326,34 @@ curl -s http://127.0.0.1:18443/health      # 应返回 VM 侧健康态
 - **GUI 自动化**仍依赖远程 Windows 有活跃交互会话/显示器；无头远程机可能跑不了 GUI 模块（与本地 VM 同源限制）。
 - 仅支持 Windows 被控端（强依赖 PowerShell 5.1），远程 Linux 不可作此"VM"。
 - 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道是回环，bearer 免校验；只有非回环直连才需要 `WINVM_BEARER_TOKEN` + `tokenEnv`。
+
+### 7.6 远程分发产物里有什么、依赖怎么解析（关键）
+
+一键部署把**宿主已构建好的产物**直接推到远程 Windows，VM 侧 `install-vm.mjs` 以 `--skip-install --skip-build` 收尾（dist 已随产物到达）。这里有两个容易踩的坑，已在 V1 修复：
+
+**① 产物清单（排除法，含运行时资产、不含 node_modules）**
+
+`setup.mjs` 经 `packagePayloadPaths()` 发出每个 `packages/<name>/` 下、**排除** `src` / `node_modules` / `tsconfig*` 之后的**全部条目**，因此产物包含：
+
+- `dist/`（编译产物）
+- `psmod/`（**54 个 Windows 能力的 PowerShell 实现**，ps-bridge 运行必需）
+- `schemas/`（`packages/contracts/schemas/`，契约 JSON Schema）
+- 各 `package.json`
+- **不含** `node_modules`（不传任何 npm 依赖）——因为 12 个包全部只有内部 `@winvm/*` 依赖，无需联网装包。
+
+> 早期版本只发 `dist` + `package.json`，漏发 `psmod/` 与 `schemas/`，self-test 会报「找不到 ps-bridge 脚本」。
+
+**② 依赖解析：junction 软链代替 npm ci**
+
+`dist` 里的 ESM import 仍是裸包名（如 `from '@winvm/contracts'`，编译期不重写）。远程若没有 `node_modules/@winvm/*`，`node cli.js` 会直接 `ERR_MODULE_NOT_FOUND`。
+
+修复：`install-vm.mjs` 在 `--skip-install` 时调用 **`link-workspace.mjs`**，为每个包建一条 Windows **junction 软链**：
+
+```
+node_modules/@winvm/<pkg>  ──junction──▶  packages/<pkg>
+```
+
+junction 免管理员、免联网、幂等（已指向正确目标则跳过，被非 junction 占用则跳过并告警）。裸包名 import 由此解析，**远程 VM 全程不碰 npm registry**。
+
+- 想保留 `npm ci` 路径（如要做二次开发）：去掉 `--skip-install`，安装器走 `npm ci`。
+- 想跳过软链（如你已手动建好 node_modules）：加 `--skip-links`。

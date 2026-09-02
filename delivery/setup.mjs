@@ -139,18 +139,78 @@ export function buildPlan(cfg) {
 /** 传到 VM 的产物包名（打包保留 packages/<name>/dist 层级，避免同名 dist 互相覆盖） */
 export const VM_ARCHIVE = 'winvm-dist.tgz';
 
-/** 已构建包的 dist 相对路径列表 */
-export async function distPaths() {
+/** packages/ 下的包目录名列表（目录不存在时返回空数组） */
+async function packageNames() {
   const pkgRoot = join(ROOT, 'packages');
-  let names = [];
   try {
-    names = await readdir(pkgRoot);
+    return await readdir(pkgRoot);
   } catch {
     return [];
   }
+}
+
+/** 已构建包的 dist 相对路径列表 */
+export async function distPaths() {
   const out = [];
-  for (const n of names) {
-    if (existsSync(join(pkgRoot, n, 'dist'))) out.push(`packages/${n}/dist`);
+  for (const n of await packageNames()) {
+    if (existsSync(join(ROOT, 'packages', n, 'dist'))) out.push(`packages/${n}/dist`);
+  }
+  return out;
+}
+
+/**
+ * 各包 package.json 相对路径列表 —— **必须随产物分发**。
+ * dist 中 import 的是裸包名（from '@winvm/core'），远端靠
+ * node_modules/@winvm/<pkg> 软链指向 packages/<pkg> 后，
+ * ESM 仍需该目录 package.json 的 main 字段才能定位 dist/index.js；
+ * 少了它，即便软链建好也解析不到入口。
+ */
+export async function manifestPaths() {
+  const out = [];
+  for (const n of await packageNames()) {
+    if (existsSync(join(ROOT, 'packages', n, 'package.json'))) out.push(`packages/${n}/package.json`);
+  }
+  return out;
+}
+
+/**
+ * 包内不随产物分发的条目（源码与构建中间产物，远端运行不需要）。
+ * 注意这是**排除法**而非白名单枚举，见 packagePayloadPaths 说明。
+ */
+const PKG_EXCLUDE_ENTRIES = new Set([
+  'src',
+  'node_modules',
+  'tsconfig.json',
+  'tsconfig.tsbuildinfo',
+  '.generated',
+  '.DS_Store',
+]);
+
+/**
+ * 待分发的 packages 条目相对路径清单（**排除法**：除上表外全量随行）。
+ *
+ * 光有 dist + package.json 是不够的，还有非 TypeScript 的运行时资产：
+ *  - `packages/vm-capabilities/psmod/` —— 54 个能力的 PowerShell 实现
+ *    （ps-bridge.ps1 与各能力域脚本）。缺了它，服务能起来、自检也能过半，
+ *    但**一个能力都执行不了**；
+ *  - `packages/contracts/schemas/`    —— 运行期契约校验用的 JSON Schema。
+ *
+ * 因此不做白名单枚举，而是排除源码与构建中间产物后全量随行，
+ * 以免以后新增运行时资产时再次漏发。
+ */
+export async function packagePayloadPaths() {
+  const out = [];
+  for (const n of await packageNames()) {
+    let entries = [];
+    try {
+      entries = await readdir(join(ROOT, 'packages', n), { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (PKG_EXCLUDE_ENTRIES.has(e.name)) continue;
+      out.push(`packages/${n}/${e.name}`);
+    }
   }
   return out;
 }
@@ -171,12 +231,17 @@ export function vmInstallCommand(cfg) {
 }
 
 /**
- * VM 侧分发：确保目录 → 打包（delivery + skills + 各包 dist）→ 传输 → 解压 → 安装
+ * VM 侧分发：确保目录 → 打包（delivery + skills + 各包运行时资产）→ 传输 → 解压 → 安装
  * skills 一并下发，作为 VM 内 AI Agent 的技能规范与操作指引。
+ *
+ * 产物**不含 node_modules**（体积与平台相关性），远端安装走 --skip-install；
+ * dist 中的裸包名 import（@winvm/*）改由 install-vm.mjs 建立 workspace junction 软链解析
+ * （见 delivery/link-workspace.mjs）。
+ * 各包运行时资产（dist / package.json / psmod / schemas…）由 packagePayloadPaths 排除法给出。
  */
 export async function deployVm(cfg) {
-  const sources = ['delivery', 'skills', ...(await distPaths()), 'package.json'].filter((p) =>
-    existsSync(join(ROOT, p)),
+  const sources = ['delivery', 'skills', ...(await packagePayloadPaths()), 'package.json'].filter(
+    (p) => existsSync(join(ROOT, p)),
   );
   if (sources.length === 0) return { ok: false, code: -1, out: '没有任何可分发产物，请先执行 npm run build' };
 

@@ -120,3 +120,30 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
 - `install-vm.mjs --dry-run --provider hermes-agent`：正确打印 6 步计划。
 - `deploy-shared-skills.mjs --source skills --publish-from skills`：dry-run 正确识别 7 个 Skill + 读取 Agent 目录 + 跳过已有 link。
 - `vm-service --self-test`（provider=hermes-agent）：通过 provider 目录校验（hermes 真机 CLI 调用待真实环境终验）。
+
+---
+
+## 第五轮修复（远程分发链路：缺 node_modules + 缺运行时资产）
+
+### 背景
+用户问「能否在宿主机一键把本插件同时装到宿主机和（远程）Windows VM」——`setup.mjs --apply` 设计上支持，但真机链路实测有两个根因缺陷，导致远程分发出去的产物**跑不起来**：
+
+1. **缺 node_modules**：宿主 `setup.mjs` 把已构建好的 `dist` 打包 scp 到 VM，`install-vm.mjs` 以 `--skip-install --skip-build` 收尾。但 `dist` 产物里的 ESM import 仍写成裸包名 `from '@winvm/contracts'`（编译期不重写），VM 侧没有 `node_modules/@winvm/*`，`node cli.js` 直接 `ERR_MODULE_NOT_FOUND`。
+2. **缺运行时资产**：分发清单当时只发 `dist` + `package.json`，漏发了 VM 运行必需的 **PowerShell 能力脚本** `packages/vm-capabilities/psmod/`（54 个 Windows 能力实现）与 **JSON Schema** `packages/contracts/schemas/`，self-test 报「找不到 ps-bridge 脚本」。
+
+### 修复
+- **`delivery/setup.mjs`**：VM 侧产物改为**排除法**清单 `packagePayloadPaths()`——发出每个 `packages/<name>/` 下除 `src`/`node_modules`/`tsconfig*` 之外的全部条目（含 `dist`、`psmod/`、`schemas/`、各 `package.json`），彻底含齐运行时资产，且**不含 node_modules**。
+- **`delivery/link-workspace.mjs`（新增）**：为「仅含 dist 的分发产物」建 `node_modules/@winvm/<pkg>` → `packages/<pkg>` 的 **junction 软链**（Windows 免管理员/免联网/幂等）。`planWorkspaceLinks()` 纯函数产出 create/skip-ok/skip-conflict，`applyWorkspaceLinks()` 负责建链；导出 `ensureWorkspaceLinks()` 供安装器调用。裸包名 import 由此解析，无需 `npm ci`、无需联网。
+- **`delivery/install-vm.mjs`**：依赖解析步骤改为「`npm ci`（默认）或 @winvm workspace 软链（`--skip-install` 时跳过 ci，软链仍建）」；新增 `--skip-links` 可跳过软链；导入 `ensureWorkspaceLinks` 并在步骤 1 调用，失败 fail-closed 退出。
+- **测试**：
+  - `tests/unit/link-workspace.test.js`（**16 项**）：覆盖 `norm` / `planWorkspaceLinks`（create/skip-ok/skip-conflict/空）/ `discoverPackages` / `probeLinkDir`（junction 探测）/ `applyWorkspaceLinks`（真实建链 + dry-run）/ `ensureWorkspaceLinks`（幂等 + dry-run + 空）。
+  - `tests/unit/setup-env.test.js`（**新增 4 项防回归**）：manifest 与 dist 一致、产物含 `psmod/`、排除 `src/node_modules/tsconfig*`、含 `contracts/schemas/`。
+
+### 关键决策（沉淀）
+1. **junction 软链而非 npm ci**：12 个包**全部只有内部 `@winvm/*` 依赖、零外部 npm 依赖**，故 junction 即可解析裸包名 import，远程 VM 免联网、免装 registry。这与 `deploy-shared-skills.mjs` 用 junction 引用共享 Skills 的范式一致。
+2. **排除法清单而非白名单**：VM 产物用「排除 src/node_modules/tsconfig*」自动包含一切运行时资产（含未来新增的 psmod/python 脚本），避免再漏发。
+
+### 测试结果（第五轮）
+- 本地模拟远程 payload 树（仅 dist + package.json → 加 symlink + 全量排除法产物）复现并修复两缺陷：修复前 `ERR_MODULE_NOT_FOUND` / 缺 ps-bridge 脚本；修复后 `--self-test` 退出码 0、6 能力域 / 54 能力 / ps-bridge 探测全 OK。
+- 全量套件：**178 单测 + 16 e2e = 194/194 通过**（`tsc -b` 12/12 包编译通过）。
+- `docs/06-OVERVIEW.md` 与 `.dev/*` 索引同步（194/194、12 包、link-workspace.mjs）。

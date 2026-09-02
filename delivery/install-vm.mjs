@@ -3,7 +3,10 @@
  * WinVM Bridge —— 虚拟机侧（被控端）一键部署脚本
  *
  * 在 Windows VM 内运行，把仓库部署为常驻的 vm-service（双协议服务端）：
- *   1. npm ci          按 lockfile 精确还原依赖（可复现）
+ *   1. 依赖解析        npm ci（按 lockfile 精确还原依赖，可复现，可 --skip-install 跳过）；
+ *                      产物分发场景（宿主 setup.mjs 推来的只有 dist）改为建立
+ *                      @winvm workspace 软链 node_modules/@winvm/<pkg> → packages/<pkg>
+ *                      （junction，免管理员 / 免联网；见 link-workspace.mjs）
  *   2. npm run build   编译所有 packages 到 dist/
  *   3. 生成运行配置     基于 delivery/vm-service.config.json，强制 host=127.0.0.1
  *   4. 共享 Skills      发布仓库 skills/ 到独立共享根，并为各候选 Agent 建 symlink 引用
@@ -18,6 +21,7 @@
  *                                [--provider <id>] [--cli <exe>]
  *                                [--skills-root <dir>] [--skip-skills]
  *                                [--task-name WinVMBridge.Service] [--skip-build]
+ *                                [--skip-install] [--skip-links]
  *
  * provider / cli 取值来源优先级：显式 --provider/--cli 参数 > 环境变量
  *   WINVM_VM_PROVIDER > 配置文件 agent.provider；CLI 运行时按 provider 取：
@@ -39,6 +43,7 @@ import {
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deploySharedSkills, DEFAULT_SHARED_SKILLS_ROOT } from './deploy-shared-skills.mjs';
+import { ensureWorkspaceLinks } from './link-workspace.mjs';
 
 /* ------------------------------ 参数 ------------------------------ */
 
@@ -49,6 +54,7 @@ function parseArgs(argv) {
     uninstall: false,
     skipBuild: false,
     skipInstall: false,
+    skipLinks: false,
     skipSkills: false,
     config: undefined,
     port: 18443,
@@ -64,6 +70,7 @@ function parseArgs(argv) {
       case '--uninstall': out.uninstall = true; break;
       case '--skip-build': out.skipBuild = true; break;
       case '--skip-install': out.skipInstall = true; break;
+      case '--skip-links': out.skipLinks = true; break;
       case '--skip-skills': out.skipSkills = true; break;
       case '--config': out.config = argv[++i]; break;
       case '--port': out.port = Number(argv[++i]); break;
@@ -171,7 +178,11 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg) {
 function planSteps(args, cfgPath) {
   const steps = [];
   steps.push(`校验配置: ${cfgPath}`);
-  steps.push(`npm ci （按 lockfile 精确还原依赖）${args.skipInstall ? '  [跳过 --skip-install]' : ''}`);
+  steps.push(
+    args.skipInstall
+      ? `依赖解析：建立 @winvm workspace 软链（node_modules/@winvm/<pkg> → packages/<pkg>，dist 已分发故无需 npm ci）${args.skipLinks ? '  [跳过 --skip-links]' : ''}`
+      : '依赖解析：npm ci（按 lockfile 精确还原依赖）+ 确保 @winvm workspace 软链',
+  );
   if (!args.skipBuild) steps.push('npm run build （编译所有 packages → dist/）');
   steps.push(`生成运行配置: ${runtimeConfig}（强制 host=127.0.0.1, port=${args.port}）`);
   steps.push(`部署共享 Skills: 仓库 skills/ → 共享根（${args.skillsRoot || 'C:/WinVMBridge/shared-skills'}），并为各候选 Agent 建 symlink 引用${args.skipSkills ? '  [跳过 --skip-skills]' : ''}`);
@@ -302,14 +313,43 @@ async function main() {
     return;
   }
 
-  /* 1. npm ci（产物已分发时可跳过） */
+  /* 1. 依赖解析：npm ci（全量安装）或 workspace 软链（产物已分发场景） */
+  console.log('[1/6] 依赖解析 ...');
   let r;
   if (args.skipInstall) {
-    console.log('[1/5] 跳过依赖安装（--skip-install：dist 已由宿主机构建并分发）');
+    console.log('      npm ci：跳过（--skip-install，dist 已由宿主机构建并分发）');
   } else {
-    console.log('[1/5] npm ci ...');
+    console.log('      npm ci ...');
     r = run('npm', ['ci', '--registry=https://registry.npmmirror.com'], { stdio: 'inherit' });
     if (r.status !== 0) { console.error('npm ci 失败'); process.exit(1); }
+  }
+
+  /*
+   * dist 中 import 的是裸包名（from '@winvm/core'），ESM 不重写说明符，必须经 node_modules 解析。
+   * 产物分发场景没有 node_modules，这里建 junction 软链补上 ——
+   * 各包依赖全为内部 @winvm/*、零外部 npm 依赖，故无需 npm ci、无需联网。
+   * 详见 delivery/link-workspace.mjs 头部说明。
+   */
+  if (args.skipLinks) {
+    console.log('      @winvm workspace 软链：跳过（--skip-links）');
+  } else {
+    const linkRes = await ensureWorkspaceLinks({
+      repoRoot,
+      dryRun: args.dryRun,
+      log: (m) => console.log(`      ${m}`),
+    });
+    if (linkRes.plan) {
+      console.log(
+        `      @winvm workspace 软链：包 ${linkRes.packages.length} 个 → 新建 ${linkRes.plan.summary.create} / 已就位 ${linkRes.plan.summary.skipOk} / 冲突跳过 ${linkRes.plan.summary.conflict}`,
+      );
+      const broken = linkRes.results.filter((x) => x.error);
+      if (broken.length && !args.dryRun) {
+        console.error(
+          `      软链创建失败，服务将无法解析 @winvm/*：${broken.map((b) => `@winvm/${b.name}（${b.error}）`).join('; ')}`,
+        );
+        process.exit(1);
+      }
+    }
   }
 
   /* 2. build */

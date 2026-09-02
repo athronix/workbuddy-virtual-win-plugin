@@ -1,7 +1,7 @@
 # 交付概览 · WinVM 跨机 Agent 插件（1+5 双通道方案）
 
 > 让宿主机 WorkBuddy 完全操作一台 Windows 虚拟机的完整实现已交付。
-> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，158/158 测试通过。
+> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，194/194 测试通过（178 单测 + 16 e2e）。
 > 已补齐"操作 Windows 软件应用进行生产活动"这一被遗漏的关键维度（appops 域 + winvm-app-operation Skill + LLM provider 开放任务路径）。
 > **VM 侧 AI Agent 已可经 `agent.provider` 一键切换**：`workbuddy-deterministic`（确定性，默认）/ `workbuddy`（LLM Agent，V1 已实现）/ `hermes-agent`（Nous Research Hermes Agent，MCP 预注册）。
 > **双通道已完整闭环**：简单任务 → 宿主 MCP client 直调 VM 的 MCP 工具；复杂任务 → 宿主经 A2A 委派桥（`host-a2a-bridge`）把目标交给 VM 内 AI Agent，过程与产物按 A2A 规范回流。
@@ -56,8 +56,8 @@
 
 | 项 | 结果 |
 |----|------|
-| 全量编译 `tsc -b` | ✅ 11/11 包通过 |
-| 单元测试 + 端到端 | ✅ **158/158 通过**（新增 hermes provider / registrar / 共享 Skills 规划 3 个测试文件，合计 31 用例；既有测试无回归） |
+| 全量编译 `tsc -b` | ✅ 12/12 包通过 |
+| 单元测试 + 端到端 | ✅ **194/194 通过**（178 单测 + 16 e2e；新增 hermes provider / registrar / 共享 Skills 规划 3 个测试文件，合计 31 用例；远程分发链路修复新增 link-workspace 16 单测 + setup-env 4 单测；既有测试无回归） |
 | ps-bridge 真实链路 | ✅ 真实 PowerShell 5.1，五大模块加载，返回真实系统数据 |
 | 安装器 dry-run | ✅ 6 Skill / 7 文件 / 1 增量补丁 / 静态禁用 8 高危工具 |
 | VM 服务配置校验 | ✅ 0 错误 0 警告，强制回环绑定 |
@@ -81,7 +81,7 @@
 
 **Skills（skills/ 6）**：winvm-orchestrator + system/app/storage/gui + **app-operation（应用生产操作）**
 
-**交付（delivery/）**：`setup.mjs`（双端一键：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行，读 `.env`）· `install-host.mjs` / `install-vm.mjs`（幂等/增量/dry-run/--provider/--cli/--skills-root/--skip-skills/uninstall）· `deploy-shared-skills.mjs`（共享 Skills 发布 + 各候选 Agent symlink 规划，可 `--apply`）· `vm-service.config.json`（含三 provider 定义：`workbuddy-deterministic` / `workbuddy` / `hermes-agent`）· `.env.example`
+**交付（delivery/）**：`setup.mjs`（双端一键：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行，读 `.env`）· `install-host.mjs` / `install-vm.mjs`（幂等/增量/dry-run/--provider/--cli/--skills-root/--skip-skills/--skip-install/--skip-links/uninstall）· `link-workspace.mjs`（VM 侧 @winvm workspace junction 软链，免 npm ci/免联网，修复远程分发链路缺 node_modules 的根因）· `deploy-shared-skills.mjs`（共享 Skills 发布 + 各候选 Agent symlink 规划，可 `--apply`）· `vm-service.config.json`（含三 provider 定义：`workbuddy-deterministic` / `workbuddy` / `hermes-agent`）· `.env.example`
 
 **DDD 索引（.dev/ 6 文件）**：README / project-dir-file-index / docs-index / project-dev-status / changed-log / changing-log
 

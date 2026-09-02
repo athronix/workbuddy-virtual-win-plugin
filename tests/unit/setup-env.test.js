@@ -5,7 +5,14 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseEnv, resolveConfig, buildPlan } from '../../delivery/setup.mjs';
+import {
+  parseEnv,
+  resolveConfig,
+  buildPlan,
+  distPaths,
+  manifestPaths,
+  packagePayloadPaths,
+} from '../../delivery/setup.mjs';
 
 const SAMPLE = `
 # 注释行应被忽略
@@ -77,5 +84,45 @@ describe('buildPlan', () => {
     const tunnel = apply.find((p) => p.phase === 'TUNNEL');
     assert.equal(host.apply, true);
     assert.equal(tunnel.apply, true);
+  });
+});
+
+describe('VM 分发产物清单（防回归）', () => {
+  test('凡有 dist 的包，清单必同时含其 package.json', async () => {
+    const dists = await distPaths();
+    const manifests = await manifestPaths();
+    assert.ok(dists.length > 0, '仓库应已构建（存在 packages/*/dist）');
+    for (const d of dists) {
+      const name = d.split('/')[1];
+      assert.ok(
+        manifests.includes(`packages/${name}/package.json`),
+        `包 ${name} 有 dist 但分发清单缺少其 package.json —— `
+          + '远端建好 @winvm 软链后仍会因缺 main 字段而解析不到入口',
+      );
+    }
+  });
+
+  test('含 vm-capabilities/psmod（54 个能力的 PowerShell 实现）', async () => {
+    const payload = await packagePayloadPaths();
+    assert.ok(
+      payload.includes('packages/vm-capabilities/psmod'),
+      '缺少 packages/vm-capabilities/psmod —— 远端服务能启动、自检能过半，'
+        + '但 54 个能力一个都执行不了（找不到 ps-bridge.ps1）',
+    );
+  });
+
+  test('排除源码与构建中间产物（src / node_modules / tsconfig / tsbuildinfo）', async () => {
+    const payload = await packagePayloadPaths();
+    const junk = payload.filter(
+      (p) => /(^|\/)(src|node_modules|\.generated)$/.test(p)
+        || p.endsWith('tsconfig.json')
+        || p.endsWith('tsconfig.tsbuildinfo'),
+    );
+    assert.deepEqual(junk, [], `产物中混入了源码/构建中间产物：${junk.join(', ')}`);
+  });
+
+  test('contracts/schemas 随行（运行期契约校验需要）', async () => {
+    const payload = await packagePayloadPaths();
+    assert.ok(payload.includes('packages/contracts/schemas'), '缺少 packages/contracts/schemas');
   });
 });

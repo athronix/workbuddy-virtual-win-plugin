@@ -93,3 +93,14 @@
 - 空闲自愈 ✅（见上）
 
 > ⚠ 仍未真机验证：`codebuddy` CLI 参数契约（可用 `cliArgTemplate` 覆盖）、宿主是否同时启用两个连接器、GUI 类开放任务。已记入 `.dev/changing-log.md`。
+
+---
+
+## 九、后续轮次（与本文档不同步，以权威文档为准）
+
+> 本文件为早期会话总结，止于第三轮。后续的 **第四轮（`hermes-agent` 三选项 + 共享 Skills 独立部署）** 与 **第五轮（远程分发链路修复）** 已落地，权威记录见 `docs/06-OVERVIEW.md`（当前态：194/194 测试通过、12 包）与 `.dev/changed-log.md`（第四轮 / 第五轮章节）。
+
+**第五轮关键修复（远程一键部署能跑起来）**：
+- 根因①远程产物缺 `node_modules` → `dist` 内裸包名 `from '@winvm/...'` 无法解析（`ERR_MODULE_NOT_FOUND`）。修复：新增 `delivery/link-workspace.mjs`，`install-vm.mjs` 在 `--skip-install` 时建 `@winvm/*` workspace junction 软链（免 npm ci / 免联网 / 幂等）；12 包全为内部依赖，junction 即可。
+- 根因②远程产物漏发运行时资产 → `psmod/`（54 能力 PS 实现）与 `contracts/schemas/`。修复：`setup.mjs` 的 VM 产物改为**排除法**清单（排除 `src`/`node_modules`/`tsconfig*`，含 `psmod/`+`schemas/`，不含 `node_modules`）。
+- 测试：新增 `link-workspace.test.js`（16 项）+ `setup-env.test.js` 4 项防回归 → 全量 **194/194**（178 单测 + 16 e2e）。
