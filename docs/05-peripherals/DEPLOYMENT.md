@@ -343,6 +343,8 @@ curl -s http://127.0.0.1:18443/health      # 应返回 VM 侧健康态
 
 > 早期版本只发 `dist` + `package.json`，漏发 `psmod/` 与 `schemas/`，self-test 会报「找不到 ps-bridge 脚本」。
 
+> ⚠ **`psmod/*.ps1` 必须保留 UTF-8 BOM**：脚本含中文注释/字符串 + `$(...)` 子表达式。中文 Windows 的 PowerShell 5.1 对**无 BOM 的 .ps1 默认按系统 ANSI 代码页（GBK）解码**，会把含 `$(...)` 的中文行误判为「字符串缺少终止符」、`ps-bridge` 进程启动即退出（`PSBRIDGE_NOT_RUNNING`）。加 BOM 后 PS 5.1 才会按 UTF-8 读。宿主 e2e 能过只是因为宿主 PS 环境（pwsh7 / UTF-8 代码页）碰巧解码正常——远端中文 Windows 仍会炸。重写这些文件时切勿丢掉 BOM。
+
 **② 依赖解析：junction 软链代替 npm ci**
 
 `dist` 里的 ESM import 仍是裸包名（如 `from '@winvm/contracts'`，编译期不重写）。远程若没有 `node_modules/@winvm/*`，`node cli.js` 会直接 `ERR_MODULE_NOT_FOUND`。

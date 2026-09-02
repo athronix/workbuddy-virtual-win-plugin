@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     WinVM Bridge —— app 能力域（应用管理，FR-202）
 #>

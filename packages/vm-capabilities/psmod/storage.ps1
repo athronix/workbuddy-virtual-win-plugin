@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     WinVM Bridge —— storage 能力域（存储管理，FR-203）
 

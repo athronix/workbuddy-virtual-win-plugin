@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     WinVM Bridge —— gui 能力域（图形化与桌面自动化，FR-204）
 

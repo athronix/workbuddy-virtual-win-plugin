@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     WinVM Bridge —— ps-bridge 常驻 PowerShell 宿主进程
 

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     WinVM Bridge —— system 能力域（系统管理，FR-201）
 

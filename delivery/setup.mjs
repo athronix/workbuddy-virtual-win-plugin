@@ -283,6 +283,10 @@ export async function deployVm(cfg) {
 function run(cmd, args, opts = {}) {
   return new Promise((resolveResult) => {
     const timeoutMs = opts.timeoutMs ?? 120_000;
+    // Windows 上 npm/npx/yarn/pnpm 是 .cmd 批处理文件，spawn 不带 shell 时找不到
+    // 可执行体（ENOENT）。交给 cmd.exe 解析（shell:true）即可。其余命令（node/ssh/
+    // scp/tar/curl 等真实 .exe）保持无 shell，避免引号/特殊字符被本地 cmd 二次解析。
+    const isCmdShim = process.platform === 'win32' && /^(npm|npx|yarn|pnpm)$/.test(cmd);
     let child;
     const t = setTimeout(() => {
       try {
@@ -293,7 +297,12 @@ function run(cmd, args, opts = {}) {
       resolveResult({ ok: false, code: -1, out: 'TIMEOUT' });
     }, timeoutMs);
     try {
-      child = spawn(cmd, args, { cwd: opts.cwd ?? ROOT, windowsHide: true, env: process.env });
+      child = spawn(cmd, args, {
+        cwd: opts.cwd ?? ROOT,
+        windowsHide: true,
+        env: process.env,
+        ...(isCmdShim ? { shell: true } : {}),
+      });
     } catch (e) {
       clearTimeout(t);
       resolveResult({ ok: false, code: -1, out: String(e) });

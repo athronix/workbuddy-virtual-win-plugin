@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     WinVM Bridge —— appops 能力域（应用生产操作，FR-205）
 
