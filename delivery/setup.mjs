@@ -2,9 +2,13 @@
  * WinVM Bridge —— 双端一键部署脚本（宿主机侧 + VM 侧）
  *
  * 读取项目根 .env（不存在则回退 .env.example），按配置完成：
- *   BUILD → HOST（install-host.mjs）→ VM（scp + install-vm.mjs）→ TUNNEL（ssh -L）→ TEST（自检）
+ *   BUILD → HOST（install-host.mjs）→ VM（scp + install-vm.mjs）→ TUNNEL（ssh -L）
+ *         → TEST（宿主机自检）→ HEALTH（经隧道探测 /health，需 WINVM_SETUP_TUNNEL=1）
  *
- * 安全默认：不加 --apply 即 --dry-run，只打印计划、不改动任何系统。
+ * 安全默认：
+ *  - 不加 --apply 即 --dry-run，只打印计划、不改动任何系统；
+ *  - WINVM_DRY_RUN=1 是兜底保险：即便传了 --apply 也强制保持 dry-run。
+ *    （真执行的**唯一**入口是显式 --apply，配置里写 WINVM_DRY_RUN=0 不会自动触发执行。）
  * 所有副作用（构建/安装/ssh）均在 --apply 下发生，且单步失败不影响其它步骤（仅汇总报错）。
  */
 
@@ -62,7 +66,16 @@ export function resolveConfig(env, opts = {}) {
     return Number.isFinite(n) ? n : d;
   };
   const bool = (k) => env[k] === '1' || String(env[k]).toLowerCase() === 'true';
-  const dryRun = opts.apply ? false : env['WINVM_DRY_RUN'] ? env['WINVM_DRY_RUN'] !== '0' : true;
+  /**
+   * dry-run 判定（安全红线）：
+   *  - **真执行必须显式 --apply**：不传 --apply 时永远 dry-run，不改动任何系统。
+   *  - WINVM_DRY_RUN=1 是兜底保险：即便传了 --apply 也强制保持 dry-run。
+   *
+   * 旧实现 `opts.apply ? false : (WINVM_DRY_RUN !== '0')` 有个 footgun：
+   * WINVM_DRY_RUN=0 时**不传 --apply 也会真执行**，与「不加 --apply 即 dry-run」
+   * 的文档承诺矛盾 —— 用户直接跑 `node delivery/setup.mjs` 就会误伤真机。
+   */
+  const dryRun = !opts.apply || bool('WINVM_DRY_RUN');
   return {
     dryRun,
     servicePort: num('WINVM_SERVICE_PORT', 18443),
@@ -83,7 +96,7 @@ export function resolveConfig(env, opts = {}) {
   };
 }
 
-/** 生成四阶段执行计划（纯函数，便于单测） */
+/** 生成部署执行计划（纯函数，便于单测）*/
 export function buildPlan(cfg) {
   const steps = [];
   const mode = cfg.dryRun ? 'dry-run（只规划）' : 'apply（真执行）';
@@ -127,10 +140,25 @@ export function buildPlan(cfg) {
   }
   steps.push({
     phase: 'TEST',
-    description: '端到端自检（host dry-run + vm self-test + 经隧道 /health）',
-    command: `node packages/vm-service/dist/cli.js --self-test ; curl -s http://127.0.0.1:${cfg.tunnelLocalPort}/health`,
+    description: '宿主机侧自检（能力注册表 / ps-bridge / provider 能力目录）',
+    command: 'node packages/vm-service/dist/cli.js --self-test',
     apply: !cfg.dryRun,
   });
+  // HEALTH 独立于 TEST：早期把 self-test 与 curl 用 `;` 拼成一条命令，而执行器
+  // 用 split(' ') 还原参数，`;` 会被当成 node 的命令行参数 —— curl 永远不执行，
+  // /health 检查形同虚设。拆成独立阶段后，各自都是一条干净的单命令。
+  if (cfg.setupTunnel && cfg.vmHost) {
+    steps.push({
+      phase: 'HEALTH',
+      description: `经隧道探测 VM 服务 http://127.0.0.1:${cfg.tunnelLocalPort}/health`,
+      // --noproxy：本机代理（如 TUN 模式）会拦截回环流量，必须显式绕开；
+      // --max-time：服务未拉起时不要长时间挂住整个部署流程。
+      command:
+        `curl -s --noproxy 127.0.0.1 --max-time 15 ` +
+        `http://127.0.0.1:${cfg.tunnelLocalPort}/health`,
+      apply: !cfg.dryRun,
+    });
+  }
   return steps;
 }
 
@@ -419,14 +447,20 @@ async function main() {
       }
       continue;
     }
-    // BUILD / HOST / TEST：本地直接运行
+    // BUILD / HOST / TEST / HEALTH：本地直接运行
     const parts = s.command.split(' ');
     const r = await run(parts[0], parts.slice(1), { timeoutMs: 180_000 });
     if (!r.ok) {
       log(`   失败（exit ${r.code}）：${r.out.slice(0, 400)}`);
+      if (s.phase === 'HEALTH') {
+        log('   提示：/health 需要 VM 侧 HTTP 服务已运行（计划任务 WinVMBridge.Service 为「登录即启」）。');
+        log('         若刚部署完、远端尚未重新登录，可在 VM 内执行 schtasks /run /tn WinVMBridge.Service 后重试。');
+      }
       failed++;
     } else {
       log('   完成');
+      // /health 的响应体本身就是最有价值的验收证据（ok / capabilities / psBridge 状态），打印出来
+      if (s.phase === 'HEALTH' && r.out.trim()) log(`   ${r.out.trim().slice(0, 600)}`);
     }
   }
 

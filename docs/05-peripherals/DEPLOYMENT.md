@@ -25,9 +25,12 @@ Windows 虚拟机
 
 ## 1. 双端一键部署（setup.mjs，推荐）
 
-`delivery/setup.mjs` 读取项目根目录 `.env`，**一条命令完成「宿主机侧 + VM 侧」的安装、部署、隧道与自检**，生成 BUILD → HOST → VM → TUNNEL → TEST 五阶段计划。
+`delivery/setup.mjs` 读取项目根目录 `.env`，**一条命令完成「宿主机侧 + VM 侧」的安装、部署、隧道与自检**，生成 BUILD → HOST → VM → TUNNEL → TEST → HEALTH 六阶段计划。
 
-> ⚠️ **安全默认**：不加 `--apply` 即 `--dry-run`，只打印计划、**不改动任何系统**。需要真正执行时再加 `--apply`。
+> ⚠️ **安全默认**：
+> - 不加 `--apply` 即 `--dry-run`，只打印计划、**不改动任何系统**；真执行的**唯一**入口是显式 `--apply`
+>   （`.env` 里写 `WINVM_DRY_RUN=0` **也不会**自动触发执行）。
+> - `WINVM_DRY_RUN=1` 是兜底保险：即便传了 `--apply` 也强制保持 dry-run。
 
 ```bash
 # 1) 复制模板并填写（.env 含连接凭据，已被 .gitignore 忽略，勿入库）
@@ -60,7 +63,7 @@ node delivery/setup.mjs --apply --env=/path/to/.env
 | `WINVM_HERMES_CLI` | LLM 运行时可执行名（仅 `hermes-agent` 选型生效） | `hermes` |
 | `WINVM_SKILLS_ROOT` | 共享 Skills 根（覆盖 provider 默认 `C:/WinVMBridge/shared-skills`） | 空（用 provider 默认） |
 | `WINVM_SETUP_TUNNEL` | 是否建立 SSH 本地转发 | `1` |
-| `WINVM_DRY_RUN` | `1`=只规划；传 `--apply` 才真执行 | `1` |
+| `WINVM_DRY_RUN` | `1`=强制只规划（兜底，即便 `--apply` 也不执行）；`0`=允许执行但仍需显式 `--apply` | `1` |
 
 ### 1.2 VM 侧 AI Agent 选型（agent.provider）
 
@@ -74,9 +77,21 @@ node delivery/setup.mjs --apply --env=/path/to/.env
 
 `setup.mjs` 会把该选型透传给 `install-vm.mjs --provider <id> --cli <exe>`，生成的运行配置即 `agent.provider=<id>`；`vm-service` 启动时据此动态加载对应 provider 包。详见 `docs/02-design/LLM-PROVIDER.md` 与 `SPEC-AGENT-SERVICE-BRIDGE.md §6.1`。
 
-### 1.3 TEST 阶段自检
+### 1.3 TEST / HEALTH 阶段自检
 
-`--apply` 末尾的 TEST 阶段会执行：`vm-service --self-test`（含 provider 能力目录校验）+ 经隧道 `curl /health`。self-test 现在会打印并校验所选 provider 的 `id / kind / 声明能力目录`，可作为「provider 是否生效」的冒烟验证。
+`--apply` 末尾两个阶段各司其职：
+
+- **TEST**：本地跑 `vm-service --self-test`，校验能力注册表、ps-bridge 与所选 provider 的能力目录。self-test 会打印 provider 的 `id / kind / 声明能力目录`，可作为「provider 是否生效」的冒烟验证。
+- **HEALTH**（需 `WINVM_SETUP_TUNNEL=1` 且 `VM_HOST` 已配置）：经隧道 `curl` 远端 `/health`，并**打印响应体**——含 `ok` / `provider` / `psBridge` / `capabilities` / `audit`，是端到端验收的直接证据：
+
+  ```json
+  {"ok":true,"provider":{"id":"workbuddy","state":"ready"},"psBridge":{"state":"ready"},
+   "capabilities":{"count":54,"available":54},"audit":{"chainValid":true},"exposed":54}
+  ```
+
+  `session.state` 若为 `degraded`（如远端锁屏 / Explorer 未运行），表示 **GUI 能力不可用**，属预期环境限制而非部署故障 —— ps-bridge 设计要求 GUI 必须跑在交互式用户会话内。
+
+> HEALTH 依赖 VM 侧 HTTP 服务已运行。该服务由计划任务 `WinVMBridge.Service`（**登录即启**）拉起；刚部署完若远端尚未重新登录，可手动触发：`schtasks /run /tn WinVMBridge.Service`。
 
 > 若 `VM_HOST` 留空，`setup.mjs` 不会自动 ssh，而是打印本地手动部署指引（`install-vm.mjs --dry-run --provider …`），你可在 VM 内手动跑。
 

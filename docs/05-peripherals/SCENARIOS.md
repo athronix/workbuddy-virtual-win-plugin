@@ -269,7 +269,8 @@ PUT /a2a  { "method":"tasks/resubscribe", "params": { "taskId":"...", "approvalI
 ## G. 一键部署配套（两端各一个脚本 + 双端总入口）
 
 **双端总入口（推荐）** —— `delivery/setup.mjs`：读 `.env`，一条命令完成「构建 → 宿主侧 →
-VM 侧 → 隧道 → 自检」五阶段；默认 `--dry-run` 只规划，加 `--apply` 才真执行。
+VM 侧 → 隧道 → 自检 → /health 探测」六阶段；默认 `--dry-run` 只规划，加 `--apply` 才真执行
+（真执行的**唯一**入口就是 `--apply`，`.env` 写 `WINVM_DRY_RUN=0` 也不会自动执行）。
 VM 侧 AI Agent 选型经 `.env` 的 `WINVM_VM_PROVIDER`（透传 `--provider`）落地，详见
 `DEPLOYMENT.md §1`。
 ```bash

@@ -243,8 +243,11 @@ WINVM_DRY_RUN=1
        - 若 VM_HOST 可达(ssh 探测)：scp dist+配置 → VM_DEPLOY_DIR；ssh 运行 install-vm.mjs --apply
        - 否则：打印"在 VM 内手动运行 install-vm.mjs"指引
 6. PHASE TUNNEL ：WINVM_SETUP_TUNNEL=1 且 --apply → 后台 ssh -N -L local:127.0.0.1:remote user@host
-7. PHASE TEST   ：host dry-run + vm self-test（本地或 ssh）+ 经隧道 curl /health
-8. 汇总报告，全部绿则 exit 0
+7. PHASE TEST   ：host 本地跑 vm-service --self-test（能力注册表 / ps-bridge / provider 能力目录）
+8. PHASE HEALTH ：WINVM_SETUP_TUNNEL=1 且 VM_HOST 已配置 → 经隧道 curl /health 并打印响应体
+                  ⚠ 必须独立于 TEST：两段若用 `;` 拼成一条命令，执行器以 split(' ') 还原
+                    参数时会把 `;` 当成 node 的命令行参数，curl 永不执行、检查形同虚设。
+9. 汇总报告，全部绿则 exit 0
 ```
 
 ---
