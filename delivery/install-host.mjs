@@ -23,7 +23,7 @@
  *     node delivery/install-host.mjs --purge-backups        # 清理卸载产生的 *.winvm-bak.* 备份
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, copyFileSync, renameSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, copyFileSync, renameSync, readdirSync, cpSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';

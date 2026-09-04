@@ -278,3 +278,37 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
 ### ⚠️ 重要：本仓库单测必须「逐文件」运行
 整批执行 `node --test tests/unit/*.test.js` 会**假故障全红**：`link-workspace.test.js` 做 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`exitCode 2147483651` / `0xC0000005`，附原生栈），共享 runner 被打崩后，同进程内**所有**测试文件被连带判死且无汇总计数（单独跑该文件 16/16 全绿）。
 → 正确姿势：`for f in tests/unit/*.test.js; do node --test "$f"; done`（逐文件汇总），**切勿**用通配一次跑全部。
+
+---
+
+## 第十轮：修 install 实跑两处崩溃（cpSync 未导入 / reachable 误判不可达）
+
+### 背景
+用户在「卸载 → 重装」闭环中实测 `node delivery/setup.mjs --apply` 报 2 个失败，并反馈卸载后回收站现象困惑：
+- install：`[HOST]` 步骤 `❌ 失败（exit 1）：... 安装失败：cpSync is not defined`；`[VM-START]` `⚠️ VM 不可达（SSH 探测失败）→ 跳过`；`[HEALTH]` `端口已监听但 /health 未返回`。
+- uninstall 后：宿主机回收站只见 `cache/{winvm, winvm/winvm-bridge}` 两个目录，VM 回收站空。
+
+### 根因与修复
+1. **`[HOST] cpSync is not defined`（阻断性）**
+   - `delivery/install-host.mjs` 顶部 `node:fs` 导入遗漏 `cpSync`，但 `installBridgeDeps`/`collectWinvmDeps` 在 126-128、464 行调用 `cpSync(...)`。属运行时 `ReferenceError`，`node --check` 无法捕获、且本模块无单测 → 随上一轮误带病提交。
+   - **修复**：导入补 `cpSync`（已 `node -e` 确认 `node:fs` 导出的 `cpSync` 为 function）。
+2. **`[VM-START]` / `[VM-UNINSTALL]` 误判「VM 不可达」**
+   - `reachable(cfg)` 探测命令带 `-o BatchMode=yes`，而真正执行部署/隧道的 `ssh`（VM 步骤 389 行、TUNNEL 556 行）**不带**该选项且稳定可用。在本环境 `BatchMode=yes` 让探测偶发失败（VM 步骤的 `reachable` 通过、VM-START 的同函数几秒后却失败），于是：
+     - 装时 `VM-START` 被跳过 → 卸载残留的旧服务进程仍占 18443（绑定但不响应 `/health`）→ `HEALTH` 失败；
+     - 卸时 `VM-UNINSTALL` 被跳过 → **VM 侧从未执行卸载**，故 VM 回收站空（这正是 Issue 1 的 VM 部分根因）。
+   - **修复**：`reachable()` 与 `waitForRemotePort()` 去掉 `-o BatchMode=yes`，仅保留 `-o ConnectTimeout=8`；`reachable()` 加 1 次重试吸收瞬时抖动，与真实连接行为对齐。
+3. **VM-UNINSTALL 完成消息误导**：原写「移入回收站」，实为落入 VM 内可恢复目录 `repoRoot/.uninstall-trash/<时间戳>/`（SSH 无法写入 RDP 桌面看到的系统回收站）。
+   - **修复**：消息改为明确指向 `.uninstall-trash/<时间戳>/（非 Windows 回收站）`，与 `install-vm.mjs` 自身提示一致。
+
+### Issue 1 回收站现象说明（非 bug，顺带澄清）
+- **宿主机 2 个目录** = `plugins/cache/winvm/winvm-bridge`（插件本体）+ 其清空后的父目录 `plugins/cache/winvm`（按"空目录一并回收"逻辑移入）。设计如此，恢复时两者拼回即完整。若 `plugins/marketplaces/winvm`、`connectors/skills/connector-winvm` 当时存在也会同入回收站。
+- **VM 回收站空**：因 `VM-UNINSTALL` 被上面的 `reachable` bug **跳过**，VM 侧根本没卸载；即便正常卸载，删除物也落 `C:/Users/User/.WinVMBridge/.uninstall-trash/<时间戳>/`（非系统回收站）。修复后重跑 `setup.mjs --uninstall --apply` 即会在该目录见到可恢复产物。
+
+### 修改文件（第十轮）
+- **改** `delivery/install-host.mjs`：第 26 行 `node:fs` 导入补 `cpSync`。
+- **改** `delivery/setup.mjs`：`reachable()` 去 `BatchMode=yes` + 加 1 次重试；`waitForRemotePort()` 去 `BatchMode=yes`；VM-UNINSTALL 成功消息改述为 `.uninstall-trash/<时间戳>/`。
+
+### 验证（第十轮）
+- `node --check` 两脚本均通过；`node -e` 确认 `cpSync` 为 `node:fs` 合法导出。
+- 因 `install-host.mjs` 无单测（导入即跑 `main`）、`reachable` 需真实 SSH，两项仅能 `node --check` + 人工 `--apply` 验证（沙箱无真实 VM）；统一单测**逐文件**跑仍 **187/187 全绿**。
+- 用户下一步：重跑 `node delivery/setup.mjs --apply` 即可（HOST 不再 cpSync 崩溃；VM-START 会真重启服务 → HEALTH 应通）。

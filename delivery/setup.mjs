@@ -456,14 +456,20 @@ function run(cmd, args, opts = {}) {
 
 async function reachable(cfg) {
   if (!cfg.vmHost) return false;
-  const r = await run('ssh', [
-    '-p', String(cfg.vmSshPort),
-    '-o', 'BatchMode=yes',
-    '-o', `ConnectTimeout=8`,
-    `${cfg.vmUser}@${cfg.vmHost}`,
-    'echo ok',
-  ], { timeoutMs: 15_000 });
-  return r.ok;
+  // 注意：不得加 BatchMode=yes —— 该选项在部分环境（ssh-agent / 密钥）下会让探测偶发失败，
+  // 而真正执行部署/隧道的 ssh 并不带它且稳定可用，导致「实测可达却被判不可达」而跳过 VM 步骤。
+  // 改用 ConnectTimeout 快速失败 + 一次重试吸收瞬时抖动，与真实连接行为保持一致。
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const r = await run('ssh', [
+      '-p', String(cfg.vmSshPort),
+      '-o', `ConnectTimeout=8`,
+      `${cfg.vmUser}@${cfg.vmHost}`,
+      'echo ok',
+    ], { timeoutMs: 15_000 });
+    if (r.ok) return true;
+    if (attempt < 2) await sleep(1000);
+  }
+  return false;
 }
 
 /**
@@ -478,7 +484,6 @@ async function waitForRemotePort(cfg, timeoutMs) {
   while (Date.now() < deadline) {
     const r = await run('ssh', [
       '-p', String(cfg.vmSshPort),
-      '-o', 'BatchMode=yes',
       '-o', `ConnectTimeout=8`,
       `${cfg.vmUser}@${cfg.vmHost}`,
       `powershell -NoProfile -Command "(Test-NetConnection -ComputerName 127.0.0.1 -Port ${cfg.servicePort} -InformationLevel Quiet)"`,
@@ -577,7 +582,7 @@ async function main() {
         log(`   ❌ VM 卸载失败：${r.out.slice(0, 400)}`);
         failed++;
       } else {
-        log('   ✅ VM 卸载完成（任务移除 + 软链/共享 Skills 移入回收站，源码与 dist 保留）');
+        log('   ✅ VM 卸载完成（任务移除 + 软链/共享 Skills/生成目录移入 VM 内可恢复目录 .uninstall-trash/<时间戳>/，非 Windows 回收站；源码与 dist 保留）');
       }
       continue;
     }

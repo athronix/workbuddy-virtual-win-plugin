@@ -36,10 +36,10 @@ workbuddy-virtual-win-plugin/
 - **单一真源 + symlink 部署**：各候选 VM Agent 仅通过 junction 引用 `C:/WinVMBridge/shared-skills` 下的 Skill，避免多份副本
 
 ## delivery/
-- `setup.mjs` 双端一键部署总入口（读 `.env`：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行；VM-START 阶段轮询 VM 本机 18443 端口 ≤60s 才认定启动完成、HEALTH 阶段解析 `/health` 的 `session.interactive` 并在非交互式会话时打印 GUI 启用命令块）
+- `setup.mjs` 双端一键部署总入口（读 `.env`：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行；VM-START 阶段轮询 VM 本机 18443 端口 ≤60s 才认定启动完成、HEALTH 阶段解析 `/health` 的 `session.interactive` 并在非交互式会话时打印 GUI 启用命令块；**第十轮修复 `reachable()`/`waitForRemotePort()` 误带 `-o BatchMode=yes` 致 `VM-START`/`VM-UNINSTALL` 偶发误判「VM 不可达」而跳过，已去除并加 1 次重试与真实 ssh 行为对齐**）
   - VM 侧产物 = `delivery` + `skills` + 各包**运行时资产**（排除 `src`/`node_modules`/`tsconfig*`，见 `packagePayloadPaths()`）+ 根 `package.json`
   - 含 `psmod/`（54 能力的 PS 实现）与 `contracts/schemas/`；**不含 node_modules**（远端改由软链解析）
-- `install-host.mjs` 宿主机安装器（幂等/增量/dry-run/uninstall）
+- `install-host.mjs` 宿主机安装器（幂等/增量/dry-run/uninstall；**第十轮修复 `node:fs` 漏导 `cpSync` 致 HOST 安装运行时崩溃 `cpSync is not defined`**）
 - `install-vm.mjs` VM 侧安装器（依赖解析/build/自启任务/自检，支持 `--provider <id>`/`--cli <exe>`/`--skills-root <dir>`/`--skip-install`/`--skip-links`；注册的计划任务为 登录即启（LogonTrigger）+ 崩溃重启 + `Hidden=true` 不弹 node 窗口）
 - `winvm-plugin.mjs` 插件管理 CLI（host/VM 同一份，自动识别上下文）：`help`/`check`/`health`/`list[skills,mcp-servers,mcp-tools,dirs]`/`server[start,status,stop,restart]`/`command`/`uninstall[--vm]`/`update`/`reinstall`；零外部依赖（仅 Node 内置 http/net/child_process）。启动器三件套（`.mjs`+`.cmd`+无扩展名 bash 启动器）由 `deploy-winvm-plugin.mjs` 统一生成：`install-host.mjs` 部署到插件缓存根 + 仓库 `delivery/`（`writeContext:false` 避免 host 上下文随 tar 发到 VM）、`install-vm.mjs` 落盘于 `delivery/`（写 `side:vm`）
 - `deploy-winvm-plugin.mjs` **winvm-plugin 启动器部署器**：复制 `winvm-plugin.mjs` 到目标目录（跳过 `binSrc===binDst` 的自拷贝，修复 tar 已含该文件时 `cpSync` 误报失败），写 `.winvm-context.json` 标记 + `.cmd` + 无扩展名 bash 启动器（`#!/usr/bin/env bash` + 经 `bash -c chmod +x` 置可执行位）；`writeContext` 可关（仓库 delivery 部署不写上下文，防误发 VM）；上下文跳过/写入均留痕（含 dry-run 标记）

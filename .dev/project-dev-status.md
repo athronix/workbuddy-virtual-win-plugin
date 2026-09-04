@@ -48,10 +48,10 @@
 - 6/6 已写 SKILL.md（1 总控 + 5 领域，含应用生产操作 appops）
 
 ## 交付物
-- 安装器 `delivery/install-host.mjs`：dry-run/正式/uninstall 验证通过
+- 安装器 `delivery/install-host.mjs`：dry-run/正式/uninstall 验证通过（**第十轮修复 `node:fs` 漏导 `cpSync` 导致的 HOST 安装运行时崩溃 `cpSync is not defined`**）
 - VM 侧 `delivery/install-vm.mjs`：支持 `--provider <id>`/`--cli <exe>`/`--skills-root <dir>`，dry-run/self-test/uninstall 验证通过；任务计划 登录即启（LogonTrigger）+ Hidden=true 不弹 node 窗口
 - **共享 Skills 部署器 `delivery/deploy-shared-skills.mjs`**：publish 仓库 `skills/` → 共享根 `C:/WinVMBridge/shared-skills`，再经 junction 让各候选 VM Agent 引用（单一真源，幂等/dry-run 验证通过）
-- **双端一键 `delivery/setup.mjs`**（读 `.env`）+ `.env.example`：dry-run 生成七阶段计划验证通过（含 VM-START 轮询端口 ≤60s、HEALTH 解析 session.interactive 并打印 GUI 启用命令）
+- **双端一键 `delivery/setup.mjs`**（读 `.env`）+ `.env.example`：dry-run 生成七阶段计划验证通过（含 VM-START 轮询端口 ≤60s、HEALTH 解析 session.interactive 并打印 GUI 启用命令）。**第十轮修复 `reachable()`/`waitForRemotePort()` 误带 `-o BatchMode=yes` 致 `VM-START`/`VM-UNINSTALL` 被偶发误判「VM 不可达」而跳过（连带 HEALTH 失败、VM 卸载未执行），已去掉该选项并加 1 次重试与真实 ssh 行为对齐**
   - **插件管理 CLI `delivery/winvm-plugin.mjs`**（ESM、零依赖）：host/vm 同一份脚本自动识别上下文，提供 `help/check/health/list[skills,mcp-servers,mcp-tools,dirs]/server[start,status,stop,restart]/command/uninstall/update/reinstall`；启动器三件套（`.mjs`+`.cmd`+无扩展名 bash 启动器 `+x`）由 **`delivery/deploy-winvm-plugin.mjs`** 统一生成（`install-host.mjs` 部署到插件缓存根 + 仓库 `delivery/`、`install-vm.mjs` 落盘于 `delivery/`，命令真正可达）
   - VM 产物已改为**排除法**分发（含 `psmod/`、`contracts/schemas/`），修复「远端服务起得来、自检过半，但 54 个能力一个都跑不了」
 - **workspace 软链器 `delivery/link-workspace.mjs`**：远端无 `node_modules` 时建 `@winvm/*` junction（幂等/dry-run 验证通过）。本地模拟产物树实测：修复前 `ERR_MODULE_NOT_FOUND: Cannot find package '@winvm/contracts'`，修复后 `--self-test` 完整通过（54 项能力 + ps-bridge 探针全 OK）
