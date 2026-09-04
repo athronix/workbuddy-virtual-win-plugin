@@ -108,7 +108,12 @@ node delivery/setup.mjs --apply --env=/path/to/.env
 >   schtasks /run /tn WinVMBridge.Service
 >   ```
 >   执行后重跑 `setup.mjs --apply` 的 HEALTH 阶段（或刷新 `/health`），应见 `session.interactive=true`、GUI 可用。
-> 计划任务 XML 已设为 **`Hidden=true`**：服务在交互式会话内也**不弹 node 控制台窗口**，避免误关进程。
+>
+>   ⚠️ **「在交互式会话里启动服务」≠「GUI 一定可用」**：`Get-SessionHealth` 判定 GUI 可用还额外要求**当前未锁屏**（`LogonUI` 未运行）且 **Explorer 在跑**。若在**锁屏状态**下执行上面第 3 步，`/health` 仍会报 `session.state=degraded`（detail「会话降级（锁屏或 Explorer 未运行）」）—— 此时会话确实是交互式的，但桌面被锁屏界面覆盖，截图 / SendInput 依然不可用。
+>   遇到这种情况：**先解锁（或重新登录）VM 桌面、确认 Explorer 已启动**，再重跑第 3 步即可转为 `healthy`。该判定是刻意保留的，未放宽。
+> **隐藏窗口机制（重要，易误解）**：任务以 `InteractiveToken` 运行（GUI 能力域必需 —— Session>=1 才能截图 / SendInput），而 Windows 对 InteractiveToken 任务**忽略 `<Hidden>true</Hidden>`**；单靠 XML 设 `Hidden=true` **仍会弹出常驻 node 控制台窗口**（用户可见、易误关，一关服务即停）。
+> 因此部署时会在 `delivery/.generated/start-hidden.ps1` 生成启动器，计划任务实际执行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "<该脚本>"`，脚本内部再以 `Start-Process -WindowStyle Hidden -FilePath $nodeExe -ArgumentList $cliArgs -WorkingDirectory $workDir -Wait` 拉起 node —— 隐藏发生在**进程创建层**，这才是真正无窗口的做法。
+> `-Wait` 让服务存活期间任务保持 Running，故 `schtasks /end /tn WinVMBridge.Service` 仍可终止服务、node 崩溃时仍触发自动重启，原有语义不变。
 
 > 若 `VM_HOST` 留空，`setup.mjs` 不会自动 ssh，而是打印本地手动部署指引（`install-vm.mjs --dry-run --provider …`），你可在 VM 内手动跑。
 
@@ -157,7 +162,7 @@ node delivery/install-vm.mjs --uninstall --yes  # 执行
 2. `npm run build` 编译所有 packages 到 `dist/`
 3. 基于 `delivery/vm-service.config.json` 生成运行配置（强制 `host=127.0.0.1`），并写入 `agent.provider`（来自 `--provider` / `WINVM_VM_PROVIDER` / 配置默认）及所选 LLM provider 的 `cliPath`
 4. **部署共享 Skills**：把仓库 `skills/` 发布到独立共享根（默认 `C:/WinVMBridge/shared-skills`，单一事实源），并为各候选 VM AI Agent 的 skills 目录建立 **junction 引用**（不复制、不覆盖用户技能；可用 `--skills-root` / `WINVM_SKILLS_ROOT` 覆盖，`--skip-skills` 跳过）。详见 `docs/02-design/SPEC-SKILLS.md`
-5. 注册 **Windows 任务计划程序** 任务（`WinVMBridge.Service`），**登录即启（`LogonTrigger`，随 VM 登录自动启动）**、崩溃重启、仅在交互式会话运行、**`Hidden=true` 不弹 node 控制台窗口**（**不注册为 Windows 服务**，避免 Session 0 黑屏）
+5. 注册 **Windows 任务计划程序** 任务（`WinVMBridge.Service`），**登录即启（`LogonTrigger`，随 VM 登录自动启动）**、崩溃重启、仅在交互式会话运行、**无 node 控制台窗口**（经 `start-hidden.ps1` 以 `Start-Process -WindowStyle Hidden` 拉起；⚠️ `InteractiveToken` 下 XML 的 `Hidden=true` 会被 Windows 忽略，详见上文「隐藏窗口机制」）（**不注册为 Windows 服务**，避免 Session 0 黑屏）
 6. 运行自检：ps-bridge 五大模块可加载、配置校验通过、端口回环绑定、provider 能力目录可解析
 
 > **关于 GUI 能力**：安装时注册的 `WinVMBridge.Service` 已内置 `LogonTrigger`，**VM 登录即自动启动**；但经 SSH 远程 `schtasks /run`（如 `setup.mjs` 的 VM-START 阶段）**不保证落在交互式会话**，从而 GUI 可能被门禁。若 `/health` 报 `session.interactive=false`，见 §1.3 的「在 VM 交互式 PowerShell 中 restart」命令块，复制执行即可让 GUI 可用。

@@ -312,3 +312,41 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
 - `node --check` 两脚本均通过；`node -e` 确认 `cpSync` 为 `node:fs` 合法导出。
 - 因 `install-host.mjs` 无单测（导入即跑 `main`）、`reachable` 需真实 SSH，两项仅能 `node --check` + 人工 `--apply` 验证（沙箱无真实 VM）；统一单测**逐文件**跑仍 **187/187 全绿**。
 - 用户下一步：重跑 `node delivery/setup.mjs --apply` 即可（HOST 不再 cpSync 崩溃；VM-START 会真重启服务 → HEALTH 应通）。
+
+---
+
+## 第十一轮：隐藏 VM 控制台窗口（Q3 / Q4a）+ 补 buildTaskXml 单测
+
+### 背景（用户实测反馈 4 问）
+1. 要「部署好后的 `winvm-plugin` 命令」，而非 `.mjs` 脚本。
+2. `uninstall` 后宿主机未见删除物；问 VM 侧删除物能否进 Windows 回收站。
+3. install 完成后 VM 残留 `c:\nvm4w\nodejs\node.exe` 日志 terminal 窗口，应隐藏避免误删。
+4. 管理员 PowerShell 重启服务后：4a 又弹出 node 日志窗口；4b 日志称 GUI 仍 `degraded`。
+
+### 根因
+- **Q3 / Q4a（窗口弹出）**：任务 XML 用 `<LogonType>InteractiveToken</LogonType>`（GUI 能力域硬性要求：Session>=1 才能截图 / SendInput），而 **Windows 对 InteractiveToken 任务忽略 `<Hidden>true</Hidden>`**。原 `<Actions>` 直接把 `node.exe` 作为动作进程 → 必然弹出常驻控制台窗口。`schtasks /run` 重启走的是同一份任务定义，故 4a 与 Q3 同源。
+- **Q4b（GUI degraded）**：`packages/vm-capabilities/psmod/gui.ps1` 的 `Get-SessionHealth` 判定 `interactive = sessionId>=1 && windowStation==='WinSta0' && explorerAlive`，且 `locked`（LogonUI 存在）→ `degraded`。重启那一刻 VM 处于**锁屏**或 **Explorer 未运行**，故降级。"交互式会话启动即可用 GUI"的论断没错，但**前置条件（未锁屏 + Explorer 在跑）当时没满足**。判定逻辑正确，**未放宽**。
+
+### 修复
+- `delivery/install-vm.mjs` `buildTaskXml`：
+  - 新增生成 `delivery/.generated/start-hidden.ps1`，以 `Start-Process -WindowStyle Hidden -FilePath $nodeExe -ArgumentList $cliArgs -WorkingDirectory $workDir -Wait` 拉起 node；
+  - 任务 `<Actions>` 改为 `<Command>powershell.exe</Command>` + `-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "<启动器路径>"`；
+  - **保留 `InteractiveToken` + `<Hidden>true</Hidden>`**（前者是 GUI 前提，后者对非交互回退仍有意义），隐藏改在**进程创建层**完成；
+  - `-Wait` 让任务在服务存活期间保持 Running，保留 `schtasks /End` 可终止、崩溃触发 `RestartOnFailure` 的原语义；
+  - 用 `-File` 而非 `-Command`：node 参数含带双引号的路径，`-Command` 需再嵌一层命令行引号转义，极易出错；`-File` 只剩一层引号，node 参数原样写进 `.ps1`。
+  - `buildTaskXml` 新增可选 `outDir` 参数（供单测隔离；不传时行为完全不变，仍写模块级 `taskXmlPath`）。
+- 注册成功文案由「Hidden=true 无窗口」改述为实际机制，并打印启动器路径（可观测性）。
+- 文件末尾 `main()` 加**入口守卫**（`resolve(process.argv[1]) === __filename`），使本模块可被 import 而不触发真实部署；导出 `buildTaskXml`。
+  - 安全性核对：`install-vm.mjs` 在全仓仅以**子进程 / ssh** 方式调用（`winvm-plugin.mjs`、`setup.mjs`），从无 import，故守卫不改变任何既有行为。
+
+### 新增测试
+- `tests/unit/install-vm-task.test.js`（8 项）：锁住「任务动作**不得**直接是 node.exe」（窗口重现的回归点）、`-File` + `-WindowStyle Hidden` 启动、`-Wait` 保持 Running、`cliArgs` 原样落地（含内层双引号）、单引号按 PS 规则双写转义、UTF-16LE + BOM、保留 `InteractiveToken`。
+
+### Q1 / Q2 结论（未改码，仅澄清）
+- **Q1**：`winvm-plugin` 启动器三件套已由 `deployWinvmPlugin` 部署到宿主插件缓存根 `C:\Users\towyq\.workbuddy\plugins\cache\winvm\winvm-bridge\0.1.0\`（`.mjs` + `.cmd` + 无扩展名 bash 启动器），仓库 `delivery/` 另有一套。实测两种调用均可用。
+- **Q2**：宿主删除物进**系统回收站**；VM 侧默认落 `<repoRoot>/.uninstall-trash/<时间戳>/`，**不会**进 Windows 回收站 —— 唯有在 VM 内 **RDP 交互会话**运行 `install-vm.mjs --uninstall --yes --recycle-bin` 才走系统回收站（SSH 下系统回收站不可见）。
+
+### 验证（第十一轮）
+- `node --check delivery/install-vm.mjs` 通过。
+- 单测**逐文件** **195/195 全绿**（基线 187 + 新增 8）。
+- 实跑 `buildTaskXml` 打印生成物人工核对：`$cliArgs` 内层双引号完整保留，XML 动作指向 `powershell.exe -File "…\start-hidden.ps1"`。

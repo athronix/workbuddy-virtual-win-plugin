@@ -169,10 +169,40 @@ function killServiceProcess(port, taskName, dryRun, log) {
   log(`停止服务   : 已结束 ${taskName} 并释放端口 ${port}`);
 }
 
-/** 生成 UTF-16LE（带 BOM）任务计划 XML，供 schtasks /XML 消费 */
-function buildTaskXml(taskName, nodeExe, cli, port, cfg) {
+/**
+ * 生成「隐藏窗口启动器 .ps1」+ UTF-16LE（带 BOM）任务计划 XML，供 schtasks /XML 消费。
+ *
+ * 为什么必须由 .ps1 启动器间接拉起 node（隐藏控制台窗口）：
+ *   GUI 能力域要求服务跑在**交互式会话**（InteractiveToken，Session >= 1），否则截图全黑、
+ *   SendInput 拒绝访问。而 InteractiveToken 任务下 Windows 会**忽略** <Hidden>true</Hidden>，
+ *   直接把 node.exe 作为任务动作会弹出常驻控制台窗口 —— 用户看得见、易误关（一关服务即停）。
+ *   因此隐藏必须在**进程创建层**完成：由 powershell 经 Start-Process -WindowStyle Hidden 拉起 node。
+ *   · -WindowStyle Hidden：powershell 自身与 node 均不显示窗口；
+ *   · -Wait：服务存活期间任务保持 Running，保留原有语义（schtasks /End 可终止，
+ *     node 崩溃时触发 RestartOnFailure）；
+ *   · 用 -File 而非 -Command：node 参数含带双引号的路径，-Command 需再嵌一层命令行引号，
+ *     转义极易出错；-File 只剩一层引号，node 参数原样写入 .ps1 由 Node 直接落盘。
+ */
+function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir) {
+  // outDir 供单测隔离；不传时沿用模块级 taskXmlPath（保持既有行为不变）
+  const out = outDir ?? dirname(taskXmlPath);
+  const xmlPath = outDir ? join(out, 'task.xml') : taskXmlPath;
   const workDir = dirname(cli);
   const cliArg = `"${cli}" --host 127.0.0.1 --port ${port} --config "${cfg}"`;
+  // PowerShell 单引号字符串内：单引号重复两次转义，双引号可直接保留
+  const psStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
+  const ps1Path = join(out, 'start-hidden.ps1');
+  const ps1 = [
+    '# WinVM Bridge VM Service —— 隐藏窗口启动器（由 install-vm.mjs 生成，请勿手改）',
+    '$nodeExe = ' + psStr(nodeExe),
+    '$cliArgs = ' + psStr(cliArg),
+    '$workDir = ' + psStr(workDir),
+    'Start-Process -WindowStyle Hidden -FilePath $nodeExe -ArgumentList $cliArgs -WorkingDirectory $workDir -Wait',
+    '',
+  ].join('\r\n');
+  mkdirSync(out, { recursive: true });
+  writeFileSync(ps1Path, ps1, 'utf8');
+
   const xml =
 `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -210,15 +240,15 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg) {
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>${nodeExe}</Command>
-      <Arguments>${cliArg}</Arguments>
+      <Command>powershell.exe</Command>
+      <Arguments>-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${ps1Path}"</Arguments>
       <WorkingDirectory>${workDir}</WorkingDirectory>
     </Exec>
   </Actions>
 </Task>`;
-  mkdirSync(dirname(taskXmlPath), { recursive: true });
+  mkdirSync(out, { recursive: true });
   // schtasks /XML 要求 UTF-16LE + BOM
-  writeFileSync(taskXmlPath, '﻿' + xml, 'utf16le');
+  writeFileSync(xmlPath, '﻿' + xml, 'utf16le');
 }
 
 /* ------------------------------ 步骤 ------------------------------ */
@@ -598,7 +628,8 @@ async function main() {
   buildTaskXml(args.taskName, nodeExe, cliEntry, args.port, runtimeConfig);
   r = run('schtasks', ['/Create', '/TN', args.taskName, '/XML', taskXmlPath, '/F']);
   if (r.status !== 0) { console.error('注册任务计划程序失败（需以管理员身份运行）'); process.exit(1); }
-  console.log(`      已注册任务 ${args.taskName}（登录即启 / 崩溃重启 ×3 / 仅交互式会话 / Hidden=true 无窗口）`);
+  console.log(`      已注册任务 ${args.taskName}（登录即启 / 崩溃重启 ×3 / 交互式会话 / 无控制台窗口）`);
+  console.log(`      隐藏启动器：${join(genDir, 'start-hidden.ps1')}（任务经它以 -WindowStyle Hidden 拉起 node）`);
 
   /* 6. 自检 */
   console.log('[6/6] 自检 ...');
@@ -617,7 +648,14 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e && e.stack ? e.stack : e);
-  process.exit(1);
-});
+/* 仅当本文件被直接作为入口运行时才执行 main；被 import（如单测）时保持惰性，
+ * 避免导入即触发真实的 npm ci / build / schtasks 注册。 */
+if (process.argv[1] && resolve(process.argv[1]) === __filename) {
+  main().catch((e) => {
+    console.error(e && e.stack ? e.stack : e);
+    process.exit(1);
+  });
+}
+
+// 导出供单测校验生成的任务 XML 与隐藏启动器（多层引号转义极易回归，必须锁住）
+export { buildTaskXml };
