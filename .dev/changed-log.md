@@ -147,3 +147,134 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
 - 本地模拟远程 payload 树（仅 dist + package.json → 加 symlink + 全量排除法产物）复现并修复两缺陷：修复前 `ERR_MODULE_NOT_FOUND` / 缺 ps-bridge 脚本；修复后 `--self-test` 退出码 0、6 能力域 / 54 能力 / ps-bridge 探测全 OK。
 - 全量套件：**178 单测 + 16 e2e = 194/194 通过**（`tsc -b` 12/12 包编译通过）。
 - `docs/06-OVERVIEW.md` 与 `.dev/*` 索引同步（194/194、12 包、link-workspace.mjs）。
+
+---
+
+## 第六轮：启动健壮性 + GUI 会话启用提示
+
+### 背景
+前几轮已落地「双端一键部署」「VM 服务自启（LogonTrigger）」「VM-START 拉起 + HEALTH 重试」。真机实测暴露三类体验问题：① HEALTH 偶发不通（冷启动竞态）；② VM 内弹 node 控制台窗口，用户可能误关杀掉服务；③ 经 SSH 远程 `schtasks /run` 拉起的服务常落在非交互式会话，`/health` 报 `session.interactive=false`、GUI 被门禁，但用户看不到「如何启用 GUI」的明确指引。
+
+### 新增 / 修改
+- **`delivery/setup.mjs`**：
+  - 新增 `waitForRemotePort(cfg, timeoutMs)`：经 SSH 在 VM 内 `Test-NetConnection -Port 18443` 轮询（每 1s，≤60s），**不依赖本地 SSH 隧道**，故在 VM-START 阶段即可判定启动完成。
+  - VM-START 阶段：`schtasks /run` 后调用 `waitForRemotePort`，监听即打印「启动完成」；否则告警并交 HEALTH 兜底。
+  - HEALTH 阶段：端口通常已通，仅取 `/health` JSON 并短重试（2s×3）；**解析 `session.interactive`**，当 `false` 时打印健壮的「GUI 启用命令块」（`GUI_RESTART_COMMAND` 常量），并在最终成功摘要追加提醒。
+  - 新增导出常量 `GUI_RESTART_COMMAND`：在 VM 交互式 PowerShell 执行——先 `schtasks /end`（让调度器标记结束，后续 `/run` 不被 `IgnoreNew` 拦截），等 2s，兜底 `Stop-Process` 强杀占用 18443 的进程，再 `schtasks /run` 在交互式会话拉起 GUI 可用实例。
+- **`delivery/install-vm.mjs`**：任务计划 XML `<Hidden>false</Hidden>` → `<Hidden>true</Hidden>`，服务在交互式会话内也不弹 node 控制台窗口，避免误关进程（Hidden 只控可见性、不影响会话/交互性）。
+- **`docs/05-peripherals/DEPLOYMENT.md`**（§1.3 / §4.1）：同步登录触发器随 VM 登录启动、`Hidden=true`、GUI 会话约束，以及「在 VM 交互式 PowerShell 中 restart 以启用 GUI」的显式命令块。
+
+### 关键决策（沉淀）
+1. **端口轮询独立于隧道**：`waitForRemotePort` 探 VM 本机端口，避免 VM-START 阶段隧道尚未建立的顺序依赖，彻底消除冷启动竞态。
+2. **远程 `schtasks /run` 不保证交互式会话**：仅当 VM 已有 RDP 交互式登录时才落入该会话；故 GUI 启用必须依赖「RDP 登录触发 AtLogOn」或「在交互式 PowerShell 内手动 restart」。
+3. **restart 顺序不可省 `schtasks /end`**：若直接 `Stop-Process` 强杀而不先 `/end`，调度器仍认为任务 running，`IgnoreNew` 会拦截后续 `/run` → 新实例起不来。先 `/end` 再强杀再 `/run` 才是可靠的「杀非 GUI 实例、起 GUI 实例」。
+
+### 验证（第六轮）
+- `node --check` 两脚本均通过。
+- `setup.mjs`（无 `--apply`）dry-run 仍正确打印七阶段计划，VM-START 描述含「轮询端口监听 ≤60s」。
+- 真机闭环（卸载→重装→信任→测试）由用户执行；所有删除入回收站可恢复。
+
+### 测试结果
+- 套件保持 194/194 通过（本轮未改测试，仅部署脚本与文档）。
+
+---
+
+## 第七轮：插件管理 CLI winvm-plugin（host/VM 统一查验与管理）
+
+### 背景
+插件经 `setup.mjs` 双端部署后，宿主与 VM 两侧缺乏统一的查验/管理入口。用户要求提供一套 `winvm-plugin` 命令（`help` / `check` / `health` / `list [skills,mcp-servers,mcp-tools,dirs]` / `server [start,status,stop,restart]` / `command` / `uninstall` / `update` / `reinstall`），部署后在两侧均可直接调用。
+
+### 新增 / 修改
+- **新增 `delivery/winvm-plugin.mjs`**（ESM、零外部依赖）：自动识别 host/vm 上下文（优先级 `--side` > 同目录 `.winvm-context.json` > 启发式），实现全部子命令。
+  - `check`：host 校验 `installed_plugins.json` 条目 + 连接器条目 + 缓存目录 + Skills；vm 校验计划任务 + `cli.js` + 运行配置 + 共享 Skills 根 + 端口监听。
+  - `health`：host 经 SSH `curl` 探 VM `/health`，vm 本地；`session.interactive=false` 时打印 GUI 启用命令块。
+  - `list mcp-tools`：优先 import 已编译 `vm-capabilities` 注册表（按域分组，共 54 项）；不可用时回退经 `/mcp` `tools/list`。
+  - `list skills` / `mcp-servers` / `dirs`：两侧分别列出对应资产。
+  - `server start|status|stop|restart`：host 经 SSH 执行 `schtasks`；vm 本地。`restart` = `/end` + 强杀残留端口进程 + `/run`（确保杀非 GUI 实例、起 GUI 实例）。
+  - `command <tool> [--args <json>]`：host 建临时 SSH 隧道 + JSON-RPC 调 `/mcp`（initialize→notifications/initialized→tools/call）；vm 本地。
+  - `uninstall [--vm]` / `update` / `reinstall`：host 重跑仓库 `install-host.mjs`（加 `--vm` 经 SSH 同时卸载 VM）；vm 重跑 `install-vm.mjs`。
+  - HTTP 客户端 / SSH 中继 / MCP JSON-RPC 客户端均用 Node 内置模块（`http` / `net` / `child_process`）实现，无第三方依赖。
+- **`delivery/install-host.mjs`**：注册后把 `winvm-plugin.mjs` 复制到插件缓存根，并写 `.winvm-context.json({"side":"host"})` + `winvm-plugin.cmd` 包装。
+- **`delivery/install-vm.mjs`**：部署尾部于 `delivery/` 写 `.winvm-context.json({"side":"vm"})` + `winvm-plugin.cmd`。`setup.mjs` 的 tar 包已含 `delivery/`，故自动分发到 VM。
+- **`docs/05-peripherals/DEPLOYMENT.md`** 新增 §7「插件管理命令 winvm-plugin」（子命令一览 / host 侧 VM 连接信息优先级 / 示例 / GUI 重启提示）；原「远程 Windows」章节顺延为 §8（7.1–7.6 → 8.1–8.6）。
+
+### 关键决策
+1. host/VM 同一份脚本、靠上下文标记分流，避免双份维护。
+2. `command`/`health`/`server` 在 host 侧统一走 SSH（command 用临时隧道保活、其余用 ssh 远程执行），与 `setup.mjs` 既有的 SSH 用法一致。
+3. `list mcp-tools` 优先本地注册表 import（VM 离线也可用），回退才依赖运行中的服务，保证查验可用性。
+
+### 验证（第七轮）
+- `node --check` 三脚本（winvm-plugin.mjs / install-host.mjs / install-vm.mjs）均通过。
+- 本地实测（host 上下文，无需 VM 在线）：`help` / `check` 全 ✅ / `list dirs` / `list skills`（7 项）/ `list mcp-servers`（connector:winvm + connector:winvm-a2a）/ `list mcp-tools`（54 项按域分组）均正确输出。
+- SSH 相关命令（health/command/server）在缺 VM 连接信息时给出清晰报错、不崩溃。
+- 真机 SSH 路径由用户按 §7 示例自测。
+
+### 测试结果
+- 套件保持 194/194 通过（本轮仅新增部署脚本与文档，未改既有测试）。
+
+---
+
+## 第八轮：部署脚本 5 项问题修复（输出可见性 / 误报失败 / 命令可达 / 残留窗口 / 回收站澄清）
+
+### 背景
+用户跑 `node delivery/setup.mjs --apply` 后提出 5 个问题：
+1. 多个步骤只打印执行命令、没显示成功/失败；
+2. VM-START 与 /health 看似各跑了两次；
+3. 宿主机与 VM 都找不到 `winvm-plugin` 命令；
+4. VM 上仍有 node 控制台窗口残留；
+5. uninstall 后 VM 回收站是空的、宿主回收站文件比预期少。
+
+### 根因与修复
+- **Q1/误报「VM 部署失败」**：`install-vm.mjs` 步骤7 把 `delivery/winvm-plugin.mjs` 自拷贝到同路径（tar 已含该文件）→ `cpSync` 自拷贝 EINVAL（或原代码缺 `cpSync` 导入）→ 进程退出 1 → `setup.mjs` 误报失败（实际服务已就绪）。
+  - **修复**：新增 `delivery/deploy-winvm-plugin.mjs` 统一部署启动器，复制前判定 `resolve(binSrc)===resolve(binDst)` 则跳过复制；复制/写文件均包在可控流程内，不再因单点异常中断部署。
+- **Q2/「运行两次」**：实为「计划预览（`$ command`）」+「执行（`[PHASE] 执行：`）」各打印一次，每阶段实跑一次。属显示误解。
+  - **修复**：预览块加「【计划预览】以下为将执行的步骤（仅展示，尚未执行）」明确标注，命令前加 `▸` 前缀；执行块显式打印 `$ 命令` + 每步 `✅/❌`。VM-START 改为「先 `schtasks /end` + 强杀残留端口进程 + `schtasks /run`」的干净重启语义（消除旧实例），并纠正为重启而非盲目 run。
+- **Q3/命令找不到**：原仅生成 `winvm-plugin.cmd`，且只在插件缓存根 / VM `delivery/` 内，仓库根与 PATH 均无；Git Bash/ssh 里敲 `winvm-plugin`（无扩展名）解析不到。
+  - **修复**：`deploy-winvmPlugin` 生成三件套——`winvm-plugin.mjs` + `winvm-plugin.cmd`（Windows，PATHEXT 解析）+ 无扩展名 `winvm-plugin`（bash 启动器 `#!/usr/bin/env bash` + 经 `bash -c chmod +x` 置可执行位）。宿主侧额外部署到仓库 `delivery/`，使仓库内 `node delivery/winvm-plugin.mjs <cmd>` 或 `./delivery/winvm-plugin <cmd>` 即可用。
+  - 仓库 `delivery/` 部署传 `writeContext:false`，避免 `side:host` 上下文随 tar 发到 VM 致其误判为 host（VM 侧由 `install-vm` 步骤7 正确写 `side:vm`，且 VM 目录有 `packages/vm-service/dist/cli.js` 启发式也能识别 vm）。
+  - 生成的 `delivery/winvm-plugin` / `winvm-plugin.cmd` / `.winvm-context.json` 已加入 `.gitignore`。
+- **Q4/残留 node 窗口**：`install-vm.mjs` 卸载只 `schtasks /Delete`，不杀运行中的服务进程；旧 `Hidden=false` 实例跨卸载/重装残留，新 `Hidden=true` 实例因 `MultipleInstancesPolicy=IgnoreNew` 起不来。
+  - **修复**：新增 `killServiceProcess(port, taskName)`（`schtasks /End` + `Stop-Process` 占端口进程）。在 ① 卸载 `--yes` 执行、② 部署步骤5 重新注册任务前、③ `setup.mjs` VM-START 经 SSH 重启前 调用，确保端口释放、无残留窗口、新实例可绑定。
+- **Q5/回收站为空 / 文件少**：VM 默认回收目录是 `<repoRoot>/.uninstall-trash/<ts>/`（设计如此，SSH 下系统回收站不可见）；宿主侧注册文件改动走「先备份 `*.winvm-bak.*` + diff」，备份默认保留不进回收站（可回滚），单文件改动不移动。
+  - **修复**：VM 卸载完成消息高亮可恢复目录（`C:/WinVMBridge/.uninstall-trash/<时间戳>/`，明确「非 Windows 回收站」）；宿主卸载完成消息说明 `*.winvm-bak.*` 备份默认保留、确认后用 `--purge-backups` 清理。`DEPLOYMENT.md` §6 新增「为什么回收站里看不到某些被删的东西」FAQ，直接回答此疑问。
+
+### 新增 / 修改文件
+- **新增** `delivery/deploy-winvm-plugin.mjs`：安全的 winvm-plugin 启动器部署器（跳过自拷贝 / 三件套 / writeContext 开关）。
+- **改** `delivery/install-vm.mjs`：导入 helper + `killServiceProcess`；卸载 `--yes` 先停服务；部署步骤5 注册前清残留；步骤7 改用 helper；卸载完成消息高亮可恢复目录。
+- **改** `delivery/install-host.mjs`：导入 helper；部署到插件缓存根 + 仓库 `delivery/`（`writeContext:false`）；卸载完成消息说明备份保留。
+- **改** `delivery/setup.mjs`：计划预览与执行分离 + 每步 `✅/❌`；VM-START 改为重启语义。
+- **改** `docs/05-peripherals/DEPLOYMENT.md`：§7 重写启动器落地位置与调用方式；§6 新增回收站 FAQ。
+- **改** `.gitignore`：忽略生成的 winvm-plugin 启动器与上下文文件。
+
+### 验证（第八轮）
+- `node --check` 四脚本（setup.mjs / install-vm.mjs / install-host.mjs / deploy-winvm-plugin.mjs / winvm-plugin.mjs）全部通过。
+- `deployWinvmPlugin` 单测：① 异目录复制+三件套 ✅；② `binSrc===binDst` 跳过复制但仍写启动器 ✅（修复自拷贝）；③ `writeContext:false` 不写上下文 ✅；④ dry-run 不写盘 ✅。
+- 本地 `winvm-plugin` 实测：`help` / `--side host check` 正常输出（命令已可达；本沙箱未装插件故 check 显示 ❌，属环境状态非命令问题）。
+- `setup.mjs` dry-run 预览正确标注「【计划预览】」且每条命令仅展示一次。
+
+---
+
+## 第九轮：补持久化单测 + 输出一致性收尾（第八轮闭环）
+
+### 背景
+第八轮修复虽已落盘，但验证存在两处缺口：① `deployWinvmPlugin` 单测此前为临时脚本验证、**未入库**，核心改动无回归防护；② 未跑全量单测，遗漏了被测代码与测试期望不同步的问题。本轮补齐并收尾。
+
+### 修复与补强
+- **新增持久化单测** `tests/unit/deploy-winvm-plugin.test.js`（4 case）：异目录复制 + 三件套落地 / `binSrc===binDst` 自拷贝跳过（防 EINVAL 误报回归）/ `writeContext:false` 不写上下文 / dry-run 不写盘。全部在临时目录内隔离运行，不触碰真实仓库 `delivery/`。
+- **修 `setup-env.test.js` 陈旧期望**：第八轮新增 `VM-START` 阶段后，该测试仍断言「BUILD/HOST/VM/TUNNEL/TEST/HEALTH 六阶段」，导致 1 个用例红。已更新为七阶段，并**新增「各阶段仅出现一次」用例**，把 Q2「不再重复执行」固化为回归防护；`--apply` 覆盖列表加入 `VM-START`。
+- **`setup.mjs` VM-START 预览命令对齐实跑**：预览原仅显示 `schtasks /run`，而实跑是「结束旧实例 + 强杀残留端口进程 → `schtasks /run`」。已同步为真实重启语义（原则7 文档逻辑一致性；呼应 Q1 输出须真实反映执行）。
+- **`deploy-winvm-plugin.mjs` 输出可观测性**：`writeContext=false` 的「跳过」此前**仅 dry-run 打印**、实跑静默；实跑时的上下文写入同样从不留痕。现两种情况均记录（dry-run 追加 `[dry-run]` 标记以区分预览与实跑）。
+
+### 新增 / 修改文件（第九轮）
+- **新增** `tests/unit/deploy-winvm-plugin.test.js`：`deployWinvmPlugin` 持久化单测（4 case）。
+- **改** `tests/unit/setup-env.test.js`：六阶段 → 七阶段；新增「各阶段仅出现一次」回归用例；`--apply` 覆盖列表加入 `VM-START`。
+- **改** `delivery/setup.mjs`：VM-START 预览命令对齐真实重启语义（不改行为，仅校正预览展示）。
+- **改** `delivery/deploy-winvm-plugin.mjs`：上下文跳过/写入均留痕（dry-run 追加标记）。
+
+### 验证（第九轮）
+- 单测**逐文件**模式 **187/187 全绿**（含新增 4 + 修复后 `setup-env` 16）。
+- `node --check` 相关脚本全部通过；`winvm-plugin help/check` 可达。
+
+### ⚠️ 重要：本仓库单测必须「逐文件」运行
+整批执行 `node --test tests/unit/*.test.js` 会**假故障全红**：`link-workspace.test.js` 做 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`exitCode 2147483651` / `0xC0000005`，附原生栈），共享 runner 被打崩后，同进程内**所有**测试文件被连带判死且无汇总计数（单独跑该文件 16/16 全绿）。
+→ 正确姿势：`for f in tests/unit/*.test.js; do node --test "$f"; done`（逐文件汇总），**切勿**用通配一次跑全部。

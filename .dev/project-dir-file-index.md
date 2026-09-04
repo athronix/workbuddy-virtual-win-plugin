@@ -36,11 +36,15 @@ workbuddy-virtual-win-plugin/
 - **单一真源 + symlink 部署**：各候选 VM Agent 仅通过 junction 引用 `C:/WinVMBridge/shared-skills` 下的 Skill，避免多份副本
 
 ## delivery/
-- `setup.mjs` 双端一键部署总入口（读 `.env`：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行）
+- `setup.mjs` 双端一键部署总入口（读 `.env`：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行；VM-START 阶段轮询 VM 本机 18443 端口 ≤60s 才认定启动完成、HEALTH 阶段解析 `/health` 的 `session.interactive` 并在非交互式会话时打印 GUI 启用命令块）
   - VM 侧产物 = `delivery` + `skills` + 各包**运行时资产**（排除 `src`/`node_modules`/`tsconfig*`，见 `packagePayloadPaths()`）+ 根 `package.json`
   - 含 `psmod/`（54 能力的 PS 实现）与 `contracts/schemas/`；**不含 node_modules**（远端改由软链解析）
 - `install-host.mjs` 宿主机安装器（幂等/增量/dry-run/uninstall）
-- `install-vm.mjs` VM 侧安装器（依赖解析/build/自启任务/自检，支持 `--provider <id>`/`--cli <exe>`/`--skills-root <dir>`/`--skip-install`/`--skip-links`）
+- `install-vm.mjs` VM 侧安装器（依赖解析/build/自启任务/自检，支持 `--provider <id>`/`--cli <exe>`/`--skills-root <dir>`/`--skip-install`/`--skip-links`；注册的计划任务为 登录即启（LogonTrigger）+ 崩溃重启 + `Hidden=true` 不弹 node 窗口）
+- `winvm-plugin.mjs` 插件管理 CLI（host/VM 同一份，自动识别上下文）：`help`/`check`/`health`/`list[skills,mcp-servers,mcp-tools,dirs]`/`server[start,status,stop,restart]`/`command`/`uninstall[--vm]`/`update`/`reinstall`；零外部依赖（仅 Node 内置 http/net/child_process）。启动器三件套（`.mjs`+`.cmd`+无扩展名 bash 启动器）由 `deploy-winvm-plugin.mjs` 统一生成：`install-host.mjs` 部署到插件缓存根 + 仓库 `delivery/`（`writeContext:false` 避免 host 上下文随 tar 发到 VM）、`install-vm.mjs` 落盘于 `delivery/`（写 `side:vm`）
+- `deploy-winvm-plugin.mjs` **winvm-plugin 启动器部署器**：复制 `winvm-plugin.mjs` 到目标目录（跳过 `binSrc===binDst` 的自拷贝，修复 tar 已含该文件时 `cpSync` 误报失败），写 `.winvm-context.json` 标记 + `.cmd` + 无扩展名 bash 启动器（`#!/usr/bin/env bash` + 经 `bash -c chmod +x` 置可执行位）；`writeContext` 可关（仓库 delivery 部署不写上下文，防误发 VM）；上下文跳过/写入均留痕（含 dry-run 标记）
+- `tests/unit/deploy-winvm-plugin.test.js` **`deployWinvmPlugin` 持久化单测**（4 case）：异目录复制+三件套落地 / `binSrc===binDst` 自拷贝跳过 / `writeContext:false` 不写上下文 / dry-run 不写盘；临时目录隔离，不触碰真实仓库 `delivery/`
+- `tests/unit/setup-env.test.js` **`setup.mjs` 配置与 `buildPlan` 单测**（含「七阶段 + 各阶段仅出现一次」回归用例，固化 Q2 不再重复执行）
 - `link-workspace.mjs` **@winvm workspace 软链器**：为「仅含 dist 的分发产物」建 `node_modules/@winvm/<pkg>` → `packages/<pkg>` 的 junction（免管理员/免联网/幂等），解决 dist 中裸包名 import 无法解析的问题
 - `deploy-shared-skills.mjs` 共享 Skills 部署器（① publish 仓库 `skills/` → 共享根 `C:/WinVMBridge/shared-skills`；② 各候选 VM Agent 经 junction 引用，幂等/dry-run）
 - `vm-service.config.json` VM 侧服务配置（策略/审计/监听，含三 provider 定义：workbuddy-deterministic / workbuddy / hermes-agent）

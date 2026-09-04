@@ -6,6 +6,10 @@ node_modules/
 # 运行时 / 生成物
 .workbuddy/
 delivery/.generated/
+# winvm-plugin 管理 CLI 启动器（部署时由 deploy-winvm-plugin.mjs 生成，非源码）
+delivery/winvm-plugin
+delivery/winvm-plugin.cmd
+delivery/.winvm-context.json
 
 # 本地配置（含连接凭据，禁止入库）
 .env

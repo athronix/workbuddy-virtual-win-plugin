@@ -2,14 +2,22 @@
  * WinVM Bridge —— 双端一键部署脚本（宿主机侧 + VM 侧）
  *
  * 读取项目根 .env（不存在则回退 .env.example），按配置完成：
- *   BUILD → HOST（install-host.mjs）→ VM（scp + install-vm.mjs）→ TUNNEL（ssh -L）
- *         → TEST（宿主机自检）→ HEALTH（经隧道探测 /health，需 WINVM_SETUP_TUNNEL=1）
+ *   BUILD → HOST（install-host.mjs）→ VM（scp + install-vm.mjs）→ VM-START（schtasks /run 拉起服务，
+ *         并轮询 VM 本机 18443 端口监听 ≤60s 才认为启动完成）
+ *         → TUNNEL（ssh -L）→ TEST（宿主机自检）→ HEALTH（经隧道探测 /health，短重试 3 次，需 WINVM_SETUP_TUNNEL=1）
  *
  * 安全默认：
  *  - 不加 --apply 即 --dry-run，只打印计划、不改动任何系统；
  *  - WINVM_DRY_RUN=1 是兜底保险：即便传了 --apply 也强制保持 dry-run。
  *    （真执行的**唯一**入口是显式 --apply，配置里写 WINVM_DRY_RUN=0 不会自动触发执行。）
  * 所有副作用（构建/安装/ssh）均在 --apply 下发生，且单步失败不影响其它步骤（仅汇总报错）。
+ *
+ * 卸载（双端一键，安全：注册条目移除 + 目录/软链移入回收站）：
+ *   node delivery/setup.mjs --uninstall            # 预览：打印宿主+VM 待移除项，不删除
+ *   node delivery/setup.mjs --uninstall --apply    # 执行：宿主 install-host.mjs --uninstall --yes
+ *                                                  #       + VM ssh install-vm.mjs --uninstall --yes
+ * 仅移除本项目安装的部分，不动其它插件/连接器/技能；删除均入回收站（可恢复）。
+ * 与安装共享同一套安全默认（无 --apply 即预览；WINVM_DRY_RUN=1 兜底）。
  */
 
 import { readFileSync, existsSync, rmSync } from 'node:fs';
@@ -130,6 +138,24 @@ export function buildPlan(cfg) {
       });
     }
   }
+  // VM-START：部署后默认拉起服务（计划任务"登录即启"，但刚部署完远端多半未重新登录，
+  // 故显式 schtasks /run 触发，使后续 /health 能探通）
+  if (cfg.vmDeploy && cfg.vmHost) {
+    // 与执行阶段一致：先结束旧实例 + 强杀残留端口进程，再 schtasks /run
+    // （避免 MultipleInstancesPolicy=IgnoreNew 拦截、端口被旧实例占用 EADDRINUSE）。
+    // 预览命令同步反映该「干净重启」语义，确保所见的命令与真实执行一致（原则7 一致性）。
+    const restartCmd =
+      `schtasks /end /tn ${SERVICE_TASK_NAME}; Start-Sleep -Seconds 1; ` +
+      `$p=(Get-NetTCPConnection -LocalPort ${cfg.servicePort} -ErrorAction SilentlyContinue).OwningProcess|Select-Object -Unique; ` +
+      `if($p){Stop-Process -Id $p -Force -ErrorAction SilentlyContinue}; Start-Sleep -Seconds 1; ` +
+      `schtasks /run /tn ${SERVICE_TASK_NAME}`;
+    steps.push({
+      phase: 'VM-START',
+      description: `部署后拉起 VM 服务（先结束旧实例并强杀残留端口进程 → schtasks /run /tn ${SERVICE_TASK_NAME}，并轮询端口监听 ≤60s）[${mode}]`,
+      command: `ssh -p ${cfg.vmSshPort} ${cfg.vmUser}@${cfg.vmHost} "powershell -NoProfile -Command \\"${restartCmd}\\""`,
+      apply: !cfg.dryRun,
+    });
+  }
   if (cfg.setupTunnel && cfg.vmHost) {
     steps.push({
       phase: 'TUNNEL',
@@ -166,6 +192,27 @@ export function buildPlan(cfg) {
 
 /** 传到 VM 的产物包名（打包保留 packages/<name>/dist 层级，避免同名 dist 互相覆盖） */
 export const VM_ARCHIVE = 'winvm-dist.tgz';
+
+/** VM 侧服务计划任务名（与 install-vm.mjs 默认一致；若自定义 --task-name 需同步修改） */
+export const SERVICE_TASK_NAME = 'WinVMBridge.Service';
+
+/**
+ * 在 VM 的【交互式 PowerShell（RDP 桌面内）】执行的 GUI 启用命令。
+ * 要点（确保「杀掉非交互式实例 → 在交互式会话拉起 GUI 可用实例」）：
+ *  1) `schtasks /end` 让调度器把任务标记为已结束，后续 `schtasks /run` 才不会被
+ *     任务 XML 的 `MultipleInstancesPolicy=IgnoreNew` 拦截（否则旧实例占着端口、新 run 被忽略）；
+ *  2) 兜底 `Stop-Process` 强杀仍占用 18443 的进程，确保端口释放；
+ *  3) 最后 `schtasks /run` 在「当前交互式会话」拉起新实例 → GUI 能力可用。
+ * 该数组被 HEALTH 阶段（检测 session.interactive=false 时）与最终摘要复用。
+ */
+export const GUI_RESTART_COMMAND = [
+  'schtasks /end /tn WinVMBridge.Service',
+  'Start-Sleep -Seconds 2',
+  '$p = (Get-NetTCPConnection -LocalPort 18443 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique',
+  'if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }',
+  'Start-Sleep -Seconds 1',
+  'schtasks /run /tn WinVMBridge.Service',
+];
 
 /** packages/ 下的包目录名列表（目录不存在时返回空数组） */
 async function packageNames() {
@@ -258,6 +305,50 @@ export function vmInstallCommand(cfg) {
   );
 }
 
+/** VM 侧卸载命令（与安装对称；--yes 即真正移入回收站） */
+export function vmUninstallCommand(cfg, { dryRun = false } = {}) {
+  return (
+    `cd ${cfg.vmDeployDir} && node delivery/install-vm.mjs --uninstall ` +
+    `${dryRun ? '--dry-run' : '--yes'} --provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)}`
+  );
+}
+
+/** 生成卸载执行计划（纯函数，便于单测） */
+export function buildUninstallPlan(cfg) {
+  const steps = [];
+  const mode = cfg.dryRun ? 'dry-run（只规划）' : 'apply（真执行）';
+  if (cfg.hostDeploy) {
+    const args = ['node', 'delivery/install-host.mjs', '--uninstall'];
+    if (cfg.dryRun) args.push('--dry-run');
+    else args.push('--yes');
+    if (cfg.hostHome) args.push('--home', cfg.hostHome);
+    steps.push({
+      phase: 'HOST-UNINSTALL',
+      description: '卸载宿主机侧 WorkBuddy 插件（移除注册条目 + 项目目录移入回收站）',
+      command: args.join(' '),
+      apply: !cfg.dryRun,
+    });
+  }
+  if (cfg.vmDeploy) {
+    if (cfg.vmHost) {
+      steps.push({
+        phase: 'VM-UNINSTALL',
+        description: `卸载 VM 侧服务（ssh ${cfg.vmUser}@${cfg.vmHost} 运行 install-vm.mjs --uninstall）[${mode}]`,
+        command: `ssh -p ${cfg.vmSshPort} ${cfg.vmUser}@${cfg.vmHost} "${vmUninstallCommand(cfg, { dryRun: cfg.dryRun })}"`,
+        apply: !cfg.dryRun,
+      });
+    } else {
+      steps.push({
+        phase: 'VM-UNINSTALL',
+        description: 'VM_HOST 未配置 → 打印本地手动卸载指引（不自动 ssh）',
+        command: `node delivery/install-vm.mjs --uninstall --dry-run --provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)}`,
+        apply: false,
+      });
+    }
+  }
+  return steps;
+}
+
 /**
  * VM 侧分发：确保目录 → 打包（delivery + skills + 各包运行时资产）→ 传输 → 解压 → 安装
  * skills 一并下发，作为 VM 内 AI Agent 的技能规范与操作指引。
@@ -304,6 +395,19 @@ export async function deployVm(cfg) {
     /* 清理失败不影响部署结果 */
   }
   return r;
+}
+
+/**
+ * VM 侧卸载分发：仅经 ssh 在 VM 内运行 install-vm.mjs --uninstall（VM_HOST 已可达）。
+ * 与 deployVm 对称，但卸载不需要打包/传输产物。
+ */
+export async function deployVmUninstall(cfg) {
+  if (!cfg.vmHost) return { ok: false, code: -1, out: 'VM_HOST 未配置' };
+  return run(
+    'ssh',
+    ['-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`, vmUninstallCommand(cfg, { dryRun: cfg.dryRun })],
+    { timeoutMs: 300_000 },
+  );
 }
 
 /* ----------------------------- 执行辅助 ----------------------------- */
@@ -362,9 +466,35 @@ async function reachable(cfg) {
   return r.ok;
 }
 
+/**
+ * 轮询 VM 本机 127.0.0.1:<port> 是否已进入监听态（经 SSH 在 VM 内探测，
+ * 不依赖本地 SSH 隧道，故可在 VM-START 阶段直接使用）。
+ * 最长等待 timeoutMs；返回 true 表示端口已监听。
+ * 注意：schtasks /run 受任务 XML 的 MultipleInstancesPolicy=IgnoreNew 约束，
+ * 若已有实例在监听，schtasks /run 会立即变空操作，本函数随即返回 true。
+ */
+async function waitForRemotePort(cfg, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const r = await run('ssh', [
+      '-p', String(cfg.vmSshPort),
+      '-o', 'BatchMode=yes',
+      '-o', `ConnectTimeout=8`,
+      `${cfg.vmUser}@${cfg.vmHost}`,
+      `powershell -NoProfile -Command "(Test-NetConnection -ComputerName 127.0.0.1 -Port ${cfg.servicePort} -InformationLevel Quiet)"`,
+    ], { timeoutMs: 15_000 });
+    if (r.ok && /true/i.test(r.out)) return true;
+    if (Date.now() >= deadline) return false;
+    await sleep(1000);
+  }
+  return false;
+}
+
 function log(msg) {
   process.stdout.write(msg + '\n');
 }
+
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
 /* ----------------------------- 主流程 ----------------------------- */
 
@@ -390,32 +520,36 @@ async function main() {
   }
 
   const cfg = resolveConfig(env, { apply });
-  const plan = buildPlan(cfg);
+  const isUninstall = args.includes('--uninstall');
+  const plan = isUninstall ? buildUninstallPlan(cfg) : buildPlan(cfg);
 
   log('');
   log('══════════════════════════════════════════════════════════════');
-  log(` WinVM Bridge 双端一键部署  [${cfg.dryRun ? 'DRY-RUN 只规划' : 'APPLY 真执行'}]`);
+  log(` WinVM Bridge 双端一键${isUninstall ? '卸载' : '部署'}  [${cfg.dryRun ? 'DRY-RUN 只规划' : 'APPLY 真执行'}]`);
   log(` VM provider 选型：${cfg.vmProvider}`);
   log('══════════════════════════════════════════════════════════════');
+  log(`【计划预览】以下为将执行的步骤（仅展示，尚未执行）：`);
   for (const s of plan) {
-    log(`\n[${s.phase}] ${s.description}`);
-    log(`   $ ${s.command}`);
+    log(`  ▸ [${s.phase}] ${s.description}`);
+    log(`       $ ${s.command}`);
   }
   log('');
 
   if (cfg.dryRun) {
-    log('DRY-RUN 完成：未对任何系统做改动。需要真正执行时加 --apply。');
+    log(`DRY-RUN 完成：未对任何系统做改动。${isUninstall ? '确认待移除项无误后，加 --apply 执行卸载（目录/软链入回收站，可恢复）。' : '需要真正执行时加 --apply。'}`);
     return;
   }
 
   // APPLY：逐步执行
   let failed = 0;
+  let guiDegraded = false;
   for (const s of plan) {
     if (!s.apply) {
       log(`\n[${s.phase}] 跳过（无需执行）：${s.description}`);
       continue;
     }
     log(`\n[${s.phase}] 执行：${s.description}`);
+    log(`   $ ${s.command}`);
     if (s.phase === 'TUNNEL') {
       // 隧道后台常驻，不阻塞
       try {
@@ -424,52 +558,135 @@ async function main() {
           '-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`,
         ], { detached: true, stdio: 'ignore', windowsHide: true });
         child.unref();
-        log(`   隧道已在后台启动（PID ${child.pid}）`);
+        log(`   ✅ 隧道已在后台启动（PID ${child.pid}）`);
       } catch (e) {
-        log(`   隧道启动失败：${e.message}`);
+        log(`   ❌ 隧道启动失败：${e.message}`);
         failed++;
+      }
+      continue;
+    }
+    if (s.phase === 'VM-UNINSTALL') {
+      const reachableNow = await reachable(cfg);
+      if (!reachableNow) {
+        log(`   VM ${cfg.vmUser}@${cfg.vmHost} 不可达（SSH 探测失败）→ 跳过自动卸载，请手动在 VM 内运行 install-vm.mjs --uninstall --yes`);
+        failed++;
+        continue;
+      }
+      const r = await deployVmUninstall(cfg);
+      if (!r.ok) {
+        log(`   ❌ VM 卸载失败：${r.out.slice(0, 400)}`);
+        failed++;
+      } else {
+        log('   ✅ VM 卸载完成（任务移除 + 软链/共享 Skills 移入回收站，源码与 dist 保留）');
       }
       continue;
     }
     if (s.phase === 'VM') {
       const reachableNow = await reachable(cfg);
       if (!reachableNow) {
-        log(`   VM ${cfg.vmUser}@${cfg.vmHost} 不可达（SSH 探测失败）→ 跳过自动部署，请手动在 VM 内运行 install-vm.mjs`);
+        log(`   ⚠️ VM ${cfg.vmUser}@${cfg.vmHost} 不可达（SSH 探测失败）→ 跳过自动部署，请手动在 VM 内运行 install-vm.mjs`);
         failed++;
         continue;
       }
       const r = await deployVm(cfg);
       if (!r.ok) {
-        log(`   VM 部署失败：${r.out.slice(0, 400)}`);
+        log(`   ❌ VM 部署失败：${r.out.slice(0, 400)}`);
         failed++;
       } else {
-        log('   VM 部署完成（产物 + skills 技能规范已分发，已注册自启并自检）');
+        log('   ✅ VM 部署完成（产物 + skills 技能规范已分发，已注册自启并自检）');
       }
       continue;
     }
-    // BUILD / HOST / TEST / HEALTH：本地直接运行
+    if (s.phase === 'VM-START') {
+      const reachableNow = await reachable(cfg);
+      if (!reachableNow) {
+        log(`   ⚠️ VM ${cfg.vmUser}@${cfg.vmHost} 不可达（SSH 探测失败）→ 跳过启动，请手动在 VM 内 schtasks /run /tn ${SERVICE_TASK_NAME}`);
+        continue;
+      }
+      // 先结束旧实例并强杀残留端口进程（确保 Hidden=true 新实例能绑定、不弹旧窗口），再拉起
+      const restartRemote =
+        `schtasks /end /tn ${SERVICE_TASK_NAME}; Start-Sleep -Seconds 1; ` +
+        `$p=(Get-NetTCPConnection -LocalPort ${cfg.servicePort} -ErrorAction SilentlyContinue).OwningProcess|Select-Object -Unique; ` +
+        `if($p){Stop-Process -Id $p -Force -ErrorAction SilentlyContinue}; Start-Sleep -Seconds 1; ` +
+        `schtasks /run /tn ${SERVICE_TASK_NAME}`;
+      const r = await run('ssh', ['-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`, `powershell -NoProfile -Command "${restartRemote}"`], { timeoutMs: 60_000 });
+      if (!r.ok) {
+        log(`   ❌ VM 服务启动触发失败（${r.out.slice(0, 200)}）：可在 VM 内手动 schtasks /run /tn ${SERVICE_TASK_NAME}。部署继续，/health 将再次验证。`);
+        continue;
+      }
+      log(`   VM 服务已触发重启（kill 残留 → schtasks /run /tn ${SERVICE_TASK_NAME}），等待端口监听（最长 60s）...`);
+      const up = await waitForRemotePort(cfg, 60_000);
+      if (up) {
+        log(`   ✅ VM 服务已监听 127.0.0.1:${cfg.servicePort}（启动完成）`);
+      } else {
+        log(`   ⚠️ 60s 内未监听到端口。/health 阶段会再次验证；可手动在 VM 内 schtasks /run /tn ${SERVICE_TASK_NAME} 后重跑本步。`);
+      }
+      continue;
+    }
+
+    if (s.phase === 'HEALTH') {
+      // VM-START 阶段已轮询端口监听，此处端口通常已通；再取一次 /health JSON 即可。
+      // 仍保留短重试（2s × 3）以吸收「端口刚监听、HTTP 服务尚未完全就绪」的微小间隙。
+      let ok = false;
+      let lastOut = '';
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const hr = await run('curl', ['-s', '--noproxy', '127.0.0.1', '--max-time', '10', `http://127.0.0.1:${cfg.tunnelLocalPort}/health`], { timeoutMs: 15_000 });
+        lastOut = hr.out;
+        if (hr.ok) { ok = true; break; }
+        if (attempt < 3) { log(`   /health 第 ${attempt} 次未通，2 秒后重试...`); await sleep(2000); }
+      }
+      if (ok) {
+        log('   ✅ /health 通过');
+        if (lastOut.trim()) log(`   ${lastOut.trim().slice(0, 600)}`);
+        // 解析 session.interactive：非交互式会话 → GUI 能力不可用（仅门禁，不影响 MCP/A2A 与 54 能力）
+        try {
+          const h = JSON.parse(lastOut.trim());
+          if (h?.session && h.session.interactive === false) {
+            guiDegraded = true;
+            log('');
+            log('   ⚠️ 服务运行在【非交互式会话】（session.interactive=false）→ GUI 能力（截图/键鼠/UIA/窗口/剪贴板）不可用。');
+            log('      MCP/A2A 双通道与全部 54 项能力正常（exposed=54）；仅 gui.* 被门禁。');
+            log('      根因：经 SSH 远程 schtasks /run 不保证落在交互式（RDP）会话——它仅在「当前已有 RDP 交互式登录」时才落入该会话；');
+            log('            否则服务会落到非交互会话（windowStation 非 WinSta0），GUI 被门禁。');
+            log('      💡 启用 GUI：在 VM 的【交互式 PowerShell（RDP 桌面内）】执行以下命令');
+            log('         （先结束非交互式实例、释放端口，再在交互式会话拉起 GUI 可用实例）：');
+            for (const line of GUI_RESTART_COMMAND) log(`         ${line}`);
+            log('         执行后重跑本步（或刷新 /health）应见 session.interactive=true、GUI 可用。');
+          }
+        } catch {
+          /* 解析失败不影响主流程 */
+        }
+      } else {
+        log(`   ❌ 端口已监听但 /health 未返回（已重试 3 次）：${lastOut.slice(0, 400)}`);
+        log('   提示：/health 需要 VM 侧 HTTP 服务已运行。若 schtasks /run 未生效，可在 VM 内手动执行');
+        log(`         schtasks /run /tn ${SERVICE_TASK_NAME} 后重跑本步，或确认 SSH 隧道已建立。`);
+        failed++;
+      }
+      continue;
+    }
+
+    // BUILD / HOST / TEST：本地直接运行
     const parts = s.command.split(' ');
     const r = await run(parts[0], parts.slice(1), { timeoutMs: 180_000 });
     if (!r.ok) {
-      log(`   失败（exit ${r.code}）：${r.out.slice(0, 400)}`);
-      if (s.phase === 'HEALTH') {
-        log('   提示：/health 需要 VM 侧 HTTP 服务已运行（计划任务 WinVMBridge.Service 为「登录即启」）。');
-        log('         若刚部署完、远端尚未重新登录，可在 VM 内执行 schtasks /run /tn WinVMBridge.Service 后重试。');
-      }
+      log(`   ❌ 失败（exit ${r.code}）：${r.out.slice(0, 400)}`);
       failed++;
     } else {
-      log('   完成');
-      // /health 的响应体本身就是最有价值的验收证据（ok / capabilities / psBridge 状态），打印出来
-      if (s.phase === 'HEALTH' && r.out.trim()) log(`   ${r.out.trim().slice(0, 600)}`);
+      log('   ✅ 完成');
     }
   }
 
   log('');
   if (failed > 0) {
-    log(`部署完成但有 ${failed} 个步骤失败，请查看上方日志。`);
+    log(`${isUninstall ? '卸载' : '部署'}完成但有 ${failed} 个步骤失败，请查看上方日志。`);
     process.exitCode = 1;
   } else {
-    log('部署全部完成 ✅');
+    log(`${isUninstall ? '卸载全部完成 ✅（项目部分已移除，删除物均在回收站可恢复）' : '部署全部完成 ✅'}`);
+    if (!isUninstall && guiDegraded) {
+      log('');
+      log('   ⚠️ 注意：VM 服务当前运行在非交互式会话，GUI 能力不可用（MCP/A2A 与 54 能力正常）。');
+      log('      若需 GUI，请在 VM 交互式 PowerShell 中执行上方「💡 启用 GUI」命令块后，重跑本脚本或刷新 /health。');
+    }
   }
 }
 

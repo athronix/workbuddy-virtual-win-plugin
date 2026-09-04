@@ -13,7 +13,7 @@
 7. `docs/02-design/SPEC-SKILLS.md` —— Skills 框架规范
 8. `docs/02-design/INTERFACES.md` —— MCP tools / A2A skills / 内部 API 契约
 9. `docs/02-design/SECURITY-GOVERNANCE.md` —— 风险分级/策略引擎/审批闸/防篡改审计/会话保活
-10. `docs/05-peripherals/DEPLOYMENT.md` —— 部署指南（双端一键 `setup.mjs` + `agent.provider` 选型 + §7 远程 Windows 部署与 SSH 密钥认证）
+10. `docs/05-peripherals/DEPLOYMENT.md` —— 部署指南（双端一键 `setup.mjs` + `agent.provider` 选型 + §7 插件管理命令 `winvm-plugin`（host/VM 统一查验与管理）+ §8 远程 Windows 部署与 SSH 密钥认证）
 11. `docs/05-peripherals/SCENARIOS.md` —— 应用场景故事/流程/机制/demo（含 Photoshop 大山→海洋 LLM 端到端）
 12. `docs/05-peripherals/USER-MANUAL.md` —— 用户手册
 13. `docs/06-OVERVIEW.md` —— 交付概览
@@ -23,3 +23,9 @@
 
 ## 索引文件（.dev/）
 - `README.md` / `project-dir-file-index.md` / `docs-index.md` / `project-dev-status.md` / `changed-log.md` / `changing-log.md`
+
+## 最近变更
+- `DEPLOYMENT.md`（§1.3 / §4.1）：VM-START 轮询端口 ≤60s 才认定启动完成；任务 XML `Hidden=true` 不弹 node 窗口；`session.interactive=false` 时给出「在 VM 交互式 PowerShell restart 启用 GUI」命令块；登录触发器随 VM 登录启动。
+- `DEPLOYMENT.md` 新增 §7 插件管理命令 `winvm-plugin`：宿主机与 VM 部署后均落盘同一管理 CLI（自动识别上下文），覆盖 help/check/health/list/server/command/uninstall/update/reinstall；原「远程 Windows」顺延为 §8。
+- **第八轮修复（`delivery/deploy-winvm-plugin.mjs` + 三安装器 + `setup.mjs` 输出重构）**：① 新增统一启动器部署器，修复 `install-vm` 步骤7 自拷贝 `winvm-plugin.mjs` 导致部署误报失败；② `winvm-plugin` 命令改为三件套（`.mjs`+`.cmd`+无扩展名 bash 启动器 +x），宿主额外部署到仓库 `delivery/`，命令真正可达；③ 新增 `killServiceProcess`，卸载/重注册/VM-START 前杀残留进程，消除可见 node 窗口；④ `setup.mjs` 计划预览与执行分离、每步显式 `✅/❌`；⑤ VM 卸载高亮可恢复目录（非系统回收站）、宿主说明 `*.winvm-bak.*` 备份保留；`DEPLOYMENT.md` §6 新增「为什么回收站里看不到某些被删的东西」FAQ。
+- **第九轮（补持久化单测 + 输出一致性收尾）**：新增 `tests/unit/deploy-winvm-plugin.test.js`（4 case：异目录复制 / 自拷贝跳过 / writeContext:false / dry-run 不写盘）；修 `setup-env.test.js` 六阶段→七阶段（含 `VM-START`），并新增「各阶段仅出现一次」回归用例固化 Q2；`setup.mjs` VM-START 预览命令对齐真实重启；`deploy-winvm-plugin.mjs` 上下文跳过/写入均留痕。⚠️ 单测须**逐文件**运行（整批 `*.test.js` 因 `link-workspace` junction 在本沙箱打崩 runner 假全红）。

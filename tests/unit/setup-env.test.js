@@ -74,11 +74,19 @@ describe('resolveConfig', () => {
 });
 
 describe('buildPlan', () => {
-  test('完整 env 生成 BUILD/HOST/VM/TUNNEL/TEST/HEALTH 六阶段', () => {
+  test('完整 env 生成 BUILD/HOST/VM/VM-START/TUNNEL/TEST/HEALTH 七阶段', () => {
     const cfg = resolveConfig(parseEnv(SAMPLE), {});
     const plan = buildPlan(cfg);
     const phases = plan.map((p) => p.phase);
-    assert.deepEqual(phases, ['BUILD', 'HOST', 'VM', 'TUNNEL', 'TEST', 'HEALTH']);
+    assert.deepEqual(phases, ['BUILD', 'HOST', 'VM', 'VM-START', 'TUNNEL', 'TEST', 'HEALTH']);
+  });
+
+  test('各阶段仅出现一次（回归防护：VM-START / HEALTH 曾各被执行两次）', () => {
+    const cfg = resolveConfig(parseEnv(SAMPLE), {});
+    const phases = buildPlan(cfg).map((p) => p.phase);
+    for (const phase of ['BUILD', 'HOST', 'VM', 'VM-START', 'TUNNEL', 'TEST', 'HEALTH']) {
+      assert.equal(phases.filter((p) => p === phase).length, 1, `${phase} 应只出现一次（防重复执行回归）`);
+    }
   });
 
   test('VM_HOST 为空时 VM 阶段转为手动部署指引（apply=false）', () => {
@@ -93,7 +101,7 @@ describe('buildPlan', () => {
     const dry = buildPlan(resolveConfig(parseEnv(SAMPLE), {}));
     assert.ok(dry.every((p) => p.apply === false));
     const apply = buildPlan(resolveConfig(APPLY_ENV, { apply: true }));
-    for (const phase of ['HOST', 'VM', 'TUNNEL', 'HEALTH']) {
+    for (const phase of ['HOST', 'VM', 'VM-START', 'TUNNEL', 'HEALTH']) {
       const step = apply.find((p) => p.phase === phase);
       assert.ok(step, `缺少 ${phase} 阶段`);
       assert.equal(step.apply, true, `${phase} 在 --apply 下应为真执行`);

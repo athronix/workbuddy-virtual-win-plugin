@@ -23,6 +23,19 @@
  *                                [--task-name WinVMBridge.Service] [--skip-build]
  *                                [--skip-install] [--skip-links]
  *
+ * 卸载（安全：仅删本项目，目录/软链移入回收站，可恢复）：
+ *   node delivery/install-vm.mjs --uninstall            # 预览：打印待移除项，不删除
+ *   node delivery/install-vm.mjs --uninstall --yes      # 执行：任务移除 + 软链/共享 Skills/生成目录移入回收站
+ *   node delivery/install-vm.mjs --uninstall --trash-dir <dir>  # 自定义回收目录（测试/非 Win）
+ *   node delivery/install-vm.mjs --uninstall --recycle-bin  # 明确走系统回收站（仅限 VM 内 RDP 交互运行；SSH 下不可见）
+ *   node delivery/install-vm.mjs --uninstall --root <repoRoot>  # 指定仓库根（默认脚本所在仓库）
+ * 默认回收位置（无 --trash-dir/--recycle-bin）：仓库内可恢复目录 <repoRoot>/.uninstall-trash/<时间戳>/。
+ *   ⚠ 经 SSH 执行时系统回收站写入不会反映到 RDP 桌面看到的回收站（非交互会话上下文不同），
+ *     故一键卸载默认落到该可恢复目录，RDP 进 VM 后即可找回/恢复；如需系统回收站请在 VM 内交互运行并加 --recycle-bin。
+ * 卸载会移除：① 任务计划程序任务；② node_modules/@winvm/* 中仅指向 packages/<pkg> 的 junction；
+ *           ③ 各候选 Agent 技能目录中指向共享根的 junction；④ 共享 Skills 根；⑤ delivery/.generated。
+ * 源码与已编译 dist 始终保留。
+ *
  * provider / cli 取值来源优先级：显式 --provider/--cli 参数 > 环境变量
  *   WINVM_VM_PROVIDER > 配置文件 agent.provider；CLI 运行时按 provider 取：
  *   workbuddy→WINVM_WORKBUDDY_CLI（默认 codebuddy）/ hermes-agent→WINVM_HERMES_CLI（默认 hermes）。
@@ -39,11 +52,19 @@ import {
   readFileSync,
   writeFileSync,
   rmSync,
+  renameSync,
+  readdirSync,
+  readlinkSync,
 } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { deploySharedSkills, DEFAULT_SHARED_SKILLS_ROOT } from './deploy-shared-skills.mjs';
+import {
+  deploySharedSkills,
+  resolveAgentSkillDirs,
+  DEFAULT_SHARED_SKILLS_ROOT,
+} from './deploy-shared-skills.mjs';
 import { ensureWorkspaceLinks } from './link-workspace.mjs';
+import { deployWinvmPlugin } from './deploy-winvm-plugin.mjs';
 
 /* ------------------------------ 参数 ------------------------------ */
 
@@ -52,6 +73,10 @@ function parseArgs(argv) {
     dryRun: false,
     selfTest: false,
     uninstall: false,
+    yes: false,
+    trashDir: undefined,
+    recycleBin: false,
+    root: undefined,
     skipBuild: false,
     skipInstall: false,
     skipLinks: false,
@@ -68,6 +93,10 @@ function parseArgs(argv) {
       case '--dry-run': out.dryRun = true; break;
       case '--self-test': out.selfTest = true; break;
       case '--uninstall': out.uninstall = true; break;
+      case '--yes': out.yes = true; break;
+      case '--trash-dir': out.trashDir = argv[++i]; break;
+      case '--recycle-bin': out.recycleBin = true; break;
+      case '--root': out.root = argv[++i]; break;
       case '--skip-build': out.skipBuild = true; break;
       case '--skip-install': out.skipInstall = true; break;
       case '--skip-links': out.skipLinks = true; break;
@@ -88,13 +117,13 @@ function parseArgs(argv) {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const repoRoot = resolve(join(__dirname, '..'));
-const deliveryDir = join(repoRoot, 'delivery');
-const defaultConfig = join(deliveryDir, 'vm-service.config.json');
-const genDir = join(deliveryDir, '.generated');
+let repoRoot = resolve(join(__dirname, '..'));
+let deliveryDir = join(repoRoot, 'delivery');
+let defaultConfig = join(deliveryDir, 'vm-service.config.json');
+let genDir = join(deliveryDir, '.generated');
 const runtimeConfig = join(genDir, 'vm-service.runtime.json');
-const taskXmlPath = join(genDir, 'task.xml');
-const cliEntry = join(repoRoot, 'packages', 'vm-service', 'dist', 'cli.js');
+let taskXmlPath = join(genDir, 'task.xml');
+let cliEntry = join(repoRoot, 'packages', 'vm-service', 'dist', 'cli.js');
 
 /* ------------------------------ 工具 ------------------------------ */
 
@@ -119,6 +148,25 @@ function writeJson(p, obj) {
 function taskExists(name) {
   const r = spawnSync('schtasks', ['/Query', '/TN', name], { stdio: 'ignore', shell: true });
   return r.status === 0;
+}
+
+/**
+ * 停止服务并释放端口，确保后续 `schtasks /run` 能真正拉起新实例（而非被
+ * 任务 XML 的 MultipleInstancesPolicy=IgnoreNew 拦截，或端口被旧实例占用 EADDRINUSE）。
+ * 用于：① 卸载时先停掉运行中的服务（消除残留的 node 控制台窗口）；
+ *      ② 部署重新注册任务前，清掉仍占用端口的旧实例。
+ * 步骤：先 `schtasks /end` 让调度器标记任务结束 → 强杀仍占用端口的进程释放端口。
+ */
+function killServiceProcess(port, taskName, dryRun, log) {
+  if (dryRun) { log(`停止服务   : ${taskName}（端口 ${port}）[dry-run 不杀进程]`); return; }
+  // 1) 让调度器把任务标记为结束（新 run 才不会被 IgnoreNew 拦）
+  spawnSync('schtasks', ['/End', '/TN', taskName], { stdio: 'ignore', shell: true });
+  // 2) 兜底强杀仍占用端口的进程，确保端口释放
+  const script =
+    `$p=(Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue).OwningProcess ` +
+    `| Select-Object -Unique; if($p){Stop-Process -Id $p -Force -ErrorAction SilentlyContinue}`;
+  spawnSync('powershell', ['-NoProfile', '-Command', script], { stdio: 'ignore' });
+  log(`停止服务   : 已结束 ${taskName} 并释放端口 ${port}`);
 }
 
 /** 生成 UTF-16LE（带 BOM）任务计划 XML，供 schtasks /XML 消费 */
@@ -150,7 +198,7 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg) {
     <StartWhenAvailable>false</StartWhenAvailable>
     <AllowStartOnDemand>true</AllowStartOnDemand>
     <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
+    <Hidden>true</Hidden>
     <RunOnlyIfIdle>false</RunOnlyIfIdle>
     <WakeToRun>false</WakeToRun>
     <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
@@ -186,9 +234,100 @@ function planSteps(args, cfgPath) {
   if (!args.skipBuild) steps.push('npm run build （编译所有 packages → dist/）');
   steps.push(`生成运行配置: ${runtimeConfig}（强制 host=127.0.0.1, port=${args.port}）`);
   steps.push(`部署共享 Skills: 仓库 skills/ → 共享根（${args.skillsRoot || 'C:/WinVMBridge/shared-skills'}），并为各候选 Agent 建 symlink 引用${args.skipSkills ? '  [跳过 --skip-skills]' : ''}`);
-  steps.push(`注册任务计划程序任务: ${args.taskName}（登录即启 / 崩溃重启 / 仅交互式会话）`);
+  steps.push(`注册任务计划程序任务: ${args.taskName}（登录即启 / 崩溃重启 / 仅交互式会话 / 隐藏窗口，避免误关）`);
   steps.push(`自检: node ${cliEntry} --self-test`);
   return steps;
+}
+
+/* ------------------------------ 安全卸载辅助 ------------------------------
+ * 设计原则（满足"删除目录/软链入回收站、可恢复；仅删本项目"）：
+ *  - 任务计划程序任务是系统对象，直接 schtasks /Delete；
+ *  - 其余本项目产物（@winvm 软链、共享 Skills 根与 Agent 链接、生成目录）一律移入回收站；
+ *  - --dry-run 仅预览；否则 --yes 才执行；无 --yes 只打印计划。
+ * 所有"反向"操作只针对本项目创建的 junction：指向 packages/<pkg> 的 @winvm 软链，
+ * 以及指向共享根的 Agent 技能链接；其余一律跳过，不碰其它。 */
+
+function ts() { return new Date().toISOString().replace(/[:.]/g, '-'); }
+
+function norm(p) { return String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase(); }
+
+function trashItem(target, { dryRun, trashDir, useRecycleBin, log }) {
+  if (!existsSync(target)) { log(`  （跳过，不存在）${target}`); return; }
+  if (dryRun) { log(`  (dry) 回收站← ${target}`); return; }
+  try {
+    // 显式回收目录：最可靠，SSH 与交互式会话均可正常落盘
+    if (trashDir) {
+      const name = target.replace(/[/\\]$/, '').split(/[/\\]/).pop() || 'item';
+      const dest = join(trashDir, `${name}.${ts()}`);
+      mkdirSync(trashDir, { recursive: true });
+      renameSync(target, dest);
+      log(`  回收站← ${target}\n        → ${dest}`);
+      return;
+    }
+    // 交互式会话内（如直接在 VM 里 RDP 运行）可显式走系统回收站
+    if (useRecycleBin) {
+      const e = target.replace(/'/g, "''");
+      const script = `$e='${e}'; if(Test-Path $e){$s=New-Object -ComObject Shell.Application; $s.NameSpace(10).MoveHere($e,16)}`;
+      const r = spawnSync('powershell', ['-NoProfile', '-Command', script], { stdio: 'ignore' });
+      if (r.status !== 0) throw new Error(`recycle bin move failed (status ${r.status ?? '?'})`);
+      log(`  回收站← ${target}`);
+      return;
+    }
+    // 兜底默认：VM 侧经 SSH 执行时，系统回收站写入不会反映到 RDP 桌面看到的回收站
+    // （非交互会话的回收站上下文与交互桌面不同），故统一落到仓库内可恢复目录，
+    // RDP 进 VM 后可在 C:/WinVMBridge/.uninstall-trash/<时间戳>/ 找回/恢复。
+    const base = join(repoRoot, '.uninstall-trash', ts());
+    const name = target.replace(/[/\\]$/, '').split(/[/\\]/).pop() || 'item';
+    const dest = join(base, name);
+    mkdirSync(base, { recursive: true });
+    renameSync(target, dest);
+    log(`  回收站← ${target}\n        → ${dest}  （VM 侧可恢复目录：SSH 下系统回收站不可见，故用此）`);
+  } catch (e) {
+    throw new Error(`无法移入回收站 ${target}：${e.message}（可改用 --trash-dir 指定自定义回收目录）`);
+  }
+}
+
+/** 反向 link-workspace.mjs：移除仅指向 packages/<pkg> 的 @winvm junction。 */
+function uninstallWorkspaceLinks(dryRun, trashDir, useRecycleBin, yes, log) {
+  const nmWinvm = join(repoRoot, 'node_modules', '@winvm');
+  if (!existsSync(nmWinvm)) { log('workspace 软链 : node_modules/@winvm 不存在（无需改动）'); return; }
+  const entries = readdirSync(nmWinvm, { withFileTypes: true });
+  let removed = 0;
+  for (const e of entries) {
+    const full = join(nmWinvm, e.name);
+    let isLink = false; let target = null;
+    try { target = resolve(nmWinvm, readlinkSync(full)); isLink = true; } catch {}
+    if (!isLink) { log(`  （跳过，非链接）${full}`); continue; }
+    const expected = join(repoRoot, 'packages', e.name);
+    if (norm(resolve(target)) !== norm(expected)) { log(`  （跳过，指向其它位置）${full} → ${target}`); continue; }
+    if (!yes) { log(`workspace 软链 : ${full} → ${target}\n        [待回收站←（--yes 执行）]`); continue; }
+    trashItem(full, { dryRun, trashDir, useRecycleBin, log });
+    removed++;
+  }
+  if (yes && existsSync(nmWinvm)) {
+    try { if (readdirSync(nmWinvm).length === 0) trashItem(nmWinvm, { dryRun, trashDir, useRecycleBin, log }); } catch {}
+  }
+  if (removed === 0 && !yes) log('workspace 软链 : 无待移除的本项目 junction');
+}
+
+/** 反向 deploy-shared-skills.mjs：移除 Agent 技能目录中指向共享根的 junction，及共享根本身。 */
+async function uninstallSharedSkills(skillsRoot, dryRun, trashDir, useRecycleBin, yes, log) {
+  for (const a of resolveAgentSkillDirs(process.env)) {
+    if (!a.dir || !existsSync(a.dir)) continue;
+    const entries = readdirSync(a.dir, { withFileTypes: true });
+    for (const e of entries) {
+      const full = join(a.dir, e.name);
+      let isLink = false; let target = null;
+      try { target = resolve(a.dir, readlinkSync(full)); isLink = true; } catch {}
+      if (!isLink) continue;
+      if (norm(resolve(target)) !== norm(join(skillsRoot, e.name))) continue;
+      if (!yes) { log(`共享技能链接: ${full} → ${target}\n        [待回收站←（--yes 执行）]`); continue; }
+      trashItem(full, { dryRun, trashDir, useRecycleBin, log });
+    }
+  }
+  if (!existsSync(skillsRoot)) { log('共享 Skills 根 : 不存在（无需改动）'); return; }
+  if (!yes) { log(`共享 Skills 根 : ${skillsRoot}\n        [待回收站←（--yes 执行）]`); return; }
+  trashItem(skillsRoot, { dryRun, trashDir, useRecycleBin, log });
 }
 
 /* ------------------------------ 共享 Skills 部署 ------------------------------ */
@@ -230,6 +369,13 @@ async function deploySkillsStep(args, cfg, provider) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  // 允许 --root 覆盖仓库根（主要用于隔离测试，避免触碰真实仓库）
+  repoRoot = resolve(args.root ?? join(__dirname, '..'));
+  deliveryDir = join(repoRoot, 'delivery');
+  defaultConfig = join(deliveryDir, 'vm-service.config.json');
+  genDir = join(deliveryDir, '.generated');
+  taskXmlPath = join(genDir, 'task.xml');
+  cliEntry = join(repoRoot, 'packages', 'vm-service', 'dist', 'cli.js');
   const cfgPath = args.config ?? defaultConfig;
 
   if (!existsSync(cfgPath)) {
@@ -265,22 +411,75 @@ async function main() {
   console.log(`VM Agent   : agent.provider=${provider}${isLlmProvider ? `（LLM 运行时=${cli}）` : ''}`);
   console.log('');
 
-  /* ----- 卸载 ----- */
+  /* ----- 卸载（安全：仅删本项目，目录/软链移入回收站） ----- */
   if (args.uninstall) {
+    const skillsRoot =
+      args.skillsRoot ??
+      process.env['WINVM_SKILLS_ROOT'] ??
+      cfg?.agent?.providers?.[provider]?.options?.skillsRoot ??
+      DEFAULT_SHARED_SKILLS_ROOT;
+    const log = (m) => console.log(m);
+    // 解析回收站目标：--trash-dir > --recycle-bin(交互式系统回收站) > 默认 VM 内可恢复目录
+    const trashDir = args.trashDir
+      ? args.trashDir
+      : (args.recycleBin ? null : join(repoRoot, '.uninstall-trash', ts()));
+    const useRecycleBin = !!args.recycleBin && !args.trashDir;
+    console.log('=== WinVM Bridge · 虚拟机侧一键卸载（安全：目录/软链移入回收站） ===');
+    console.log(`仓库根目录 : ${repoRoot}`);
+    console.log(`共享根     : ${skillsRoot}`);
+    console.log(`模式       : ${args.dryRun ? 'dry-run（仅预览，不删除）' : (args.yes ? '执行（已确认 --yes）' : '预览（加 --yes 才执行）')}`);
+    if (args.trashDir) console.log(`回收目录   : ${args.trashDir}`);
+    else if (!args.dryRun && args.yes && !args.recycleBin) console.log(`回收目录   : ${trashDir}（VM 内可恢复目录：SSH 下系统回收站不可见，故用此）`);
+    console.log('');
+
+    // 1. 任务计划程序任务（系统对象，直接删除）
     if (taskExists(args.taskName)) {
-      console.log(`移除任务计划程序任务: ${args.taskName}`);
-      if (!args.dryRun) {
+      if (args.dryRun) { log(`任务计划   : ${args.taskName}  [dry-run 将移除]`); }
+      else if (args.yes) {
+        // 先停掉运行中的服务（释放端口、消除残留的 node 控制台窗口），再删任务
+        killServiceProcess(args.port, args.taskName, false, log);
         const r = run('schtasks', ['/Delete', '/TN', args.taskName, '/F']);
         if (r.status !== 0) { console.error('移除任务失败'); process.exit(1); }
-      }
+        log(`任务计划   : 已移除 ${args.taskName}`);
+      } else { log(`任务计划   : ${args.taskName}  [加 --yes 将移除]`); }
     } else {
-      console.log(`任务 ${args.taskName} 不存在，跳过`);
+      log(`任务计划   : ${args.taskName} 不存在，跳过`);
     }
+
+    // 2. @winvm workspace 软链（junction）
+    console.log('');
+    uninstallWorkspaceLinks(args.dryRun, trashDir, useRecycleBin, args.yes, log);
+
+    // 3. 共享 Skills（Agent 链接 + 共享根）
+    console.log('');
+    await uninstallSharedSkills(skillsRoot, args.dryRun, trashDir, useRecycleBin, args.yes, log);
+
+    // 4. 生成目录
+    console.log('');
     if (existsSync(genDir)) {
-      console.log(`清理生成目录: ${genDir}`);
-      if (!args.dryRun) rmSync(genDir, { recursive: true, force: true });
+      if (!args.dryRun && args.yes) trashItem(genDir, { dryRun: args.dryRun, trashDir, useRecycleBin, log });
+      else log(`生成目录   : ${genDir}\n        [待回收站←（--yes 执行）]`);
+    } else {
+      log(`生成目录   : ${genDir}  （不存在，跳过）`);
     }
-    console.log('卸载完成（源码与已编译 dist 保留）。');
+
+    console.log('');
+    if (args.dryRun) {
+      console.log('dry-run 完成：未做任何改动。去掉 --dry-run 并加 --yes 以执行卸载。');
+    } else if (!args.yes) {
+      console.log('预览完成。确认无误后重新执行并加 --yes 以执行卸载（目录/软链移入回收站，可恢复，源码与 dist 保留）。');
+    } else {
+      console.log('卸载完成：任务已停止并移除、软链与共享 Skills 已移入可恢复目录，源码与已编译 dist 保留。');
+      if (args.trashDir) {
+        console.log(`回收目录   : ${args.trashDir}（自定义回收目录）`);
+      } else if (args.recycleBin) {
+        console.log('回收位置   : 系统回收站（--recycle-bin，仅限 VM 内 RDP 交互运行才可见）');
+      } else {
+        console.log(`⚠ 可恢复目录 : ${join(repoRoot, '.uninstall-trash')}/<时间戳>/`);
+        console.log('   （VM 侧经 SSH 卸载时，系统回收站写入不会反映到 RDP 桌面看到的回收站；');
+        console.log('     故删除物默认落到上述 VM 内可恢复目录，而非 Windows 回收站。RDP 进 VM 即可找回/恢复。）');
+      }
+    }
     return;
   }
 
@@ -390,14 +589,16 @@ async function main() {
   /* 5. 注册任务计划程序 */
   console.log('[5/6] 注册任务计划程序任务 ...');
   if (taskExists(args.taskName)) {
-    console.log(`      任务 ${args.taskName} 已存在，先移除再重建`);
+    console.log(`      任务 ${args.taskName} 已存在，先停止旧实例并移除再重建`);
     run('schtasks', ['/Delete', '/TN', args.taskName, '/F']);
   }
+  // 清掉仍占用端口的旧实例（如上一版 Hidden=false 的残留窗口），确保新 Hidden=true 实例能绑定
+  killServiceProcess(args.port, args.taskName, args.dryRun, (m) => console.log(`      ${m}`));
   const nodeExe = process.execPath;
   buildTaskXml(args.taskName, nodeExe, cliEntry, args.port, runtimeConfig);
   r = run('schtasks', ['/Create', '/TN', args.taskName, '/XML', taskXmlPath, '/F']);
   if (r.status !== 0) { console.error('注册任务计划程序失败（需以管理员身份运行）'); process.exit(1); }
-  console.log(`      已注册任务 ${args.taskName}（登录即启 / 崩溃重启 ×3 / 仅交互式会话）`);
+  console.log(`      已注册任务 ${args.taskName}（登录即启 / 崩溃重启 ×3 / 仅交互式会话 / Hidden=true 无窗口）`);
 
   /* 6. 自检 */
   console.log('[6/6] 自检 ...');
@@ -409,6 +610,11 @@ async function main() {
   console.log('vm-service 将以任务计划程序任务在交互式会话登录时自动启动。');
   console.log(`手动启动（前台）：node ${cliEntry} --host 127.0.0.1 --port ${args.port} --config ${runtimeConfig}`);
   console.log('宿主侧建立 SSH 隧道后即可从 WorkBuddy 调用（见 DEPLOYMENT.md §4.2）。');
+
+  /* 7. 部署插件管理 CLI winvm-plugin（VM 侧）—— 与 host 侧同源，自动识别 side=vm */
+  if (!args.dryRun) {
+    deployWinvmPlugin({ targetDir: deliveryDir, side: 'vm', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`) });
+  }
 }
 
 main().catch((e) => {

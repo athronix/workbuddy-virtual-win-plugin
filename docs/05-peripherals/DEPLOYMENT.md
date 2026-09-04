@@ -25,7 +25,7 @@ Windows 虚拟机
 
 ## 1. 双端一键部署（setup.mjs，推荐）
 
-`delivery/setup.mjs` 读取项目根目录 `.env`，**一条命令完成「宿主机侧 + VM 侧」的安装、部署、隧道与自检**，生成 BUILD → HOST → VM → TUNNEL → TEST → HEALTH 六阶段计划。
+`delivery/setup.mjs` 读取项目根目录 `.env`，**一条命令完成「宿主机侧 + VM 侧」的安装、部署、隧道与自检**（卸载时加 `--uninstall` 即可对称地一键移除双端本项目部分），生成 BUILD → HOST → VM → VM-START（部署后 `schtasks /run` 拉起服务，**并轮询 VM 本机 18443 端口监听 ≤60s 才认为启动完成**）→ TUNNEL → TEST → HEALTH（端口已通前提下取 /health JSON，短重试 3 次）七阶段计划。
 
 > ⚠️ **安全默认**：
 > - 不加 `--apply` 即 `--dry-run`，只打印计划、**不改动任何系统**；真执行的**唯一**入口是显式 `--apply`
@@ -89,9 +89,26 @@ node delivery/setup.mjs --apply --env=/path/to/.env
    "capabilities":{"count":54,"available":54},"audit":{"chainValid":true},"exposed":54}
   ```
 
-  `session.state` 若为 `degraded`（如远端锁屏 / Explorer 未运行），表示 **GUI 能力不可用**，属预期环境限制而非部署故障 —— ps-bridge 设计要求 GUI 必须跑在交互式用户会话内。
+  `session.state` 若为 `degraded`（如远端锁屏 / Explorer 未运行 / **服务落在非交互式会话**），表示 **GUI 能力不可用**，属预期环境限制而非部署故障 —— ps-bridge 设计要求 GUI 必须跑在交互式用户会话（WinSta0）内。
 
-> HEALTH 依赖 VM 侧 HTTP 服务已运行。该服务由计划任务 `WinVMBridge.Service`（**登录即启**）拉起；刚部署完若远端尚未重新登录，可手动触发：`schtasks /run /tn WinVMBridge.Service`。
+> **VM-START 已默认轮询端口监听（≤60s）**：一键部署在 VM 部署后默认经 `schtasks /run /tn WinVMBridge.Service` 拉起服务，并轮询 VM 本机 `127.0.0.1:18443` 直到进入监听态（最长 60s）才进入 TUNNEL/HEALTH。这消除了「服务冷启动 + 探针窗口太短」的竞态，绝大多数情况下 HEALTH 一次即通过；若 60s 仍未监听，会在日志中提示手动 `schtasks /run /tn WinVMBridge.Service` 后重跑。
+
+> ⚠️ **GUI 可用性的关键约束**：经 **SSH 远程** `schtasks /run` **不保证**服务落在交互式（RDP）会话——它仅在「当前 VM 上已有 RDP 交互式登录」时才会落入该会话；若触发时只有 SSH/网络登录、无活跃 RDP 会话，服务会落到非交互会话（`windowStation` 非 `WinSta0`），`/health` 报 `session.interactive=false`、GUI 被门禁（MCP/A2A 与 54 项能力不受影响）。**要让 GUI 可用，服务必须在交互式会话内启动**：
+> - 推荐：RDP 登录 VM，登录触发器（`AtLogOn`，任务 XML 已内置）会在你的交互式会话里**随 VM 登录自动拉起**服务；
+> - 或安装完成后，在 VM 的**交互式 PowerShell（RDP 桌面内）**手动重启服务——`setup.mjs` 在检测到 `session.interactive=false` 时会**直接打印如下命令**，复制执行即可：
+>   ```powershell
+>   # 1) 结束当前（非交互式）服务实例；schtasks /end 会让调度器标记结束，后续 /run 不被 IgnoreNew 拦截
+>   schtasks /end /tn WinVMBridge.Service
+>   Start-Sleep -Seconds 2
+>   # 2) 兜底强杀仍占用 18443 的进程，确保端口释放（先 /end 再强杀，/run 才会真正起新实例）
+>   $p = (Get-NetTCPConnection -LocalPort 18443 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique
+>   if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }
+>   Start-Sleep -Seconds 1
+>   # 3) 在当前交互式会话重新拉起（GUI 可用）
+>   schtasks /run /tn WinVMBridge.Service
+>   ```
+>   执行后重跑 `setup.mjs --apply` 的 HEALTH 阶段（或刷新 `/health`），应见 `session.interactive=true`、GUI 可用。
+> 计划任务 XML 已设为 **`Hidden=true`**：服务在交互式会话内也**不弹 node 控制台窗口**，避免误关进程。
 
 > 若 `VM_HOST` 留空，`setup.mjs` 不会自动 ssh，而是打印本地手动部署指引（`install-vm.mjs --dry-run --provider …`），你可在 VM 内手动跑。
 
@@ -129,8 +146,10 @@ node delivery/install-vm.mjs --provider hermes-agent        # CLI 自动取 herm
 # 仅自检（验证 ps-bridge 五大模块、服务配置、provider 能力目录）
 node delivery/install-vm.mjs --self-test
 
-# 卸载（停服务 + 移除自启任务 + 清理生成物，保留源码）
-node delivery/install-vm.mjs --uninstall
+# 卸载（安全：仅删本项目，软链/共享 Skills 移入回收站，保留源码与 dist）
+#   默认预览，加 --yes 才真正移除；--root 可指定仓库根（隔离测试）
+node delivery/install-vm.mjs --uninstall        # 预览
+node delivery/install-vm.mjs --uninstall --yes  # 执行
 ```
 
 安装器会：
@@ -138,8 +157,10 @@ node delivery/install-vm.mjs --uninstall
 2. `npm run build` 编译所有 packages 到 `dist/`
 3. 基于 `delivery/vm-service.config.json` 生成运行配置（强制 `host=127.0.0.1`），并写入 `agent.provider`（来自 `--provider` / `WINVM_VM_PROVIDER` / 配置默认）及所选 LLM provider 的 `cliPath`
 4. **部署共享 Skills**：把仓库 `skills/` 发布到独立共享根（默认 `C:/WinVMBridge/shared-skills`，单一事实源），并为各候选 VM AI Agent 的 skills 目录建立 **junction 引用**（不复制、不覆盖用户技能；可用 `--skills-root` / `WINVM_SKILLS_ROOT` 覆盖，`--skip-skills` 跳过）。详见 `docs/02-design/SPEC-SKILLS.md`
-5. 注册 **Windows 任务计划程序** 任务（`WinVMBridge.Service`），登录即启、崩溃重启、仅在交互式会话运行（**不注册为 Windows 服务**，避免 Session 0 黑屏）
+5. 注册 **Windows 任务计划程序** 任务（`WinVMBridge.Service`），**登录即启（`LogonTrigger`，随 VM 登录自动启动）**、崩溃重启、仅在交互式会话运行、**`Hidden=true` 不弹 node 控制台窗口**（**不注册为 Windows 服务**，避免 Session 0 黑屏）
 6. 运行自检：ps-bridge 五大模块可加载、配置校验通过、端口回环绑定、provider 能力目录可解析
+
+> **关于 GUI 能力**：安装时注册的 `WinVMBridge.Service` 已内置 `LogonTrigger`，**VM 登录即自动启动**；但经 SSH 远程 `schtasks /run`（如 `setup.mjs` 的 VM-START 阶段）**不保证落在交互式会话**，从而 GUI 可能被门禁。若 `/health` 报 `session.interactive=false`，见 §1.3 的「在 VM 交互式 PowerShell 中 restart」命令块，复制执行即可让 GUI 可用。
 
 ### 3.2 手动部署（备选）
 
@@ -195,8 +216,11 @@ node delivery/install-host.mjs \
    | `winvm` | `/mcpServers/connector:winvm` | `streamableHttp` → VM `/mcp` | 简单任务：MCP 直调点分能力 ID |
    | `winvm-a2a` | `/mcpServers/connector:winvm-a2a` | `stdio` → 本地 `a2a-bridge/cli.js` | 复杂任务：`a2a.delegate` 委派给 VM 内 AI Agent |
 
-4. 把 A2A 委派桥产物复制到插件目录 `plugins/cache/winvm/winvm-bridge/<ver>/a2a-bridge/`
+4. 把 A2A 委派桥产物复制到插件目录 `plugins/cache/winvm/winvm-bridge/<ver>/a2a-bridge/`，**并把它依赖的四个 `@winvm/*` 包（`contracts` / `core` / `mcp-framework` / `a2a-framework`）的 `dist` + `package.json` 一并打进 `a2a-bridge/node_modules/@winvm/`，使桥目录自包含**：
+   - 桥是 ESM `stdio` 进程，`cli.js` 顶部 `import` 了这些 `@winvm/*` 包；ESM **不使用 NODE_PATH**，必须真实落地 `node_modules`。若缺失，点「信任」会报 `MCP error -32000: Connection closed`（`node cli.js` 启动即 `Cannot find module` 退出）。安装器已内置 `collectWinvmDeps()` + `installBridgeDeps()` 处理，重装不再复发。
+   - 这四个 `@winvm` 包运行时**零第三方依赖**，仅彼此引用，故无需联网装包。
 5. **静态禁用 8 个高危工具**（`disabledTools`），需显式解除 + 审批才可用
+6. **正式注册（转正）**：向 `plugins/installed_plugins.json` 写入 `winvm-bridge@winvm` 条目（schema `{version:2, plugins:{...}}`，含 `scope/installPath/version/installedAt/lastUpdated`），并清掉插件目录下的 `.orphaned_at` 标记。这样插件在 WorkBuddy 里显示为「已安装」而非孤儿，**不依赖运行时扫描时机**；`--uninstall` 会同步移除该条目。
 
 > **为什么宿主侧要跑一个本地桥**：宿主（WorkBuddy）是 **MCP client，不是 A2A client**，
 > 它的扩展点只有 MCP 连接器。`host-a2a-bridge` 以本地 stdio MCP server 形态补齐这一跳——
@@ -216,7 +240,22 @@ ssh -f -N -L 18443:127.0.0.1:18443 vmadmin@192.168.1.77
 
 ### 4.3 激活
 
-重启 WorkBuddy → 连接器管理 → 确认 `winvm` 连接器已 **启用**（信任）。
+1. **重启 WorkBuddy**，让它干净读取新写入的插件清单、Skills、`installed_plugins.json` 与连接器配置。
+2. 打开 **连接器管理**，对以下两个连接器分别点 **信任（Trust）/ 启用**：
+   - `winvm`（Windows 虚拟机）—— MCP 直调通道，连 VM `/mcp`。
+   - `winvm-a2a`（Windows 虚拟机 · A2A 委派）—— 本地 `stdio` 桥，连 VM `/a2a`；复杂任务走 `a2a.delegate`。
+3. 两个连接器端点都指向 `http://127.0.0.1:18443`，需先建立 §4.2 的 SSH 隧道且远端 VM 服务在监听，调用工具才会真正连通（同 §1.3 `/health` 前提）。
+
+> 激活后即可在宿主 Agent 里以 MCP 工具形式调用 54 个 Windows 能力（`winvm` 通道）或委派复杂任务给 VM 内 Agent（`winvm-a2a` 通道）。
+
+#### 4.3.1 排错：`winvm-a2a` 点信任报 `MCP error -32000: Connection closed`
+
+这是 **stdio 桥进程启动即崩** 的典型表现，根因几乎总是 `a2a-bridge/` 缺少 `@winvm/*` 运行时依赖：
+
+- 现象：点信任瞬间失败，日志显示 `Connection closed`；或连接器状态反复「未连接」。
+- 排查：`ls <hostRoot>/plugins/cache/winvm/winvm-bridge/<ver>/a2a-bridge/node_modules/@winvm/` 应看到 `contracts` / `core` / `mcp-framework` / `a2a-framework` 四个目录（各含 `dist/index.js` + `package.json`）。
+- 修复：**重跑 `install-host.mjs`**（它会自动把这四个包打入 `node_modules` 并写 `a2a-bridge/package.json`）。若仍缺，先 `npm run build` 再装。
+- 注意：握手阶段的崩溃与「隧道/VM 服务是否就绪」无关——后者只影响工具调用，不影响信任握手。信任能握上手即说明桥进程已正常启动。
 
 ---
 
@@ -242,21 +281,146 @@ ssh -f -N -L 18443:127.0.0.1:18443 vmadmin@192.168.1.77
 
 ---
 
-## 6. 卸载
+## 6. 卸载（双端一键，安全：仅删本项目、入回收站可恢复）
+
+卸载**只移除本项目安装的部分**，绝不碰其它插件 / 连接器 / 技能 / 注册。所有被删除的目录与软链都**移入回收站（可恢复）**；注册文件的改动**先备份再改并打印 diff**，确认无误后才落盘。
+
+### 6.1 一键卸载（推荐，setup.mjs）
+
+与安装对称：不加 `--apply` 即预览，加 `--apply` 才真执行（`WINVM_DRY_RUN=1` 兜底）：
 
 ```bash
-node delivery/install-host.mjs --uninstall --home "$HOME/.workbuddy"
+# 预览：打印宿主+VM 待移除项，不删除任何东西
+node delivery/setup.mjs --uninstall
+
+# 确认无误后真正卸载（宿主 install-host.mjs --uninstall --yes
+#                     + VM ssh install-vm.mjs --uninstall --yes）
+node delivery/setup.mjs --uninstall --apply
 ```
 
-卸载同样走增量 patch（移除 `/mcpServers/connector:winvm` 指针），保留用户其他连接器。
+- `HOST-UNINSTALL`：移除 `installed_plugins.json` 的 `winvm-bridge@winvm` 条目、删除 `connectors/<account>/mcp.json` 里的 `connector:winvm` / `connector:winvm-a2a` 指针、把 `plugins/cache/winvm/winvm-bridge`、`plugins/marketplaces/winvm`、`connectors/skills/connector-winvm` 移入回收站（其余插件/连接器/技能原样保留）。
+- `VM-UNINSTALL`：经 SSH 在 VM 内跑 `install-vm.mjs --uninstall --yes`，移除任务计划程序任务、`node_modules/@winvm/*` 中**仅指向 `packages/<pkg>`** 的 junction、各候选 Agent 技能目录中指向共享根的 junction、共享 Skills 根、`delivery/.generated`；源码与已编译 dist 始终保留。**VM 侧删除物默认落到 VM 内 `<repoRoot>/.uninstall-trash/<时间戳>/`（系统回收站经 SSH 不可见，故用此可恢复目录）**。
+
+### 6.2 单端卸载（分开执行）
+
+```bash
+# 宿主机（控制端）：先预览（备份+diff，不移动目录）→ 确认后加 --yes 执行
+node delivery/install-host.mjs --uninstall --home "$HOME/.workbuddy"        # 预览
+node delivery/install-host.mjs --uninstall --yes --home "$HOME/.workbuddy"  # 执行（目录入回收站）
+
+# 回收目录可改用自定义目录（便于测试 / 非 Windows）
+node delivery/install-host.mjs --uninstall --yes --trash-dir /tmp/winvm-trash
+# 清理卸载产生的 *.winvm-bak.* 备份（同样移入回收站）
+node delivery/install-host.mjs --purge-backups
+
+# 虚拟机（被控端）：先预览 → 加 --yes 执行（--root 可指定仓库根，用于隔离测试）
+node delivery/install-vm.mjs --uninstall            # 预览
+node delivery/install-vm.mjs --uninstall --yes      # 执行（任务移除 + 软链/共享 Skills 移入回收站）
+#   ⚠ 经 SSH 执行时系统回收站不可见，删除物默认落到 VM 内 <repoRoot>/.uninstall-trash/<时间戳>/
+#      RDP 进 VM 即可找回；如需系统回收站请在 VM 内交互运行并加 --recycle-bin
+#      （也可用 --trash-dir <目录> 指定自定义回收目录）
+```
+
+> **安全细节（满足"先备份→改→diff 确认→才删 / 删除均入回收站"）**
+> - 宿主侧对 `installed_plugins.json`、各 account 的 `mcp.json` 改动前先备份为 `*.winvm-bak.<时间戳>`；改动后打印行级 diff，确认**仅删除了本项目条目**。
+> - 宿主侧目录/软链移入 **Windows 回收站**（可用 `--trash-dir` 指定本地目录）；**VM 侧因卸载经 SSH 执行、系统回收站写入不会反映到 RDP 桌面看到的回收站，默认落到 VM 内可恢复目录 `<repoRoot>/.uninstall-trash/<时间戳>/`**（RDP 进 VM 即可找回/恢复），亦可显式 `--recycle-bin`（仅限 VM 内 RDP 交互运行）或 `--trash-dir <目录>`。
+> - 卸载**保留**源码、`packages/*/dist`，以及用户的其它插件 / 连接器 / 技能。
+
+> **为什么「回收站里看不到某些被删的东西」是预期行为（对应常见疑问）**
+> - **VM 侧回收站是空的**：卸载经 SSH 在 VM 内执行，系统回收站写入**不会反映到 RDP 桌面看到的回收站**（非交互会话上下文不同）。所以删除物默认落到 VM 内可恢复目录 `<repoRoot>/.uninstall-trash/<时间戳>/`（如 `C:/WinVMBridge/.uninstall-trash/2026-.../`），**不进 Windows 回收站**。RDP 进 VM 到该目录即可找回/恢复；若要进系统回收站，请在 VM 内**交互式**运行并加 `--recycle-bin`。
+> - **宿主侧回收站里的文件比预期少**：宿主侧对注册文件（`installed_plugins.json` / `mcp.json`）是「**先备份 `*.winvm-bak.<时间戳>` → 改 → 打印 diff**」，备份文件**默认保留不进回收站**（便于回滚），所以回收站里看不到这些单文件；而本项目的三个目录才被移入回收站。确认无误后用 `install-host.mjs --purge-backups` 清理备份。
+
+### 6.3 卸载 → 重装 → 验证 闭环
+
+与你"卸载→重装→验证→再卸载→再装"的回归顺序一致：
+
+1. `node delivery/setup.mjs --uninstall --apply` 卸载旧版（或分端跑 §6.2）
+2. `node delivery/setup.mjs --apply` 一键重装（构建 + 双端部署 + 隧道 + 自检）
+3. 重启 WorkBuddy → 连接器管理页对 `winvm` 与 `winvm-a2a` 分别「信任」→ 验证 54 能力可调 / 复杂任务可委派
+4. `node delivery/setup.mjs --uninstall --apply` 再次卸载，确认宿主机与 VM 上的本项目痕迹均已清除（删物在回收站可恢复）
+5. 最后 `node delivery/setup.mjs --apply` 装回，供日常测试
 
 ---
 
-## 7. 远程 Windows（非本地 VM）部署与 SSH 认证
+## 7. 插件管理命令 `winvm-plugin`
+
+部署完成后，宿主机与 VM 两侧都会落地同一个管理 CLI `winvm-plugin`，自动识别运行上下文（host / vm），提供统一的查验与管理命令。
+
+**落地位置与启动器（每处都带三件套：`winvm-plugin.mjs` 源 + `winvm-plugin.cmd` Windows 启动器 + 无扩展名 `winvm-plugin` POSIX 启动器 `+x`）：**
+- **宿主机**：① 插件缓存根 `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/`；② 仓库 `delivery/`（`delivery/.winvm-context.json` 标记 `side=host`）。
+- **VM**：部署根 `C:/WinVMBridge/delivery/`（`delivery/.winvm-context.json` 标记 `side=vm`）。
+
+**怎么调（任选其一，均自动识别 side）：**
+```bash
+# 宿主机（在仓库目录内最顺手）
+node delivery/winvm-plugin.mjs check                 # 通用写法，所有环境可用
+./delivery/winvm-plugin check                        # Git Bash：靠无扩展名启动器 +x
+# 或把 delivery/ 加入 PATH 后直接： winvm-plugin check
+# Windows cmd/PowerShell 进到 delivery/ 后： winvm-plugin check  （经 PATHEXT 解析到 .cmd）
+
+# VM 内（RDP/SSH 进到 C:/WinVMBridge/delivery/ 后）
+node winvm-plugin.mjs check
+./winvm-plugin check                                 # Git Bash
+winvm-plugin check                                   # cmd/PowerShell（PATHEXT → .cmd）
+```
+> 若 `winvm-plugin`（无扩展名）提示权限不足，多半是该环境未设可执行位——直接用 `node winvm-plugin.mjs <子命令>` 即可，效果完全相同。
+
+> 上下文判定优先级：`--side host|vm` > 同目录 `.winvm-context.json` > 启发式（注册表 + Skills 存在 → host；含 `packages/vm-service/dist/cli.js` → vm）。
+
+### 7.1 子命令一览
+
+| 子命令 | 说明 |
+| --- | --- |
+| `help` | 显示帮助 |
+| `check` | 查验本侧部署完整性（注册条目 / 连接器 / 任务 / 文件 / 端口） |
+| `health` | 探测 VM 服务 `/health`（host 经 SSH，vm 本地） |
+| `list skills` | 列出已部署的共享 Skills |
+| `list mcp-servers` | 列出 MCP 服务（host：连接器条目；vm：计划任务 + 端点） |
+| `list mcp-tools` | 列出已暴露的 MCP 工具（按能力域分组，共 54 项） |
+| `list dirs` | 列出本侧关键安装目录 |
+| `server start\|status\|stop\|restart` | 控制 VM 服务（host 经 SSH；vm 本地 `schtasks`） |
+| `command <tool> [--args '<json>']` | 直接调用一个 MCP 工具（host 经临时 SSH 隧道 + JSON-RPC 调 `/mcp`；vm 本地） |
+| `uninstall [--vm]` | 卸载本侧（host 加 `--vm` 同时卸载 VM） |
+| `update` | 重新应用本侧部署（等价于重跑安装器） |
+| `reinstall` | 先卸载后重新安装本侧 |
+
+### 7.2 Host 侧需要 VM 连接信息
+
+`server` / `health` / `command` 在 host 侧会经 SSH 中继到 VM，连接信息按以下优先级获取：
+
+1. 命令行：`--vm-host` / `--vm-user` / `--vm-ssh-port` / `--vm-port`
+2. 环境变量：`WINVM_VM_HOST` / `WINVM_VM_USER` / `WINVM_VM_SSH_PORT` / `WINVM_VM_PORT`
+3. 当前或向上目录的 `.env`：`VM_HOST` / `VM_USER` / `VM_SSH_PORT` / `WINVM_SERVICE_PORT`
+
+> 提示：在**项目仓库目录**里运行 host 侧命令即可自动读 `.env`；否则显式传 `--vm-host` / `--vm-user`。
+
+### 7.3 常用示例
+
+```powershell
+# —— 宿主机（管理端）——
+winvm-plugin list mcp-tools                       # 看全部 54 个能力/工具（按域分组）
+winvm-plugin check                                # 查验宿主机注册/连接器完整性
+winvm-plugin health --vm-host 100.108.20.13 --vm-user User
+winvm-plugin server restart --vm-host 100.108.20.13 --vm-user User
+winvm-plugin command meta.health.check            # 直接调一个 MCP 工具（需 .env 或 --vm-*）
+
+# —— VM 内（已 RDP 登录的交互式会话）——
+winvm-plugin check                                # 查验 VM 部署完整性 + 端口监听
+winvm-plugin server status                        # 看计划任务是否注册、端口是否监听
+winvm-plugin command system.info.query --args '{}'
+```
+
+### 7.4 GUI 不可用时的重启提示
+
+`health` 若发现服务运行在**非交互式会话**（`session.interactive=false`），会自动打印一段在 VM 交互式 PowerShell 中执行的重启命令——先 `schtasks /end` 杀掉非 GUI 服务、强杀残留端口进程，再 `schtasks /run` 在交互式会话拉起 GUI 可用实例。这与 `setup.mjs` HEALTH 阶段的提示一致（详见 §1.3）。
+
+---
+
+## 8. 远程 Windows（非本地 VM）部署与 SSH 认证
 
 本插件对"被控端是不是真·虚拟机"无感知——`vm-service` 只要跑在一台 Windows 上、经 SSH 隧道在 `127.0.0.1:18443` 可达即可。因此**把 `VM_HOST` 指向一台远程 Windows（物理机 / 云主机 / 内网机器），把本地当宿主、远程 Windows 当"VM"，完全适用**，效果就是"本地操作远程 Windows"。
 
-### 7.1 与本地 VM 的唯一差别：远程 Windows 需开 SSH 服务
+### 8.1 与本地 VM 的唯一差别：远程 Windows 需开 SSH 服务
 
 | 项 | 本地 VM | 远程 Windows |
 |----|---------|--------------|
@@ -279,7 +443,7 @@ New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' `
 
 > `vm-service` 仍**只绑 `127.0.0.1`**（安全红线），对外只暴露 22（SSH），不直接暴露 18443。所有 18443 流量都走隧道；非回环直连会被 `requireLoopbackBind` 拒绝，且会触发 `tokenEnv`（`WINVM_BEARER_TOKEN`）bearer 校验。
 
-### 7.2 SSH 通道怎么认证：用密钥，不用密码
+### 8.2 SSH 通道怎么认证：用密钥，不用密码
 
 `setup.mjs` / `install-vm.mjs` / `install-host.mjs` 内部的 `ssh` / `scp` / `ssh -L` 都是**直接调用系统 `ssh`**，脚本本身**不接收、不传递任何密码**（`.env` 里也没有密码字段，只有 `VM_HOST` / `VM_USER` / `VM_SSH_PORT`）。因此隧道与文件推送的认证**完全交给操作系统 SSH**——推荐且唯一能无人值守跑通的方式是 **SSH 公钥**。
 
@@ -311,7 +475,7 @@ $acl.SetAccessRuleProtection($true, $false)
 
 > 结论：**远程 Windows 场景一律用 SSH 密钥**。密码只适合你本人在终端偶尔手动连一下。
 
-### 7.3 首次连接的主机密钥确认
+### 8.3 首次连接的主机密钥确认
 
 脚本不会自动带 `-o StrictHostKeyChecking=…`。第一次 `ssh`/`scp` 到新远程机会提示 `Are you sure you want to continue connecting (yes/no)?`，无人值守时会卡住。提前处理：
 
@@ -322,7 +486,7 @@ ssh -o StrictHostKeyChecking=accept-new <VM_USER>@<VM_HOST> echo ok
 
 或在宿主 `~/.ssh/config` 对应 Host 块加 `StrictHostKeyChecking accept-new`、`UserKnownHostsFile ~/\.ssh/known_hosts`。
 
-### 7.4 端到端验证（远程目标）
+### 8.4 端到端验证（远程目标）
 
 ```bash
 # 1) 确认密钥能免密登远程 Windows
@@ -335,14 +499,14 @@ node delivery/setup.mjs --apply
 curl -s http://127.0.0.1:18443/health      # 应返回 VM 侧健康态
 ```
 
-### 7.5 能力边界（与本地 VM 一致）
+### 8.5 能力边界（与本地 VM 一致）
 
 - 54 个能力在**远程 Windows 本机**执行 PowerShell（ps-bridge 在远端 spawn PowerShell 5.1），操作的正是那台远程机——即"本地操作远程 Windows"。
 - **GUI 自动化**仍依赖远程 Windows 有活跃交互会话/显示器；无头远程机可能跑不了 GUI 模块（与本地 VM 同源限制）。
 - 仅支持 Windows 被控端（强依赖 PowerShell 5.1），远程 Linux 不可作此"VM"。
 - 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道是回环，bearer 免校验；只有非回环直连才需要 `WINVM_BEARER_TOKEN` + `tokenEnv`。
 
-### 7.6 远程分发产物里有什么、依赖怎么解析（关键）
+### 8.6 远程分发产物里有什么、依赖怎么解析（关键）
 
 一键部署把**宿主已构建好的产物**直接推到远程 Windows，VM 侧 `install-vm.mjs` 以 `--skip-install --skip-build` 收尾（dist 已随产物到达）。这里有两个容易踩的坑，已在 V1 修复：
 
