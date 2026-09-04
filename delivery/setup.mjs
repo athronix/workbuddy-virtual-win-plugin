@@ -454,24 +454,6 @@ function run(cmd, args, opts = {}) {
   });
 }
 
-async function reachable(cfg) {
-  if (!cfg.vmHost) return false;
-  // 注意：不得加 BatchMode=yes —— 该选项在部分环境（ssh-agent / 密钥）下会让探测偶发失败，
-  // 而真正执行部署/隧道的 ssh 并不带它且稳定可用，导致「实测可达却被判不可达」而跳过 VM 步骤。
-  // 改用 ConnectTimeout 快速失败 + 一次重试吸收瞬时抖动，与真实连接行为保持一致。
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const r = await run('ssh', [
-      '-p', String(cfg.vmSshPort),
-      '-o', `ConnectTimeout=8`,
-      `${cfg.vmUser}@${cfg.vmHost}`,
-      'echo ok',
-    ], { timeoutMs: 15_000 });
-    if (r.ok) return true;
-    if (attempt < 2) await sleep(1000);
-  }
-  return false;
-}
-
 /**
  * 轮询 VM 本机 127.0.0.1:<port> 是否已进入监听态（经 SSH 在 VM 内探测，
  * 不依赖本地 SSH 隧道，故可在 VM-START 阶段直接使用）。
@@ -556,14 +538,15 @@ async function main() {
     log(`\n[${s.phase}] 执行：${s.description}`);
     log(`   $ ${s.command}`);
     if (s.phase === 'TUNNEL') {
-      // 隧道后台常驻，不阻塞
+      // 隧道后台常驻，不阻塞。注意：detached 子进程 spawn 成功 ≠ SSH 已连上，
+      // 故此处只报告「进程已启动」，连通性交由下方 [HEALTH] 阶段用 curl 实际验证。
       try {
         const child = spawn('ssh', [
           '-N', '-L', `${cfg.tunnelLocalPort}:127.0.0.1:${cfg.tunnelRemotePort}`,
           '-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`,
         ], { detached: true, stdio: 'ignore', windowsHide: true });
         child.unref();
-        log(`   ✅ 隧道已在后台启动（PID ${child.pid}）`);
+        log(`   ⏳ 隧道进程已在后台启动（PID ${child.pid}）；本地 127.0.0.1:${cfg.tunnelLocalPort} → VM:${cfg.tunnelRemotePort} 的连通性由 [HEALTH] 阶段验证`);
       } catch (e) {
         log(`   ❌ 隧道启动失败：${e.message}`);
         failed++;
@@ -571,15 +554,11 @@ async function main() {
       continue;
     }
     if (s.phase === 'VM-UNINSTALL') {
-      const reachableNow = await reachable(cfg);
-      if (!reachableNow) {
-        log(`   VM ${cfg.vmUser}@${cfg.vmHost} 不可达（SSH 探测失败）→ 跳过自动卸载，请手动在 VM 内运行 install-vm.mjs --uninstall --yes`);
-        failed++;
-        continue;
-      }
+      // 不再预检可达性（reachable 探测曾出现「实测可达却被判不可达」的假阴性，导致整体跳过）。
+      // 直接尝试真实卸载；SSH 不通时 deployVmUninstall 会返回真实错误，便于定位。
       const r = await deployVmUninstall(cfg);
       if (!r.ok) {
-        log(`   ❌ VM 卸载失败：${r.out.slice(0, 400)}`);
+        log(`   ❌ VM 卸载失败（${r.out.slice(0, 400)}）：可在 VM 内手动运行 install-vm.mjs --uninstall --yes`);
         failed++;
       } else {
         log('   ✅ VM 卸载完成（任务移除 + 软链/共享 Skills/生成目录移入 VM 内可恢复目录 .uninstall-trash/<时间戳>/，非 Windows 回收站；源码与 dist 保留）');
@@ -587,15 +566,10 @@ async function main() {
       continue;
     }
     if (s.phase === 'VM') {
-      const reachableNow = await reachable(cfg);
-      if (!reachableNow) {
-        log(`   ⚠️ VM ${cfg.vmUser}@${cfg.vmHost} 不可达（SSH 探测失败）→ 跳过自动部署，请手动在 VM 内运行 install-vm.mjs`);
-        failed++;
-        continue;
-      }
+      // 不再预检可达性：直接尝试真实部署，SSH 不通时返回真实错误而非静默跳过。
       const r = await deployVm(cfg);
       if (!r.ok) {
-        log(`   ❌ VM 部署失败：${r.out.slice(0, 400)}`);
+        log(`   ❌ VM 部署失败（${r.out.slice(0, 400)}）：可在 VM 内手动运行 install-vm.mjs`);
         failed++;
       } else {
         log('   ✅ VM 部署完成（产物 + skills 技能规范已分发，已注册自启并自检）');
@@ -603,11 +577,7 @@ async function main() {
       continue;
     }
     if (s.phase === 'VM-START') {
-      const reachableNow = await reachable(cfg);
-      if (!reachableNow) {
-        log(`   ⚠️ VM ${cfg.vmUser}@${cfg.vmHost} 不可达（SSH 探测失败）→ 跳过启动，请手动在 VM 内 schtasks /run /tn ${SERVICE_TASK_NAME}`);
-        continue;
-      }
+      // 不再预检可达性：直接尝试重启，SSH 不通时返回真实错误而非静默跳过。
       // 先结束旧实例并强杀残留端口进程（确保 Hidden=true 新实例能绑定、不弹旧窗口），再拉起
       const restartRemote =
         `schtasks /end /tn ${SERVICE_TASK_NAME}; Start-Sleep -Seconds 1; ` +
@@ -649,14 +619,17 @@ async function main() {
           if (h?.session && h.session.interactive === false) {
             guiDegraded = true;
             log('');
-            log('   ⚠️ 服务运行在【非交互式会话】（session.interactive=false）→ GUI 能力（截图/键鼠/UIA/窗口/剪贴板）不可用。');
+            log('   ⚠️ 服务运行在【非交互式/降级会话】→ GUI 能力（截图/键鼠/UIA/窗口/剪贴板）不可用。');
             log('      MCP/A2A 双通道与全部 54 项能力正常（exposed=54）；仅 gui.* 被门禁。');
-            log('      根因：经 SSH 远程 schtasks /run 不保证落在交互式（RDP）会话——它仅在「当前已有 RDP 交互式登录」时才落入该会话；');
-            log('            否则服务会落到非交互会话（windowStation 非 WinSta0），GUI 被门禁。');
-            log('      💡 启用 GUI：在 VM 的【交互式 PowerShell（RDP 桌面内）】执行以下命令');
-            log('         （先结束非交互式实例、释放端口，再在交互式会话拉起 GUI 可用实例）：');
-            for (const line of GUI_RESTART_COMMAND) log(`         ${line}`);
-            log('         执行后重跑本步（或刷新 /health）应见 session.interactive=true、GUI 可用。');
+            log('      根因：服务任务用 <LogonType>InteractiveToken</LogonType>，其落点永远是「当前交互式会话」');
+            log('            （与你在哪个 PowerShell 敲命令无关），而 Get-SessionHealth 检测的是服务进程自身所在会话的状态：');
+            log(`            sessionId=${h?.session?.sessionId ?? '?'} windowStation=${h?.session?.windowStation ?? '?'} interactive=${h?.session?.interactive ?? '?'} locked=${h?.session?.locked ?? '?'} explorerAlive=${h?.session?.explorerAlive ?? '?'}`);
+            log('            只要该交互式会话处于【锁屏（LogonUI 在跑）/ Explorer 未运行 / 非 WinSta0】，即为 degraded。');
+            log('      💡 启用 GUI（务必按顺序）：');
+            log('         1) 先从 RDP 解锁/登录 VM 桌面，确认无锁屏、Explorer 在跑；');
+            log('         2) 在 VM 桌面内的【普通用户（非管理员）PowerShell】执行以下命令（管理员 PowerShell 会令任务落到不同登录会话→仍 degraded）：');
+            for (const line of GUI_RESTART_COMMAND) log(`            ${line}`);
+            log('         3) 执行后刷新 /health，应见 session.interactive=true、GUI 可用。');
           }
         } catch {
           /* 解析失败不影响主流程 */

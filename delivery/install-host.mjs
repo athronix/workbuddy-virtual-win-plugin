@@ -36,6 +36,15 @@ import {
   resolveWorkBuddyPaths,
 } from '@winvm/adapter-host-workbuddy';
 import { WINDOWS_CAPABILITIES } from '@winvm/vm-capabilities';
+import { addToUserPath, removeFromUserPath } from './path-util.mjs';
+
+/**
+ * 插件缓存根（含 winvm-plugin 启动器）的版本化路径。
+ * 与 resolveWorkBuddyPaths 产出的 paths.pluginRoot 同源，供卸载时精确移除 PATH。
+ */
+function pluginCacheRoot(home) {
+  return join(home, '.workbuddy', 'plugins', 'cache', 'winvm', 'winvm-bridge', '0.1.0');
+}
 
 /* ------------------------------ 参数 ------------------------------ */
 
@@ -423,6 +432,17 @@ async function main() {
     console.log('');
     uninstallDirectories(args.home, args.dryRun, args.trashDir, args.yes);
     console.log('');
+    // PATH：精确移除插件缓存根（与安装时加入的条目一致）。
+    // 仅当真正执行（!dryRun 且 --yes）才写盘；预览/dry-run 只报告。
+    try {
+      const pRoot = pluginCacheRoot(args.home);
+      const doWrite = !args.dryRun && args.yes;
+      const changed = removeFromUserPath(pRoot, { dryRun: !doWrite });
+      console.log(`PATH        : ${doWrite ? '' : '[预览] '}${changed ? `已将 ${pRoot} 从用户 PATH 移除` : `用户 PATH 不含 ${pRoot}（跳过）`}`);
+    } catch (e) {
+      console.log(`  ⚠ 移除 PATH 失败（可手动删除 ${pluginCacheRoot(args.home)}）：${e.message}`);
+    }
+    console.log('');
     if (args.dryRun) {
       console.log('dry-run 完成：未做任何改动。去掉 --dry-run 以预览并备份注册文件。');
     } else if (!args.yes) {
@@ -518,6 +538,13 @@ async function main() {
     deployWinvmPlugin({ targetDir: paths.pluginRoot, side: 'host', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`), repoRoot });
     // 仓库 delivery 部署：不写 .winvm-context.json（避免 side:host 随 tar 发到 VM；VM 侧由 install-vm 写 side:vm）
     deployWinvmPlugin({ targetDir: join(repoRoot, 'delivery'), side: 'host', dryRun: false, writeContext: false, log: (m) => console.log(`管理命令(仓库): ${m}`), repoRoot });
+    // PATH：把插件缓存根加入用户 PATH，使 `winvm-plugin` 全局可用（幂等）。
+    try {
+      const changed = addToUserPath(paths.pluginRoot, { dryRun: false });
+      console.log(`管理命令     : ${changed ? `已把 ${paths.pluginRoot} 加入用户 PATH（新开终端生效）` : `用户 PATH 已含 ${paths.pluginRoot}（跳过）`}`);
+    } catch (e) {
+      console.log(`  ⚠ 加入 PATH 失败（不影响安装，可手动加）：${e.message}`);
+    }
   }
 
   console.log('');

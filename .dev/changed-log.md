@@ -350,3 +350,39 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
 - `node --check delivery/install-vm.mjs` 通过。
 - 单测**逐文件** **195/195 全绿**（基线 187 + 新增 8）。
 - 实跑 `buildTaskXml` 打印生成物人工核对：`$cliArgs` 内层双引号完整保留，XML 动作指向 `powershell.exe -File "…\start-hidden.ps1"`。
+
+## 第十二轮 · 2026-09-04（Q1–Q4 收口：PATH 管理 + 可达性门禁移除 + 实证 Q3 根因）
+
+### 背景（用户四问）
+1. **Q1**：插件装在 `…/plugins/cache/winvm/winvm-bridge/0.1.0`，担心 `cache` 是临时目录。
+2. **Q2**：部署后把该目录加入 PATH，但 uninstall 时要去掉。
+3. **Q3**：在 VM 管理员 PowerShell 跑重启命令，仍 degraded，为何？
+4. **Q4**：`uninstall` 后重跑 `setup.mjs --apply` 报「VM 不可达 → 跳过」，reinstall 卡死。
+
+### Q2：宿主 PATH 管理（新增 `delivery/path-util.mjs`）
+- 安装时把插件缓存根（含 `winvm-plugin` 启动器）加入【用户 PATH】，卸载（`--yes`）精确移除。
+- 用 `[Environment]::Get/SetEnvironmentVariable('Path','User')` 直接读写用户 PATH，**不截断系统 PATH**（弃用 `setx` 整体覆盖风险）。
+- 抽纯函数 `applyPathOp(currentRaw, dir, op)`（规范化去尾斜杠/空白、add 幂等、remove 按「规范化后相等」精确剔除，不靠子串匹配），便于单测且零系统副作用。
+- **关键 bug 修复**：`setUserPathRaw` 原用 `JSON.stringify(raw)` 拼 PowerShell 命令，而 PowerShell 双引号字符串里反斜杠**不是转义符**，`"C:\\foo"` 会被当成字面双反斜杠，写进注册表的路径带双反斜杠、回读 `includes` 匹配失败（表现为「写成功但读不到」，一度误判为沙箱注册表隔离）。改为 **PowerShell 单引号字符串**（`'` 用 `''` 转义），反斜杠为字面量，写入正确。
+- `install-host.mjs`：安装分支调 `addToUserPath(paths.pluginRoot)`；卸载分支调 `removeFromUserPath(pluginCacheRoot(home))`。`pluginCacheRoot()` 静态拼版本化路径，与 `resolveWorkBuddyPaths` 产出的 `paths.pluginRoot` 同源。
+
+### Q4：移除 `reachable()` 预检门禁（`delivery/setup.mjs`）
+- 根因：`reachable()` 预检曾「实测可达却被判不可达」假阴性，一旦失败就**整步跳过** VM 部署/启动/卸载，导致 reinstall 卡死、HEALTH 失败。
+- 修复：VM / VM-START / VM-UNINSTALL 三阶段**直接尝试真实 ssh 部署**，失败才报真实错误（含 ssh 输出），不再静默跳过。`reachable()` 死函数已删除。
+- TUNNEL 文案由假阳性「✅ 隧道已在后台启动（PID x）」改为诚实的「隧道进程已启动；连通性由 [HEALTH] 阶段用 curl 实际验证」（detached spawn 不等连接，原文案误导）。
+
+### Q3：实证根因（`/health` JSON 实锤）
+- 重跑 `setup.mjs --apply` 后 `/health` 返回：`sessionId=1, windowStation="W", interactive=false, locked=false, state="degraded"`。
+- 结论：服务落点 session 1 但 **`windowStation` 是 `W` 而非 `WinSta0`** —— 说明它没挂在交互式桌面上。`<LogonType>InteractiveToken</LogonType>` 任务落点永远是「当前交互式会话」，与**在哪敲命令无关**；经 SSH / 远程管理 / 锁屏会话触发时窗口站是 `W`。
+- 修复 HEALTH 文案：明确「先 RDP 解锁桌面（无锁屏、Explorer 在跑）→ 在 VM 桌面内【普通用户 PowerShell】（非管理员，否则落不同登录会话→仍 degraded）执行重启命令块」。
+- **Q1 结论**：`cache/winvm/winvm-bridge/0.1.0` 是 WorkBuddy 标准插件缓存根（`uninstallDirectories` 硬编码此路径回收），非随意临时目录；配合 Q2 的 PATH 管理，目录位置对用户透明，每次 `install-host` 会重建 `winvm-plugin` 启动器。
+
+### 新增测试
+- `tests/unit/path-util.test.js`（9 项）：`applyPathOp` 的 add/remove/幂等/尾斜杠容差/空 PATH/精确匹配不误删（如 `C:\MyAppData` 不被 `C:\MyApp` 的 remove 误删）。
+
+### 验证（第十二轮）
+- `node --check` 三个改动文件（path-util / install-host / setup）全过。
+- 单测**逐文件 204/204 全绿**（基线 195 + 新增 9）。
+- **PATH 真实系统往返**：add 后 `[Environment]::GetEnvironmentVariable('Path','User')` 含该目录、幂等、remove 后还原一致（修复转义 bug 后跨进程持久化正常）。
+- **卸载预览**（`install-host.mjs --uninstall`，无 `--yes`）：打印 `PATH: [预览] 已将 …/winvm-bridge/0.1.0 从用户 PATH 移除`，注册表 diff 显示该条目将被移除 —— 卸载分支 PATH 移除逻辑触发。
+- **真实 reinstall**（`node delivery/setup.mjs --apply`，用户授权）：BUILD/HOST/VM/VM-START/TEST/HEALTH 全 ✅，VM 步骤不再被跳过、直接部署成功；HEALTH `/health` 通过并返回完整 JSON（GUI 仍 degraded 因本次经 SSH 触发，符合 Q3 预期，非阻断）。安装后核验用户 PATH 确含 `…/winvm-bridge/0.1.0`。
