@@ -79,7 +79,27 @@ export function deployWinvmPlugin({ targetDir, side, dryRun, writeContext = true
   if (dryRun) {
     log('管理 CLI  : 写 winvm-plugin.cmd  [dry-run]');
   } else {
-    writeFileSync(join(targetDir, 'winvm-plugin.cmd'), '@echo off\r\nnode "%~dp0winvm-plugin.mjs" %*\r\n');
+    writeFileSync(
+      join(targetDir, 'winvm-plugin.cmd'),
+      [
+        '@echo off',
+        'setlocal EnableExtensions',
+        'REM 跳过 cmd AutoRun（例如 conda_hook.bat 的 DOSKEY 报错），避免无关错误刷屏',
+        'if not defined WINVM_PLUGIN_NOAUTORUN (',
+        '  set "WINVM_PLUGIN_NOAUTORUN=1"',
+        '  cmd /d /c "%~f0" %*',
+        '  exit /b %errorlevel%',
+        ')',
+        'REM 健壮定位 node（不依赖 PATH 恰好含 node）',
+        'set "NODE_EXE="',
+        'if exist "d:\\nvm4w\\nodejs\\node.exe" set "NODE_EXE=d:\\nvm4w\\nodejs\\node.exe"',
+        'if not defined NODE_EXE if exist "C:\\Program Files\\nodejs\\node.exe" set "NODE_EXE=C:\\Program Files\\nodejs\\node.exe"',
+        'if not defined NODE_EXE for %%i in (node.exe) do @if not "%%~$PATH:i"=="" set "NODE_EXE=%%~$PATH:i"',
+        'if not defined NODE_EXE set "NODE_EXE=node"',
+        '"%NODE_EXE%" "%~dp0winvm-plugin.mjs" %*',
+        '',
+      ].join('\r\n'),
+    );
   }
 
   // 4) POSIX 启动器（无扩展名 + shebang + +x）：Git Bash / ssh 交互会话里 `winvm-plugin <cmd>` 直接用

@@ -386,3 +386,42 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
 - **PATH 真实系统往返**：add 后 `[Environment]::GetEnvironmentVariable('Path','User')` 含该目录、幂等、remove 后还原一致（修复转义 bug 后跨进程持久化正常）。
 - **卸载预览**（`install-host.mjs --uninstall`，无 `--yes`）：打印 `PATH: [预览] 已将 …/winvm-bridge/0.1.0 从用户 PATH 移除`，注册表 diff 显示该条目将被移除 —— 卸载分支 PATH 移除逻辑触发。
 - **真实 reinstall**（`node delivery/setup.mjs --apply`，用户授权）：BUILD/HOST/VM/VM-START/TEST/HEALTH 全 ✅，VM 步骤不再被跳过、直接部署成功；HEALTH `/health` 通过并返回完整 JSON（GUI 仍 degraded 因本次经 SSH 触发，符合 Q3 预期，非阻断）。安装后核验用户 PATH 确含 `…/winvm-bridge/0.1.0`。
+
+---
+
+## 第十三轮：修 `winvm-plugin` 命令不可用 + 清理损坏的 User PATH
+
+### 现象（用户反馈）
+- `winvm-plugin check` → PowerShell：「not recognized as a name of a cmdlet…」。
+- 进缓存目录跑 `.\\winvm-plugin.cmd check` → `'DOSKEY' is not recognized` + `'node' is not recognized`。
+- `echo $env:PATH` 显示大量双反斜杠条目，且混入 4 个 `C:\WinVMBridge\__path_test__` 垃圾项。
+
+### 诊断
+- `.cmd` 自身内容正确（`node "%~dp0winvm-plugin.mjs" %*`）；在 **`cmd /d /c`（跳过 AutoRun）** 下实测能正常输出 `winvm-plugin check` 全部 ✅ —— 证明脚本与 node 解析本身没问题。
+- **`DOSKEY` 报错来源**：HKCU `cmd` AutoRun = `conda_hook.bat`（anaconda，第 17 行 `@DOSKEY conda=...`）。每次 `cmd /c` 都会先跑这个 AutoRun，而子进程里 `doskey.exe` 解析不到 → 刷屏报错（与本工具无关，但污染输出）。
+- **`node` 报错来源**：用户 **User 级 PATH 被某工具以 JSON 风格转义写入**，每条都带双反斜杠（`\\`）；node 条目 `d:\nvm4w\nodejs` 也在损坏之列，`cmd /c` 子进程里定位失败。这是本机历史残留（kmaster/hermes/anaconda 等写入），**非本项目 Q2 造成**——Q2 写入的 `…/winvm-bridge/0.1.0` 缓存条目是干净的。
+
+### 修复 1：`winvm-plugin.cmd` 健壮化（三处同步）
+1. 源 `delivery/winvm-plugin.cmd`；
+2. `delivery/deploy-winvm-plugin.mjs` 内嵌字符串（`writeFileSync` 的 `.cmd` 内容，改为数组 `join('\r\n')`）；
+3. 已部署副本 `C:/Users/towyq/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin.cmd`。
+
+新内容逻辑：
+- **跳过 AutoRun**：`if not defined WINVM_PLUGIN_NOAUTORUN ( set … & cmd /d /c "%~f0" %* & exit /b )` —— 自重载一次并带 `/d`，消除 `DOSKEY` 噪声。
+- **健壮定位 node**（不依赖 PATH 恰好含 node）：先查 `d:\nvm4w\nodejs\node.exe`、`C:\Program Files\nodejs\node.exe`，再用 `for %%i in (node.exe) do %%~$PATH:i` 回退到 PATH，最后兜底裸 `node`。
+
+### 修复 2：清理损坏的 User PATH
+- 原始 63 项：58 个带 `\\` 损坏 + 4 个 `C:\WinVMBridge\__path_test__`（某次测试残留）+ 1 处重复。
+- **先备份**原始值到 `.workbuddy/tmp_path_raw_backup.txt`（可回滚）。
+- 清理脚本 `.workbuddy/clean_user_path.ps1`：从备份重跑，把**连续 2+ 反斜杠折叠为 1**、剔除 `__path_test__`、去重，写回 User PATH。
+- 结果：63 → **58 项**，回读核验 **0 双反斜杠 / 0 垃圾项 / winvm 缓存项保留**。
+
+### 验证
+- `node --check delivery/deploy-winvm-plugin.mjs` ✅；`tests/unit/deploy-winvm-plugin.test.js` **4/4** ✅（单测基线维持 204）。
+- 部署到临时目录，确认生成的 `winvm-plugin.cmd` 正是健壮版（16 行）。
+- 已部署缓存副本在 `cmd /d /c` 下 `winvm-plugin check` 正常输出「宿主机部署完整 ✅」。
+
+### 给用户的交付提示
+- **重新开一个终端**让 PATH 变更生效（PATH 编辑需新会话）。
+- 之后 `winvm-plugin <cmd>` / `winvm-plugin.cmd <cmd>` / `node winvm-plugin.mjs <cmd>` 三者等价可用。
+- `DOSKEY` 噪声已随 AutoRun 跳过而消除；若仍偶发，属 conda_hook.bat 环境残留，与本项目无关。
