@@ -29,9 +29,10 @@
  *      否则存在 packages/vm-service/dist/cli.js → vm
  *
  * Host 侧需要 VM 连接信息（用于 server/health/command 的 SSH 中继）：
- *   优先 --vm-host / --vm-user / --vm-ssh-port / --vm-port，
+ *   优先 --vm-host / --vm-user / --vm-ssh-port / --vm-port（另可 --vm-provider / --vm-cli），
  *   其次环境变量 WINVM_VM_HOST / WINVM_VM_USER / WINVM_VM_SSH_PORT / WINVM_VM_PORT，
- *   再次从当前/向上目录的 .env 读取（VM_HOST / VM_USER / VM_SSH_PORT / WINVM_SERVICE_PORT）。
+ *   再次部署期持久化配置 ~/.workbuddy/winvm/vm-conn.json（宿主安装器自动写入），
+ *   最后从当前/向上目录的 .env 读取（VM_HOST / VM_USER / VM_SSH_PORT / WINVM_SERVICE_PORT）。
  */
 
 import {
@@ -125,19 +126,33 @@ function parseEnvFile(p) {
   return out;
 }
 
+/**
+ * 纯函数：依据来源优先级解析 VM 连接信息（便于单测）。
+ * 优先级（高→低）：argv(--vm-*) > 环境变量 WINVM_VM_* > .env(VM_*) > 部署期持久化 vm-conn.json > 默认值。
+ */
+export function resolveVmConn({ argv = {}, env = {}, dotEnv = {}, persisted = {} } = {}) {
+  const host = argv.vmHost || env['WINVM_VM_HOST'] || dotEnv['VM_HOST'] || persisted.host || '';
+  const user = argv.vmUser || env['WINVM_VM_USER'] || dotEnv['VM_USER'] || persisted.user || '';
+  const sshPort = Number(argv.vmSshPort || env['WINVM_VM_SSH_PORT'] || dotEnv['VM_SSH_PORT'] || persisted.sshPort || 22);
+  const servicePort = Number(
+    argv.vmPort || env['WINVM_VM_PORT'] || dotEnv['WINVM_SERVICE_PORT'] || persisted.servicePort || 18443,
+  );
+  // provider/cli 也持久化，供 uninstall --vm 等命令复用
+  const provider = argv.vmProvider || env['WINVM_VM_PROVIDER'] || persisted.provider || '';
+  const cli = argv.vmCli || env['WINVM_VM_CLI'] || persisted.cli || '';
+  return { host, user, sshPort, servicePort, provider, cli };
+}
+
 function loadVmConn(argv) {
   const env = process.env;
   // 从 cwd / 向上目录读 .env（兼容在仓库内运行）
   const repoDir = findUp(process.cwd(), (d) => existsSync(join(d, '.env')));
   const dotEnv = repoDir ? parseEnvFile(join(repoDir, '.env')) : {};
-
-  const host = argv.vmHost || env['WINVM_VM_HOST'] || dotEnv['VM_HOST'] || '';
-  const user = argv.vmUser || env['WINVM_VM_USER'] || dotEnv['VM_USER'] || '';
-  const sshPort = Number(argv.vmSshPort || env['WINVM_VM_SSH_PORT'] || dotEnv['VM_SSH_PORT'] || 22);
-  const servicePort = Number(
-    argv.vmPort || env['WINVM_VM_PORT'] || dotEnv['WINVM_SERVICE_PORT'] || 18443,
-  );
-  return { host, user, sshPort, servicePort };
+  // 部署期持久化配置（install-host.mjs 写入 ~/.workbuddy/winvm/vm-conn.json），
+  // 使宿主侧 health/server/command 无需每次传 --vm-host/--vm-user。
+  const connFile = join(homedir(), '.workbuddy', 'winvm', 'vm-conn.json');
+  const persisted = readJsonSafe(connFile) || {};
+  return resolveVmConn({ argv, env, dotEnv, persisted });
 }
 
 /* ============================ HTTP（无外部依赖） ============================ */
@@ -731,7 +746,7 @@ function cmdReinstall(side, vm) {
 /* ============================ 参数解析 ============================ */
 
 function parseArgs(argv) {
-  const out = { side: undefined, sub: undefined, subArg: undefined, tool: undefined, args: undefined, json: false, vmHost: undefined, vmUser: undefined, vmSshPort: undefined, vmPort: undefined, vm: false };
+  const out = { side: undefined, sub: undefined, subArg: undefined, tool: undefined, args: undefined, json: false, vmHost: undefined, vmUser: undefined, vmSshPort: undefined, vmPort: undefined, vmProvider: undefined, vmCli: undefined, vm: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
@@ -741,6 +756,8 @@ function parseArgs(argv) {
       case '--vm-user': out.vmUser = argv[++i]; break;
       case '--vm-ssh-port': out.vmSshPort = argv[++i]; break;
       case '--vm-port': out.vmPort = argv[++i]; break;
+      case '--vm-provider': out.vmProvider = argv[++i]; break;
+      case '--vm-cli': out.vmCli = argv[++i]; break;
       case '--vm': out.vm = true; break;
       case '--args': out.args = argv[++i]; break;
       default:
@@ -773,8 +790,10 @@ WinVM Bridge —— 插件管理命令 winvm-plugin
   winvm-plugin reinstall
 
 Host 侧需要 VM 连接（server/health/command 走 SSH）：
-  优先 --vm-host/--vm-user/--vm-ssh-port/--vm-port，其次环境变量 WINVM_VM_*，
-  再次从 .env（VM_HOST/VM_USER/VM_SSH_PORT/WINVM_SERVICE_PORT）读取。
+  优先 --vm-host/--vm-user/--vm-ssh-port/--vm-port（另可 --vm-provider/--vm-cli），
+  其次环境变量 WINVM_VM_*，再次从部署期持久化配置 ~/.workbuddy/winvm/vm-conn.json，
+  最后从 .env（VM_HOST/VM_USER/VM_SSH_PORT/WINVM_SERVICE_PORT）读取。
+  （vm-conn.json 由宿主安装器 install-host.mjs 在部署时自动写入，故通常无需手动指定。）
 
 示例：
   # 宿主机
@@ -830,7 +849,12 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e?.stack || e?.message || String(e));
-  process.exitCode = 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === __filename) {
+  main().catch((e) => {
+    console.error(e?.stack || e?.message || String(e));
+    process.exitCode = 1;
+  });
+}
+
+// 导出供单测校验（resolveVmConn 已在定义处导出；loadVmConn 的 vm-conn.json 兜底来源、detectSide 的 side.json 判定）
+export { loadVmConn, detectSide };

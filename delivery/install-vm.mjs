@@ -56,6 +56,7 @@ import {
   readdirSync,
   readlinkSync,
 } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -65,6 +66,7 @@ import {
 } from './deploy-shared-skills.mjs';
 import { ensureWorkspaceLinks } from './link-workspace.mjs';
 import { deployWinvmPlugin } from './deploy-winvm-plugin.mjs';
+import { addToUserPath, removeFromUserPath } from './path-util.mjs';
 
 /* ------------------------------ 参数 ------------------------------ */
 
@@ -494,6 +496,25 @@ async function main() {
     }
 
     console.log('');
+    // 5. 管理命令 PATH 移除 + side 标记清理
+    console.log('');
+    try {
+      const doWrite = !args.dryRun && args.yes;
+      const changed = removeFromUserPath(deliveryDir, { dryRun: !doWrite });
+      log(`管理命令 PATH : ${doWrite ? '' : '[预览] '}${changed ? `已将 ${deliveryDir} 从用户 PATH 移除` : `用户 PATH 不含 ${deliveryDir}（跳过）`}`);
+    } catch (e) {
+      log(`  ⚠ 移除 VM 用户 PATH 失败：${e.message}`);
+    }
+    const sidePath = join(homedir(), '.workbuddy', 'winvm', 'side.json');
+    if (existsSync(sidePath)) {
+      if (args.dryRun) log(`Side 标记    : ${sidePath}  [dry-run 将移除]`);
+      else if (args.yes) { removeVmSideMarker(); log(`Side 标记    : 已移除 ${sidePath}`); }
+      else log(`Side 标记    : ${sidePath}  [加 --yes 将移除]`);
+    } else {
+      log(`Side 标记    : 不存在，跳过`);
+    }
+
+    console.log('');
     if (args.dryRun) {
       console.log('dry-run 完成：未做任何改动。去掉 --dry-run 并加 --yes 以执行卸载。');
     } else if (!args.yes) {
@@ -645,7 +666,46 @@ async function main() {
   /* 7. 部署插件管理 CLI winvm-plugin（VM 侧）—— 与 host 侧同源，自动识别 side=vm */
   if (!args.dryRun) {
     deployWinvmPlugin({ targetDir: deliveryDir, side: 'vm', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`) });
+
+    /* 7a. 把 delivery/ 加入 VM 用户 PATH，使 `winvm-plugin` 在 VM 内可作为全局命令调用
+     *      （否则只能进目录跑或手动加 PATH，表现为"不是内部或外部命令"）。 */
+    try {
+      const changed = addToUserPath(deliveryDir, { dryRun: false });
+      console.log(`管理命令 PATH : ${changed ? `已把 ${deliveryDir} 加入用户 PATH（新开终端生效）` : `用户 PATH 已含 ${deliveryDir}（跳过）`}`);
+    } catch (e) {
+      console.log(`  ⚠ 加入 VM 用户 PATH 失败（可手动将 ${deliveryDir} 加入 PATH）：${e.message}`);
+    }
+
+    /* 7b. 写入 side 标记，确保 winvm-plugin 在 VM 内自动识别为 vm 侧
+     *      （health 走本地 127.0.0.1:/health，无需 vm-host/vm-user）。 */
+    try {
+      const p = writeVmSideMarker();
+      console.log(`Side 标记    : 已写入 ${p}（side=vm）`);
+    } catch (e) {
+      console.log(`  ⚠ 写入 side 标记失败：${e.message}`);
+    }
   }
+}
+
+/**
+ * 写入 VM 侧 side 标记：~/.workbuddy/winvm/side.json = {"side":"vm"}。
+ * 使 winvm-plugin 在 VM 内自动识别为 vm 侧（health 走本地 /health，无需 vm-host/vm-user）。
+ * @param {string} [home] 目标用户主目录（默认当前用户）；测试可注入临时目录。
+ * @returns {string} 写入的文件路径
+ */
+export function writeVmSideMarker(home = homedir()) {
+  const sideDir = join(home, '.workbuddy', 'winvm');
+  mkdirSync(sideDir, { recursive: true });
+  const p = join(sideDir, 'side.json');
+  writeFileSync(p, JSON.stringify({ side: 'vm' }, null, 2) + '\n', 'utf8');
+  return p;
+}
+
+/** 移除 VM 侧 side 标记；不存在则视为已清理（返回 false）。 */
+export function removeVmSideMarker(home = homedir()) {
+  const p = join(home, '.workbuddy', 'winvm', 'side.json');
+  if (existsSync(p)) { rmSync(p, { force: true }); return true; }
+  return false;
 }
 
 /* 仅当本文件被直接作为入口运行时才执行 main；被 import（如单测）时保持惰性，

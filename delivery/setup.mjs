@@ -119,6 +119,16 @@ export function buildPlan(cfg) {
     if (cfg.dryRun) args.push('--dry-run');
     if (cfg.hostHome) args.push('--home', cfg.hostHome);
     if (cfg.hostUser) args.push('--user', cfg.hostUser);
+    // 把 VM 连接信息透传给宿主安装器，由其持久化到 vm-conn.json，
+    // 使宿主侧 winvm-plugin health/server/command 无需每次手动指定 --vm-host/--vm-user。
+    if (cfg.vmHost) {
+      args.push(
+        '--vm-host', cfg.vmHost,
+        '--vm-user', cfg.vmUser,
+        '--vm-ssh-port', String(cfg.vmSshPort),
+        '--vm-port', String(cfg.tunnelRemotePort),
+      );
+    }
     steps.push({ phase: 'HOST', description: '部署宿主机侧 WorkBuddy 插件', command: args.join(' '), apply: !cfg.dryRun });
   }
   if (cfg.vmDeploy) {

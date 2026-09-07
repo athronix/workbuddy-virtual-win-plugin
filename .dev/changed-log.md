@@ -425,3 +425,38 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
 - **重新开一个终端**让 PATH 变更生效（PATH 编辑需新会话）。
 - 之后 `winvm-plugin <cmd>` / `winvm-plugin.cmd <cmd>` / `node winvm-plugin.mjs <cmd>` 三者等价可用。
 - `DOSKEY` 噪声已随 AutoRun 跳过而消除；若仍偶发，属 conda_hook.bat 环境残留，与本项目无关。
+
+---
+
+## 第十四轮：VM 侧 winvm-plugin 可达 + 部署期持久化 VM 连接（Q1/Q2 收尾）
+
+### 背景（用户实测两个报错）
+1. **VM 上 `winvm-plugin` 不是内部或外部命令**：VM 部署（`install-vm.mjs` 第 7 步 `deployWinvmPlugin`）只把启动器落盘到 `<repoRoot>/delivery/`，**从未把该目录加入 VM 用户 PATH**，故 VM 内无法作为全局命令调用。
+2. **`winvm-plugin health` 报「缺少 VM 连接信息：请传 --vm-host/--vm-user」**：
+   - 在 **VM 内** 跑 health 时，`detectSide()` 未稳定识别为 `vm` 侧，错误地走了 host 分支（SSH 到 VM），于是要 vm-host/vm-user；
+   - 在 **宿主** 侧跑 health 时，host 分支本就需要 vm-host/vm-user 才能 SSH 隧道，而用户期望「部署时就设好，用时不必再指定」。
+
+### 改动 1：VM 侧 winvm-plugin 加入 VM 用户 PATH（修 Q1）
+- `install-vm.mjs` 第 7 步部署启动器后，调用 `addToUserPath(deliveryDir)` 把 `<repoRoot>/delivery` 加入 **VM 用户 PATH**（复用 Q2 的 `path-util.mjs`，单引号 PS 转义已修）；卸载时 `removeFromUserPath` 精确移除。
+- 效果：VM 内重开终端后 `winvm-plugin list dirs` / `winvm-plugin health` 等均可直接调用。
+
+### 改动 2：VM 侧写入 side 标记（修 Q2 的 VM 内 health）
+- `install-vm.mjs` 部署时写 `~/.workbuddy/winvm/side.json = {"side":"vm"}`（新增导出 `writeVmSideMarker`/`removeVmSideMarker`）；卸载时清理。
+- `detectSide()` 优先级最高读取该文件 → VM 内 `winvm-plugin` 稳定识别为 `vm` 侧，`health` 走本地 `127.0.0.1:/health`（**无需 vm-host/vm-user**）。
+
+### 改动 3：宿主侧部署期持久化 VM 连接（修 Q2 的宿主侧 health）
+- `install-host.mjs` 安装时把 VM 连接写入 `~/.workbuddy/winvm/vm-conn.json`（host/user/sshPort/servicePort；新增导出 `writeVmConnConfig`/`removeVmConnConfig`），卸载时移除。
+- `winvm-plugin.mjs` 的 `loadVmConn` 重构为纯函数 `resolveVmConn`（优先级 argv > env WINVM_VM_* > .env VM_* > **vm-conn.json** > 默认值），`loadVmConn` 负责读 vm-conn.json 兜底；`parseArgs` 新增 `--vm-provider`/`--vm-cli`。
+- `setup.mjs` 的 HOST 步骤向 `install-host.mjs` 透传 `--vm-host/--vm-user/--vm-ssh-port/--vm-port`（取自 `.env` 的 VM_HOST/VM_USER/VM_SSH_PORT/tunnelRemotePort），使宿主安装器把真实连接持久化。
+- 效果：宿主侧 `winvm-plugin health` / `server` / `command` **无需每次传 --vm-host/--vm-user**，读完 vm-conn.json 即可 SSH 隧道。
+
+### 验证
+- 语法：`node --check` 全绿（winvm-plugin / install-host / install-vm / setup / path-util）。
+- 单测：新增 `tests/unit/winvm-plugin.test.js`（resolveVmConn 7 项优先级）、`tests/unit/deploy-conn-side.test.js`（vm-conn.json + side.json 写/删 3 项）；全量逐文件跑 **214/214**（基线 204 → +10）。
+- `install-host.mjs --dry-run` 正常进入安装流程（入口 guard 不影响 CLI）；`install-vm.mjs --dry-run` 正常规划。
+
+### 给用户的交付提示
+- 重新部署一次（`node delivery/setup.mjs --apply` 或分别跑 host/VM 安装器）后：
+  - **VM 内**：重开终端即可 `winvm-plugin <cmd>`；health 自动走本地、无需 vm-host/vm-user。
+  - **宿主侧**：health/server/command 自动读 vm-conn.json，无需再手传 --vm-host/--vm-user。
+- 旧已部署环境需重跑安装器才会生成 side.json / vm-conn.json（非破坏性，重跑即可）。

@@ -61,6 +61,10 @@ function parseArgs(argv) {
     remotePort: 18443,
     account: process.env['WINVM_ACCOUNT'] ?? undefined,
     home: homedir(),
+    vmHost: undefined,
+    vmUser: undefined,
+    vmSshPort: undefined,
+    vmPort: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -73,6 +77,10 @@ function parseArgs(argv) {
       case '--user': out.user = argv[++i]; break;
       case '--local-port': out.localPort = Number(argv[++i]); break;
       case '--remote-port': out.remotePort = Number(argv[++i]); break;
+      case '--vm-host': out.vmHost = argv[++i]; break;
+      case '--vm-user': out.vmUser = argv[++i]; break;
+      case '--vm-ssh-port': out.vmSshPort = Number(argv[++i]); break;
+      case '--vm-port': out.vmPort = Number(argv[++i]); break;
       case '--account': out.account = argv[++i]; break;
       case '--home': out.home = argv[++i]; break;
       default: break;
@@ -442,6 +450,19 @@ async function main() {
     } catch (e) {
       console.log(`  ⚠ 移除 PATH 失败（可手动删除 ${pluginCacheRoot(args.home)}）：${e.message}`);
     }
+    // 部署期持久化的 VM 连接配置
+    try {
+      const connPath = join(args.home, '.workbuddy', 'winvm', 'vm-conn.json');
+      const doWrite = !args.dryRun && args.yes;
+      if (existsSync(connPath)) {
+        if (doWrite) { removeVmConnConfig(args.home); console.log(`VM 连接配置 : 已移除 ${connPath}`); }
+        else console.log(`VM 连接配置 : ${connPath}  [预览将移除]`);
+      } else {
+        console.log(`VM 连接配置 : 不存在，跳过`);
+      }
+    } catch (e) {
+      console.log(`  ⚠ 移除 VM 连接配置失败：${e.message}`);
+    }
     console.log('');
     if (args.dryRun) {
       console.log('dry-run 完成：未做任何改动。去掉 --dry-run 以预览并备份注册文件。');
@@ -545,6 +566,19 @@ async function main() {
     } catch (e) {
       console.log(`  ⚠ 加入 PATH 失败（不影响安装，可手动加）：${e.message}`);
     }
+    /* ---- 持久化 VM 连接配置（vm-conn.json）----
+     * 使宿主侧 winvm-plugin health/server/command 无需每次传 --vm-host/--vm-user。
+     * 取值优先级：显式 --vm-* > 现有 --host/--user（来自 WINVM_HOST/WINVM_USER）> 默认值。 */
+    try {
+      const connHost = args.vmHost ?? args.host;
+      const connUser = args.vmUser ?? args.user;
+      const connSshPort = args.vmSshPort ?? 22;
+      const connServicePort = args.vmPort ?? args.remotePort;
+      const connPath = writeVmConnConfig({ host: connHost, user: connUser, sshPort: connSshPort, servicePort: connServicePort }, args.home);
+      console.log(`VM 连接配置 : 已写入 ${connPath}（host=${connHost} user=${connUser} port=${connServicePort}）`);
+    } catch (e) {
+      console.log(`  ⚠ 写入 VM 连接配置失败（可忽略，手动指定 --vm-host/--vm-user 仍可用）：${e.message}`);
+    }
   }
 
   console.log('');
@@ -565,7 +599,32 @@ async function main() {
   for (const a of plan.postActions) console.log(`  → ${a}`);
 }
 
-main().catch((e) => {
-  console.error(`安装失败：${e.message}`);
-  process.exit(1);
-});
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && resolve(process.argv[1]) === __filename) {
+  main().catch((e) => {
+    console.error(`安装失败：${e.message}`);
+    process.exit(1);
+  });
+}
+
+/**
+ * 持久化 VM 连接配置到 ~/.workbuddy/winvm/vm-conn.json。
+ * 宿主侧 winvm-plugin health/server/command 会经 loadVmConn 读取它，免去每次传 --vm-host/--vm-user。
+ * @param {{host:string,user:string,sshPort?:number,servicePort?:number}} cfg
+ * @param {string} [home] 目标用户主目录（默认当前用户）；测试可注入临时目录。
+ * @returns {string} 写入的文件路径
+ */
+export function writeVmConnConfig({ host, user, sshPort = 22, servicePort = 18443 }, home = homedir()) {
+  const connPath = join(home, '.workbuddy', 'winvm', 'vm-conn.json');
+  mkdirSync(dirname(connPath), { recursive: true });
+  writeFileSync(connPath, JSON.stringify({ host, user, sshPort, servicePort }, null, 2) + '\n', 'utf8');
+  return connPath;
+}
+
+/** 移除持久化的 VM 连接配置；不存在则视为已清理（返回 false）。 */
+export function removeVmConnConfig(home = homedir()) {
+  const connPath = join(home, '.workbuddy', 'winvm', 'vm-conn.json');
+  if (existsSync(connPath)) { rmSync(connPath, { force: true }); return true; }
+  return false;
+}
