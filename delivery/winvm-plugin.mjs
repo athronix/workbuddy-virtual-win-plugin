@@ -252,6 +252,26 @@ function waitPort(host, port, timeoutMs) {
   });
 }
 
+/* 同步无关：用 Node net 直连探测 TCP 端口是否监听。
+ * 替代 PowerShell Test-NetConnection —— 后者在 check 里曾因 { stdio: 'ignore' }
+ * 吞掉 stdout、且中文 locale 下输出不稳定，导致「端口未监听」假阴性。 */
+function isPortListening(host, port, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const sock = net.connect(Number(port), host);
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      try { sock.destroy(); } catch { /* ignore */ }
+      resolve(ok);
+    };
+    sock.setTimeout(timeoutMs);
+    sock.once('connect', () => finish(true));
+    sock.once('timeout', () => finish(false));
+    sock.once('error', () => finish(false));
+  });
+}
+
 /* ============================ MCP JSON-RPC 客户端 ============================ */
 
 async function mcpInitialize(baseUrl) {
@@ -405,9 +425,8 @@ async function cmdCheck(side, vm) {
     checks.push(['vm-service cli.js 存在', existsSync(v.cliEntry), v.cliEntry]);
     checks.push(['运行配置存在', existsSync(v.runtimeConfig), v.runtimeConfig]);
     checks.push(['共享 Skills 根存在', isDir(v.sharedSkillsRoot), v.sharedSkillsRoot]);
-    // 端口监听
-    const listening = sh('powershell', ['-NoProfile', '-Command', `Test-NetConnection -ComputerName 127.0.0.1 -Port ${v.servicePort} -InformationLevel Quiet`], { stdio: 'ignore' });
-    const portOk = listening.stdout.trim().toLowerCase() === 'true';
+    // 端口监听（Node net 直连探测，避免 PowerShell Test-NetConnection 的 stdio/locale 陷阱）
+    const portOk = await isPortListening('127.0.0.1', v.servicePort);
     checks.push(['服务端口监听中', portOk, `127.0.0.1:${v.servicePort}`]);
 
     let allOk = true;
@@ -627,7 +646,7 @@ async function cmdServer(side, vm, action) {
       : (() => { try { return sshExec(vm, `schtasks /Query /TN ${task}`).includes(task); } catch { return false; } })();
     const listenCmd = `powershell -NoProfile -Command "Test-NetConnection -ComputerName 127.0.0.1 -Port ${port} -InformationLevel Quiet"`;
     const listening = side === 'vm'
-      ? sh('powershell', ['-NoProfile', '-Command', `Test-NetConnection -ComputerName 127.0.0.1 -Port ${port} -InformationLevel Quiet`], { stdio: 'ignore' }).stdout.trim().toLowerCase() === 'true'
+      ? await isPortListening('127.0.0.1', port)
       : (() => { try { return sshExec(vm, listenCmd).trim().toLowerCase() === 'true'; } catch { return false; } })();
     console.log(`计划任务 ${task} : ${q ? '已注册' : '未注册'}`);
     console.log(`服务端口 :${port} : ${listening ? '监听中 ✅' : '未监听'}`);
@@ -637,6 +656,15 @@ async function cmdServer(side, vm, action) {
   if (action === 'start') {
     await runOnVm(`schtasks /run /tn ${task}`);
     console.log(`已触发启动（schtasks /run /tn ${task}）`);
+    if (side === 'vm') {
+      let listening = false;
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        listening = await isPortListening('127.0.0.1', port);
+        if (listening) break;
+      }
+      console.log(listening ? `✅ 服务已在 :${port} 监听` : `⚠ 已触发启动但 :${port} 仍未监听（事件日志 / 运行配置 .generated/vm-service.runtime.json 排查）`);
+    }
     return;
   }
 
