@@ -416,7 +416,22 @@ async function cmdCheck(side, vm) {
       if (detail) console.log(`       ${detail}`);
       if (!ok) allOk = false;
     }
-    console.log(`\n结论：${allOk ? 'VM 部署完整且服务在线 ✅' : '存在问题，见上方 ❌（端口未监听不代表部署失败，可能服务未启动）'}`);
+    if (allOk) {
+      console.log('\n结论：VM 部署完整且服务在线 ✅');
+    } else if (!portOk) {
+      console.log('\n结论：部署文件齐全，但「服务端口未监听」——计划任务含 LogonTrigger，仅在你「下次登录」时自动拉起；');
+      console.log('      当前你是已登录状态下部署的（经宿主 SSH 跑了 install-vm.mjs），触发器未触发，故服务未启动。这是预期，非部署失败。');
+      console.log('修复（就在本交互式窗口执行）：');
+      console.log('  winvm-plugin server start          # 在当前会话拉起服务（推荐，GUI 可用）');
+      console.log('  # 等价命令： schtasks /run /tn WinVMBridge.Service');
+      console.log('然后再查验： winvm-plugin check   （端口应变 ✅）');
+      console.log('若需 GUI 能力（截图/键鼠）： start 后跑 winvm-plugin health，确认 windowStation=WinSta0 且 interactive=true；');
+      console.log('  若显示 degraded，按 Q3 在 RDP 解锁 + 普通用户 PowerShell 下再 server restart 一次。');
+      process.exitCode = 1;
+    } else {
+      console.log('\n结论：存在问题，见上方 ❌');
+      process.exitCode = 1;
+    }
   }
 }
 
