@@ -57,7 +57,36 @@ function quotePowerShell(s) {
   return `'${String(s).replace(/'/g, "''")}'`;
 }
 
-/** 写入用户 PATH（原始字符串）。 */
+/**
+ * 广播 WM_SETTINGCHANGE（lParam="Environment"），让正在运行的 explorer（桌面 shell）
+ * 重新加载环境变量。部署写完后调用：已登录的 RDP/控制台会话里**新开**的终端（PowerShell/cmd）
+ * 无需注销即可直接拿到更新后的 PATH；已打开的旧窗口仍需重开才生效。
+ *
+ * 设计要点：
+ *  - 仅 Windows 生效；非 win32 直接跳过（单测/跨平台安全）。
+ *  - best-effort：经 HWND_BROADCAST + SMTO_ABORTIFHUNG(0x2) + 5s 超时，即便无桌面
+ *    （如 SSH 非交互会话）也只是返回，绝不影响「PATH 已写入」这一主干结果。
+ *  - 用单引号 here-string（@'...'@）包 C# 类型定义，避免 $ 展开；关闭定界符 '@ 必须处于行首。
+ */
+function broadcastEnvChange() {
+  if (process.platform !== 'win32') return;
+  const script = [
+    "Add-Type -TypeDefinition @'",
+    "using System;",
+    "using System.Runtime.InteropServices;",
+    "public class Win32EnvBroadcast {",
+    '  [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]',
+    "  public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);",
+    "}",
+    "'@",
+    "$r = [UIntPtr]::Zero",
+    "[Win32EnvBroadcast]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 0x2, 5000, [ref]$r) | Out-Null",
+  ].join('\r\n');
+  // 忽略结果：即便无桌面/超时也不应影响主干
+  spawnSync('powershell', ['-NoProfile', '-Command', script], { stdio: 'ignore' });
+}
+
+/** 写入用户 PATH（原始字符串）。写成功后广播 WM_SETTINGCHANGE 让新终端免注销生效。 */
 export function setUserPathRaw(raw) {
   // 注意：不能用 JSON.stringify —— PowerShell 双引号字符串里反斜杠不是转义符，
   // "C:\\foo" 会被当成字面双反斜杠，导致写进注册表的路径带双反斜杠、回读匹配失败。
@@ -65,6 +94,8 @@ export function setUserPathRaw(raw) {
   const script = `[Environment]::SetEnvironmentVariable("Path", ${quotePowerShell(raw)}, "User")`;
   const r = spawnSync('powershell', ['-NoProfile', '-Command', script], { stdio: 'ignore' });
   if (r.status !== 0) throw new Error(`设置用户 PATH 失败 (status ${r.status ?? '?'})`);
+  // 让已运行桌面会话里新开的终端无需注销即可看到新 PATH（旧窗口仍须重开）
+  broadcastEnvChange();
 }
 
 /**
