@@ -405,8 +405,8 @@ winvm-plugin check                                   # cmd/PowerShell（PATHEXT 
 # —— 宿主机（管理端）——
 winvm-plugin list mcp-tools                       # 看全部 54 个能力/工具（按域分组）
 winvm-plugin check                                # 查验宿主机注册/连接器完整性
-winvm-plugin health --vm-host 100.108.20.13 --vm-user User
-winvm-plugin server restart --vm-host 100.108.20.13 --vm-user User
+winvm-plugin health                                # 不传 --vm-host/--vm-user 则读 .env（VM_HOST/VM_USER）
+winvm-plugin server restart --vm-host 192.168.1.50 --vm-user vmadmin   # 显式覆盖示例
 winvm-plugin command meta.health.check            # 直接调一个 MCP 工具（需 .env 或 --vm-*）
 
 # —— VM 内（已 RDP 登录的交互式会话）——

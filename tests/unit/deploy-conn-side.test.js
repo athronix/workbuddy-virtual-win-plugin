@@ -22,11 +22,11 @@ function freshHome() {
 
 test('writeVmConnConfig 写入正确 JSON，removeVmConnConfig 删除', () => {
   const h = freshHome();
-  const p = writeVmConnConfig({ host: '100.108.20.13', user: 'User', sshPort: 22, servicePort: 18443 }, h);
+  const p = writeVmConnConfig({ host: '192.0.2.1', user: 'User', sshPort: 22, servicePort: 18443 }, h);
   assert.equal(p, join(h, '.workbuddy', 'winvm', 'vm-conn.json'));
   assert.ok(existsSync(p), 'vm-conn.json 应已写入');
   const obj = JSON.parse(readFileSync(p, 'utf8'));
-  assert.deepEqual(obj, { host: '100.108.20.13', user: 'User', sshPort: 22, servicePort: 18443 });
+  assert.deepEqual(obj, { host: '192.0.2.1', user: 'User', sshPort: 22, servicePort: 18443 });
 
   assert.equal(removeVmConnConfig(h), true, '删除应返回 true');
   assert.equal(existsSync(p), false, 'vm-conn.json 应已删除');

@@ -842,7 +842,7 @@ Host 侧需要 VM 连接（server/health/command 走 SSH）：
   # 宿主机
   winvm-plugin list mcp-tools
   winvm-plugin health
-  winvm-plugin server restart --vm-host 100.108.20.13 --vm-user User
+  winvm-plugin server restart --vm-host 192.168.1.50 --vm-user vmadmin   # 不传则读 .env 的 VM_HOST / VM_USER
   winvm-plugin command meta.health.check
 
   # VM 内（已 RDP 登录的交互式会话）
