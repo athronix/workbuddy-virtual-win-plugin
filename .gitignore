@@ -4,7 +4,12 @@ node_modules/
 **/*.tsbuildinfo
 
 # 运行时 / 生成物
-.workbuddy/
+# 注意：.workbuddy/ 下是本机工作记忆（私有，不入库），但**迁移交接档案需要随仓库走**，
+#       否则换机后 git clone 拿不到交接说明。故改为「忽略目录内容 + 精确放行交接档案」。
+#       （不能直接写 .workbuddy/ 再 !.workbuddy/handover/ —— 目录被排除后 Git 不再下钻，取反无效。）
+.workbuddy/*
+!.workbuddy/README.md
+!.workbuddy/handover/
 delivery/.generated/
 # winvm-plugin 管理 CLI 启动器（部署时由 deploy-winvm-plugin.mjs 生成，非源码）
 delivery/winvm-plugin
