@@ -22,6 +22,9 @@ import { deployWinvmPlugin } from '../../delivery/deploy-winvm-plugin.mjs';
 
 const SRC_BODY = '#!/usr/bin/env node\nconsole.log("fake winvm-plugin source");\n';
 
+// T08：winvm-plugin.cmd 仅 Windows 宿主写；非 Windows（鸿蒙/Linux/macOS）跳过，改由 POSIX 启动器承担。
+const IS_WIN = process.platform === 'win32';
+
 /** 建一个临时「仓库根」，内含 delivery/winvm-plugin.mjs 源脚本 */
 async function makeFakeRepo() {
   const root = await mkdtemp(join(tmpdir(), 'winvm-deploy-src-'));
@@ -52,8 +55,12 @@ describe('deployWinvmPlugin', () => {
       // 2) 上下文标记
       assert.equal(existsSync(join(targetDir, '.winvm-context.json')), true, '应写 .winvm-context.json');
       assert.deepEqual(JSON.parse(readFileSync(join(targetDir, '.winvm-context.json'), 'utf8')), { side: 'host' });
-      // 3) Windows 启动器
-      assert.equal(existsSync(join(targetDir, 'winvm-plugin.cmd')), true, '应写 winvm-plugin.cmd');
+      // 3) Windows 启动器：仅 win32 宿主写 .cmd（T08 平台守卫）
+      assert.equal(
+        existsSync(join(targetDir, 'winvm-plugin.cmd')),
+        IS_WIN,
+        IS_WIN ? '应写 winvm-plugin.cmd' : '非 Windows 宿主不应写 winvm-plugin.cmd',
+      );
       // 4) POSIX 无扩展名启动器（非空即视为已生成）
       assert.equal(existsSync(join(targetDir, 'winvm-plugin')), true, '应写无扩展名 bash 启动器');
       assert.ok(readFileSync(join(targetDir, 'winvm-plugin'), 'utf8').length > 0);
@@ -89,9 +96,9 @@ describe('deployWinvmPlugin', () => {
     const { logs, log } = recorder();
     try {
       deployWinvmPlugin({ targetDir, side: 'host', dryRun: false, writeContext: false, log, repoRoot });
-      // 源与启动器照常落地
+      // 源与启动器照常落地（.cmd 仅 win32，见 T08 平台守卫）
       assert.equal(existsSync(join(targetDir, 'winvm-plugin.mjs')), true);
-      assert.equal(existsSync(join(targetDir, 'winvm-plugin.cmd')), true);
+      assert.equal(existsSync(join(targetDir, 'winvm-plugin.cmd')), IS_WIN);
       // 但上下文文件不应出现
       assert.equal(existsSync(join(targetDir, '.winvm-context.json')), false, 'writeContext=false 不应写上下文');
       assert.ok(logs.some((m) => m.includes('跳过 .winvm-context.json')), 'log 应标跳过上下文');

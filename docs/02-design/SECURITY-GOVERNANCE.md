@@ -94,13 +94,15 @@
 | MCP | 返回 `APPROVAL_REQUIRED` + `approvalId` + dry-run 预览；宿主确认后带 `approvalId` 重发 |
 | A2A | Task 置 `input-required`，`status.message` 附预览与结构化影响清单；宿主 `message/send` 带同 `taskId` 继续 |
 
-审批记录包含：审批者、时间、预览内容哈希、审批结果（批准/拒绝/超时）。
+审批记录包含：审批者、时间、预览内容哈希、审批结果（**批准 / 拒绝 / 超时 / 取消** 四态，不得折叠为「未批准」）。
+
+预览内容哈希（`previewHash`）**V1 由宿主侧计算并记录**，落点 `packages/host-a2a-bridge/src/approval-audit.ts`，算法为 `sha256(canonicalJson({ capabilityId, risk, preview, impact }))`；用于比对「当时给用户看的」与「实际执行的」（哈希不一致即标记，不静默通过）。凭据类字段（`password` / `privateKey` / `passphrase` / token / secret）**永不入账**。
 
 ### 3.4 关键红线
 
 - ❌ **任何情况下不得提供绕过审批闸的配置开关或代码路径**
 - ❌ 不得因"用户说快点"而跳过 dry-run 或审批
-- ✅ 审批超时默认**拒绝**（fail-closed）
+- ✅ 审批超时默认**拒绝**（fail-closed）。**成立方式**：未获批准一律**不执行**（MCP 侧未携带有效 `approvalId` 的 L2/L3 请求永远返回 `APPROVAL_REQUIRED`；A2A 侧任务在 VM 侧持续挂起）。**注意**：V1 **未实现**审批记录的显式 TTL 回收 / 过期作废，本项为后续变更。
 - ✅ provider 异常时服务降级为仅 `meta.*`，**绝不降级为无限制执行**
 
 ---

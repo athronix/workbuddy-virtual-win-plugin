@@ -1,0 +1,14 @@
+﻿NOW=2026-09-17T18:35:22.1801157+08:00
+MY_SESSION=1
+PS PID=188 Sess=1 Parent=7276 ChildOfNode=False
+PS PID=14112 Sess=1 Parent=16660 ChildOfNode=False
+PS PID=1232 Sess=1 Parent=16660 ChildOfNode=False
+PS PID=7292 Sess=1 Parent=16660 ChildOfNode=False
+PS PID=7648 Sess=1 Parent=16660 ChildOfNode=False
+PS PID=5124 Sess=1 Parent=2584 ChildOfNode=False
+PS PID=4440 Sess=1 Parent=15560 ChildOfNode=True
+PS PID=9848 Sess=1 Parent=15560 ChildOfNode=True
+PS PID=9820 Sess=1 Parent=2584 ChildOfNode=False
+GUI_RAW=[true,{"sessionId":1,"windowStation":"WinSta0","desktop":"Default","interactive":true,"locked":false,"blackScreen":false,"explorerAlive":true,"state":"healthy","detail":"会话健康，GUI 能力可用"}]
+GUI_EXCEPTION=在此对象上找不到属性“sessionId”。请确认该属性存在。
+GUI_STACK=在 <ScriptBlock>、C:\WinVMBridge\diag-session.ps1 中: 第 26 行

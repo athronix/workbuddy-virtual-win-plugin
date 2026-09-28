@@ -1,0 +1,8 @@
+﻿TYPE=System.Object[]
+IS_ARRAY=True
+COUNT=2
+RAW=[true,{"sessionId":0,"windowStation":"WinSta0","desktop":"Default","interactive":false,"locked":false,"blackScreen":false,"explorerAlive":true,"state":"unavailable","detail":"无交互式会话（Session 0），GUI 能力不可用"}]
+ELEM0_TYPE=System.Boolean
+ELEM0_JSON=true
+ELEM1_TYPE=System.Collections.Specialized.OrderedDictionary
+ELEM1_JSON={"sessionId":0,"windowStation":"WinSta0","desktop":"Default","interactive":false,"locked":false,"blackScreen":false,"explorerAlive":true,"state":"unavailable","detail":"无交互式会话（Session 0），GUI 能力不可用"}

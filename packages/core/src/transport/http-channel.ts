@@ -118,41 +118,61 @@ export class HttpJsonRpcChannel implements JsonRpcChannel {
     }
   }
 
-  async *stream(payload: unknown, opts?: { signal?: AbortSignal }): AsyncIterable<unknown> {
+  async *stream(
+    payload: unknown,
+    opts?: { timeoutMs?: number; signal?: AbortSignal },
+  ): AsyncIterable<unknown> {
     if (this.closed) throw new TransportError('channel closed');
-    const res = await fetch(this.url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'text/event-stream',
-        ...this.headers,
-      },
-      body: JSON.stringify(payload),
-      ...(opts?.signal ? { signal: opts.signal } : {}),
-    });
-    if (!res.ok || !res.body) {
-      throw new TransportError(`SSE 建立失败：HTTP ${res.status}`);
-    }
+    const timeoutMs = opts?.timeoutMs ?? this.defaultTimeoutMs;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const onAbort = () => controller.abort();
+    opts?.signal?.addEventListener('abort', onAbort);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
     try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const { events, rest } = parseSseChunk(buffer);
-        buffer = rest;
-        for (const ev of events) yield ev;
+      const res = await fetch(this.url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'text/event-stream',
+          ...this.headers,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      if (!res.ok || !res.body) {
+        throw new TransportError(`SSE 建立失败：HTTP ${res.status}`);
       }
-      // 收尾
-      if (buffer.trim()) {
-        const { events } = parseSseChunk(`${buffer}\n\n`);
-        for (const ev of events) yield ev;
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const { events, rest } = parseSseChunk(buffer);
+          buffer = rest;
+          for (const ev of events) yield ev;
+        }
+        // 收尾
+        if (buffer.trim()) {
+          const { events } = parseSseChunk(`${buffer}\n\n`);
+          for (const ev of events) yield ev;
+        }
+      } finally {
+        await reader.cancel().catch(() => undefined);
       }
+    } catch (e) {
+      if (e instanceof TransportError) throw e;
+      if (e instanceof Error && e.name === 'AbortError') {
+        throw new TransportError(`请求超时（${timeoutMs}ms）：${this.url}`);
+      }
+      throw new TransportError(`请求失败：${(e as Error).message}`, e);
     } finally {
-      await reader.cancel().catch(() => undefined);
+      clearTimeout(timer);
+      opts?.signal?.removeEventListener('abort', onAbort);
     }
   }
 

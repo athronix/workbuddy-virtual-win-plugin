@@ -1,0 +1,76 @@
+classDiagram
+    class ssh2_resolve {
+        <<module>>
+        +loadSsh2Client(opts) Promise~Function~
+        +ssh2MissingError(details) Error
+    }
+    class OhSshTunnel {
+        +localPort number
+        +alive boolean
+        +start() Promise~TunnelHandle~
+        +stop() Promise~void~
+        -_connectOnce() Promise~boolean~
+        -_scheduleReconnect() void
+    }
+    class TunnelDaemon {
+        +options DaemonOpts
+        +tunnel OhSshTunnel
+        +state TunnelState
+        +run() Promise~void~
+        +writePidfileAtomic() void
+        +removePidfile() void
+        +onTunnelEvent(ev, payload) void
+        +shutdown() Promise~void~
+    }
+    class TunnelPidFile {
+        +pid number
+        +localHost string
+        +localPort number
+        +vmHost string
+        +vmUser string
+        +vmSshPort number
+        +remotePort number
+        +startedAt string
+        +schema number
+    }
+    class TunnelState {
+        +state string
+        +lastEvent string
+        +alive boolean
+        +updatedAt string
+        +pid number
+    }
+    class TunnelCli {
+        +cmdTunnel(action, opts) Promise~number~
+        +readStatus() TunnelStatus
+        +probePort(host, port, ms) Promise~boolean~
+        +spawnDaemon(opts) void
+        +stopDaemon(force) Promise~boolean~
+    }
+    class DepDispatcher {
+        +collectThirdPartyDeps(repoRoot, pkgName) Set~string~
+        +copyNodeModulesPackage(name, destNM, srcRoots) boolean
+        +copyRuntimeDeps(pkgNames, pluginRoot) Set~string~
+    }
+    class DeployWinvmPlugin {
+        +deployWinvmPlugin(opts) void
+        +extraFiles Array~string~
+        +posixShebang() string
+    }
+    class PathUtil {
+        +addToUserPath(dir, opts) boolean
+        +removeFromUserPath(dir, opts) boolean
+        +setProfilePathRaw(dir, opts) boolean
+        +profileFiles() string[]
+    }
+
+    TunnelDaemon *-- OhSshTunnel : owns
+    TunnelDaemon ..> ssh2_resolve : uses
+    TunnelDaemon ..> TunnelPidFile : writes(atomic)
+    TunnelDaemon ..> TunnelState : writes
+    OhSshTunnel ..> ssh2_resolve : uses(DI-first)
+    TunnelCli ..> TunnelDaemon : spawn(detached)/kill
+    TunnelCli ..> TunnelPidFile : reads
+    TunnelCli ..> TunnelState : reads
+    DepDispatcher ..> DeployWinvmPlugin : feeds node_modules
+    DeployWinvmPlugin ..> PathUtil : sibling

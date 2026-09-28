@@ -103,7 +103,10 @@ function Get-DirectorySize {
         catch { }
     }
 
-    $results = $results | Sort-Object -Property sizeMB -Descending | Select-Object -First $Top
+    # ⚠ PS 5.1 陷阱（CL-017 N2，静默错数据）：对 [ordered]@{} 列表用 `-Property sizeMB` 不报错但**不排序**，
+    #   导致 Top-N 抓到的是一批 sizeMB=0 的链接/空目录，而非真正最大的目录。
+    #   改用脚本块访问器并显式 [double] 强转，保证按体积严格降序。切勿改回 `-Property sizeMB`。
+    $results = $results | Sort-Object -Property { [double]$_.sizeMB } -Descending | Select-Object -First $Top
     return [ordered]@{ root = $Path; depth = $Depth; entries = @($results) }
 }
 
@@ -144,8 +147,12 @@ function Write-TextFileContent {
         else { throw "PATH_NOT_FOUND: 目录不存在 —— $dir" }
     }
 
-    if ($Append) { Add-Content -LiteralPath $Path -Value $Content -Encoding UTF8 -ErrorAction Stop }
-    else { Set-Content -LiteralPath $Path -Value $Content -Encoding UTF8 -ErrorAction Stop }
+    # D18：Set-Content/Add-Content -Encoding UTF8 在 Windows PowerShell 5.1 会写入 UTF-8 **BOM**，
+    # 导致读回内容开头多出 \ufeff。改用 .NET 的 UTF8Encoding($false)（无 BOM）显式写。
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    $text = if ($null -eq $Content) { '' } else { [string]$Content }
+    if ($Append) { [System.IO.File]::AppendAllText($Path, $text, $utf8NoBom) }
+    else { [System.IO.File]::WriteAllText($Path, $text, $utf8NoBom) }
 
     return [ordered]@{ path = $Path; appended = [bool]$Append; bytes = (Get-Item -LiteralPath $Path).Length }
 }
@@ -314,6 +321,10 @@ function Get-CleanupSuggestions {
     # 大文件（用户目录，限制深度避免长时间扫描）
     $userProfile = $env:USERPROFILE
     if (Test-Path -LiteralPath $userProfile) {
+        # 说明（CL-017 N2 复核）：此处输入是 Get-ChildItem 的 FileInfo（真实 .Length 属性），
+        # `-Property Length` 在 FileInfo 上**有效**（真机实测严格降序），故无需脚本块形式；
+        # 该陷阱仅影响 [ordered]@{} 字典列表（见本文件 storage.space.analyze、system.ps1 的
+        # Get-ProcessList、app.ps1 的 Get-InstalledApps —— 那三处均已改用脚本块访问器）。
         $big = @(Get-ChildItem -LiteralPath $userProfile -Recurse -File -ErrorAction SilentlyContinue |
             Sort-Object -Property Length -Descending | Select-Object -First $TopLargeFiles |
             ForEach-Object {

@@ -22,3 +22,16 @@ delivery/.winvm-context.json
 # OS / 编辑器
 .DS_Store
 Thumbs.db
+
+# 中间/测试/探测产物（原始证据与归档，不入库）
+qa/evidence/
+qa/archive/
+
+# Windows 变量展开失败产生的垃圾目录（字面量 %LOCALAPPDATA%）
+%LOCALAPPDATA%/
+
+# 本地部署环境文件（VM 主机/用户等连接配置，禁止入库；模板见 delivery/env.example）
+.env.deploy*
+
+# 会话临时诊断脚本
+.workbuddy/tmp/

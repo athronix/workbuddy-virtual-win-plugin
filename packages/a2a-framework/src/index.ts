@@ -20,7 +20,15 @@ export {
   TaskNotCancelableError,
   createProgressSink,
 } from './task-store.js';
-export type { InternalTask, ListFilter, ListResult, PendingApproval } from './task-store.js';
+export type {
+  ApprovalResolution,
+  ApprovalTimeoutInfo,
+  InternalTask,
+  ListFilter,
+  ListResult,
+  PendingApproval,
+  TaskStoreOptions,
+} from './task-store.js';
 
 export { A2AClient, A2AClientError } from './client.js';
 export type { SendMessageOptions } from './client.js';

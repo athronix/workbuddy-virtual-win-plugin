@@ -1,0 +1,48 @@
+sequenceDiagram
+    autonumber
+    actor U as 用户
+    participant WB as 宿主 AI Agent
+    participant H as host-a2a-bridge<br/>tools.ts
+    participant VM as VM 侧 A2A<br/>(零改动)
+    participant AUD as approval-audit.ts
+
+    Note over U,VM: 场景：L2「清理 C 盘」，由 A2A 委派执行
+    WB->>H: a2a.delegate(goal)
+    H->>VM: message/send（多步任务）
+    VM->>VM: 命中 L2 步骤 → 置 input-required
+    VM-->>H: status.message = [text(人话+续跑指引), data{type:approval-request, approvalId, capabilityId, risk, preview, impact}]
+    H->>H: extractApproval(message)
+    H->>H: 识别 data.type === 'approval-request'（F7）
+    H->>H: 透传 impact（数组逐项）/ preview（对象）——缺失则省略（不输出 undefined）
+    H->>H: summary = data.summary ?? text「说明：」行 ?? 首段
+    H->>AUD: hashApprovalPreview({capabilityId, risk, preview, impact}) + record(result='pending')
+    AUD-->>H: { approvalId ↔ traceId, previewHash }
+    H->>H: withA2aResumeHint(approval, taskId) → 固定串（无 __approvalId）
+    H-->>WB: structuredContent{ ok, taskId, state:'input-required', summary, approval{…7 槽字段…}, approvalAudit }
+    WB->>U: 宿主照填「审批卡片」（引用 approval-card.md 唯一模板；L2 版）
+    U-->>WB: 明确确认 / 拒绝 / 不回复 / 取消
+
+    alt 用户批准
+        WB->>H: a2a.approval.reply { taskId, approvalId, approved:true }
+        H->>VM: message/send（同 taskId + DataPart {approvalId, approved:true}）
+        VM->>VM: resolveApproval → 继续执行该 L2 步骤
+        VM-->>H: status-update（working）→ artifact
+        H->>AUD: record(result='approved')（同一 approvalId 更新）
+        H-->>WB: 任务继续 / 完成
+    else 用户拒绝
+        WB->>H: a2a.approval.reply { taskId, approvalId, approved:false }
+        H->>VM: message/send（approved:false）
+        VM-->>H: state='rejected'（未执行该 L2 步骤）
+        H->>AUD: record(result='rejected')
+        H-->>WB: summary=「任务已终止：审批被拒绝…未执行任何变更…」
+    else 宿主等待超时
+        H->>H: timeoutMs 到达 → timedOut=true（任务仍在 VM 挂起，审批未获批准）
+        H->>AUD: record(result='timeout')
+        H-->>WB: summary=「委派等待超时…审批未获批准，L2/L3 不会被执行…」（不含「默认批准」）
+    else 取消
+        WB->>H: a2a.task.cancel { taskId }
+        H->>VM: tasks/cancel
+        VM-->>H: state='canceled'
+        H->>AUD: record(result='canceled')
+        H-->>WB: summary=「任务已取消…未执行任何变更；已产出 artifact 仍可读取…」
+    end

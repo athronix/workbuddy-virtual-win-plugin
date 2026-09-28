@@ -234,8 +234,17 @@ describe('WorkBuddy 渲染器 · 产物', () => {
   test('SSH 隧道模式生成 http 回环地址并给出隧道提示', () => {
     const plan = new WorkBuddyRenderer().plan(plugin(), ctx);
     assert.equal(plan.jsonPatches[0].value.url, 'http://127.0.0.1:18443/mcp');
-    assert.ok(plan.warnings.some((w) => /ssh -f -N -L/.test(w)), '必须提示先建隧道');
-    assert.ok(plan.postActions.some((a) => /ssh -f -N -L/.test(a)));
+    // D7 修正：文案改为描述真实机制（常驻 tunnel-daemon + `winvm-plugin tunnel status/ensure`），
+    // 不再引导用户手工执行 `ssh -f -N -L`（与本项目机制矛盾）。断言已同步更新（陈旧单测修正）。
+    assert.ok(
+      plan.warnings.some((w) => /tunnel status/.test(w) && /tunnel ensure/.test(w)),
+      '必须提示确认/拉起常驻隧道（winvm-plugin tunnel status/ensure）',
+    );
+    assert.ok(
+      plan.warnings.some((w) => /无需手工建立系统 ssh 本地转发隧道/.test(w)),
+      '必须声明无需手工建系统 ssh 转发隧道',
+    );
+    assert.ok(plan.postActions.some((a) => /tunnel status/.test(a) || /tunnel ensure/.test(a)));
   });
 
   test('validate 校验产物合法性', () => {

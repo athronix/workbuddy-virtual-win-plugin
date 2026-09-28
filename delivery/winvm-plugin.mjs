@@ -18,6 +18,7 @@
  *   list dirs                            列出本侧关键安装目录
  *   server start|status|stop|restart     控制 VM 服务（host 经 SSH；vm 本地 schtasks）
  *   command <tool> [--args <json>]       直接调用一个 MCP 工具（host 经 SSH 隧道，vm 本地）
+ *   tunnel-mode [mcp|a2a|intelligent]    查看或设置通道模式（宿主侧通道选择策略，写 vm-conn.json）
  *   uninstall [--vm]                     卸载本侧（host 加 --vm 同时卸载 VM）
  *   update                               重新应用本侧部署（等价于重跑安装器）
  *   reinstall                            卸载后重新安装本侧
@@ -39,6 +40,7 @@ import {
   existsSync,
   readFileSync,
   writeFileSync,
+  rmSync,
   cpSync,
   readdirSync,
   statSync,
@@ -140,7 +142,27 @@ export function resolveVmConn({ argv = {}, env = {}, dotEnv = {}, persisted = {}
   // provider/cli 也持久化，供 uninstall --vm 等命令复用
   const provider = argv.vmProvider || env['WINVM_VM_PROVIDER'] || persisted.provider || '';
   const cli = argv.vmCli || env['WINVM_VM_CLI'] || persisted.cli || '';
-  return { host, user, sshPort, servicePort, provider, cli };
+  // 凭据（ssh2 后端需要）：argv --vm-key > env WINVM_VM_KEY > 持久化 vm-conn.json
+  const identityFile = argv.vmKey || env['WINVM_VM_KEY'] || persisted.identityFile || '';
+  const privateKey = persisted.privateKey || '';
+  const password = env['WINVM_VM_PASSWORD'] || persisted.password || '';
+  // tunnel-mode：同一优先级惯例（argv > env > persisted > 默认），附来源供 status 展示
+  const tunnel = resolveTunnelModeFromSources({ argv, env, persisted });
+  return { host, user, sshPort, servicePort, provider, cli, identityFile, privateKey, password, tunnelMode: tunnel.mode, tunnelModeSource: tunnel.source, ...(tunnel.warning ? { tunnelModeWarning: tunnel.warning } : {}) };
+}
+
+/**
+ * 默认 SSH 私钥探测链（与 setup.mjs 一致）：未显式提供任何凭据时，
+ * 探测 ~/.ssh 下默认私钥（ed25519 → ecdsa → rsa），返回首个存在的绝对路径。
+ * 使 command/server/health 等 ad-hoc 子命令无需手动传 --vm-key 即可建立进程内 ssh2 隧道。
+ */
+function probeDefaultSshKey() {
+  const candidates = ['id_ed25519', 'id_ecdsa', 'id_rsa'];
+  for (const name of candidates) {
+    const fp = join(homedir(), '.ssh', name);
+    if (existsSync(fp)) return fp;
+  }
+  return '';
 }
 
 function loadVmConn(argv) {
@@ -152,7 +174,125 @@ function loadVmConn(argv) {
   // 使宿主侧 health/server/command 无需每次传 --vm-host/--vm-user。
   const connFile = join(homedir(), '.workbuddy', 'winvm', 'vm-conn.json');
   const persisted = readJsonSafe(connFile) || {};
-  return resolveVmConn({ argv, env, dotEnv, persisted });
+
+  // 默认键探测链（与 setup.mjs 一致）：未显式提供任何凭据时，探测 ~/.ssh 下默认私钥，
+  // 注入为 argv.vmKey → resolveVmConn 映射为 identityFile，覆盖 command/server/health 等 ad-hoc 路径。
+  const a = { ...argv };
+  if (
+    !a.vmKey && !env['WINVM_VM_KEY'] && !persisted.identityFile &&
+    !persisted.privateKey && !env['WINVM_VM_PASSWORD'] && !persisted.password
+  ) {
+    const probed = probeDefaultSshKey();
+    if (probed) a.vmKey = probed;
+  }
+
+  return resolveVmConn({ argv: a, env, dotEnv, persisted });
+}
+
+/* ============================ tunnel-mode 通道模式 ============================ */
+
+/**
+ * tunnel-mode 全部合法取值（与 packages/core/src/constants.ts 的 TUNNEL_MODES 对齐）。
+ * ⚠ 内联而非 import '@winvm/core'：本文件部署到 ~/.workbuddy/plugins/cache/... 后
+ * 旁边没有 node_modules（部署缓存不含 workspace 链接），import 会直接崩。
+ * 修改此处时必须同步 core 常量（有单测锁定两侧一致）。
+ */
+const TUNNEL_MODES = ['mcp', 'a2a', 'intelligent'];
+const TUNNEL_MODE_DEFAULT = 'mcp';
+const ENV_TUNNEL_MODE = 'WINVM_TUNNEL_MODE';
+
+/**
+ * 纯函数：解析 tunnel-mode 原始值（与 packages/core/src/constants.ts 的
+ * resolveTunnelMode 同语义）。trim + 小写；空 → 默认 mcp；非法 → mcp + warning。
+ * @returns {{ mode: string, warning?: string }}
+ */
+export function resolveTunnelMode(raw) {
+  const v = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  if (!v) return { mode: TUNNEL_MODE_DEFAULT };
+  if (TUNNEL_MODES.includes(v)) return { mode: v };
+  return { mode: TUNNEL_MODE_DEFAULT, warning: `未知 tunnel-mode "${raw}"，回落 mcp（可用：${TUNNEL_MODES.join('/')}）` };
+}
+
+/**
+ * 纯函数：依据来源优先级解析 tunnel-mode（便于单测）。
+ * 优先级（高→低）：argv(--tunnel-mode) > 环境变量 WINVM_TUNNEL_MODE
+ *                > 部署期持久化 vm-conn.json 的 tunnelMode 字段 > 默认 'mcp'。
+ * 非法值一律回落 mcp（r.warning 携带告警文本，由调用方决定是否打印）。
+ * @returns {{ mode: string, source: 'flag'|'env'|'vm-conn'|'default', warning?: string }}
+ */
+export function resolveTunnelModeFromSources({ argv = {}, env = {}, persisted = {} } = {}) {
+  if (argv.tunnelMode !== undefined && argv.tunnelMode !== null && argv.tunnelMode !== '') {
+    const r = resolveTunnelMode(argv.tunnelMode);
+    return { mode: r.mode, source: 'flag', ...(r.warning ? { warning: r.warning } : {}) };
+  }
+  if (env[ENV_TUNNEL_MODE] !== undefined && env[ENV_TUNNEL_MODE] !== '') {
+    const r = resolveTunnelMode(env[ENV_TUNNEL_MODE]);
+    return { mode: r.mode, source: 'env', ...(r.warning ? { warning: r.warning } : {}) };
+  }
+  if (persisted.tunnelMode !== undefined && persisted.tunnelMode !== null && persisted.tunnelMode !== '') {
+    const r = resolveTunnelMode(persisted.tunnelMode);
+    return { mode: r.mode, source: 'vm-conn', ...(r.warning ? { warning: r.warning } : {}) };
+  }
+  return { mode: TUNNEL_MODE_DEFAULT, source: 'default' };
+}
+
+/** vm-conn.json 路径（部署期持久化配置，install-host.mjs 写入；tunnel-mode 也写回这里） */
+function vmConnFile() {
+  return join(homedir(), '.workbuddy', 'winvm', 'vm-conn.json');
+}
+
+/**
+ * 读当前 tunnel-mode（显示用）：来源优先级见 resolveTunnelModeFromSources。
+ * @returns {{ mode: string, source: 'flag'|'env'|'vm-conn'|'default', warning?: string }}
+ */
+function loadTunnelMode(argv = {}) {
+  const env = process.env;
+  const persisted = readJsonSafe(vmConnFile()) || {};
+  return resolveTunnelModeFromSources({ argv, env, persisted });
+}
+
+/**
+ * 将 tunnelMode 写回 vm-conn.json（读改写，只改 tunnelMode 一个键，保留其它字段）。
+ * 2 空格缩进，与 install-host.mjs 写入格式一致。
+ */
+function saveTunnelMode(mode) {
+  const file = vmConnFile();
+  const conn = readJsonSafe(file) || {};
+  conn.tunnelMode = mode;
+  writeFileSync(file, JSON.stringify(conn, null, 2) + '\n', 'utf8');
+}
+
+/**
+ * `winvm-plugin tunnel-mode [mode]` 子命令：
+ *   无参  → 显示当前模式 + 来源（flag/env/vm-conn/default）；
+ *   带参  → 校验合法后写回 vm-conn.json 的 tunnelMode 字段（只改这一个键）。
+ * 语义边界：本配置是「宿主侧通道选择策略」的事实源，供主控 skill 指引宿主 LLM
+ * 选择 MCP 直调或 A2A 委派连接器；不在代码层强制拦截工具调用（无法跨越连接器边界拦截）。
+ */
+function cmdTunnelMode(a) {
+  const cur = loadTunnelMode(a);
+  if (cur.warning) console.error(`⚠ ${cur.warning}`);
+
+  // 无参：显示当前模式与来源
+  if (a.tunnelModeArg === undefined) {
+    const sourceLabel = { flag: 'flag (--tunnel-mode)', env: `env (${ENV_TUNNEL_MODE})`, 'vm-conn': 'vm-conn.json', default: 'default（未配置，出厂默认）' }[cur.source];
+    console.log(`通道模式    : ${cur.mode}`);
+    console.log(`来源        : ${sourceLabel}`);
+    console.log('可用取值    : mcp（默认，MCP 直调）/ a2a（A2A 委派）/ intelligent（智能判断）');
+    console.log(`修改        : winvm-plugin tunnel-mode <mcp|a2a|intelligent>`);
+    return;
+  }
+
+  // 带参：校验 + 写回
+  const r = resolveTunnelMode(a.tunnelModeArg);
+  if (r.warning) {
+    console.error(`✗ ${r.warning}`);
+    process.exitCode = 1;
+    return;
+  }
+  saveTunnelMode(r.mode);
+  console.log(`✓ tunnel-mode 已设置为 ${r.mode}（写入 ${vmConnFile()} 的 tunnelMode 字段，其它字段保留）`);
+  console.log('生效方式：宿主 LLM 在下一次读取主控 skill 指引（或 env / CLI flag）时按新模式选择通道。');
 }
 
 /* ============================ HTTP（无外部依赖） ============================ */
@@ -210,11 +350,57 @@ function sshExec(vm, remoteCmd, timeoutMs = 60000) {
   return r.stdout;
 }
 
+/**
+ * D12：在 VM 上执行一段 **PowerShell 片段**（host→VM），规避 MSYS/Git-Bash 的 `/` 前缀参数改写。
+ *
+ * 根因：VM 的默认 SSH shell 是 MSYS Git-Bash，会把 `schtasks /Query` 中的 `/Query` 当作 POSIX 路径
+ * 改写成 `C:/Program Files/Git/Query` → schtasks 报「无效参数」→ 上层 catch 吞掉 → 假阴性。
+ * 因此 host→VM 一律改用 PowerShell 计划任务 cmdlet（参数为 `-Xxx` 破折号式，不受转换影响），
+ * 且片段内**不使用 `$` 变量**（防远端 shell 展开）、不使用 `/` 前缀参数 —— bash 与 cmd 均可移植。
+ *
+ * ⚠ 这是把 PS「内联经 ssh」执行（与本仓 install/uninstall 偏好的「推 .ps1 + `-File`」不同）：
+ * 仅用于**短小、无 `$`、无 `/` 前缀参数**的 cmdlet 片段；复杂脚本仍应走 .ps1 推送。
+ * 失败（非 0 且无 stdout）时抛错，由调用方兜底。
+ */
+function psRemote(vm, script, timeoutMs = 60000) {
+  return sshExec(vm, `powershell -NoProfile -NonInteractive -Command "${script}"`, timeoutMs);
+}
+
 /** 建立临时 SSH 隧道（localPort -> VM 127.0.0.1:servicePort），执行 fn(baseUrl) 后拆除 */
 async function withTunnel(vm, fn) {
   if (!vm.host || !vm.user) {
     throw new Error('缺少 VM 连接信息：请在仓库目录运行（读 .env）或传 --vm-host/--vm-user');
   }
+  const useSsh2 = process.platform === 'ohos' || process.platform === 'openharmony' || process.env['WINVM_TUNNEL_BACKEND'] === 'ssh2';
+  if (useSsh2) {
+    // OH 宿主 / 显式 ssh2 后端：进程内纯 JS 隧道（临时，fn 执行完即拆）。
+    const { establishSsh2Tunnel } = await import('./oh-tunnel.mjs');
+    const localPort = 18_443 + Math.floor(Math.random() * 1000);
+    const handle = await establishSsh2Tunnel({
+      vmHost: vm.host,
+      vmSshPort: vm.sshPort,
+      username: vm.user,
+      localBindHost: '127.0.0.1',
+      localBindPort: localPort,
+      remoteHost: '127.0.0.1',
+      remotePort: vm.servicePort,
+      identityFile: vm.identityFile || undefined,
+      privateKey: vm.privateKey || undefined,
+      password: vm.password || undefined,
+      keepaliveInterval: 30_000,
+      readyTimeoutMs: 15_000,
+    });
+    try {
+      return await fn(`http://127.0.0.1:${localPort}`);
+    } finally {
+      try {
+        await handle.stop();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  // —— 默认：系统 ssh 子进程（Windows / macOS 不变）——
   const localPort = 18_443 + Math.floor(Math.random() * 1000);
   const child = spawn(
     'ssh',
@@ -407,6 +593,11 @@ async function cmdCheck(side, vm) {
     checks.push(['A2A 委派桥 (connector:winvm-a2a)', a2aOk, `accounts: ${accounts.join(', ') || '(无)'}`]);
     checks.push(['插件缓存目录', isDir(p.pluginsCache), p.pluginsCache]);
     checks.push(['共享 Skills (connector-winvm)', isDir(p.skillsDir), p.skillsDir]);
+    // 常驻隧道（仅 OH/ssh2 后端有；win32/darwin 由系统 ssh 提供，跳过）
+    if (process.platform !== 'win32' && process.platform !== 'darwin') {
+      const st = await readTunnelStatus(vm.servicePort ?? 18443);
+      checks.push([`常驻隧道 (127.0.0.1:${vm.servicePort ?? 18443})`, st.state === 'RUNNING', st.state === 'RUNNING' ? `pid ${st.pid}（可连）` : st.state]);
+    }
 
     let allOk = true;
     for (const [name, ok, detail] of checks) {
@@ -629,33 +820,50 @@ async function cmdServer(side, vm, action) {
     return;
   }
 
-  const runOnVm = async (remoteCmd) => {
-    if (side === 'vm') {
-      const r = sh('powershell', ['-NoProfile', '-Command', remoteCmd], { stdio: 'inherit' });
-      return r.status;
-    }
-    return sshExec(vm, remoteCmd, 60000) ? 0 : 1;
-  };
-
   const task = side === 'vm' ? vmPaths().taskName : 'WinVMBridge.Service';
   const port = side === 'vm' ? vmPaths().servicePort : vm.servicePort;
 
+  // D12：host→VM 不再用 `schtasks /Xxx` —— VM 默认 shell 是 MSYS Git-Bash，会把 `/Xxx` 改写成
+  // Windows 路径（`/Query`→`C:/Program Files/Git/Query`）导致 schtasks 报无效参数（status 假阴性）。
+  // 统一改用 PowerShell 计划任务 cmdlet；片段内**无 `$`、无 `/` 前缀参数** → bash/cmd 均可移植。
+  const script = {
+    registered: `if (Get-ScheduledTask -TaskName '${task}' -ErrorAction SilentlyContinue) { Write-Output REGISTERED } else { Write-Output MISSING }`,
+    start: `Start-ScheduledTask -TaskName '${task}'`,
+    stop: `Stop-ScheduledTask -TaskName '${task}'`,
+    // 强杀残留端口进程（保留 restart 的「先停后起 + 强杀残留」语义）。用 `if (命令)` 作真值判断，
+    // 避免 `$` 变量；STOP 前先判有无监听，空集时不误报参数绑定错误。
+    killResidual:
+      `if (Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue) { ` +
+      `Stop-Process -Id (Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique) -Force -ErrorAction SilentlyContinue }`,
+    portProbe: `Test-NetConnection -ComputerName 127.0.0.1 -Port ${port} -InformationLevel Quiet`,
+  };
+
+  /** 在目标侧执行 PS 片段：VM 侧本机 spawn powershell；host 侧经 SSH（psRemote）。返回退出码。 */
+  const runPs = async (ps, inherit = side === 'vm') => {
+    if (side === 'vm') {
+      return sh('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { stdio: inherit ? 'inherit' : 'ignore' }).status;
+    }
+    try { psRemote(vm, ps); return 0; } catch { return 1; }
+  };
+
   if (action === 'status') {
-    const q = side === 'vm'
-      ? sh('schtasks', ['/Query', '/TN', task], { stdio: 'ignore' }).status === 0
-      : (() => { try { return sshExec(vm, `schtasks /Query /TN ${task}`).includes(task); } catch { return false; } })();
-    const listenCmd = `powershell -NoProfile -Command "Test-NetConnection -ComputerName 127.0.0.1 -Port ${port} -InformationLevel Quiet"`;
+    let q = false;
+    if (side === 'vm') {
+      q = sh('powershell', ['-NoProfile', '-NonInteractive', '-Command', script.registered]).stdout.includes('REGISTERED');
+    } else {
+      try { q = psRemote(vm, script.registered).includes('REGISTERED'); } catch { q = false; }
+    }
     const listening = side === 'vm'
       ? await isPortListening('127.0.0.1', port)
-      : (() => { try { return sshExec(vm, listenCmd).trim().toLowerCase() === 'true'; } catch { return false; } })();
+      : (() => { try { return psRemote(vm, script.portProbe).trim().toLowerCase() === 'true'; } catch { return false; } })();
     console.log(`计划任务 ${task} : ${q ? '已注册' : '未注册'}`);
     console.log(`服务端口 :${port} : ${listening ? '监听中 ✅' : '未监听'}`);
     return;
   }
 
   if (action === 'start') {
-    await runOnVm(`schtasks /run /tn ${task}`);
-    console.log(`已触发启动（schtasks /run /tn ${task}）`);
+    await runPs(script.start);
+    console.log(`已触发启动（Start-ScheduledTask -TaskName ${task}）`);
     if (side === 'vm') {
       let listening = false;
       for (let i = 0; i < 20; i++) {
@@ -669,21 +877,19 @@ async function cmdServer(side, vm, action) {
   }
 
   if (action === 'stop') {
-    await runOnVm(`schtasks /end /tn ${task}`);
-    console.log(`已请求停止（schtasks /end /tn ${task}）`);
+    await runPs(script.stop);
+    console.log(`已请求停止（Stop-ScheduledTask -TaskName ${task}）`);
     return;
   }
 
   if (action === 'restart') {
-    await runOnVm(`schtasks /end /tn ${task}`);
+    await runPs(script.stop);
     await new Promise((r) => setTimeout(r, 2000));
     // 强杀残留端口进程，确保新实例能绑定（避免 MultipleInstancesPolicy=IgnoreNew 拦截）
-    const killCmd = `powershell -NoProfile -Command "$p=(Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue).OwningProcess|Select-Object -Unique; if($p){Stop-Process -Id $p -Force -ErrorAction SilentlyContinue}"`;
-    if (side === 'vm') sh('powershell', ['-NoProfile', '-Command', `$p=(Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue).OwningProcess|Select-Object -Unique; if($p){Stop-Process -Id $p -Force -ErrorAction SilentlyContinue}`], { stdio: 'ignore' });
-    else try { sshExec(vm, killCmd); } catch { /* ignore */ }
+    await runPs(script.killResidual, false);
     await new Promise((r) => setTimeout(r, 1000));
-    await runOnVm(`schtasks /run /tn ${task}`);
-    console.log(`已重启（kill 残留 → schtasks /run /tn ${task}）`);
+    await runPs(script.start);
+    console.log(`已重启（Stop-ScheduledTask → kill 残留 → Start-ScheduledTask -TaskName ${task}）`);
     return;
   }
 }
@@ -786,10 +992,239 @@ function cmdReinstall(side, vm) {
   cmdUpdate(side, vm);
 }
 
+/* ============================ 常驻隧道（host 侧，CL-015 T12 / P0-02） ============================ */
+
+const TUNNEL_PIDFILE = () => join(homedir(), '.workbuddy', 'winvm', 'tunnel.pid');
+const TUNNEL_STATE = () => join(homedir(), '.workbuddy', 'winvm', 'tunnel.state.json');
+const TUNNEL_LOG = () => join(homedir(), '.workbuddy', 'winvm', 'tunnel.log');
+
+function isPidAlive(pid) {
+  if (!pid || typeof pid !== 'number') return false;
+  // /proc 语义：ESRCH=进程不存在（死）；EPERM/EACCES=进程存在但无权限信号（存活）。
+  try { process.kill(pid, 0); return true; } catch (e) { return e?.code !== 'ESRCH'; }
+}
+
+/**
+ * 读取隧道状态（pidfile + state + 端口探测），返回三态判定。
+ *
+ * D6-B（属主交叉校验）：健康判定**只**依据 pidfile 的进程存活（+ 端口可连）。
+ * `tunnel.state.json` 若其 `pid` 与 pidfile 的 `pid` 不一致，即判为**陈旧**（可能来自已退出 /
+ * 以临时 pidfile 启动的实例），仅作诊断展示，**绝不参与健康决策** ——
+ * 从而不会因陈旧 state 把健康隧道误判为 DEGRADED，也不会让 `ensure` 误重启健康隧道。
+ * @returns {{state:'RUNNING'|'DEGRADED'|'STOPPED', pid?:number, alive?:boolean, portOpen:boolean, localPort?:number, stateObj?:object, stateOwner?:number|null, ownerMatch:boolean, stateStale:boolean}}
+ */
+async function readTunnelStatus(localPort = 18443) {
+  const pidPath = TUNNEL_PIDFILE();
+  const pidObj = readJsonSafe(pidPath);
+  const stateObj = readJsonSafe(TUNNEL_STATE());
+  const portOpen = await isPortListening('127.0.0.1', localPort, 800);
+  const pid = pidObj?.pid;
+  const alive = pid ? isPidAlive(pid) : false;
+  const stateOwner = stateObj?.pid ?? null;
+  // 属主匹配：state 自报的 pid 必须与 pidfile 的 pid 一致，才算「本实例的状态」。
+  const ownerMatch = stateObj != null && pidObj != null && stateOwner === pid;
+  const stateStale = stateObj != null && !ownerMatch;
+  const base = { pid, alive, portOpen, localPort, stateObj, stateOwner, ownerMatch, stateStale };
+  // 进程存活 ∧ 端口可连 → 在线。**不因陈旧 state 而降级**。
+  if (alive && portOpen) {
+    // 仅当 state 确属本实例且明确报告未存活时才如实标注 DEGRADED；陈旧 state 一律忽略。
+    const freshDegraded = ownerMatch && stateObj.alive !== true;
+    return { ...base, state: freshDegraded ? 'DEGRADED' : 'RUNNING' };
+  }
+  // 进程存活但端口不通 → 运行中但不健康。
+  if (alive) return { ...base, state: 'DEGRADED' };
+  // 陈旧 pidfile：进程已不在 → STOPPED 并清理 pidfile（不动 state，避免误删诊断信息）。
+  if (pidObj && !alive) { try { rmSync(pidPath, { force: true }); } catch { /* ignore */ } }
+  return { ...base, state: 'STOPPED' };
+}
+
+/**
+ * 拉起常驻隧道守护进程（detached，父进程退出后仍存活）。
+ * @returns {Promise<number>} 0 = 已启动/已在运行（幂等）；1 = 启动失败
+ */
+async function spawnTunnelDaemon(vm, a) {
+  const daemonPath = join(__dirname, 'tunnel-daemon.mjs');
+  if (!existsSync(daemonPath)) {
+    console.error(`隧道守护进程不存在：${daemonPath}`);
+    return 1;
+  }
+  const localPort = Number(a.localPort ?? vm.servicePort ?? 18443);
+  const remotePort = Number(a.remotePort ?? a.vmPort ?? vm.servicePort ?? 18443);
+  const status = await readTunnelStatus(localPort);
+  if (status.state !== 'STOPPED') {
+    console.log(`隧道已在运行（pid ${status.pid}），未重复启动`);
+    return 0; // 幂等：不报错、不产生第二实例（B3/B8）
+  }
+  const args = [
+    daemonPath,
+    '--vm-host', vm.host,
+    '--vm-user', vm.user,
+    '--vm-ssh-port', String(vm.sshPort ?? 22),
+    '--local-port', String(localPort),
+    '--remote-port', String(remotePort),
+  ];
+  if (vm.identityFile) args.push('--key', vm.identityFile);
+  const env = { ...process.env };
+  if (vm.password) env['WINVM_VM_PASSWORD'] = vm.password; // 仅经环境变量，不落命令行/日志
+  try {
+    const child = spawn(process.execPath, args, {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      env,
+    });
+    child.unref(); // 父事件循环不因该子进程滞留；子进程自成进程组，父退出仍存活
+  } catch (e) {
+    console.error(`拉起隧道失败：${e.message}`);
+    return 1;
+  }
+  // 轮询端口可达（有界），确认守护进程已就绪。
+  const deadline = Date.now() + 20_000;
+  let open = false;
+  while (Date.now() < deadline) {
+    if (await isPortListening('127.0.0.1', localPort, 500)) { open = true; break; }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  if (!open) {
+    console.error('隧道启动超时（20s 内端口未就绪）。详见日志：' + TUNNEL_LOG());
+    return 1;
+  }
+  console.log(`隧道已启动：127.0.0.1:${localPort} → ${vm.user}@${vm.host}:${vm.sshPort ?? 22} → 127.0.0.1:${remotePort}`);
+  return 0;
+}
+
+/**
+ * 停止常驻隧道（读 pidfile → SIGTERM → 有界等待端口关闭 → 删 pidfile/state）。
+ * @returns {Promise<number>} 0 = 已停止/本就未运行（幂等）
+ */
+async function stopTunnelDaemon(localPort = 18443, force = false) {
+  const pidPath = TUNNEL_PIDFILE();
+  const pidObj = readJsonSafe(pidPath);
+  const pid = pidObj?.pid;
+  if (!pid || !isPidAlive(pid)) {
+    console.log('隧道未运行（无需停止）');
+    try { rmSync(pidPath, { force: true }); rmSync(TUNNEL_STATE(), { force: true }); } catch { /* ignore */ }
+    return 0; // 幂等
+  }
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch {
+    if (!force) { console.error('优雅停止失败，可用 --force 强杀'); return 1; }
+  }
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (!isPidAlive(pid)) break;
+    if (force) { try { process.kill(pid, 'SIGKILL'); } catch { /* ignore */ } }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  try { rmSync(pidPath, { force: true }); rmSync(TUNNEL_STATE(), { force: true }); } catch { /* ignore */ }
+  console.log('隧道已停止');
+  return 0;
+}
+
+/**
+ * tunnel 子命令：start | ensure | restart | stop | status。
+ * 守卫：win32/darwin 不 spawn 任何进程（隧道后端仍系统 ssh），仅打印说明并 exit 0（NFR-2/B9）。
+ *
+ * ensure 与 start 等价：spawnTunnelDaemon 内部已按状态幂等（已在运行则跳过，不产生第二实例），
+ * 故 ensure 专用于「WorkBuddy 启动时自动拉起」场景——可安全重复调用，永不重复起进程。
+ * ensure 额外保证「在线健康」：RUNNING 直接跳过；DEGRADED 自动重启一次；STOPPED 才拉起。
+ */
+async function cmdTunnel(side, vm, a) {
+  if (side !== 'host') {
+    console.error('tunnel 仅用于宿主机侧（host）。VM 侧无需常驻隧道。');
+    process.exitCode = 1;
+    return;
+  }
+  if (process.platform === 'win32' || process.platform === 'darwin') {
+    console.log('当前为 Windows/macOS 宿主，隧道由系统 ssh 提供，无需（也不会）拉起常驻进程。');
+    return;
+  }
+  const action = a.tunnelAction ?? 'status';
+  const localPort = Number(a.localPort ?? vm.servicePort ?? 18443);
+  if (!['start', 'ensure', 'stop', 'restart', 'status'].includes(action)) {
+    console.error(`未知 tunnel 动作：${action}（支持 start / ensure / status / stop / restart）`);
+    process.exitCode = 1;
+    return;
+  }
+  if (action === 'restart') {
+    // 强制重启：先停（必要时强杀）再启动。用于隧道「在线但不健康」的兜底恢复。
+    const st = await readTunnelStatus(localPort);
+    if (st.pid && st.alive) {
+      console.log(`重启隧道（当前 pid ${st.pid}，先停后起）…`);
+      await stopTunnelDaemon(localPort, true);
+      await new Promise((r) => setTimeout(r, 600));
+    }
+    process.exitCode = await spawnTunnelDaemon(vm, a);
+    return;
+  }
+  if (action === 'start') {
+    process.exitCode = await spawnTunnelDaemon(vm, a);
+    return;
+  }
+  if (action === 'ensure') {
+    // 幂等「确保在线健康」：RUNNING → 直接返回 0（不产生第二实例）；
+    // DEGRADED（进程存活但 health 判定不通过）→ 重启一次以恢复；
+    // STOPPED → 拉起。任意重复调用都收敛到「隧道在线健康」，故对（重）安装/启动钩子安全。
+    const st = await readTunnelStatus(localPort);
+    if (st.state === 'RUNNING') {
+      console.log(`隧道已在线健康（pid ${st.pid}），无需拉起`);
+      return; // 退出码默认 0（幂等跳过）
+    }
+    if (st.state === 'DEGRADED') {
+      console.log(`隧道不健康（pid ${st.pid}，DEGRADED），执行一次重启以恢复…`);
+      await stopTunnelDaemon(localPort, true);
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    process.exitCode = await spawnTunnelDaemon(vm, a);
+    return;
+  }
+  if (action === 'stop') {
+    process.exitCode = await stopTunnelDaemon(localPort, a.force);
+    return;
+  }
+  // status（默认）
+  const st = await readTunnelStatus(localPort);
+  const out = {
+    state: st.state,
+    healthy: st.state === 'RUNNING',
+    localHost: '127.0.0.1',
+    localPort: st.localPort ?? localPort,
+    vm: { host: vm.host, user: vm.user, sshPort: vm.sshPort ?? 22, servicePort: vm.servicePort ?? 18443 },
+    pid: st.pid ?? null,
+    lastEvent: st.stateObj?.lastEvent ?? null,
+    // D6-B 诊断字段（不误导）：state 属主 vs pidfile 是否一致；陈旧 state 不参与健康判定。
+    stateOwner: st.stateOwner ?? null,
+    ownerMatch: st.ownerMatch ?? false,
+    stateStale: st.stateStale ?? false,
+    pidfile: TUNNEL_PIDFILE(),
+    logPath: TUNNEL_LOG(),
+  };
+  if (a.json) {
+    console.log(JSON.stringify(out, null, 2));
+  } else {
+    const human = { RUNNING: '运行中（可连）', DEGRADED: '运行中（不健康，重连中）', STOPPED: '未运行' }[st.state];
+    console.log('隧道状态 : ' + human);
+    console.log(`监听     : 127.0.0.1:${out.localPort}`);
+    console.log(`目标 VM  : ${out.vm.user}@${out.vm.host}:${out.vm.sshPort} → 127.0.0.1:${out.vm.servicePort}`);
+    // 通道模式：宿主侧通道选择策略（MCP 直调 / A2A 委派 / 智能判断），事实源见 winvm-plugin tunnel-mode
+    console.log(`通道模式  : ${vm.tunnelMode ?? 'mcp'}（来源：${vm.tunnelModeSource ?? 'default'}）`);
+    if (st.pid) console.log(`进程     : pid ${st.pid}（独立进程组，终端关闭后仍存活）`);
+    if (st.stateStale) {
+      console.log(`诊断     : ⚠ tunnel.state.json 属主 pid ${st.stateOwner} ≠ pidfile pid ${st.pid}（陈旧，已忽略，不参与健康判定）`);
+    } else if (st.ownerMatch) {
+      console.log(`诊断     : tunnel.state.json 与 pidfile 属主一致（pid ${st.pid}）`);
+    }
+    console.log(`台账     : ${out.pidfile}`);
+    console.log(`日志     : ${out.logPath}`);
+  }
+  process.exitCode = st.state === 'RUNNING' ? 0 : st.state === 'DEGRADED' ? 4 : 3;
+}
+
 /* ============================ 参数解析 ============================ */
 
 function parseArgs(argv) {
-  const out = { side: undefined, sub: undefined, subArg: undefined, tool: undefined, args: undefined, json: false, vmHost: undefined, vmUser: undefined, vmSshPort: undefined, vmPort: undefined, vmProvider: undefined, vmCli: undefined, vm: false };
+  const out = { side: undefined, sub: undefined, subArg: undefined, tool: undefined, args: undefined, json: false, vmHost: undefined, vmUser: undefined, vmSshPort: undefined, vmPort: undefined, vmProvider: undefined, vmCli: undefined, vmKey: undefined, vm: false, tunnelAction: undefined, localPort: undefined, remotePort: undefined, foreground: false, force: false, tunnelMode: undefined, tunnelModeArg: undefined };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
@@ -801,12 +1236,20 @@ function parseArgs(argv) {
       case '--vm-port': out.vmPort = argv[++i]; break;
       case '--vm-provider': out.vmProvider = argv[++i]; break;
       case '--vm-cli': out.vmCli = argv[++i]; break;
+      case '--vm-key': out.vmKey = argv[++i]; break;
+      case '--tunnel-mode': out.tunnelMode = argv[++i]; break;
       case '--vm': out.vm = true; break;
+      case '--local-port': out.localPort = Number(argv[++i]); break;
+      case '--remote-port': out.remotePort = Number(argv[++i]); break;
+      case '--foreground': out.foreground = true; break;
+      case '--force': out.force = true; break;
       case '--args': out.args = argv[++i]; break;
       default:
         if (!out.sub) out.sub = a;
         else if (out.sub === 'list' && !out.subArg) out.subArg = a;
         else if (out.sub === 'server' && !out.subArg) out.subArg = a;
+        else if (out.sub === 'tunnel' && !out.tunnelAction) out.tunnelAction = a;
+        else if (out.sub === 'tunnel-mode' && !out.tunnelModeArg) out.tunnelModeArg = a;
         else if (out.sub === 'command' && !out.tool) out.tool = a;
         break;
     }
@@ -828,6 +1271,11 @@ WinVM Bridge —— 插件管理命令 winvm-plugin
   winvm-plugin list skills|mcp-servers|mcp-tools|dirs   [--json]
   winvm-plugin server start|status|stop|restart
   winvm-plugin command <tool> [--args '<json>']
+  winvm-plugin tunnel start|ensure|status|stop|restart [--local-port 18443] [--remote-port 18443] [--force]
+  winvm-plugin tunnel-mode [mcp|a2a|intelligent]
+                                       # 无参=显示当前通道模式与来源；带参=写回 vm-conn.json
+                                       # 通道模式：宿主侧通道选择策略 —— mcp（默认，MCP 直调）/
+                                       # a2a（A2A 委派）/ intelligent（按任务特征智能判断）
   winvm-plugin uninstall [--vm]          # host 加 --vm 同时卸载 VM
   winvm-plugin update
   winvm-plugin reinstall
@@ -837,6 +1285,10 @@ Host 侧需要 VM 连接（server/health/command 走 SSH）：
   其次环境变量 WINVM_VM_*，再次从部署期持久化配置 ~/.workbuddy/winvm/vm-conn.json，
   最后从 .env（VM_HOST/VM_USER/VM_SSH_PORT/WINVM_SERVICE_PORT）读取。
   （vm-conn.json 由宿主安装器 install-host.mjs 在部署时自动写入，故通常无需手动指定。）
+
+通道模式（tunnel-mode）优先级：--tunnel-mode <mode> > 环境变量 WINVM_TUNNEL_MODE >
+  vm-conn.json 的 tunnelMode 字段 > 默认 mcp。该配置指引宿主 Agent 在 MCP 直调
+  （connector:winvm）与 A2A 委派（connector:winvm-a2a）之间如何选择；详细语义见主控 skill。
 
 示例：
   # 宿主机
@@ -869,6 +1321,12 @@ async function main() {
       break;
     case 'list':
       await cmdList(side, vm, a.subArg, a.json);
+      break;
+    case 'tunnel':
+      await cmdTunnel(side, vm, a);
+      break;
+    case 'tunnel-mode':
+      cmdTunnelMode(a);
       break;
     case 'server':
       await cmdServer(side, vm, a.subArg);

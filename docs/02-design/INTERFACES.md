@@ -204,6 +204,8 @@ submitted → working → input-required → working → completed
 
 **审批闸映射到 `input-required`**：需要人工确认时，任务置 `input-required` 并在 `status.message` 中给出 dry-run 预览与 `data` part（结构化影响清单）。宿主确认后发 `message/send` 带同一 `taskId` 继续。
 
+> **宿主桥义务**：宿主侧 A2A 桥（`packages/host-a2a-bridge`）必须**原样透传** VM 下发的 `preview` 与 `impact`（不得丢弃），并**按通道**给出正确的续跑提示 —— A2A 用 `a2a.approval.reply { taskId, approvalId, approved }`，**不得使用 MCP 通道的 `__approvalId`**。
+
 ### 3.6 Artifact 约定（破除"委派黑盒"，NFR-509）
 
 `runGoal` 必须产出 artifact：

@@ -63,13 +63,21 @@ describe('buildTaskXml · 隐藏窗口启动器', () => {
     assert.match(xml, /-ExecutionPolicy\s+Bypass/, '避免受限执行策略阻断启动器');
   });
 
-  test('ps1 以 Start-Process -WindowStyle Hidden 拉起 node 并 -Wait', async () => {
+  test('ps1 以 Start-Process -WindowStyle Hidden -PassThru 拉起 node 并 WaitForExit', async () => {
     const { ps1 } = await generate();
     assert.match(ps1, /Start-Process\s+-WindowStyle\s+Hidden/);
     assert.match(ps1, /-FilePath\s+\$nodeExe/);
     assert.match(ps1, /-ArgumentList\s+\$cliArgs/);
     assert.match(ps1, /-WorkingDirectory\s+\$workDir/);
-    assert.match(ps1, /-Wait\b/, '-Wait 让任务在服务存活期间保持 Running（/End 可终止、崩溃可重启）');
+    // 现实现：以 -PassThru 捕获 node 子进程句柄，再显式 WaitForExit() ——
+    // 服务存活期间任务保持 Running（schtasks /End 可终止、node 崩溃可 RestartOnFailure）；
+    // 脚本被终止时 finally 兜底 Kill 子进程，避免孤儿残留占端口。
+    assert.match(ps1, /-PassThru\b/, '-PassThru 捕获 node 子进程句柄');
+    assert.match(
+      ps1,
+      /\$nodeProc\.WaitForExit\(\)/,
+      'WaitForExit() 让任务在服务存活期间保持 Running（/End 可终止、崩溃可重启）',
+    );
   });
 
   test('node 参数原样进 ps1（含带双引号的 cli 与配置路径）', async () => {

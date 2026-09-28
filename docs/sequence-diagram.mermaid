@@ -1,0 +1,39 @@
+%% CL-018 C1 委派链 + 降级分支（sequence diagram）
+%% 对应 docs/changes/CL-018/TECHNICAL-SOLUTION.md §5
+sequenceDiagram
+  autonumber
+  participant Host as 宿主 Agent
+  participant Br as host-a2a-bridge (stdio MCP)
+  participant Svc as vm-service /a2a
+  participant Prov as WorkbuddyLlmProvider
+  participant CB as CliLlmBridge
+  participant Sess as PersistentCliSession
+  participant CLI as codebuddy 常驻子进程
+  participant PS as ps-bridge /mcp
+
+  Host->>Br: a2a.delegate {goal, timeoutMs}
+  Br->>Svc: A2A message/stream (SSE)
+  Svc->>Prov: runGoal(goal, sink)
+  Prov->>CB: runGoal(input, sink)
+  CB->>Sess: ensureReady(input)
+  alt 会话未启动（首次）
+    Sess->>CLI: spawn(-p --input-format stream-json --output-format stream-json --session-id S --mcp-config f --strict-mcp-config --add-dir out)
+    CLI-->>Sess: system/init  （冷启动≈16–25s，仅此一次）
+  else 已就绪
+    Sess-->>CB: ready（复用同一 PID/S）
+  end
+  CB->>Sess: runTurn(prompt)
+  Sess->>CLI: stdin {"type":"user","message":{...}}
+  CLI->>PS: (经 --mcp-config) 调能力 /mcp
+  PS-->>CLI: 能力结果
+  CLI-->>Sess: stream-json: assistant / result
+  Sess-->>CB: TurnResult{ok,text}
+  CB-->>Prov: sink.onStatus / sink.onArtifact（增量进度）
+  Prov-->>Svc: progress
+  Svc-->>Br: SSE status/artifact
+  Br-->>Host: MCP progress / artifacts
+
+  Note over CB,Sess: ── 降级分支（AC1.5） ──
+  CB->>Sess: ensureReady 失败 / 60s 无 init / 进程退出
+  CB->>CB: runOneShot(input, sink) 单次 -p 冷启动
+  CB-->>Prov: 结果语义不变，summary 标注「已降级」

@@ -29,6 +29,10 @@ riskProfile:
 
 # Windows 应用生产操作（winvm-app-operation）
 
+> **前置（隧道在线健康）**：任何工具调用前先确保隧道在线健康 ——
+> 运行 `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin tunnel ensure`（幂等；不健康自动重启）→ 再 `… health` 需 `ok:true`（**部署态命令，任意 cwd 可用**）。
+> 详见 [`winvm-orchestrator`](../winvm-orchestrator/SKILL.md) §前置检查：tunnel 在线健康。
+
 你负责在 Windows 虚拟机里**操作桌面软件把生产任务完成**。你不是"应用管理员"
 （那归 `winvm-app-manager`，只管安装/卸载/启动），你是"生产工"——用软件把素材变成产物。
 
@@ -145,7 +149,40 @@ V1 默认 VM Agent 是**确定性执行器**（`adapter-agent-workbuddy`，`kind
 > 简言之：**确定性 V1 解决"已知步骤的生产"；开放/创意类生产靠升级到 LLM VM Agent。**
 > 两者共用同一套 `appops` 能力与 Skill，只是"谁来规划步骤"不同。
 
+## 工具契约与降级语义（重要）
+
+### `appops.cli.invoke` 参数契约
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `app` | 是 | 选择可执行文件：`ffmpeg` / `magick` / `soffice` / `pandoc` / `node` / `python` / `custom`（决定用哪个 exe 与套用哪套安全校验） |
+| `command` | 是 | **完整命令行**。可含可执行名——含时自动**剥离前缀**再与 `arguments` 拼接 |
+| `arguments` | 否 | 与 `command` 拼接的附加参数（多用于「app=exe + arguments」写法） |
+| `workingDirectory` | 否 | 子进程工作目录 |
+| `outputDirectory` | 否 | 输出目录（受策略白名单约束，见下） |
+
+> ⚠ **不要只填 `app` 而不给 `command`**：那会以**零参数**启动（`node.exe`/`python.exe` 会进入 REPL）
+> 并挂起整条 ps-bridge —— 该用法会被拦截并返回 `INVALID_ARGUMENT`。
+> 子进程已强制：stdin 立即关闭（不吃桥的管道）、独立超时（默认 120s，超限 **kill 进程树**并返回 `TIMEOUT`）。
+
+### 产物目录（统一）
+
+**所有 `appops` 产物一律写 `C:\WinVMWorkspace\out`**（或用 `%USERPROFILE%\WinVMWorkspace\out`，二者都在白名单内）。
+`appops.cli.invoke` 的输出目录白名单即 `C:\WinVMWorkspace\out`、`%USERPROFILE%\WinVMWorkspace\out`；越界会被策略拒绝。
+
+### LLM 委派降级语义
+
+经 A2A 委派时，若 VM 内 **LLM 运行时不可用**（未安装 / **未登录** / 非零退出且无产物），
+provider 会**降级为确定性执行器**继续尝试完成目标，并在 `summary` 中**明确标注「已降级为确定性执行」**
+——**不等于**「LLM 已完成」。看到该标注时：
+
+- 目标可由预置工作流/模板覆盖 → 任务仍会完成，按 `steps` 与产物核对即可；
+- 确定性执行器也无模板（返回 `UNSUPPORTED_GOAL`）→ 才是**真正失败**，需登录/安装 LLM 运行时，或改走 MCP 直调。
+- 另有「桥自愈」场景：若报 `PROVIDER_UNAVAILABLE`，桥会**自动重建** ps-bridge，可**有界退避重试**（至多 1–2 次）。
+
 ## 高危清单（L2/L3，强制动作）
+
+> 审批卡片：统一模板见 [`../winvm-orchestrator/approval-card.md`](../winvm-orchestrator/approval-card.md)（§审批卡片模板 · 唯一正文；本文件不复制正文）
 
 | 风险 | 典型操作 | 强制动作 |
 |---|---|---|
@@ -158,6 +195,20 @@ V1 默认 VM Agent 是**确定性执行器**（`adapter-agent-workbuddy`，`kind
 - **删除默认进回收站**：清理中间产物用 `storage.file.delete`（回收站优先），不永久删。
 - **路径白名单**：`appops.cli.invoke` / `workflow.run` 的输出目录受 `pathAllowlist`
   约束（`C:\WinVMWorkspace`、`%USERPROFILE%\WinVMWorkspace`），越界会被策略拒绝。
+
+## 入参契约错误处理（`INVALID_PARAMS` / `INVALID_ARGUMENT`）
+
+调用本域工具若返回 `error.code == "INVALID_PARAMS"` 且 `error.reason == "INVALID_ARGUMENT"`，
+说明**入参不符合能力契约**（参数名写错 / 漏传必填 / 取值非法），由 VM 服务在发起 PowerShell **之前**拦截，
+**不产生桥往返**（毫秒级返回）。
+
+- **不重试**（`retryable=false`）：参数不变，重试必然再次失败。
+- **看 `error.details`**：`missing`（缺失的必填）、`unknown`（不支持的参数名）、`allowed`（该能力可用参数）、
+  `invalid`（已提供但取值非法的键，含 `expected`/`got`）；
+  按 `error.message` 中的「该能力可用参数：…」改正参数后**再调用**。
+- **先查 `inputSchema`**：`tools/list` 中该工具的 `inputSchema.required`（必填）与
+  `inputSchema.properties`（可用参数）即**权威契约**，调用前先比对可避免此类错误。
+- 本域高频：`appops.cli.invoke` 必填 **`app` 与 `command`**；`appops.workflow.run` 必填 **`workflow`**。
 
 ## 已知陷阱
 

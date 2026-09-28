@@ -159,30 +159,36 @@ async function selfTest(config: ServiceConfig): Promise<void> {
   }
 
   // 3. ps-bridge 模块加载（握手失败即说明某 psmod/*.ps1 有语法/加载错误）
-  const { bridge } = createWindowsRuntime();
-  await bridge.start();
-  process.stdout.write('  ps-bridge 已启动，模块加载正常\n');
-  try {
-    const modules = [...new Set(WINDOWS_CAPABILITIES.map((c) => c.implementation.module))];
-    for (const mod of modules) {
-      const probe = WINDOWS_CAPABILITIES.find(
-        (c) => c.implementation.module === mod && c.risk === 'L0' && !c.requiresSession,
-      );
-      if (!probe) {
-        process.stdout.write(`  · 模块 ${mod}：无 L0 无会话探针，跳过\n`);
-        continue;
-      }
-      try {
-        await bridge.call(mod, probe.implementation.function, {}, 15_000);
-        process.stdout.write(`  · 模块 ${mod}：探针 ${probe.implementation.function} OK\n`);
-      } catch (e) {
-        process.stdout.write(
-          `  · 模块 ${mod}：探针警告（${(e as Error).message}）—— 多为环境相关，非模块加载错误\n`,
+  //    ⚠️ 仅 Windows / VM 侧执行：非 Windows 宿主本机无 PowerShell，且能力均在 VM 上执行，
+  //       宿主无需也不应尝试启动 ps-bridge（此前在非 Windows 上会 spawn('pwsh') 直接 ENOENT）。
+  if (process.platform !== 'win32') {
+    process.stdout.write('  ps-bridge：非 Windows 宿主，跳过（PowerShell 能力在 VM 上执行）\n');
+  } else {
+    const { bridge } = createWindowsRuntime();
+    await bridge.start();
+    process.stdout.write('  ps-bridge 已启动，模块加载正常\n');
+    try {
+      const modules = [...new Set(WINDOWS_CAPABILITIES.map((c) => c.implementation.module))];
+      for (const mod of modules) {
+        const probe = WINDOWS_CAPABILITIES.find(
+          (c) => c.implementation.module === mod && c.risk === 'L0' && !c.requiresSession,
         );
+        if (!probe) {
+          process.stdout.write(`  · 模块 ${mod}：无 L0 无会话探针，跳过\n`);
+          continue;
+        }
+        try {
+          await bridge.call(mod, probe.implementation.function, {}, 15_000);
+          process.stdout.write(`  · 模块 ${mod}：探针 ${probe.implementation.function} OK\n`);
+        } catch (e) {
+          process.stdout.write(
+            `  · 模块 ${mod}：探针警告（${(e as Error).message}）—— 多为环境相关，非模块加载错误\n`,
+          );
+        }
       }
+    } finally {
+      await bridge.stop();
     }
-  } finally {
-    await bridge.stop();
   }
   process.stdout.write('自检通过 ✅\n');
 }

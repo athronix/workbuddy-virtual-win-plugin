@@ -10,7 +10,7 @@
 import { pathToFileURL } from 'node:url';
 
 import { DEFAULT_LOCAL_PORT, type RiskLevel, type TransportDecl } from '@winvm/contracts';
-import { NullLogger } from '@winvm/core';
+import { A2A_TIMEOUT_MS_DEFAULT, ENV_A2A_TIMEOUT_MS, NullLogger, resolveA2aTimeoutMs } from '@winvm/core';
 import { McpServer } from '@winvm/mcp-framework';
 
 import { createLazyClientProvider } from './client.js';
@@ -38,12 +38,14 @@ function usage(): string {
     '选项：',
     `  --endpoint <url>   VM 侧服务基址（默认 http://127.0.0.1:${DEFAULT_LOCAL_PORT}）`,
     '  --a2a-path <path>  A2A 端点路径（默认 /a2a）',
-    '  --timeout <ms>     单次委派等待上限（默认 600000）',
+    `  --timeout <ms>     单次委派等待上限（优先级：--timeout > 环境变量 ${ENV_A2A_TIMEOUT_MS} > 默认 ${A2A_TIMEOUT_MS_DEFAULT}）`,
     '  --max-risk <L>     默认最高风险：L0/L1/L2/L3（默认 L1）',
     '  --token-env <name> bearer token 环境变量名（默认 WINVM_BEARER_TOKEN）',
     '  -h, --help         显示本帮助',
     '',
     '说明：本进程由宿主 MCP 连接器以 stdio 方式拉起，stdout 仅输出 JSON-RPC。',
+    `      委派超时默认 ${A2A_TIMEOUT_MS_DEFAULT}ms（≥150s，不得下调）：VM 内 LLM 运行时首次委派`,
+    '      需全额进程级冷启动（真机实测 75–107s），超时属**正常冷启动窗口**而非故障。',
     '',
   ].join('\n');
 }
@@ -52,7 +54,9 @@ function parseArgs(argv: readonly string[]): CliArgs {
   const out: CliArgs = {
     endpoint: `http://127.0.0.1:${DEFAULT_LOCAL_PORT}`,
     a2aPath: '/a2a',
-    timeoutMs: 600_000,
+    // CL-018 C2：优先级 `--timeout`(CLI) > env `WINVM_A2A_TIMEOUT_MS` > 默认 600000。
+    // 先用 env（或默认）打底，`--timeout` 若显式给出再覆盖（见下）。
+    timeoutMs: resolveA2aTimeoutMs(process.env),
     maxRisk: 'L1',
     tokenEnv: '',
     help: false,
@@ -67,7 +71,7 @@ function parseArgs(argv: readonly string[]): CliArgs {
         break;
       case '--timeout': {
         const n = Number(argv[++i]);
-        if (Number.isFinite(n) && n > 0) out.timeoutMs = n;
+        if (Number.isFinite(n) && n > 0) out.timeoutMs = n; // CLI 显式 → 最高优先级
         break;
       }
       case '--max-risk': {

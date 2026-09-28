@@ -29,7 +29,7 @@ export type { StdioChannelOptions } from './transport/stdio-channel.js';
 export { CapabilityRegistry, DuplicateCapabilityError } from './registry/capability-registry.js';
 
 /* ------------------------------ 策略引擎 ------------------------------ */
-export { CorePolicyEngine, globToRegex, collectStringValues, looksLikePath, looksLikeRegistryPath, normalizePath } from './policy/engine.js';
+export { CorePolicyEngine, globToRegex, collectStringValues, looksLikePath, looksLikeRegistryPath, normalizePath, normalizeRegistryPath } from './policy/engine.js';
 export type { EvaluateInput, PolicyEngineOptions, StringValue } from './policy/engine.js';
 export { DEFAULT_POLICY, mergePolicy } from './policy/defaults.js';
 export type { PolicyConfig } from './policy/defaults.js';
@@ -81,9 +81,21 @@ export type {
   ConfigIssues,
 } from './config/index.js';
 
+/* ------------------------------ 常量（CL-018 共享事实来源） ------------------------------ */
+export * from './constants.js';
+
 /* ------------------------------ 日志 ------------------------------ */
-export { ConsoleLogger, NullLogger } from './logger.js';
+export {
+  ConsoleLogger,
+  NullLogger,
+  redactSecrets,
+  filterMetaByAllowlist,
+  DEFAULT_LOG_META_ALLOWLIST,
+  REDACTED,
+} from './logger.js';
 export type { LogLevel, LoggerOptions } from './logger.js';
+export { FileLogger, RotatingFileSink, createFileLogger } from './file-logger.js';
+export type { FileLoggerOptions, RotatingFileSinkOptions, LoggingStatus } from './file-logger.js';
 
 /* ------------------------------ trace ------------------------------ */
 import { randomUUID } from 'node:crypto';

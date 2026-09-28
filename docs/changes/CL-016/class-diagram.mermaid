@@ -1,0 +1,126 @@
+classDiagram
+    %% ── 契约（packages/contracts · 本轮零改动，只读引用）──
+    class ApprovalRequest {
+        <<interface · contracts/bridge.ts · 不改>>
+        +approvalId string
+        +capabilityId CapabilityId
+        +risk RiskLevel
+        +summary string
+        +preview Record~string,unknown~
+        +impact readonly string[]
+    }
+    class AuditApproval {
+        <<interface · contracts/audit.ts · 不改>>
+        +approvalId string
+        +approvedBy string
+        +approvedAt string
+        +previewHash string
+    }
+
+    %% ── VM 侧（packages/a2a-framework · 本轮零改动）──
+    class TaskStore {
+        <<task-store.ts · 不改>>
+        +approvalMessage(id, req) A2A.Message
+        +resolveApproval(id, approvalId, approved) boolean
+    }
+    class ApprovalDataPart {
+        <<A2A data part · VM 下发>>
+        +type 'approval-request'
+        +approvalId string
+        +capabilityId string
+        +risk RiskLevel
+        +preview Record~string,unknown~
+        +impact string[]
+    }
+
+    %% ── 宿主桥（本轮主战场）──
+    class ExtractedApproval {
+        <<新扩展 · host-a2a-bridge/tools.ts>>
+        +approvalId string
+        +message string
+        +risk RiskLevel
+        +capabilityId string
+        +kind 'approval-request' optional
+        +summary string optional
+        +impact readonly string[] optional
+        +preview Record~string,unknown~ optional
+        +resumeHint string optional
+    }
+    class extractApproval {
+        <<function · tools.ts>>
+        +extractApproval(message) ExtractedApproval
+        +buildA2aResumeHint(approvalId, taskId) string
+        +withA2aResumeHint(a, taskId) ExtractedApproval
+    }
+    class TerminationText {
+        <<const · tools.ts>>
+        +rejected string
+        +canceled string
+        +timeout(s) string
+    }
+    class HostApprovalAudit {
+        <<new · approval-audit.ts>>
+        +approvalId string
+        +traceId string
+        +channel 'mcp' | 'a2a'
+        +capabilityId string optional
+        +risk RiskLevel optional
+        +previewHash string
+        +result Result4State
+        +at string
+    }
+    class approvalAudit {
+        <<module · approval-audit.ts>>
+        +canonicalJson(v) string
+        +hashApprovalPreview(input) string
+        +recordHostApprovalAudit(rec) HostApprovalAudit
+        +lookupByApprovalId(approvalId) HostApprovalAudit
+        +lookupByTraceId(traceId) HostApprovalAudit[]
+    }
+    class Result4State {
+        <<union>>
+        pending
+        approved
+        rejected
+        timeout
+        canceled
+    }
+
+    %% ── Skill 文档（唯一模板 + 引用）──
+    class ApprovalCardDoc {
+        <<new · skills/winvm-orchestrator/approval-card.md>>
+        +L2 卡片
+        +L3 卡片
+        +L3 阻断态
+        +槽位↔字段对照表
+        +可逆性判定规则
+        +不弹卡清单
+        +填充红线
+        +哨兵 APPROVAL-CARD-TEMPLATE
+    }
+    class SkillOrchestrator {
+        <<引用 · winvm-orchestrator/SKILL.md>>
+        +引用行 ./approval-card.md
+    }
+    class SkillDomain {
+        <<引用 ×5 · 域 SKILL.md>>
+        +引用行 ../winvm-orchestrator/approval-card.md
+    }
+    class SkillMcpReference {
+        <<引用 · winvm-mcp-reference/SKILL.md>>
+        +审批载荷排查小节
+        +两通道续跑差异表
+    }
+
+    %% ── 关系 ──
+    TaskStore --> ApprovalDataPart : 下发（不改）
+    ExtractApproval ..> ExtractedApproval : 产出
+    extractApproval ..> TerminationText : 使用
+    extractApproval ..> approvalAudit : 记录/查询
+    approvalAudit --> HostApprovalAudit : 生成
+    HostApprovalAudit ..> Result4State : result ∈
+    ExtractedApproval ..> ApprovalRequest : 语义对齐（只读）
+    HostApprovalAudit ..> AuditApproval : 语义对齐（previewHash，只读）
+    SkillOrchestrator ..> ApprovalCardDoc : 引用唯一正文
+    SkillDomain ..> ApprovalCardDoc : 引用唯一正文
+    SkillMcpReference ..> ApprovalCardDoc : 排查指引

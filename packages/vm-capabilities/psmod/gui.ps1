@@ -22,24 +22,35 @@ function Get-SessionHealth {
     $locked = ($null -ne (Get-Process -Name LogonUI -ErrorAction SilentlyContinue))
 
     # 窗口站 / 桌面判定
-    $ws = 'unknown'; $desktop = 'unknown'
+    # 修复：原 GetUserObjectInformationW(UOI_NAME) 经 StringBuilder 在本机实测读出 "W"（应为 "WinSta0"），
+    # 使 $ws -eq 'WinSta0' 恒成立 false → 误判非交互、GUI 能力被门禁（即便进程确在交互会话）。
+    # 改以 OpenWindowStationW 实测当前进程能否以 READ 权限打开交互式窗口站 WinSta0
+    # （仅交互会话内进程可成功，session 0 服务返回 NULL），该判定不依赖字符串读取，规避编码/封送假值。
+    $ws = 'unknown'; $desktop = 'unknown'; $canReachInteractive = $false
     try {
-        Add-Type -Namespace WinVM -Name Native -MemberDefinition @'
-[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern System.IntPtr GetProcessWindowStation();
-[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern uint GetWindowStationInformation();
-[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool GetUserObjectInformationW(System.IntPtr h, int n, System.Text.StringBuilder pv, uint len, out uint used);
+        # 防御：常驻 ps-bridge 进程会多次调用本函数，Add-Type 重复定义同名类型会抛错；
+        # 先判存在再定义（与 Initialize-InputApi 同一惯用法），规避 Suppressed 错误与竞态。
+        if (-not ('WinVM.SessionNative' -as [type])) {
+            Add-Type -Namespace WinVM -Name SessionNative -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("user32.dll", SetLastError=true)] public static extern System.IntPtr OpenWindowStationW([System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string lpszWinSta, bool fInherit, uint dwDesiredAccess);
+[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool CloseWindowStation(System.IntPtr h);
 '@ -ErrorAction SilentlyContinue
+        }
 
-        $h = [WinVM.Native]::GetProcessWindowStation()
-        $sb = New-Object System.Text.StringBuilder 256
-        $used = 0
-        if ([WinVM.Native]::GetUserObjectInformationW($h, 2, $sb, 256, [ref]$used)) { $ws = $sb.ToString() }
-        $sb2 = New-Object System.Text.StringBuilder 256
-        if ([WinVM.Native]::GetUserObjectInformationW($h, 7, $sb2, 256, [ref]$used)) { $desktop = $sb2.ToString() }
+        $hws = [WinVM.SessionNative]::OpenWindowStationW('WinSta0', $false, 0x0002)  # WINSTA_READATTRIBUTES
+        if ($hws -ne [System.IntPtr]::Zero) {
+            # ⚠ 必须用 [void] 吸收返回值：CloseWindowStation 返回 bool，作为裸语句会泄漏到成功输出流，
+            # 与末尾 `return [ordered]@{}` 合并成 [$true, 哈希表] 数组，导致 ps-bridge 序列化后
+            # index.ts 取 raw['windowStation'] 为 undefined → state 恒为 unavailable（真根因，2026-09-17 确诊）。
+            [void][WinVM.SessionNative]::CloseWindowStation($hws)
+            $canReachInteractive = $true
+            $ws = 'WinSta0'
+            $desktop = 'Default'
+        }
     }
     catch { }
 
-    $interactive = ($sessionId -ge 1) -and ($ws -eq 'WinSta0') -and $explorerAlive
+    $interactive = ($sessionId -ge 1) -and $canReachInteractive -and $explorerAlive
 
     # 黑屏检测
     $blackScreen = $false
@@ -127,7 +138,24 @@ public struct RECT { public int Left; public int Top; public int Right; public i
             capturedAt = (Get-Date).ToUniversalTime().ToString('o')
         }
     }
-    return [ordered]@{ width = $rect.Width; height = $rect.Height; bytes = $bytes.Length }
+
+    # D17：非 base64 形态必须**落盘**并回传路径 —— 旧实现只回 {width,height,bytes}，
+    # 调用方拿不到任何图像内容/路径，等于「截了等于没截」。产物统一写到约定工作目录。
+    $outDir = Join-Path $env:USERPROFILE 'WinVMWorkspace\out'
+    if (-not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+    $stamp = Get-Date -Format 'yyyyMMdd_HHmmss_fff'
+    $file = Join-Path $outDir "screen_$stamp.png"
+    [System.IO.File]::WriteAllBytes($file, $bytes)
+
+    return [ordered]@{
+        width      = $rect.Width
+        height     = $rect.Height
+        bytes      = $bytes.Length
+        mimeType   = 'image/png'
+        path       = $file
+        savedTo    = $file
+        capturedAt = (Get-Date).ToUniversalTime().ToString('o')
+    }
 }
 
 # ------------------------------ 黑屏检测（gui.screen.analyze） ------------------------------

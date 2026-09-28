@@ -74,17 +74,25 @@ describe('resolveConfig', () => {
 });
 
 describe('buildPlan', () => {
-  test('完整 env 生成 BUILD/HOST/VM/VM-START/TUNNEL/TEST/HEALTH 七阶段', () => {
+  test('完整 env 生成 BUILD/HOST/VM/VM-START/TUNNEL/TEST/QA-PROBE/HEALTH 八阶段', () => {
     const cfg = resolveConfig(parseEnv(SAMPLE), {});
     const plan = buildPlan(cfg);
     const phases = plan.map((p) => p.phase);
-    assert.deepEqual(phases, ['BUILD', 'HOST', 'VM', 'VM-START', 'TUNNEL', 'TEST', 'HEALTH']);
+    // QA-PROBE 顺序契约：TEST→QA-PROBE→HEALTH。仅 scp 推夹具、不依赖隧道，置于 HEALTH
+    // 之前使 HEALTH 保持部署最终闸门；探针缺失仅 WARN（QA 夹具非运行时依赖）。
+    assert.deepEqual(phases, ['BUILD', 'HOST', 'VM', 'VM-START', 'TUNNEL', 'TEST', 'QA-PROBE', 'HEALTH']);
+  });
+
+  test('QA-PROBE 紧随 TEST、先于 HEALTH（部署最终闸门不被夹具问题遮蔽）', () => {
+    const phases = buildPlan(resolveConfig(parseEnv(SAMPLE), {})).map((p) => p.phase);
+    assert.ok(phases.indexOf('QA-PROBE') === phases.indexOf('TEST') + 1, 'QA-PROBE 应紧随 TEST');
+    assert.ok(phases.indexOf('QA-PROBE') < phases.indexOf('HEALTH'), 'QA-PROBE 应先于 HEALTH');
   });
 
   test('各阶段仅出现一次（回归防护：VM-START / HEALTH 曾各被执行两次）', () => {
     const cfg = resolveConfig(parseEnv(SAMPLE), {});
     const phases = buildPlan(cfg).map((p) => p.phase);
-    for (const phase of ['BUILD', 'HOST', 'VM', 'VM-START', 'TUNNEL', 'TEST', 'HEALTH']) {
+    for (const phase of ['BUILD', 'HOST', 'VM', 'VM-START', 'TUNNEL', 'TEST', 'QA-PROBE', 'HEALTH']) {
       assert.equal(phases.filter((p) => p === phase).length, 1, `${phase} 应只出现一次（防重复执行回归）`);
     }
   });
@@ -108,11 +116,25 @@ describe('buildPlan', () => {
     }
   });
 
-  test('未开隧道时不生成 TUNNEL/HEALTH（无隧道则 /health 不可达）', () => {
+  test('未开隧道时不生成 TUNNEL/HEALTH（无隧道则 /health 不可达），但 QA-PROBE 仍存在（仅 scp、不依赖隧道）', () => {
     const cfg = resolveConfig({ ...APPLY_ENV, WINVM_SETUP_TUNNEL: '0' }, { apply: true });
     const phases = buildPlan(cfg).map((p) => p.phase);
     assert.ok(!phases.includes('TUNNEL'));
     assert.ok(!phases.includes('HEALTH'));
+    assert.ok(phases.includes('QA-PROBE'), 'QA-PROBE 只依赖 VM 可达（VM_HOST），不依赖隧道');
+  });
+
+  test('VM_HOST 为空时不生成 QA-PROBE（无目标机无从推送）', () => {
+    const cfg = resolveConfig({ ...APPLY_ENV, VM_HOST: '' }, { apply: true });
+    const phases = buildPlan(cfg).map((p) => p.phase);
+    assert.ok(!phases.includes('QA-PROBE'));
+  });
+
+  test('QA-PROBE 夹具清单为 qa-probe.ps1 + lead-md5-3.ps1（qa-verify.mjs vmps() 引用全集）', async () => {
+    const { QA_PROBE_FILES } = await import('../../delivery/setup.mjs');
+    assert.ok(QA_PROBE_FILES.includes('qa-probe.ps1'), 'A1/A3 依赖 qa-probe.ps1');
+    assert.ok(QA_PROBE_FILES.includes('lead-md5-3.ps1'), 'A11 依赖 lead-md5-3.ps1');
+    assert.equal(QA_PROBE_FILES.length, 2, '新增 VM 侧引用时须同步 QA_PROBE_FILES 与本断言');
   });
 
   test('TEST 命令不含分号、HEALTH 独立成阶段（防回归：分号曾让 curl 永不执行）', () => {

@@ -1,0 +1,120 @@
+%% CL-018 增量类图（class diagram）
+%% 对应 docs/changes/CL-018/TECHNICAL-SOLUTION.md §4
+classDiagram
+  class LlmBridge {
+    <<interface>>
+    +runGoal(input: LlmGoalInput, sink: ProgressSink) LlmGoalResult
+  }
+  class CliLlmBridge {
+    -cliPath: string
+    -endpoint?: string
+    -argTemplate: string[]
+    -persistent: PersistentCliSession
+    -persistentEnabled: boolean
+    +runGoal(input, sink) LlmGoalResult
+    -runPersistent(input, sink) LlmGoalResult
+    -runOneShot(input, sink) LlmGoalResult
+  }
+  class PersistentCliSession {
+    -state: LlmSessionState
+    -child?: ChildProcess
+    -sessionId: string
+    -pid?: number
+    -restarts: number
+    -lastUsedMs: number
+    -chain: Promise~void~
+    +ensureReady(input) Promise~boolean~
+    +runTurn(prompt, sink, timeoutMs) Promise~TurnResult~
+    +dispose() Promise~void~
+    +tick(nowMs) void
+    +snapshot() LlmSessionHealth
+  }
+  class TurnResult {
+    +ok: boolean
+    +text: string
+    +durationMs: number
+  }
+  class LlmGoalInput {
+    +goal: string
+    +capabilities: string[]
+    +outputDir: string
+    +cliPath: string
+    +endpoint?: string
+    +traceId: string
+    +timeoutMs: number
+    +skills?: LlmSkillDoc[]
+  }
+  class LlmGoalResult {
+    +ok: boolean
+    +summary: string
+    +artifacts: Artifact[]
+    +steps: GoalStep[]
+    +error?: BridgeError
+  }
+  class ProgressSink {
+    <<interface>>
+  }
+  class RotatingFileSink {
+    -dir: string
+    -maxBytes: number
+    -maxFiles: number
+    -maxDays: number
+    -degraded: boolean
+    -reason?: string
+    +write(line) void
+    +rotateIfNeeded() void
+    +prune() void
+    -status() LoggingHealth
+  }
+  class ConsoleLogger {
+    -minLevel: number
+    -sink: fn
+    +child(base) ConsoleLogger
+  }
+  class FileLogger {
+    -fileSink: RotatingFileSink
+  }
+  class WorkbuddyLlmProvider {
+    -bridge: LlmBridge
+    +runGoal(goal, sink) GoalResult
+    +health() HealthStatus
+    +shutdown() Promise~void~
+  }
+  class ServiceRuntime {
+    +health() HealthStatus
+    +config: ServiceConfig
+    +close() Promise~void~
+  }
+  class HealthStatus {
+    +ok: boolean
+    +provider: ProviderHealth
+    +session: SessionHealth
+    +psBridge?: PsBridgeHealth
+    +llmSession?: LlmSessionHealth
+    +logging?: LoggingHealth
+    +cache?: CacheHealth
+  }
+  class LlmSessionHealth {
+    +state: LlmSessionState
+    +pid?: number
+    +restarts: number
+    +idleMs: number
+    +lastError?: string
+  }
+  class LoggingHealth {
+    +degraded: boolean
+    +dir: string
+    +level: LogLevel
+    +reason?: string
+  }
+
+  CliLlmBridge ..|> LlmBridge
+  CliLlmBridge o-- PersistentCliSession
+  PersistentCliSession ..> TurnResult
+  WorkbuddyLlmProvider o-- LlmBridge
+  ServiceRuntime ..> HealthStatus
+  HealthStatus *-- LlmSessionHealth
+  HealthStatus *-- LoggingHealth
+  FileLogger --|> ConsoleLogger
+  FileLogger o-- RotatingFileSink
+  ServiceRuntime o-- RotatingFileSink

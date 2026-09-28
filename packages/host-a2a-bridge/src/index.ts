@@ -25,9 +25,24 @@ export {
   createA2aBridgeTools,
   extractApproval,
   extractText,
+  buildA2aResumeHint,
+  withA2aResumeHint,
   type A2aBridgeToolOptions,
   type ExtractedApproval,
 } from './tools.js';
+
+export {
+  canonicalJson,
+  hashApprovalPreview,
+  recordHostApprovalAudit,
+  lookupByApprovalId,
+  lookupByTraceId,
+  _resetAuditIndex,
+  CREDENTIAL_KEY_RE,
+  REDACTED,
+  redactCredentials,
+  type HostApprovalAudit,
+} from './approval-audit.js';
 
 export { startStdioBridge, type StdioBridgeOptions } from './stdio.js';
 export { buildTransport, main } from './cli.js';

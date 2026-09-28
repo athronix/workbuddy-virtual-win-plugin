@@ -263,8 +263,14 @@ export class A2AServer {
       if (typeof approvalId === 'string' && typeof approved === 'boolean') {
         const handled = this.tasks.resolveApproval(taskId, approvalId, approved);
         if (!handled) {
+          // P3-3：审批等待有 TTL。超时后任务已按「拒绝」收口为 failed，
+          // 迟到的应答**绝不复活任务、更绝不放行**（故这里只报错、不做任何状态流转）。
+          const timedOut = this.tasks.tryGet(taskId)?.task.metadata?.['approvalTimedOut'] === true;
           throw new InvalidParamsError(
-            `任务 ${taskId} 上没有待处理的审批 ${approvalId}（可能已处理或已过期）`,
+            `任务 ${taskId} 上没有待处理的审批 ${approvalId}` +
+              (timedOut
+                ? '（审批等待已超时，任务按拒绝收口；如需执行请重新发起委派）'
+                : '（可能已处理或已过期）'),
           );
         }
         if (!approved) {
@@ -292,7 +298,13 @@ export class A2AServer {
   ): Promise<void> {
     const id = rec.task.id;
     try {
-      const result = await this.handler.runGoal(goal, {
+      // K4：把本任务的 id 注入 goal，使桥接层能经审批协调器把 input-required 挂到正确任务上。
+      // P3-2：改为**构造期注入** —— 用展开新建对象传给 handler，而不是 `Object.assign` 就地补写。
+      // GoalRequest 字段全为 readonly，就地改写绕过类型系统：对象一旦被冻结（Object.freeze）
+      // 就会静默失效，且会污染调用方持有的原 goal。展开构造保持不可变约定、对冻结安全。
+      const goalWithTask: GoalRequest = { ...goal, taskId: id };
+
+      const result = await this.handler.runGoal(goalWithTask, {
         ...sink,
         onStatus: (state, message) => {
           // 终态由本方法统一收口，避免 provider 与框架竞争
@@ -300,6 +312,13 @@ export class A2AServer {
           sink.onStatus(state, message);
         },
       });
+
+      // K4 安全网：若桥接层已把任务挂起为 input-required（等待宿主审批）或仍有未决审批，
+      // 绝不覆盖其状态 —— 维持 input-required，由宿主审批应答（continueTask）续跑/拒绝。
+      const recNow = this.tasks.tryGet(id);
+      if (recNow && (recNow.task.status.state === 'input-required' || recNow.pendingApproval)) {
+        return;
+      }
 
       for (const a of result.artifacts) {
         sink.onArtifact(a);

@@ -10,7 +10,7 @@ export interface JsonRpcChannel {
   /** 单次请求/响应 */
   request(payload: unknown, opts?: { timeoutMs?: number; signal?: AbortSignal }): Promise<unknown>;
   /** 流式响应（SSE / NDJSON），返回异步迭代器 */
-  stream?(payload: unknown, opts?: { signal?: AbortSignal }): AsyncIterable<unknown>;
+  stream?(payload: unknown, opts?: { timeoutMs?: number; signal?: AbortSignal }): AsyncIterable<unknown>;
   close(): Promise<void>;
 }
 

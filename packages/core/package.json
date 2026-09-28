@@ -8,6 +8,9 @@
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "files": ["dist"],
   "scripts": { "build": "tsc -b" },
-  "dependencies": { "@winvm/contracts": "0.1.0" },
+  "dependencies": {
+    "@winvm/contracts": "0.1.0",
+    "ssh2": "^1.16.0"
+  },
   "layer": "L1a-core"
 }

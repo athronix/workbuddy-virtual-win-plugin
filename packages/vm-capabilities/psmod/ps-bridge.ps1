@@ -27,7 +27,11 @@ param(
     [switch]$NoHeartbeat
 )
 
-Set-StrictMode -Version Latest
+# ⚠ StrictMode 选 Version 1 而非 Latest：保留「未初始化变量 / 调用缺参」校验（开发期防错），
+# 但**不启用 Version 3 的「访问不存在的对象属性即报错」**——注册表卸载键等对象的可选属性
+# （如 InstallDate / DisplayVersion）常不存在，Latest 会令整类能力抛「找不到属性」而失败。
+# 若需更严属性校验，请在具体函数内局部 Set-StrictMode -Version Latest，而非全局开启。
+Set-StrictMode -Version 1
 $ErrorActionPreference = 'Stop'
 
 # —— 编码与输出纪律 ——
@@ -50,6 +54,24 @@ function Write-ProtocolLine {
 function Write-Diagnostic {
     param([string]$Message)
     [Console]::Error.WriteLine("[ps-bridge] $Message")
+}
+
+# 判定异常链中是否含 PowerShell **参数绑定异常**（缺必填 / 类型转换失败 / ValidateSet 违规 …）。
+#
+# 依据（真机实测）：这些失败的**顶级异常类型**均为 `System.Management.Automation.ParameterBindingException`
+# 或其派生类 —— `ParameterBindingArgumentTransformationException`（类型转换）、
+# `ParameterBindingValidationException`（ValidateSet/ValidatePattern 等）—— 故**只按类型判定**。
+# 故意**不做**「消息含 parameter 字样」之类的模糊匹配：跨语言/本地化消息不可靠，易误判。
+function Test-ParameterBindingException {
+    param([Exception]$Exception)
+    $e = $Exception
+    $depth = 0
+    while ($null -ne $e -and $depth -lt 8) {
+        if ($e -is [System.Management.Automation.ParameterBindingException]) { return $true }
+        $e = $e.InnerException
+        $depth++
+    }
+    return $false
 }
 
 function Invoke-ErrorEnvelope {
@@ -175,8 +197,28 @@ function Invoke-BridgeRequest {
         $sw.Stop()
         $ex = $_.Exception
         $code = 'EXECUTION_FAILED'
-        if ($ex.Message -match '^([A-Z_]+):') { $code = $Matches[1] }
-        return Invoke-ErrorEnvelope -Id $id -Code $code -Message $ex.Message `
+        # ① 领域码优先：psmod 内 `throw "UPPER_SNAKE: msg"`（如 FILE_NOT_FOUND / CLI_NOT_FOUND）
+        if ($ex.Message -match '^([A-Z_]+):') {
+            $code = $Matches[1]
+        }
+        # ② 纵深防御（CL-017 D25-②）：PowerShell **参数绑定失败** → 归一为领域码 INVALID_ARGUMENT。
+        #    只按**异常类型**判定（见 Test-ParameterBindingException）；**不新增领域码** ——
+        #    Node 侧 `DOMAIN_CODE_TO_BASE['INVALID_ARGUMENT'] = 'INVALID_PARAMS'` 已存在，对外即为
+        #    `INVALID_PARAMS` + `reason='INVALID_ARGUMENT'`，与 D24/D26 完全同形（调用方无须学第二套语义）。
+        #    与 D24/D26 的分工：adapter 侧已**前置**拦截「未知参数名 / 缺必填」（D24，仅对声明了 required 的
+        #    能力生效）与「值非法：类型不符 / 枚举越界」（D26，按注册表 schema 的 type/enum 判定）。本分支是
+        #    **纵深防御**，覆盖 D24/D26 够不到的形态 —— schema 未声明、只有 PS 侧绑定才拦得下的值层面的失败
+        #    （类型不符 / 枚举越界），与能力是否声明 `required` 无关。
+        elseif (Test-ParameterBindingException -Exception $ex) {
+            $code = 'INVALID_ARGUMENT'
+        }
+        # 统一为 `CODE: message` 形态（领域码约定），便于日志与人工排查；
+        # ① 分支的 message 本就带前缀，此处只补 ② 分支。
+        $msg = $ex.Message
+        if ($code -eq 'INVALID_ARGUMENT' -and $msg -notmatch '^INVALID_ARGUMENT:') {
+            $msg = 'INVALID_ARGUMENT: ' + $msg
+        }
+        return Invoke-ErrorEnvelope -Id $id -Code $code -Message $msg `
             -Details @{ exceptionType = $ex.GetType().FullName } -DurationMs $sw.Elapsed.TotalMilliseconds
     }
 }

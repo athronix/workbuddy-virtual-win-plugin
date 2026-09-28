@@ -49,11 +49,14 @@ export const DEFAULT_POLICY: PolicyConfig = {
   ],
 
   // —— 路径白名单：默认仅用户数据区 ——
+  // 注：`C:\WinVMWorkspace\**` 是插件约定的「生产工作目录」（见 winvm-app-operation skill），
+  // 必须全域放行，否则 appops 写入后 storage 无法读回，文档工作流被策略打断。
   pathAllowlist: [
     'C:\\Users\\**',
     'C:\\Temp\\**',
     'C:\\tmp\\**',
     'D:\\Data\\**',
+    'C:\\WinVMWorkspace\\**',
   ],
 
   // —— 命令黑名单：不可逆/提权/混淆类 ——

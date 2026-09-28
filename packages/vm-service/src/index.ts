@@ -7,5 +7,21 @@
 
 export { createService } from './server.js';
 export type { ServiceRuntime, PendingApproval } from './server.js';
+/** K4：导出审批协调器（供单测验证安全闸；生产由 createService 内部实例化并注入） */
+export { VmApprovalCoordinator } from './server.js';
+export {
+  providerHealthTimeoutSnapshot,
+  raceHealthSubProbes,
+  raceSessionProbe,
+  raceWithTimeout,
+  resolveHealthProbeTimeoutMs,
+  resolvePsBridgeHealthState,
+  timeoutSessionSnapshot,
+} from './health-probe.js';
+export type {
+  HealthSubProbesOutcome,
+  RaceOutcome,
+  SessionProbeOutcome,
+} from './health-probe.js';
 export { DEFAULT_SERVICE_CONFIG, loadServiceConfig } from '@winvm/core';
 export type { ServiceConfig } from '@winvm/core';

@@ -82,6 +82,15 @@ export class PsBridge {
   private startedAtMs = 0;
   private stderrTail = '';
   private stopped = false;
+  /** 累计自愈/重启次数（D2：失败必须计数并暴露，禁止静默） */
+  private restarts = 0;
+  /** 最近一次自愈/重启失败原因（暴露到 health()） */
+  private lastError: string | undefined;
+  /** 上次自愈尝试时间：用于退避，避免看门狗高频重试形成风暴 */
+  private lastHealAttemptMs = 0;
+
+  /** 自愈退避窗口（毫秒）：两次自愈尝试之间的最小间隔 */
+  private static readonly HEAL_BACKOFF_MS = 3_000;
 
   constructor(opts: PsBridgeOptions = {}) {
     // 默认指向包内 psmod 目录旁的 ps-bridge.ps1
@@ -105,7 +114,7 @@ export class PsBridge {
     return this.pending.size;
   }
 
-  /** 启动常驻进程并等待就绪 */
+  /** 启动常驻进程并等待就绪（保留既有语义：可显式在 stop() 后重新 start()） */
   async start(): Promise<void> {
     if (this.running) return;
     if (!existsSync(this.scriptPath)) {
@@ -164,15 +173,26 @@ export class PsBridge {
   }
 
   /**
-   * 看门狗：心跳超时后**先主动 ping 探测**，再决定是否重启。
+   * 看门狗（D2 修复）：
    *
-   * 背景（关键修复）：ps-bridge.ps1 的主循环在等待 stdin 时是阻塞的，
-   * 空闲期间发不出心跳。若仅凭"长时间未收到心跳"就直接 kill，
-   * 常驻服务会在空闲约 45s 后被误杀且永不恢复（表现为"刚装好能用，过一会儿就废"）。
-   * 因此改为：ping 得通 → 只是没发心跳，刷新时间戳即可；ping 不通 → 判定僵死并重启。
+   * 旧实现的 `if (!this.running || ...) return;` 是「一次失败即永久不可用」的根因 ——
+   * 进程一旦退出（running 变 false），看门狗直接早退，永不再拉起，只能重启服务。
+   *
+   * 现语义：
+   *   - `stopped` / `restarting` 才早退（显式停止或重启进行中，不打扰）；
+   *   - 进程不 running → 尝试**带退避的自愈**（spawnAndReady）；
+   *   - 进程 running 但心跳超时 → 先 ping 探测，ping 通仅刷新时间戳（空闲不发心跳属正常），
+   *     ping 不通才判定僵死并重启。
    */
   private async watchdog(): Promise<void> {
-    if (!this.running || this.restarting || this.stopped) return;
+    if (this.restarting || this.stopped) return;
+
+    if (!this.running) {
+      // 进程已退出：自愈拉起（带退避）。若无条件重试会形成每秒级 spawn 风暴。
+      await this.selfHeal('看门狗发现 ps-bridge 未运行');
+      return;
+    }
+
     if (Date.now() - this.lastHeartbeatAtMs <= this.heartbeatTimeoutMs) return;
     try {
       const res = await this.rawCall('__meta', 'ping', {}, 5_000);
@@ -184,6 +204,39 @@ export class PsBridge {
       await this.restart('ping 返回 not ok');
     } catch {
       await this.restart('ping 超时或失败');
+    }
+  }
+
+  /**
+   * 带退避的懒自愈：未运行且未停止时尝试重新拉起进程（D2）。
+   *
+   * @param reason 触发原因（写 stderr 便于诊断）
+   * @returns 是否已恢复运行
+   */
+  private async selfHeal(reason: string): Promise<boolean> {
+    if (this.restarting || this.stopped) return false;
+    const now = Date.now();
+    // 退避：距上次尝试不足窗口则跳过，交由下一次看门狗/call 重试
+    if (now - this.lastHealAttemptMs < PsBridge.HEAL_BACKOFF_MS) return false;
+    this.lastHealAttemptMs = now;
+    this.restarting = true;
+    try {
+      if (!existsSync(this.scriptPath)) {
+        throw new PsBridgeError('PSBRIDGE_SCRIPT_MISSING', `找不到 ps-bridge 脚本：${this.scriptPath}`);
+      }
+      // start() 与自愈共用 spawnAndReady；此处直接调用以复用同一握手/看门狗逻辑
+      await this.spawnAndReady();
+      this.restarts++;
+      this.lastError = undefined;
+      this.onStderr?.(`[ps-bridge] 已自愈恢复（原因：${reason}）`);
+      return true;
+    } catch (e) {
+      this.restarts++;
+      this.lastError = (e as Error).message;
+      this.onStderr?.(`[ps-bridge] 自愈失败：${this.lastError}`);
+      return false;
+    } finally {
+      this.restarting = false;
     }
   }
 
@@ -200,16 +253,28 @@ export class PsBridge {
       );
       this.kill();
       await this.spawnAndReady();
+      this.restarts++;
+      this.lastError = undefined;
       this.onStderr?.(`[ps-bridge] 已自动重启（原因：${reason}）`);
     } catch (e) {
-      this.onStderr?.(`[ps-bridge] 自动重启失败：${(e as Error).message}`);
+      // D2：重启失败必须计数并暴露，禁止静默吞掉（旧实现仅 onStderr 后即返回）
+      this.restarts++;
+      this.lastError = (e as Error).message;
+      this.onStderr?.(`[ps-bridge] 自动重启失败：${this.lastError}`);
     } finally {
       this.restarting = false;
     }
   }
 
-  /** 等待 bridge 就绪（握手） */
-  private async ready(timeoutMs = 15_000): Promise<void> {
+  /** 等待 bridge 就绪（握手）。
+   *  默认 15s 可被 env WINVM_PSBRIDGE_READY_TIMEOUT_MS 覆盖。
+   *  取证依据（2026-09-20 真机 run2/run3）：目标 VM 上由 node spawn 的 powershell.exe
+   *  进程创建 ~10s + psmod dot-source ~6s → 握手 ~16.4s，恒定越过 15s 默认值，
+   *  看门狗每次 15s kill 重试形成「永远差一点」的自锁循环（restarts=17 实证）。
+   *  install-vm.mjs 与 start-hidden.ps1 会将该 env 设为 60000。 */
+  private async ready(
+    timeoutMs: number = Number(process.env['WINVM_PSBRIDGE_READY_TIMEOUT_MS']) || 15_000,
+  ): Promise<void> {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       if (!this.running) throw new PsBridgeError('PSBRIDGE_NOT_RUNNING', 'ps-bridge 未运行');
@@ -291,14 +356,31 @@ export class PsBridge {
     });
   }
 
-  /** 调用一个能力函数 */
+  /**
+   * 调用一个能力函数。
+   *
+   * D2：入口加 **lazy 自愈** —— 若进程未运行且未显式 stop()，先尝试带退避的自愈，
+   * 恢复后再发请求；自愈仍失败才报 `PROVIDER_UNAVAILABLE`（而不是像旧实现那样
+   * 一次失败后所有调用永久失败）。已显式 stop() 时不复活，直接报错。
+   */
   async call<T = unknown>(
     module: string,
     fn: string,
     params: Record<string, unknown> = {},
     timeoutMs?: number,
   ): Promise<T> {
-    if (!this.running) await this.start();
+    if (!this.running) {
+      if (this.stopped) {
+        throw new PsBridgeError('PROVIDER_UNAVAILABLE', 'ps-bridge 已停止（stopped），不再自愈');
+      }
+      const healed = await this.selfHeal('call 入口发现 ps-bridge 未运行');
+      if (!healed && !this.running) {
+        throw new PsBridgeError(
+          'PROVIDER_UNAVAILABLE',
+          `ps-bridge 未就绪且自愈失败${this.lastError ? `：${this.lastError}` : ''}`,
+        );
+      }
+    }
     const res = await this.rawCall(module, fn, params, timeoutMs ?? this.defaultTimeoutMs);
     if (!res.ok) {
       const e = res.error ?? { code: 'PSBRIDGE_UNKNOWN', message: '未知错误' };
@@ -326,13 +408,28 @@ export class PsBridge {
     this.child = undefined;
   }
 
-  /** 健康快照 */
-  health(): { state: 'ready' | 'down'; uptimeMs: number; pending: number; lastHeartbeatAgoMs: number } {
+  /**
+   * 健康快照。
+   *
+   * D2：新增 `restarts` / `lastError`（纯增量，既有字段语义不变），
+   * 使「桥自愈了几次、上次为何失败」对上层（/health、meta.health.check）可见，
+   * 避免故障时无从判断（旧实现把重启失败静默吞掉）。
+   */
+  health(): {
+    state: 'ready' | 'down';
+    uptimeMs: number;
+    pending: number;
+    lastHeartbeatAgoMs: number;
+    restarts: number;
+    lastError?: string;
+  } {
     return {
       state: this.running ? 'ready' : 'down',
       uptimeMs: this.uptimeMs,
       pending: this.pending.size,
       lastHeartbeatAgoMs: this.lastHeartbeatAtMs === 0 ? -1 : Date.now() - this.lastHeartbeatAtMs,
+      restarts: this.restarts,
+      ...(this.lastError ? { lastError: this.lastError } : {}),
     };
   }
 }

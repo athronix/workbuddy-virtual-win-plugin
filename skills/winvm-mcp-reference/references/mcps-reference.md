@@ -18,8 +18,8 @@
 │   VM AI Agent（workbuddy / hermes-agent …）                      │
 │     └── 经 MCP 调用能力完成用户目标                              │
 └──────────────────────────────────────────────────────────────────┘
-                     ▲ SSH 本地端口转发（宿主机侧）
-                     │ ssh -f -N -L 18443:127.0.0.1:18443 user@vm
+                     ▲ SSH 隧道（宿主机侧，由常驻 tunnel-daemon 进程内承载）
+                     │ winvm-plugin tunnel status | ensure
               ┌──────┴───────┐
               │  宿主机 Agent │  ← MCP 直调（简单任务）/ A2A 委派（复杂任务）
               └──────────────┘
@@ -56,7 +56,7 @@
 
 | Agent | Provider ID | MCP 接入机制 | 配置落点 | 每次调用传 endpoint |
 |---|---|---|---|---|
-| WorkBuddy CLI | `workbuddy` | CLI 参数 `--mcp <endpoint>` | `agent.providers.workbuddy.options.endpoint` | **是** |
+| WorkBuddy CLI | `workbuddy` | CLI 参数 `--mcp-config <fileOrString>`（真机契约，见 §5） | `agent.providers.workbuddy.options.endpoint` | **是** |
 | Hermes Agent | `hermes-agent` | **预注册进配置**（CLI 无 `--mcp`） | `%HERMES_HOME%\config.yaml` → `mcp_servers.winvm` | **否**（启动自动发现） |
 | 确定性执行器 | `workbuddy-deterministic` | 不经 MCP，进程内直调 | — | — |
 
@@ -66,12 +66,24 @@
 
 ## 5. workbuddy（codebuddy CLI）接入
 
-经 `cliArgTemplate` 渲染，默认模板：
+经 `cliArgTemplate` 渲染，默认模板（**真机 `codebuddy` v2.149.0 实测契约**）：
+
 ```
---goal {goal} --system-prompt {prompt} --mcp {endpoint} --output {output}
+-p {prompt} --output-format text --permission-mode bypassPermissions --add-dir {output} --mcp-config {mcpConfig}
 ```
-- `{endpoint}` = `http://127.0.0.1:18443/mcp`
-- 若真机 CLI 参数不同，用 options.cliArgTemplate 覆盖即可，无需改代码。
+
+- `{prompt}` = 系统提示 + 目标 + 产物目录 + 能力清单合并文本（运行时做换行适配）。
+- `{mcpConfig}` = MCP 配置；**默认渲染为配置文件路径**（写入工作区 `.winvm/mcp.json`），
+  内容为 `{"mcpServers":{"winvm":{"type":"streamableHttp","url":"http://127.0.0.1:18443/mcp"}}}`，
+  落盘失败时回退为内联 JSON 串。`--mcp-config` 两种形态（文件或 JSON 串）**均被真机接受**。
+- 若真机 CLI 参数不同，用 `options.cliArgTemplate` 覆盖即可，无需改代码。
+
+> **真机注意（Windows）**：
+> - CLI 由 npm 装入，实际文件是 **`codebuddy.cmd`**；Node `spawn` 不解析 `.cmd`/PATHEXT，
+>   故按 `PATHEXT` 探测真实文件后经 **`cmd.exe /d /s /c`** 启动。
+> - 解析失败会给**可操作**错误（列出搜索过的路径 + 建议的 `cliPath` 绝对路径写法）。
+> - LLM 运行时**未登录**时 `codebuddy` 会**退出码 0 但 stderr 报 `Authentication required`**；
+>   该情形按 `PROVIDER_UNAVAILABLE` 上报并**降级为确定性执行**（summary 标注「已降级为确定性执行」）。
 
 ---
 
@@ -138,7 +150,7 @@ hermes chat -q "<系统提示+目标>" -Q --yolo --source winvm-bridge
 
 | 症状 | 可能原因 | 处置 |
 |---|---|---|
-| 连接超时 | SSH 隧道未建 / 服务未启动 | 建隧道 `ssh -f -N -L 18443:127.0.0.1:18443 …`；查 vm-service 进程 |
+| 连接超时 | SSH 隧道未在线 / 服务未启动 | 先 `winvm-plugin tunnel status`，离线则 `winvm-plugin tunnel ensure`（常驻 tunnel-daemon，**勿手工**建 ssh 转发）；再查 vm-service 进程 |
 | 401 Unauthorized | token 未注入或不一致 | 核对 `WINVM_BEARER_TOKEN` 与 `.env` 中 `MCP_WINVM_API_KEY` |
 | 401 且 header 重复 | token 带了 `Bearer ` 前缀 | 落盘时剥离前缀（Registrar 已处理） |
 | 工具列表为空 | `enabled` 缺失/为 false | 配置补 `enabled: true` |

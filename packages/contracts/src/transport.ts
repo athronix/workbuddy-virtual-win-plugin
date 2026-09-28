@@ -16,6 +16,13 @@ export interface SshTunnelTransport {
   readonly localPort: number;
   readonly port?: number;
   readonly identityFile?: string;
+  /**
+   * 进程内 ssh2 后端（OH 宿主 / WINVM_TUNNEL_BACKEND=ssh2）使用的凭据。
+   * 系统 ssh 分支（spawn('ssh')）会忽略这两个字段——它依赖本机 ssh agent / identityFile。
+   * 三者至少其一即可：privateKey | identityFile | password。
+   */
+  readonly privateKey?: string;
+  readonly password?: string;
   /** 隧道保活参数 */
   readonly serverAliveInterval?: number;
   readonly serverAliveCountMax?: number;

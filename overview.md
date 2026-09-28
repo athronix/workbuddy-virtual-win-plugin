@@ -104,3 +104,129 @@
 - 根因①远程产物缺 `node_modules` → `dist` 内裸包名 `from '@winvm/...'` 无法解析（`ERR_MODULE_NOT_FOUND`）。修复：新增 `delivery/link-workspace.mjs`，`install-vm.mjs` 在 `--skip-install` 时建 `@winvm/*` workspace junction 软链（免 npm ci / 免联网 / 幂等）；12 包全为内部依赖，junction 即可。
 - 根因②远程产物漏发运行时资产 → `psmod/`（54 能力 PS 实现）与 `contracts/schemas/`。修复：`setup.mjs` 的 VM 产物改为**排除法**清单（排除 `src`/`node_modules`/`tsconfig*`，含 `psmod/`+`schemas/`，不含 `node_modules`）。
 - 测试：新增 `link-workspace.test.js`（16 项）+ `setup-env.test.js` 4 项防回归 → 全量 **194/194**（178 单测 + 16 e2e）。
+
+---
+
+# 目录治理与迭代测试收口（2026-09-23/24）
+
+## 6 步迭代循环（用户指令 1-6）执行结果
+
+| # | 指令 | 结果 |
+|---|---|---|
+| 1 | 固化「日期子目录+MANIFEST」规则 | ✅ `setup.mjs` 新增 `VM_DEVQA_DIR`/`buildDeployManifest`/`writeDeployManifest`；单测 5/5 |
+| 2 | 仓库持最新版本（防修复仅在部署端） | ✅ 审计确认两端一致，无需回灌 |
+| 3 | 四端清理+干净重部署 | ✅ run5 `setup.mjs --apply` 八相位 EXIT=0 全绿 |
+| 4 | 全面测试+文档化报告 | ✅ run6：16/16 PASS（A1/A3 BLOCKED 有根因）|
+| 5 | 修复方案+修复（仓库+部署端同步） | ✅ F1/F2/F3 全落仓库；VM 产品文件 md5 两端一致 |
+| 6 | 迭代至全绿 | ✅ 完成 |
+
+## 本轮关键修复
+
+- **F1 A15 前提过期**：ffmpeg 已装 v9.0.1 → 探针改用 `__no_such_cli_xyz__`（CLI_NOT_FOUND 稳定命中）
+- **F2 A17 冷窗口瞬态**：`call()` 支持自定义超时；A17 用 90s；A15 加桥热身
+- **F3 MSYS `$(` 陷阱**：`vmInstallCommand` 日期宿主端求值（run5 已修，本轮回归锁定）
+
+## 新增坑位（详见 .workbuddy/memory/2026-09-23.md）
+
+- ssh 扫描自匹配误报实例数 → 用 qa-probe.ps1 夹具
+- termination-pending 僵尸对杀不掉 → 不影响功能，等 VM 重启
+- taskkill /T 对含已退出子进程的树中断 → 逐 PID 杀
+
+## 交付物
+
+- `docs/test/reports/real-test-2026-09-23-run6.md`（本轮权威报告）
+- `qa/evidence/run6-qa-a-full.out` · `qa/evidence/run6-qa-skip13.out`
+- `qa/harness/tidy-vm-devqa.ps1`（VM dev-and-qa 收口）
+
+---
+
+# K2 修复收口 + run7 全绿（2026-09-24）
+
+## 本轮成果
+
+| # | 工作项 | 结果 |
+|---|---|---|
+| 1 | K2（A2A 冷启动停滞）修复 v1 | ⚠ 部署后失效（warmup 复用 execTurn 被 60s init 上限杀会话）|
+| 2 | K2 修复 v2（独立预热路径） | ✅ 仓库+部署端同步；预热 init 上界 180s 且超时**不杀会话** |
+| 3 | 全量重部署（八相位） | ✅ EXIT=0；HEALTH `llmSession.state=ready`（v1 lastError 消失）|
+| 4 | 服务重启复验 | ✅ T+~60s 预热达成 ready（pid 9416，无 lastError）|
+| 5 | run7 全量 A 系列 | ✅ **18/18 PASS**（A1/A3 补齐；A5 委派 18.4s 真实完成 vs run6 60.8s 超时）|
+| 6 | 单测/构建 | ✅ 482/482 PASS、tsc 0 错误 |
+
+## K2 v2 核心改动（全部落仓库）
+
+- `LlmSessionConfig.warmupReadyMs`（默认 180s，env `WINVM_LLM_SESSION_WARMUP_MS` 可调）
+- `PersistentCliSession.warmup()`：串行链互斥、消费 result 后判 ready、超时不置 degraded 不写 lastError
+- `LlmBridge.warmup?()` + `CliLlmBridge.warmup()`（同一 outputDir 单例，预热即首调复用对象）
+- `server.ts` fire-and-forget 触发（仅 `kind==='llm-agent'`，对齐 netCfg 预热先例）
+
+## 已知边界
+
+- 预热会话 idle 5min 后软回收（设计内）；「深度空闲后首调」预热调度属 backlog。
+
+## 交付物
+
+- `docs/test/reports/real-test-2026-09-24-run7.md`（本轮权威报告）
+- `qa/evidence/run7-qa-a-full.out` · `qa/evidence/run7-deploy-v2.log`（+ v1 失败实证 run7-deploy.log）
+
+---
+
+# K3 修复收口：A2A 变更类委派「假成功」（2026-09-28）
+
+## TL;DR
+A2A 委派中 LLM 遇 L2 审批闸（APPROVAL_REQUIRED）会谎报「已完成」的缺陷（K3，2026-09-24 实证：企业微信假卸载）已修复，QA 独立回归全绿（39 条单测、tsc 0 error、路由 NoOne）。
+
+## 修复内容（3 文件，仓库侧）
+| # | 位置 | 内容 |
+|---|---|---|
+| 1 | `adapter-agent-workbuddy-llm/src/bridge.ts` L282-296 | `buildSystemPrompt`【执行约束】硬化为「审批纪律」3 条硬约束：收到 APPROVAL_REQUIRED 必须停止并上报「等待审批」（含 approvalId/能力名）；严禁视为完成；严禁自行重发 `__approvalId`（堵自我审批漏洞） |
+| 2 | 同上 L505-520 + L731/L890 | 新增 `reconcileApprovalWait()`：LLM 最终文本命中等待审批信号时，成功结果改判 ok=false 并透传 approvalId（常驻 + 单次两路径覆盖）——封死谎报通道 |
+| 3 | `tests/unit/llm-provider.test.js` L246-282 | K3-1~K3-4 四条确定性回归断言 |
+
+## 验证链
+- 工程师自测：tsc 0 error、llm-provider 20/20、cl018 19/19；
+- QA（严过关）独立复跑 + 代码审查：全绿、无恒真断言、apr_ 正则与 vm-service newId('apr') 实测吻合 → **路由 NoOne**；
+- QA 报告：`docs/test/reports/k3-fix-qa-2026-09-28.md`。
+
+## 已知边界（有意取舍）
+- 兜底是启发式（依赖 LLM 措辞），根治 = bridge 直读 MCP 结构化结果（更大改造，P2）；
+- stdout 提及 APPROVAL_REQUIRED 即整单改判失败——宁漏报成功，不谎报成功。
+
+## 待办（部署未做）
+- 仓库修复 ≠ 运行态生效：须实跑 `delivery/install-host.mjs`（宿主缓存是运行态真相源）+ VM 侧部署重启服务；
+- Windows 侧 git commit（沙箱无 git）。
+
+---
+
+# tunnel-mode 三模式配置（2026-09-28）
+
+## TL;DR
+新增宿主侧通道选择策略配置 `tunnel-mode`（`mcp` 默认 / `a2a` / `intelligent` 智能判断），QA 独立回归全绿（含真实写盘回环验证），运行态零污染。
+
+## 三模式语义
+| 模式 | 行为 |
+|---|---|
+| `mcp`（默认） | 一律 MCP 直调，复杂任务也由宿主多轮编排（现状兼容，零行为变化） |
+| `a2a` | 一律委派 A2A，简单任务也委派 |
+| `intelligent` | 按任务特征走决策树（单步结构化→MCP；多步/GUI/开放意图→A2A） |
+
+优先级：`--tunnel-mode` flag > env `WINVM_TUNNEL_MODE` > vm-conn.json `tunnelMode` > 默认 mcp。
+
+## 改动文件（4）
+1. `packages/core/src/constants.ts`：`TunnelMode` 类型 + `resolveTunnelMode()` 纯函数（非法值回落 mcp + 告警）；
+2. `delivery/winvm-plugin.mjs`：`tunnel-mode [mode]` 子命令（查询/写回 vm-conn.json 单键）、`--tunnel-mode` flag、`tunnel status` 新增「通道模式」行；
+3. `skills/winvm-orchestrator/SKILL.md`：通道选择节头部插入三模式指引，决策树归 intelligent 专用；
+4. `tests/unit/tunnel-mode.test.js`（新建）：15 断言 4 suites。
+
+## 验证链
+- 工程师自测：tsc 0 error、15/15、winvm-plugin 回归 7/7；
+- QA 独立回归：**NoOne**——30 单测全过 + 冒烟 5/5 + **真实写盘回环**（HOME 注入 → 单键写入 5 字段保留 → 回读 → 回写）；运行态 vm-conn.json md5 前后不变；
+- 报告：`docs/test/reports/tunnel-mode-qa-2026-09-28.md`。
+
+## 关键设计决定
+- **指引性配置**：不在桥层拦截（宿主 Agent 工具调用无法在 stdio 桥层拦截另一连接器）——配置事实源（CLI+vm-conn.json）+ skill 指引（宿主 LLM 决策入口）；
+- **CLI 内联常量**（非 import @winvm/core）：部署缓存无 node_modules，import 会运行态崩；静态对齐单测锁定两侧一致。
+
+## 待办
+- **部署生效**：运行态 CLI 尚无此功能——须实跑 `install-host.mjs` + 缓存路径冒烟；
+- P3：`saveTunnelMode` 对损坏 JSON 会整体替换（建议拒绝写入+告警）。

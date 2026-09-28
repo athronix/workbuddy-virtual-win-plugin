@@ -19,6 +19,10 @@ relatedSkills:
 
 # Windows GUI 与桌面自动化
 
+> **前置（隧道在线健康）**：任何工具调用前先确保隧道在线健康 ——
+> 运行 `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin tunnel ensure`（幂等；不健康自动重启）→ 再 `… health` 需 `ok:true`（**部署态命令，任意 cwd 可用**）。
+> 详见 [`winvm-orchestrator`](../winvm-orchestrator/SKILL.md) §前置检查：tunnel 在线健康。
+
 ## ⚠ 最重要的前提：交互式会话
 
 本域所有能力都**要求 Windows 交互式会话**（`WinSta0\Default`，Session ≥ 1）。
@@ -57,7 +61,7 @@ relatedSkills:
 | 能力 ID | 风险 | 说明 |
 |---|---|---|
 | `gui.session.status` | L0 | 会话健康检查（SessionId/窗口站/桌面/锁屏/黑屏） |
-| `gui.screen.capture` | L0 | 全屏/窗口/区域截图，base64 PNG 回传 |
+| `gui.screen.capture` | L0 | 截图：`asBase64:true`（默认）回 base64 PNG；`asBase64:false` 落盘并回路径 |
 | `gui.screen.analyze` | L0 | 黑屏检测（灰度方差） |
 | `gui.window.list` | L0 | 枚举有主窗口的进程 |
 | `gui.window.control` | L1 | 最小化/最大化/还原/关闭/激活 |
@@ -83,6 +87,17 @@ relatedSkills:
 **关键**：每一步的截图都回传给你（作为 artifact）。**先看图再决定下一步**，
 不要盲发点击序列。
 
+### `gui.screen.capture` 的两种形态
+
+| 形态 | 入参 | 出参 | 何时用 |
+|---|---|---|---|
+| **base64 回传**（默认） | `asBase64: true`（或省略） | `{ width, height, bytes, base64 }` | 需要**立刻看图判读**（观察—决策循环） |
+| **落盘 + 路径** | `asBase64: false` | `{ width, height, bytes, path, savedTo }` | 需要**留档 / 多处引用 / 大图**；图落盘到产物目录（`%USERPROFILE%\WinVMWorkspace\out\screen_<时间戳>.png`），返回 `path`（等价 `savedTo`） |
+
+> 区域/窗口截图用 `x`/`y`/`width`/`height` 或 `windowTitle` 指定范围。
+> 若用的是 **LLM VM Agent（A2A）** 且只拿到 `{width,height,bytes}` 而没有图 —— 说明调的是
+> 旧版能力，升级后 `asBase64:false` 会同时回**落盘路径**，不再"只报尺寸不给图"。
+
 ## 定位策略：UIA 优先于坐标
 
 | 方式 | 何时用 | 稳定性 |
@@ -103,11 +118,41 @@ relatedSkills:
 
 ## 高危清单
 
+> 审批卡片：统一模板见 [`../winvm-orchestrator/approval-card.md`](../winvm-orchestrator/approval-card.md)（§审批卡片模板 · 唯一正文；本文件不复制正文）
+
 | 操作 | 风险 | 强制动作 |
 |---|---|---|
 | `gui.window.control { state: "close" }` | L1（可能丢失未保存工作） | **先确认窗口内容**；关闭前截图，提示用户可能有未保存数据 |
 | 在登录/支付/权限弹窗中输入 | L1（凭据风险） | **必须先取得用户明确许可**；输入的凭据经脱敏后入审计 |
 | `gui.clipboard.manage` 写入 | L1 | 剪贴板是共享资源，操作后告知用户 |
+
+**风险上限与跨域升级**：本域能力**最高 L1**，故 GUI 自身**不产生 L2/L3 审批卡片**。但**经 A2A 委派的多步 GUI 任务可能命中跨域 L2 步骤**（如 `appops.gui.produce` 导出并覆盖写盘），此时按模板出卡片、走审批闸。
+
+> 示例（跨域 L2 步骤「导出并覆盖源文件」命中审批闸时的卡片要点；卡片首行等填充格式以模板为准，本文件不复制模板正文）：
+>
+> - 操作：`appops.gui.produce`（导出并覆盖源文件）
+> - 目标：`C:\WinVMWorkspace\in\poster.psd`（原地覆盖）
+> - 通道：A2A 委派 · `task_xxx`
+> - 风险：L2 — 破坏性
+> - 影响清单：1 项 —— 覆盖写入 `C:\WinVMWorkspace\in\poster.psd`，原内容被替换
+> - 可逆性：不可逆 —— 原地覆盖，原内容不可自动回滚
+> - dry-run 预览：将覆盖导出 1 个文件；**建议改输出到 `out/` 以避免覆盖**（产物与源分离）
+> - 审批 ID + 续跑：见模板（A2A 用 `a2a.approval.reply`）
+
+## 入参契约错误处理（`INVALID_PARAMS` / `INVALID_ARGUMENT`）
+
+调用本域工具若返回 `error.code == "INVALID_PARAMS"` 且 `error.reason == "INVALID_ARGUMENT"`，
+说明**入参不符合能力契约**（参数名写错 / 漏传必填 / 取值非法），由 VM 服务在发起 PowerShell **之前**拦截，
+**不产生桥往返**（毫秒级返回）。
+
+- **不重试**（`retryable=false`）：参数不变，重试必然再次失败。
+- **看 `error.details`**：`missing`（缺失的必填）、`unknown`（不支持的参数名）、`allowed`（该能力可用参数）、
+  `invalid`（已提供但取值非法的键，含 `expected`/`got`）；
+  按 `error.message` 中的「该能力可用参数：…」改正参数后**再调用**。
+- **先查 `inputSchema`**：`tools/list` 中该工具的 `inputSchema.required`（必填）与
+  `inputSchema.properties`（可用参数）即**权威契约**，调用前先比对可避免此类错误。
+- GUI 域注意：`gui.window.control` 的窗口参数是 **`title`**（不是 `windowTitle`）；
+  `gui.uia.tree` / `gui.uia.invoke` 才用 `windowTitle`。命名相近，最易踩此错误。
 
 ## 已知陷阱
 

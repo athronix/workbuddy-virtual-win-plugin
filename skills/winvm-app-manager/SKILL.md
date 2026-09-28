@@ -17,6 +17,10 @@ relatedSkills:
 
 # Windows 应用管理
 
+> **前置（隧道在线健康）**：任何工具调用前先确保隧道在线健康 ——
+> 运行 `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin tunnel ensure`（幂等；不健康自动重启）→ 再 `… health` 需 `ok:true`（**部署态命令，任意 cwd 可用**）。
+> 详见 [`winvm-orchestrator`](../winvm-orchestrator/SKILL.md) §前置检查：tunnel 在线健康。
+
 ## 适用与不适用
 
 **适用**：包管理器（winget）可覆盖的安装/卸载/升级，以及应用启动、快捷方式、UWP 包查询。
@@ -47,7 +51,7 @@ relatedSkills:
 | `app.winget.uninstall` | L2 | 卸载包（**需审批**） |
 | `app.winget.upgrade` | L1 | 升级指定包或全部 |
 | `app.process.launch` | L1 | 启动应用/打开文件/打开 URL |
-| `app.shortcut.manage` | L1 | 读取或创建 .lnk |
+| `app.shortcut.manage` | L1 | 读取或创建 .lnk（`path` + `targetPath` 即创建） |
 | `app.appx.manage` | L0 | 列出 UWP 包 |
 
 ## 标准流程
@@ -61,8 +65,8 @@ relatedSkills:
 4. app.inventory.list { name: "<应用名>" }                 # L0 验证
 ```
 
-要点：winget 输出的是**表格文本**，解析可能不精确。
-若搜索结果拿不到确切 ID，改为让用户提供，或加 `--dry-run` 先预览。
+要点：winget 输出的是**表格文本**，现已按 `----` 分隔线做**定宽列解析**（跳过表头/汇总行）。
+但列宽可能随版本变化，若搜索结果拿不到确切 ID，改为让用户提供，或加 `dryRun: true` 先预览。
 
 ### 卸载应用
 
@@ -79,17 +83,54 @@ relatedSkills:
 - 全部：`app.winget.upgrade { all: true }`（**建议先 `app.winget.upgrade` 不带参数预览**，
   或明确告知用户将升级全部可升级包）
 
+### 创建 / 读取快捷方式
+
+```
+# 创建（或覆盖）桌面快捷方式：给了 targetPath 即创建
+app.shortcut.manage {
+  path: "C:\\Users\\<user>\\Desktop\\MyApp.lnk",
+  targetPath: "C:\\Program Files\\App\\app.exe",
+  arguments: "--profile default",
+  workingDirectory: "C:\\Program Files\\App"
+}
+
+# 读取：只给 path，返回 targetPath / arguments / workingDirectory
+app.shortcut.manage { path: "C:\\Users\\<user>\\Desktop\\MyApp.lnk" }
+```
+
+> **契约**：`path` 必填，是 `.lnk` 文件的存放/读取路径。
+> **提供了 `targetPath` → 创建/覆盖该 `.lnk`**；未提供 `targetPath` → 按**读取**处理，
+> 返回 `targetPath`、`arguments`、`workingDirectory`。
+
 ## 高危清单（L2 强制动作）
+
+> 审批卡片：统一模板见 [`../winvm-orchestrator/approval-card.md`](../winvm-orchestrator/approval-card.md)（§审批卡片模板 · 唯一正文；本文件不复制正文）
 
 | 操作 | 风险 | 强制动作 |
 |---|---|---|
 | `app.winget.uninstall` | L2 | 展示应用名+版本+影响范围 → 审批 → 执行 → 验证 |
 | 批量 `upgrade --all` | L1（影响面大） | 先列出可升级包清单，取得用户确认 |
 
+> 上表「应用名 + 版本 + 影响范围」即模板的 **操作**、**目标**、**影响清单** 槽位；卡片格式与填充规则以模板为准（引用见本节开头），本文件不复制正文。
+
+## 入参契约错误处理（`INVALID_PARAMS` / `INVALID_ARGUMENT`）
+
+调用本域工具若返回 `error.code == "INVALID_PARAMS"` 且 `error.reason == "INVALID_ARGUMENT"`，
+说明**入参不符合能力契约**（参数名写错 / 漏传必填 / 取值非法），由 VM 服务在发起 PowerShell **之前**拦截，
+**不产生桥往返**（毫秒级返回）。
+
+- **不重试**（`retryable=false`）：参数不变，重试必然再次失败。
+- **看 `error.details`**：`missing`（缺失的必填）、`unknown`（不支持的参数名）、`allowed`（该能力可用参数）、
+  `invalid`（已提供但取值非法的键，含 `expected`/`got`）；
+  按 `error.message` 中的「该能力可用参数：…」改正参数后**再调用**。
+- **先查 `inputSchema`**：`tools/list` 中该工具的 `inputSchema.required`（必填）与
+  `inputSchema.properties`（可用参数）即**权威契约**，调用前先比对可避免此类错误。
+
 ## 已知陷阱
 
-- **winget 输出解析不精确**：表格列宽不定，解析出的 ID 可能有误。
-  优先让用户确认确切 ID；无法确认时用 `dryRun: true` 预览
+- **winget 搜索结果**：已按 `----` 分隔线做**定宽列解析**，跳过表头行与汇总行 ——
+  不再出现「把表头当数据、列错位」（如 `id: "Version"`、`name: "Name  Id"`）的乱码。
+  但列宽仍可能随 winget 版本/本地化变化 —— **仍建议让用户确认确切 ID**，或先用 `dryRun: true` 预览安装计划
 - **必须加无人值守参数**：本系统已内置
   `--accept-package-agreements --accept-source-agreements --disable-interactivity`，
   任何交互式提示都会导致**超时**而非失败 —— 表现为"卡住"

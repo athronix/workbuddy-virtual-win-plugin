@@ -17,6 +17,16 @@ export type BridgeErrorCode =
 export interface BridgeError {
   readonly code: BridgeErrorCode;
   readonly message: string;
+  /**
+   * 领域层「原因码」（CL-017 D23）。
+   *
+   * `code` 是**契约层封闭 10 码**（决定是否重试 / 是否需要审批）；`reason` 是**领域层原因码**
+   * （如 PS 侧 `FILE_NOT_FOUND` / `CLI_NOT_FOUND` / `SERVICE_NOT_FOUND`），供调用方按原因选择
+   * **具体补救动作**（修路径 / 先装应用 / 校验名称 / 调大超时）。
+   *
+   * 纯增量可选字段：契约层 10 码与 `DEFAULT_RETRYABLE` 语义**保持不变**。
+   */
+  readonly reason?: string;
   readonly details?: Record<string, unknown>;
   readonly retryable: boolean;
 }
@@ -38,11 +48,13 @@ const DEFAULT_RETRYABLE: Record<BridgeErrorCode, boolean> = {
 export function makeError(
   code: BridgeErrorCode,
   message: string,
-  options?: { details?: Record<string, unknown>; retryable?: boolean },
+  options?: { details?: Record<string, unknown>; retryable?: boolean; reason?: string },
 ): BridgeError {
   return {
     code,
     message,
+    // reason 为纯增量：仅在显式提供时写入，保证既有调用方（不传 reason）行为完全不变
+    ...(options?.reason !== undefined ? { reason: options.reason } : {}),
     ...(options?.details !== undefined ? { details: options.details } : {}),
     retryable: options?.retryable ?? DEFAULT_RETRYABLE[code],
   };

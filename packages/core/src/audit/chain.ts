@@ -72,12 +72,24 @@ export interface AuditChainOptions {
   readonly prefix?: string;
   /** 是否脱敏（默认 true） */
   readonly redactParams?: boolean;
+  /**
+   * D30：服务启动即起新链（默认 false，沿用旧行为「续接已有链」）。
+   * true 时**不**扫描历史分片恢复 seq/lastHash，而是开启一个当日空闲的全新分片、
+   * 以 GENESIS 起链（seq 从 1 重计）；历史分片仅作归档（query 可查），
+   * **不再参与 verifyChain 判定** —— 已含断链的历史数据不会拖累新链的 chainValid。
+   */
+  readonly freshChainOnStart?: boolean;
 }
+
+/** D30：链断裂原因 */
+export type ChainBreakReason = 'HASH_MISMATCH' | 'SEQ_DUP' | 'SEQ_GAP' | 'CHAIN_BREAK';
 
 export interface ChainVerification {
   readonly valid: boolean;
   /** 断裂处的 seq（valid=false 时有值） */
   readonly brokenAt?: number;
+  /** 断裂原因（valid=false 时有值） */
+  readonly reason?: ChainBreakReason;
   readonly entries: number;
   readonly checked: number;
 }
@@ -93,27 +105,55 @@ export class HashChainAuditSink implements AuditSink {
   private readonly maxFileBytes: number;
   private readonly prefix: string;
   private readonly doRedact: boolean;
+  private readonly freshChain: boolean;
 
   private seq = 0;
   private lastHash: string = GENESIS_HASH;
-  private loaded = false;
+  /** 初始化互斥：并发 ensureLoaded 不得重复扫盘 / 重复起新分片（D30 memoize） */
+  private loadPromise: Promise<void> | undefined;
   private writeQueue: Promise<void> = Promise.resolve();
+  /** D30：freshChain 模式下本轮写入的分片名（verifyChain 只校验这些，历史分片仅归档） */
+  private activeShards: string[] = [];
 
   constructor(opts: AuditChainOptions) {
     this.dir = resolve(opts.dir);
     this.maxFileBytes = opts.maxFileBytes ?? 64 * 1024 * 1024;
     this.prefix = opts.prefix ?? 'audit';
     this.doRedact = opts.redactParams !== false;
+    this.freshChain = opts.freshChainOnStart === true;
   }
 
   get directory(): string {
     return this.dir;
   }
 
-  /** 幂等加载：扫描目录下所有分片，恢复最后一条的 seq 与 hash */
-  private async ensureLoaded(): Promise<void> {
-    if (this.loaded) return;
+  /** 幂等加载（memoize）：freshChain 模式起新分片；否则扫描已有分片恢复最后一条的 seq 与 hash */
+  private ensureLoaded(): Promise<void> {
+    this.loadPromise ??= this.doLoad();
+    return this.loadPromise;
+  }
+
+  private async doLoad(): Promise<void> {
     await mkdir(this.dir, { recursive: true });
+    if (this.freshChain) {
+      // D30：全新 genesis —— 不恢复历史链基线；选取当日第一个**不存在**的分片名，
+      // 保证绝不与历史链混写同一文件（混写会让新链首条 prevHash 对不上历史尾条 hash）。
+      const day = this.shardName().slice(this.prefix.length + 1, -6);
+      let idx = 0;
+      for (;;) {
+        const name = idx === 0 ? `${this.prefix}-${day}.jsonl` : `${this.prefix}-${day}-${idx}.jsonl`;
+        try {
+          await stat(join(this.dir, name));
+          idx += 1; // 已被历史链占用 → 跳过
+        } catch {
+          this.activeShards = [name];
+          // 物化空分片：启动即建立「新链基线」，verifyChain 空链恒 valid
+          await appendFile(join(this.dir, name), '', 'utf8');
+          break;
+        }
+      }
+      return;
+    }
     const files = await this.listShards();
     for (const f of files) {
       const content = await readFile(join(this.dir, f), 'utf8');
@@ -131,13 +171,26 @@ export class HashChainAuditSink implements AuditSink {
         }
       }
     }
-    this.loaded = true;
   }
 
   private async listShards(): Promise<string[]> {
     try {
       const entries = await readdir(this.dir);
-      return entries.filter((f) => f.startsWith(this.prefix) && f.endsWith('.jsonl')).sort();
+      const files = entries.filter((f) => f.startsWith(this.prefix) && f.endsWith('.jsonl'));
+      // D30：按「日期 + 轮转序号」排序。字典序会把 `audit-YYYYMMDD-1.jsonl` 排在
+      // `audit-YYYYMMDD.jsonl` 之前（'-' < '.'），而轮转分片的数据实际产生于正名之后
+      // → 跨文件 seq 校验出现假阴性。语义顺序：同日内正名(0)在先，-1/-2/… 依次在后。
+      const key = (f: string): { date: string; idx: number } => {
+        const rest = f.slice(this.prefix.length + 1, -6); // 去掉 `prefix-` 与 `.jsonl`
+        const dash = rest.indexOf('-');
+        if (dash === -1) return { date: rest, idx: 0 };
+        return { date: rest.slice(0, dash), idx: Number(rest.slice(dash + 1)) || 0 };
+      };
+      return files.sort((a, b) => {
+        const ka = key(a);
+        const kb = key(b);
+        return ka.date !== kb.date ? (ka.date < kb.date ? -1 : 1) : ka.idx - kb.idx;
+      });
     } catch {
       return [];
     }
@@ -152,6 +205,34 @@ export class HashChainAuditSink implements AuditSink {
   }
 
   private async currentShard(): Promise<string> {
+    // D30：freshChain 模式固定写本轮分片；仅在超阈值时按序号继续轮转
+    if (this.activeShards.length > 0) {
+      const base = this.activeShards[this.activeShards.length - 1]!;
+      const day = base.slice(this.prefix.length + 1, -6).split('-')[0]!;
+      const matched = base.match(/-(\d+)\.jsonl$/);
+      let i = matched ? Number(matched[1]) : 0;
+      const p = join(this.dir, base);
+      try {
+        const s = await stat(p);
+        if (s.size < this.maxFileBytes) return p;
+      } catch {
+        return p; // 尚未落盘（首条写入时由 appendFile 创建）
+      }
+      for (;;) {
+        i += 1;
+        const next = `${this.prefix}-${day}-${i}.jsonl`;
+        const np = join(this.dir, next);
+        try {
+          const s2 = await stat(np);
+          if (s2.size >= this.maxFileBytes) continue; // 该轮转位也已满 → 继续找
+        } catch {
+          // 不存在 → 可用
+        }
+        this.activeShards.push(next);
+        return np;
+      }
+    }
+
     const name = this.shardName();
     const p = join(this.dir, name);
     try {
@@ -176,8 +257,22 @@ export class HashChainAuditSink implements AuditSink {
     return p;
   }
 
-  /** 追加一条审计记录（串行化写入，避免并发交错破坏链序） */
+  /** 追加一条审计记录（取号 → 计算 prevHash/hash → 写盘 → 回写基线，整体在 writeQueue 串行闭包内） */
   async append(input: AppendAuditInput): Promise<AuditRecord> {
+    // D30 竞态修复：旧实现在**进串行区之前**同步取号（seq = this.seq + 1、prevHash = this.lastHash），
+    // 且 this.seq / lastHash 在写盘完成后才回写 → 并发 append 会取到相同 seq 并以相同 prevHash 起链，
+    // 造成「重复取号 + 链分叉」（真机实证：三天分片 672 条恰两处重复 seq：511 与 582）。
+    // 现将全部状态读写移入串行闭包，保证 seq 严格单调、链严格不分叉。
+    const run = this.writeQueue.then(() => this.doAppend(input));
+    // 队列必须恒为 fulfilled：单条失败只向调用方抛错，不中断后续写入
+    this.writeQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async doAppend(input: AppendAuditInput): Promise<AuditRecord> {
     await this.ensureLoaded();
     const seq = this.seq + 1;
     const partial: Omit<AuditRecord, 'hash'> = {
@@ -191,29 +286,32 @@ export class HashChainAuditSink implements AuditSink {
 
     const line = JSON.stringify(record) + '\n';
     const shard = await this.currentShard();
+    await mkdir(this.dir, { recursive: true });
+    await appendFile(shard, line, 'utf8');
 
-    // 串行化：保证 seq 与 prevHash 严格单调
-    this.writeQueue = this.writeQueue.then(async () => {
-      await mkdir(this.dir, { recursive: true });
-      await appendFile(shard, line, 'utf8');
-    });
-    await this.writeQueue;
-
+    // 写盘成功后回写链基线（仍在串行区内，回写顺序即写序）
     this.seq = seq;
     this.lastHash = hash;
     return record;
   }
 
-  /** 全链校验 */
-  async verifyChain(): Promise<{ valid: boolean; brokenAt?: number; entries: number }> {
+  /** 全链校验（freshChain 模式仅校验本轮分片；历史分片归档可查但不参与判定） */
+  async verifyChain(): Promise<ChainVerification> {
     await this.ensureLoaded();
-    const files = await this.listShards();
+    const files = this.freshChain ? [...this.activeShards] : await this.listShards();
     let expectedPrev: string = GENESIS_HASH;
+    let lastSeq = 0;
     let checked = 0;
     let entries = 0;
 
     for (const f of files) {
-      const content = await readFile(join(this.dir, f), 'utf8');
+      let content: string;
+      try {
+        content = await readFile(join(this.dir, f), 'utf8');
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT') continue; // freshChain 首条写入前分片可能尚空
+        throw e;
+      }
       const lines = content.split('\n').filter((l) => l.trim().length > 0);
       // 跨文件按 seq 排序，保证链式顺序
       const recs = lines
@@ -233,14 +331,24 @@ export class HashChainAuditSink implements AuditSink {
         const recomputed = sha256(canonicalJson(rest));
         const chainOk = rec.prevHash === expectedPrev;
         const hashOk = recomputed === hash;
-        if (!chainOk || !hashOk) {
-          return { valid: false, brokenAt: rec.seq, entries };
+        // D30：seq 单调性也纳入断裂判定 —— 重复 seq / 跳号即使 hash 与 prevHash 自洽也是断链
+        //（真机实证的 511/582 重复 seq 现场，正是「哈希全对但 seq 重复」的形态）。
+        if (!chainOk || !hashOk || rec.seq !== lastSeq + 1) {
+          const reason: ChainBreakReason = !hashOk
+            ? 'HASH_MISMATCH'
+            : rec.seq <= lastSeq
+              ? 'SEQ_DUP'
+              : rec.seq !== lastSeq + 1
+                ? 'SEQ_GAP'
+                : 'CHAIN_BREAK';
+          return { valid: false, brokenAt: rec.seq, reason, entries, checked };
         }
         expectedPrev = hash;
+        lastSeq = rec.seq;
         checked++;
       }
     }
-    return { valid: true, entries, ...(checked === entries ? {} : { brokenAt: entries }) };
+    return { valid: true, entries, checked };
   }
 
   /** 按条件查询（只读） */

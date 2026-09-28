@@ -1,61 +1,49 @@
 # 项目长期记忆 · winvm-virtual-win-plugin
 
-> 跨会话可复用的事实与约定。临时排查/单次结果勿入此文件。
+> 跨会话复用事实；临时排查勿入。交接见 `.workbuddy/README.md` + `handover/07-migration-checklist.md`。
 
-> 🔴 **迁移交接（2026-09-10，跨机继续开发专用）**
-> 本项目已生成完整迁移交接档案。**新机器上的 WorkBuddy 请先读 `.workbuddy/README.md`**
-> （目录索引 + handover 总纲），再按 `.workbuddy/handover/07-migration-checklist.md` 逐项落地。
-> 档案清单：`handover/01` 概览 · `02` 开发历史 · `03` 当前状态 · `04` 问题与方向 ·
-> `05` 环境/工具/Skills · `06` **踩坑集（改码前必扫）** · `07` 新机落地清单。
+## 架构
+宿主 WorkBuddy 插件，操作 Win11 VM（system/app/storage/gui/appops 五域 54 能力）。DDD+plan-first；npm workspaces 12 包，TS strict ESM，`tsc -b`，`node --test`。
+- **双通道**：MCP 直调 VM `/mcp`（简单）/ A2A 经隧道调 `/a2a`（复杂，streaming 审批）；同一隧道承载两者。工具名 `system.info.get`→`winvm__system_info.get`。
+- **VM 内 AI Agent（`WINVM_VM_PROVIDER`）**：`workbuddy-deterministic`（基准）/ `workbuddy`（LLM，常驻 `codebuddy` CLI 会话）/ `hermes-agent`（须预注册 config.yaml.mcp_servers）。
 
-## 项目定位
-为**宿主机 WorkBuddy（AI Agent）**开发的插件，使其能完全操作一台 Windows 虚拟机（系统/应用/存储/GUI/应用生产操作 appops 五大能力域，共 54 个能力）。DDD + plan-first 双方法论驱动；npm workspaces 12 包，TypeScript strict ESM，`tsc -b` 构建，`node --test` 单测（214/214，逐文件运行）。
+## 拓扑与环境
+- 宿主 = 鸿蒙 HarmonyOS NEXT，`process.platform` 实报 **`openharmony`**；VM = Win11 `172.16.100.2`（`ssh User@…` 免密；`C:/WinVMBridge` 程序、`C:/WinVMWorkspace` 工作区）；VM 服务只监听 `127.0.0.1:18443`，计划任务 `WinVMBridge.Service` 托管 `ps-bridge.ps1`（**改 `psmod/*.ps1` 必须重启服务**）。
+- **宿主插件缓存 = 运行态真相源**：`~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/`（真实副本非 symlink）→ **改 dist 必须实跑 `delivery/install-host.mjs` 才生效**。
+- 宿主持久化：`~/.workbuddy/winvm/{vm-conn.json,tunnel.pid,tunnel.state.json,tunnel-autostart.json,tunnel.log}`；VM 侧 `~/.workbuddy/winvm/side.json`。
+- **鸿蒙沙箱**（细见用户级记忆）：WB App uid 20020171，每 App 独立挂载命名空间 + HMMAC，无 root；`$HOME=/storage/Users/currentUser`（hmdfs）是唯一跨 App 通道。跨 App 判活 `kill -0`：EACCES≠死、ESRCH=死。
 
-## 三选项 VM 内 AI Agent（经 `WINVM_VM_PROVIDER` 切换）
-- `workbuddy-deterministic`：确定性执行器（`adapter-agent-workbuddy`），可替换基准实现。
-- `workbuddy`：LLM 执行器（`adapter-agent-workbuddy-llm`），VM 内 spawn `codebuddy` CLI（`--goal/--system-prompt/--mcp/--output`，真机未验证）。
-- `hermes-agent`：**Nous Research 的 Hermes Agent**（`adapter-agent-hermes`）。⚠️ **Hermes CLI 无 `--mcp` 参数**——MCP 必须预注册进 `config.yaml.mcp_servers`（url 类型 + `.env` 的 `MCP_WINVM_API_KEY` Bearer），靠 `mcp_startup.py` 自启加载。registrar 失败仅 warn 降级。
+## 关键坑（改码/联调前必扫）
+- **远端 shell = Git Bash(MSYS)**：`/` 开头参数被路径转换、`$_`/`$env:` 被吞 → 远端逻辑写 `.ps1` → scp（**远端路径须 `C:/…`**）→ `powershell -NoProfile -ExecutionPolicy Bypass -File`；载荷用 ASCII 防中文乱码。杀隧道勿 `pkill -f 'ssh -N -L'`（自杀）→ 直 kill PID。
+- **PS 5.1**：`Sort-Object <裸键>` 对 `[ordered]@{}` 静默失效 → `-Property { $_.key }`；`Set-StrictMode` 下顶层变量无条件赋值。
+- **沙箱**：`/tmp` 只读（用 `$HOME/wbtmp`）；无 `git`；`rm` shim **坏**（`safe-bin/rm` shebang `#!/bin/bash`，本机只有 `/bin/sh` → bad interpreter / exit 126）→ 用 `fs.unlinkSync`/`renameSync`；`ls` 无 `--time-style`；`getcwd` 偶发异常（用绝对路径）；node 必须 `/data/storage/el1/bundle/libs/arm64/node/bin/node`。
+- **单测绝不整批跑** → `node --test <单文件>`。
+- **Grep 工具对 `delivery/*.mjs` 漏匹配**（`|` 多选正则假阴性）→ 用 Read 或逐词单搜。
+- **隧道**：VM 掉线时旧隧道仍占监听 → TCP 通但 HTTP 黑洞（判据：ping 100% 丢）。用 `delivery/tunnel-daemon.mjs`（进程内 ssh2 + 指数退避 + 仅绑回环 + pidfile/state；**无 `--daemon`，直接跑即常驻**）。兜底 HOURLY watchdog `aaa87da4`。
+- **VM 侧 live 部署**：`.env.deploy-vm`；dist tar → scp → VM 内**从文件**解包覆盖（`tar -x` 不可走 stdin，MSYS 会截断）→ `kill-restart.ps1`。
+- **codebuddy CLI 自动升级**中途夭折会删坏 nvm 垫片 → 固定版本。
 
-## 共享 Skills 部署范式（用户明确要求"独立于各候选 Agent"）
-- 单一真源：仓库 `skills/`（6 个 Skill：orchestrator 总控 + 5 领域；每个含 `mcps-reference.md` 指导 MCP server 部署）。
-- 共享根：**`C:/WinVMBridge/shared-skills`**（故意与仓库 `skills/` 分离，避免 VM 部署目录==仓库目录时 `cp` 自拷贝 `EINVAL`）。
-- 各候选 Agent 仅经 **junction**（Windows 免管理员）引用共享根；`delivery/deploy-shared-skills.mjs` 两阶段（publish → link），幂等/可 dry-run。
-- `skillsRoot` 默认值已统一为 `C:/WinVMBridge/shared-skills`。
+## 里程碑
+- CL-015 鸿蒙宿主适配｜CL-016 审批闸 UX｜CL-017「5 域×2 通道」E2E 18/18｜CL-018 常驻会话 6 项｜CL-019 缓存新鲜度 / `routeMetric`。
+- **CL-020**：F2 全通道采集（`server.ts` 注入 `reportNetCfg` 单一数据源 + `adapter-agent-workbuddy.execute` 仅对 `system.network.config` 上抛）；隧道生产化（`'openharmony'` 判定）。生产化收口：真机干净部署 + 全量真环境测试通过；F2 懒刷新 `netCfg.ageMs` 50,446,574→13,266ms；修 B4（`probeDefaultSshKey()` 默认私钥探测链）。
+- **CL-020 迭代收口 D5–D15（2026-09-23）**：`D14` 修 `setup.mjs` TUNNEL 相位无条件自建隧道（EADDRINUSE/EXIT 1）→ `runTunnelPhase()` 三级（①复用 / ②daemon `ensure` / ③回落自建+告警），**三级均实测**（③ 用 stub 顶替 CLI 负向注入 + md5 自证零残留）；`D15` 修 HEALTH 把探针超时误判成「非交互 → GUI 不可用」→ **纯函数 `interpretHealth(h)` 三态**（非 `state==='healthy'` 一律 `unknown`）+ 退避重探（10s×≤6、预算 90s），新增 `tests/unit/setup-health-verdict.test.js` **8/8 PASS**。真机 Run1–Run3，报告 `docs/test/reports/real-test-2026-09-23{,-run2,-run3}.md`。
+- **⭐ K2 修复（2026-09-24，run7 全绿 18/18）**：A2A 冷启动停滞 = lazy 单例常驻会话在服务重启/空闲回收后首调必付 codebuddy 冷启动 75–107s > 宿主 60s 有界探测。修复 = **启动期 fire-and-forget 预热**（`server.ts` 对 `kind==='llm-agent'` 调 `provider.warmup()`）：v1 复用 `runGoal` **被 `execTurn` 60s init 上限杀会话**（部署 HEALTH 实证 `lastError="…60000ms 内未收到 system/init"`）；v2 独立路径 `PersistentCliSession.warmup()`——init 上界 `warmupReadyMs`（默认 180s，env `WINVM_LLM_SESSION_WARMUP_MS`）、**超时不杀会话/不置 degraded/不写 lastError**、enqueue 串行互斥、消费 result 后判 ready、`warmupInFlight` 单飞、`CliLlmBridge.warmup()` 必须用**同一 outputDir** 构造单例。验证链：单测 482/482 → 部署 HEALTH `state=ready` → 重启后 T+~60s ready → A5 首调 **18.4s ok=true**（修复前 60.8s 超时）。报告 `docs/test/reports/real-test-2026-09-24-run7.md`。
+- **⭐ 测试夹具竞态坑**：`cl018-persistent-session.test.js` 的 `makeSession` 在 spawn 后 `queueMicrotask` 发 init → `initSeen=true` 先于被测方法写消息。测「spawn→写消息→等 init」全链路（如 warmup）须 `noInit: true` 让测试行为驱动 init。
+- **⭐ 部署关键事实**：`install-host.mjs:965-975` HOST 相位**自己会 `tunnel ensure`** → 整条总脚本里 TUNNEL 相位**永远走①复用**、看不到"无隧道"；验②③必须 `--phase TUNNEL` 隔离跑。
+- **⭐ GUI 可用性成因**：VM 任务经 **BootTrigger（无用户会话）** 启动 → 非交互 → GUI 不可用；经 **LogonTrigger（已登录会话）** 拉起 → 交互式 → GUI 可用。故 `install-vm.mjs` 须**双触发器**。
+- **Run3 终态权威 md5**：`setup.mjs`=60,345B/`cef0dcf3471809bc41f88843f1b23942`；`winvm-plugin.mjs`=`efdafd2d1e3185647b852d7be5778eb2`；`tunnel-daemon.mjs`=`4ed08c1fd63052de761423b41dc87e0b`；`oh-tunnel.mjs`=`8c397ae7eb2491626b8e398fe3b5684c`；`ssh2-resolve.mjs`=`35f1678d96144765ad50f9f439ecdcc8`；单测 `c9770f9bf8863d33e3764adec3ca654e`。
 
-## 双通道架构（非显然）
-- 简单任务：宿主 Agent 直接经 MCP 调 VM `/mcp` 的 54 能力工具。
-- 复杂任务：宿主 `host-a2a-bridge`（stdio MCP server，暴露 `a2a.delegate` 等）经 SSH 隧道调 VM `/a2a`（A2A v1.0，SSE + tasks/* + input-required 审批）。
-- 同一条隧道承载 `/mcp` 与 `/a2a`；回环隧道免 bearer token（`tokenEnv` 仅对非回环强制）。
+## 关键口径
+- C5 三档：热态(命中)<3s｜冷启预热 ≤3s｜真采集 ≤5s。AC 时延取 `wallMs`（宿主往返），`durationMs` 留档（差 ≈330–390ms）。
+- codebuddy 单次 `-p` 启动 64–107s → 根治常驻会话（stream-json + 固定 `--session-id`）。
+- **测试证据口径**：每轮**只留一份权威报告** `docs/test/reports/real-test-<date>-run<N>.md`；**「未复现≠已修」**→ 必须**确定性注入**回归；FAIL 给四元组（现象/根因/证据/路由）；BLOCKED 逐例给原因；证据目录**删除必留痕**。
+- **`/proc` 扫进程须精确判据**（cmdline 第 2 段以 `tunnel-daemon.mjs` 结尾）——否则会自匹配扫描命令自身、数出假实例（曾误报 3 个 daemon）。
+- **证据文件「写完再读」**：读取落在写入窗口内会得到**未 flush 的 0B 假空文件**；任何"为空/缺失"结论须二次确认（mtime + 字节 + 进程存活）。
 
-## VM 服务计划任务：隐藏窗口与 GUI 会话判定（易踩坑，第十一轮实证）
-- **`<Hidden>true</Hidden>` 对 InteractiveToken 任务无效**：GUI 能力域要求服务跑在交互式会话（`<LogonType>InteractiveToken</LogonType>`，Session>=1，否则截图全黑 / SendInput 拒绝访问），而 Windows 对这类任务**忽略** XML 的 Hidden 设置 —— 直接以 `node.exe` 作为任务动作必然弹出**常驻控制台窗口**（用户可见、易误关，一关服务即停）。`schtasks /run` 重启走同一份任务定义，故重启后窗口会重现。
-- **隐藏必须发生在进程创建层**：`buildTaskXml` 生成 `delivery/.generated/start-hidden.ps1`，任务动作改为 `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "<ps1>"`，脚本内 `Start-Process -WindowStyle Hidden -FilePath $nodeExe -ArgumentList $cliArgs -WorkingDirectory $workDir -Wait` 拉起 node。
-  - 用 `-File` 而非 `-Command`：node 参数含带双引号的路径，`-Command` 需再嵌一层命令行引号（`/\"`）转义，极易出错；`-File` 只剩一层，参数原样写进 `.ps1`。
-  - **`-Wait` 不可省**：否则 `Start-Process` 立即返回、任务动作即结束，node 可能被作业对象连带回收；加上后服务存活期间任务保持 Running，`schtasks /end` 仍可终止、崩溃仍触发 RestartOnFailure，原语义不变。
-- **「在交互式会话启动」≠「GUI 一定可用」**：`psmod/gui.ps1` 的 `Get-SessionHealth` 还要求**未锁屏**（`LogonUI` 未运行）且 **Explorer 在跑**，否则 `state=degraded`（detail「会话降级（锁屏或 Explorer 未运行）」）。锁屏状态下重启服务仍会 degraded —— 先解锁 / 登录桌面、确认 Explorer 已启动，再重启。该判定刻意保留，**勿放宽**。
-
-## 单测运行约定（沙箱硬约束，非显然）
-- **绝对不要**整批跑 `node --test tests/unit/*.test.js`——`link-workspace.test.js` 里 `symlink(...,'junction')` 在本沙箱触发 Node 进程访问违例（`exitCode 2147483651`/`0xC0000005`），会**打崩共享 runner**，连带同进程所有文件被判死且无汇总计数，呈现「整批假全红」的假象（实则一行代码都没坏）。
-- **正确做法**：每个文件单独起一个 `node --test <file>` 进程（for 循环逐个跑），再汇总 `# pass`。单跑 `link-workspace` 16/16 完全正常。
-- 当前真实基线：**214/214 全绿**（16 文件逐文件跑；含 `path-util.test.js` 9 项、`winvm-plugin.test.js` 7 项、`deploy-conn-side.test.js` 3 项）。改动后复核须沿用此法，否则极易误判回归。
-
-## PowerShell 字符串转义坑（可复用，第十二轮实证）
-- **PowerShell 双引号字符串里反斜杠不是转义符**（`"` 内的 `\\` 是字面双反斜杠；转义符是反引号 `` ` ``）。把含反斜杠的路径用 `JSON.stringify` 拼进 `powershell -Command "..."` 会**翻倍反斜杠**（`C:\foo` → `C:\\foo`），写进注册表/文件后路径带 `\\`，回读 `includes`/匹配全失败。
-- **正确做法**：用 **单引号字符串**嵌入路径（`'` 用 `''` 转义内部单引号），反斜杠保持字面量。例：`setUserPathRaw` 用 `[Environment]::SetEnvironmentVariable("Path", 'C:\dir', "User")` 而非 JSON.stringify。
-- 该坑曾伪装成「沙箱注册表隔离」（写成功但跨进程读不到），排查时先怀疑转义而非环境隔离。
-
-## 本机 User PATH 历史损坏 + conda AutoRun 噪声（第十三轮实证）
-- **现象**：在 PowerShell 跑 `winvm-plugin` / `node` 等经 `cmd /c` 启动的命令时，刷 `'DOSKEY' is not recognized` + `'node' is not recognized`。
-- **DOSKEY 来源**：HKCU `cmd` AutoRun = `conda_hook.bat`（anaconda 安装写入），其第 17 行 `@DOSKEY conda=...` 在每次 `cmd /c` 时执行，子进程 doskey.exe 解析不到即报错（与本项目无关，但污染输出）。
-- **node 来源**：本机 **User 级 PATH 被某工具以 JSON 风格转义写入，每条目带双反斜杠（`\\`）**，node 条目 `d:\nvm4w\nodejs` 也在损坏之列，`cmd /c` 子进程定位失败。这是 kmaster/hermes/anaconda 等历史残留，**非本项目 Q2 的 PATH 写入造成**（Q2 写入的缓存条目是干净的）。
-- **修复范式（已落地 `winvm-plugin.cmd`）**：① 启动器自重载 `cmd /d /c "%~f0" %*` 跳过 AutoRun 消除 DOSKEY 噪声；② 显式定位 node（先查 `d:\nvm4w\nodejs\node.exe`/`C:\Program Files\nodejs\node.exe`，再 `for %%i in (node.exe) do %%~$PATH:i` 回退，最后兜底裸 `node`），不依赖 PATH 恰好含 node。
-- **清理本机 PATH 的脚本**：`.workbuddy/clean_user_path.ps1`（从 `tmp_path_raw_backup.txt` 备份重跑；正则 `'\\{2,}'`→`'\'` 折叠连续多反斜杠、剔除 `__path_test__`、去重）。⚠️ 本机曾出现**连续 4 个反斜杠**（`\\\\`），单 `\\`→`\` 只修一半，必须用 `\\{2,}` 一次折叠到底。原始值备份在 `.workbuddy/tmp_path_raw_backup.txt` 可回滚。
-
-## 部署期持久化标记（第十四轮实证，可复用范式）
-- **VM 内 `winvm-plugin` 不可达**：VM 部署（`install-vm.mjs`）只把启动器落盘到 `<repoRoot>/delivery/`，**必须** `addToUserPath` 把该目录加入 VM 用户 PATH，VM 内才能 `winvm-plugin <cmd>`。宿主侧同理（Q2 已做，缓存根）。
-- **VM 内 health 误走 host 分支**：`detectSide()` 最高优先级读 `~/.workbuddy/winvm/side.json`（VM 部署写 `{"side":"vm"}`）→ health 走本地 `127.0.0.1:/health`，无需 vm-host/vm-user。
-- **宿主侧 health 每次要 --vm-host/--vm-user**：`install-host.mjs` 安装时把 VM 连接写入 `~/.workbuddy/winvm/vm-conn.json`，`winvm-plugin.mjs` 的 `resolveVmConn` 把它当兜底来源（优先级 argv > env WINVM_VM_* > .env VM_* > vm-conn.json > 默认）；`setup.mjs` HOST 步骤需透传 `--vm-host/--vm-user/--vm-ssh-port/--vm-port`。
-- 文件型标记（side.json / vm-conn.json）抽成导出函数（接受 `home` 参数），便于单测注入临时 home。
-
-## 真机未验证项（V1 遗留，需真实 Windows VM）
-- 真实 VM `--self-test`、真实 SSH 隧道端到端、真实 `codebuddy` CLI flag 兼容、`hermes` 真机 CLI 拉起 + MCP 自动加载。
+## backlog（未修）
+- **K3 遗留（2026-09-28 已修主链，余 P2）**：A2A 假成功主链已修（buildSystemPrompt 审批纪律 3 条硬约束 + `reconcileApprovalWait()` 结果如实性改判，QA 全绿路由 NoOne，报告 `docs/test/reports/k3-fix-qa-2026-09-28.md`）。遗留：① 兜底是启发式（依赖 LLM 措辞），根治 = bridge 直读 MCP 结构化工具结果（更大改造）；② 建议补 reconcileApprovalWait 直接单测 2-3 条；③ `tsc -b` 须带 `tsconfig.build.json`（根目录无 tsconfig.json）；④ **仓库修复未部署**（install-host.mjs + VM 侧待跑）。
+- **预热会话 idle 回收后的「深度空闲首调」**（P2·K2 边界）：预热达成的会话 5min（`idleTtlMs`）后软回收 → 深度空闲后首调仍付冷启动（设计内，K2 只覆盖「服务重启后紧随的委派」）。若需覆盖，须评估预热调度（如 idle 回收时延迟再预热）。
+- **`SessionHealth` 无法表达「未知」**（P2）：`interactive/locked/blackScreen/sessionId/windowStation` 均**必填**，超时被迫填 `false/0/''`（过度断言）→ 任何只读 `interactive` 而不先查 `state` 的消费者都会重踩。建议**先做文档级**（`packages/contracts/src/bridge.ts:36-47` 注明"仅当 `state==='healthy'` 时才有意义"）；强约束（改可选 / 增 `SessionState='unknown'`）属 JSON 契约变更，须审计全部消费者。
+- ~~**A2A 冷启动停滞**~~（P1 → **已修·run7 复验闭环**，见里程碑 K2 条目）。
+- `winvm-plugin.mjs` 残留 3 处**打印文案** `schtasks /…`（P3，非执行路径 L527/579/584）——执行路径已改 PowerShell cmdlet（D12）。
+- 非阻塞：A2A 不转发 per-call `timeoutMs`；首 spawn node 退出后残存 ~15s 自退。

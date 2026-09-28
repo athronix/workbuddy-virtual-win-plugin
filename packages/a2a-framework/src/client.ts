@@ -28,6 +28,8 @@ export interface SendMessageOptions {
   readonly maxRisk?: RiskLevel;
   readonly traceId?: string;
   readonly timeoutMs?: number;
+  /** 外部中断信号（与 timeoutMs 二选一或并用；caller 主动 abort 时立即终止流） */
+  readonly signal?: AbortSignal;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -68,9 +70,24 @@ export class A2AClient {
   async getAgentCard(baseUrl?: string): Promise<A2A.AgentCard | undefined> {
     if (this.channel.kind !== 'http' || !baseUrl) return undefined;
     const url = `${baseUrl.replace(/\/+$/, '')}/.well-known/agent-card.json`;
-    const res = await fetch(url, { headers: { accept: 'application/json' } });
-    if (!res.ok) throw new A2AClientError('AGENT_CARD_FETCH_FAILED', `HTTP ${res.status} from ${url}`);
-    return (await res.json()) as A2A.AgentCard;
+    // 自愈超时：a2a.health 直接 fetch 无超时，VM 在线但无响应会永久挂起
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    try {
+      const res = await fetch(url, {
+        headers: { accept: 'application/json' },
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new A2AClientError('AGENT_CARD_FETCH_FAILED', `HTTP ${res.status} from ${url}`);
+      return (await res.json()) as A2A.AgentCard;
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') {
+        throw new A2AClientError('AGENT_CARD_FETCH_TIMEOUT', `拉取 Agent Card 超时（15000ms）：${url}`);
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /** 提交目标（message/send） */
@@ -129,7 +146,10 @@ export class A2AClient {
       },
     };
 
-    for await (const raw of this.channel.stream({ jsonrpc: '2.0', id: nextId(), method: 'message/stream', params })) {
+    for await (const raw of this.channel.stream(
+      { jsonrpc: '2.0', id: nextId(), method: 'message/stream', params },
+      { timeoutMs: opts.timeoutMs, signal: opts.signal },
+    )) {
       if (!isRecord(raw)) continue;
       if ('result' in raw && isRecord(raw['result'])) {
         yield raw['result'] as unknown as A2A.A2AStreamEvent;

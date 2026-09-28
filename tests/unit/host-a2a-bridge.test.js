@@ -9,6 +9,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createA2aBridgeTools, extractApproval, extractText } from '@winvm/host-a2a-bridge';
+import { buildA2aResumeHint, withA2aResumeHint } from '@winvm/host-a2a-bridge';
 
 function statusUpdate(state, text, extra = {}) {
   return {
@@ -253,5 +254,341 @@ describe('其它委派工具', () => {
     assert.equal(res.isError, false);
     assert.equal(res.structuredContent.name, 'WinVM Bridge Agent');
     assert.equal(res.structuredContent.skills[0].id, 'app-operation');
+  });
+});
+
+/* ===================== CL-016 追加用例 ===================== */
+
+/** CL-016：含 type / impact / preview / summary 的完整审批 data part */
+function approvalUpdateFull() {
+  return {
+    kind: 'status-update',
+    taskId: 'task_cl016',
+    contextId: 'ctx_1',
+    status: {
+      state: 'input-required',
+      message: {
+        kind: 'message',
+        role: 'agent',
+        messageId: 'm2',
+        parts: [
+          {
+            kind: 'data',
+            data: {
+              type: 'approval-request',
+              approvalId: 'apr_cl016',
+              risk: 'L2',
+              capabilityId: 'storage.file.delete',
+              preview: { params: { paths: ['C:\\old\\a.log'], permanent: false }, note: '将删除 1 个文件' },
+              impact: ['C:\\old\\a.log（12.4 MB）'],
+              summary: '删除 old 目录下 1 个日志文件',
+            },
+          },
+        ],
+      },
+    },
+    final: true,
+  };
+}
+
+/** 构造仅含一个 data part 的 agent 消息 */
+function dataMessage(data) {
+  return { kind: 'message', role: 'agent', messageId: 'm', parts: [{ kind: 'data', data }] };
+}
+
+describe('CL-016 审批载荷透传', () => {
+  test('impact / preview 逐项深等透传，kind 与 summary 就位', () => {
+    const a = extractApproval(approvalUpdateFull().status.message);
+    assert.ok(a);
+    assert.equal(a.approvalId, 'apr_cl016');
+    assert.deepEqual(a.preview, {
+      params: { paths: ['C:\\old\\a.log'], permanent: false },
+      note: '将删除 1 个文件',
+    });
+    assert.deepEqual([...a.impact], ['C:\\old\\a.log（12.4 MB）']);
+    assert.equal(a.kind, 'approval-request');
+    assert.equal(a.summary, '删除 old 目录下 1 个日志文件');
+  });
+
+  test('空数组与空对象也原样透传', () => {
+    const a = extractApproval(
+      dataMessage({ type: 'approval-request', approvalId: 'apr_empty', risk: 'L2', impact: [], preview: {} }),
+    );
+    assert.ok(a);
+    assert.deepEqual(a.impact, []);
+    assert.deepEqual(a.preview, {});
+  });
+
+  test('类型非法则省略该字段（不输出 undefined 字面量）', () => {
+    const a = extractApproval(
+      dataMessage({ type: 'approval-request', approvalId: 'apr_bad', risk: 'L2', impact: [1, 2], preview: 'nope' }),
+    );
+    assert.ok(a);
+    assert.equal('impact' in a, false);
+    assert.equal('preview' in a, false);
+    assert.equal('resumeHint' in a, false);
+    assert.ok(!Object.values(a).some((v) => v === undefined));
+  });
+
+  test("type 非 'approval-request' 的 data 不识别为审批", () => {
+    assert.equal(extractApproval(dataMessage({ type: 'progress', approvalId: 'apr_x', risk: 'L2' })), undefined);
+  });
+});
+
+describe('CL-016 A2A 续跑提示', () => {
+  test('buildA2aResumeHint 含 a2a.approval.reply 且绝不含 __approvalId', () => {
+    const withTask = buildA2aResumeHint('apr_1', 'task_1');
+    assert.ok(withTask.includes('a2a.approval.reply'));
+    assert.ok(!withTask.includes('__approvalId'));
+    assert.ok(withTask.includes('taskId: "task_1"'));
+    assert.ok(withTask.includes('approvalId: "apr_1"'));
+    const noTask = buildA2aResumeHint('apr_2');
+    assert.ok(noTask.includes('approvalId: "apr_2"'));
+    assert.ok(!noTask.includes('taskId:'));
+    assert.ok(!noTask.includes('__approvalId'));
+  });
+
+  test('withA2aResumeHint 幂等（已有 resumeHint 不覆盖）', () => {
+    const a = {
+      approvalId: 'apr_1',
+      message: 'm',
+      resumeHint: '（A2A 续跑）放行：a2a.approval.reply { approvalId: "apr_1", approved: true }',
+    };
+    assert.equal(withA2aResumeHint(a, 'task_9').resumeHint, a.resumeHint);
+  });
+
+  test('a2a.delegate 输出的 approval 带 resumeHint，整段绝不含 __approvalId', async () => {
+    const client = mockClient([statusUpdate('working', '准备'), approvalUpdateFull()]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: '删除日志' }, CTX);
+    const sc = res.structuredContent;
+    assert.ok(sc.approval, '应返回审批请求');
+    assert.ok(sc.approval.resumeHint.includes('a2a.approval.reply'));
+    assert.ok(sc.approval.resumeHint.includes('taskId: "task_cl016"'));
+    assert.ok(!JSON.stringify(sc.approval).includes('__approvalId'));
+    assert.ok(!JSON.stringify(res).includes('__approvalId'), 'A2A 通道输出绝不能出现 __approvalId');
+  });
+
+  test('a2a.delegate 挂审批时附宿主侧 approvalAudit（pending）', async () => {
+    const client = mockClient([statusUpdate('working', '准备'), approvalUpdateFull()]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: '删除日志' }, CTX);
+    const audit = res.structuredContent.approvalAudit;
+    assert.ok(audit, '应附宿主侧留痕');
+    assert.equal(audit.approvalId, 'apr_cl016');
+    assert.equal(audit.traceId, 'tr_test');
+    assert.equal(audit.channel, 'a2a');
+    assert.equal(audit.result, 'pending');
+    assert.match(audit.previewHash, /^[0-9a-f]{64}$/);
+  });
+});
+
+describe('CL-016 三终止文案', () => {
+  test('timedOut：超时文案不暗示默认批准', async () => {
+    const client = mockClient([], {
+      async *streamMessage() {
+        await new Promise((r) => setTimeout(r, 5));
+        yield statusUpdate('working', 'x');
+      },
+    });
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x', timeoutMs: 1 }, CTX);
+    const sc = res.structuredContent;
+    assert.equal(sc.timedOut, true);
+    assert.ok(sc.summary.includes('委派等待超时'));
+    assert.ok(sc.summary.includes('审批未获批准'));
+    assert.ok(!sc.summary.includes('默认批准'));
+    assert.ok(!sc.summary.includes('审批被拒绝'));
+    assert.ok(!sc.summary.includes('任务已取消'));
+  });
+
+  test('rejected：终止文案明确未执行任何变更', async () => {
+    const client = mockClient([statusUpdate('rejected', '审批被拒绝', { final: true })]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX);
+    const sc = res.structuredContent;
+    assert.equal(sc.state, 'rejected');
+    assert.equal(res.isError, true);
+    assert.ok(sc.summary.includes('审批被拒绝（rejected）'));
+    assert.ok(sc.summary.includes('未执行任何变更'));
+    assert.ok(!sc.summary.includes('默认批准'));
+    assert.ok(!sc.summary.includes('委派等待超时'));
+  });
+
+  test('canceled：取消文案明确审批通道已关闭', async () => {
+    const client = mockClient([statusUpdate('canceled', '已取消', { final: true })]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX);
+    const sc = res.structuredContent;
+    assert.equal(sc.state, 'canceled');
+    assert.ok(sc.summary.includes('任务已取消（canceled）'));
+    assert.ok(sc.summary.includes('审批通道已关闭'));
+    assert.ok(!sc.summary.includes('默认批准'));
+    assert.ok(!sc.summary.includes('委派等待超时'));
+  });
+
+  test('挂起审批仍保留「任务挂起等待审批」语义', async () => {
+    const client = mockClient([statusUpdate('working', '准备'), approvalUpdate()]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX);
+    assert.ok(res.structuredContent.summary.includes('任务挂起等待审批'));
+    assert.equal(res.isError, false);
+  });
+});
+
+describe('CL-016 A6 向后兼容回归', () => {
+  test('极简 fixture（仅 approvalId/risk/capabilityId/message）仍可用，缺省字段不报错', () => {
+    const a = extractApproval(approvalUpdate().status.message);
+    assert.ok(a);
+    assert.equal(a.approvalId, 'apr_8f3c');
+    assert.ok(typeof a.message === 'string' && a.message.length > 0);
+    assert.equal('impact' in a, false);
+    assert.equal('preview' in a, false);
+    assert.equal('resumeHint' in a, false);
+    assert.ok(!Object.values(a).some((v) => v === undefined));
+  });
+
+  test('delegate 处理极简 fixture：结果无 undefined 字面量', async () => {
+    const client = mockClient([statusUpdate('working', '先跑一步'), approvalUpdate()]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX);
+    const sc = res.structuredContent;
+    assert.equal(sc.state, 'input-required');
+    assert.equal(sc.approval.approvalId, 'apr_8f3c');
+    assert.equal('impact' in sc.approval, false);
+    assert.equal('preview' in sc.approval, false);
+    assert.equal(
+      sc.approval.resumeHint,
+      '（A2A 续跑）放行：a2a.approval.reply { taskId: "task_1", approvalId: "apr_8f3c", approved: true }',
+    );
+    assert.ok(!res.content[0].text.includes('undefined'));
+  });
+});
+
+/* ===================== CL-016 A7 凭据红线（脱敏） ===================== */
+
+/** 含四类凭据哨兵的审批 data part（preview.params / impact / 文本三处） */
+function approvalUpdateCreds() {
+  return {
+    kind: 'status-update',
+    taskId: 'task_creds',
+    contextId: 'ctx_1',
+    status: {
+      state: 'input-required',
+      message: {
+        kind: 'message',
+        role: 'agent',
+        messageId: 'm3',
+        parts: [
+          {
+            kind: 'data',
+            data: {
+              type: 'approval-request',
+              approvalId: 'apr_creds',
+              risk: 'L2',
+              capabilityId: 'appops.gui.produce',
+              summary: '导出并覆盖（password: LEAK_SENTINEL_PW）',
+              message: '凭据检查 password: LEAK_SENTINEL_PW',
+              preview: {
+                params: {
+                  user: 'alice',
+                  password: 'LEAK_SENTINEL_PW',
+                  privateKey: 'LEAK_SENTINEL_KEY',
+                  passphrase: 'LEAK_SENTINEL_PP',
+                  token: 'LEAK_SENTINEL_TK',
+                },
+                note: '将覆盖导出 1 个文件',
+              },
+              impact: ['password=LEAK_SENTINEL_PW', 'C:\\old\\a.log（12.4 MB）', 'api_key=LEAK_SENTINEL_AK'],
+            },
+          },
+        ],
+      },
+    },
+    final: true,
+  };
+}
+
+const SENTINELS = [
+  'LEAK_SENTINEL_PW',
+  'LEAK_SENTINEL_KEY',
+  'LEAK_SENTINEL_PP',
+  'LEAK_SENTINEL_TK',
+  'LEAK_SENTINEL_AK',
+];
+
+describe('CL-016 A7 凭据红线（脱敏）', () => {
+  test('extractApproval：preview 凭据键打码，非凭据项逐字保留', () => {
+    const a = extractApproval(approvalUpdateCreds().status.message);
+    assert.ok(a);
+    assert.equal(a.preview.params.user, 'alice');
+    assert.equal(a.preview.params.password, '***REDACTED***');
+    assert.equal(a.preview.params.privateKey, '***REDACTED***');
+    assert.equal(a.preview.params.passphrase, '***REDACTED***');
+    assert.equal(a.preview.params.token, '***REDACTED***');
+    assert.equal(a.preview.note, '将覆盖导出 1 个文件');
+  });
+
+  test('impact：凭据键项打码，非凭据项逐字未变', () => {
+    const a = extractApproval(approvalUpdateCreds().status.message);
+    assert.ok(a);
+    assert.deepEqual([...a.impact], [
+      'password=***REDACTED***',
+      'C:\\old\\a.log（12.4 MB）',
+      'api_key=***REDACTED***',
+    ]);
+  });
+
+  test('message / summary 文本脱敏（哨兵不得出现）', () => {
+    const a = extractApproval(approvalUpdateCreds().status.message);
+    assert.ok(a);
+    assert.ok(!a.message.includes('LEAK_SENTINEL_PW'));
+    assert.ok(a.message.includes('password=***REDACTED***'));
+    assert.ok(!a.summary.includes('LEAK_SENTINEL_PW'));
+  });
+
+  test('a2a.delegate 全量输出不含任一哨兵原文', async () => {
+    const client = mockClient([statusUpdate('working', '准备'), approvalUpdateCreds()]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: '导出覆盖' }, CTX);
+    const dump = JSON.stringify(res);
+    for (const sent of SENTINELS) {
+      assert.ok(!dump.includes(sent), `输出不应含哨兵 ${sent}`);
+    }
+    assert.ok(JSON.stringify(res.structuredContent.approval.preview).includes('***REDACTED***'));
+    assert.ok(res.content[0].text.includes('***REDACTED***'), '呈现文本应打码');
+  });
+
+  test('a2a.task.get 呈现文本亦脱敏', async () => {
+    const client = mockClient([], {
+      async getTask(id) {
+        return {
+          kind: 'task',
+          id,
+          contextId: 'ctx_1',
+          status: { state: 'input-required', message: approvalUpdateCreds().status.message },
+          artifacts: [],
+        };
+      },
+    });
+    const res = await findTool(toolsFor(client), 'a2a.task.get').handler({ taskId: 'task_creds' }, CTX);
+    const dump = JSON.stringify(res);
+    for (const sent of SENTINELS) {
+      assert.ok(!dump.includes(sent), `task.get 输出不应含哨兵 ${sent}`);
+    }
+  });
+
+  test('D3 回归：无 type 的极简 fixture 仍返回 approvalId + 可读摘要、不抛错', async () => {
+    const client = mockClient([statusUpdate('working', '先跑一步'), approvalUpdate()]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX);
+    const sc = res.structuredContent;
+    assert.equal(sc.state, 'input-required');
+    assert.equal(sc.approval.approvalId, 'apr_8f3c');
+    assert.ok(typeof sc.approval.message === 'string' && sc.approval.message.length > 0);
+    assert.equal(res.isError, false);
+  });
+
+  test('R1：progress[] 同源文本亦脱敏（不再漏明文）', async () => {
+    const client = mockClient([
+      statusUpdate('working', '打开文件 password: LEAK_SENTINEL_PW 完成'),
+      statusUpdate('completed', 'done', { final: true }),
+    ]);
+    const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX);
+    const p0 = res.structuredContent.progress[0].message;
+    assert.ok(!p0.includes('LEAK_SENTINEL_PW'));
+    assert.ok(p0.includes('password=***REDACTED***'));
+    assert.ok(!JSON.stringify(res).includes('LEAK_SENTINEL_PW'));
   });
 });

@@ -1,0 +1,17 @@
+{
+  "description": "winvm-bridge plugin hooks：随 WorkBuddy 会话启动幂等确保宿主侧 SSH 隧道守护进程在线（to VM Windows）",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CODEBUDDY_PLUGIN_ROOT}/hooks/session-start.sh\" </dev/null >/dev/null 2>&1 &",
+            "description": "宿主侧隧道自启动：后台异步调用 winvm-plugin tunnel ensure；幂等（已在线秒回 0、不产生第二实例）、失败不影响会话、绝不阻塞会话启动",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

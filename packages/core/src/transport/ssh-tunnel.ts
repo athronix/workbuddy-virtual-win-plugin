@@ -13,6 +13,7 @@ import { connect } from 'node:net';
 import type { SshTunnelTransport } from '@winvm/contracts';
 
 import { TransportError } from './types.js';
+import { establishSsh2Tunnel } from './ssh-tunnel-ssh2.js';
 
 export interface TunnelHandle {
   readonly localPort: number;
@@ -61,6 +62,17 @@ export async function establishSshTunnel(
 ): Promise<TunnelHandle> {
   const { cfg } = opts;
   const readyTimeoutMs = opts.readyTimeoutMs ?? 20_000;
+
+  // —— OH 宿主 / 显式 ssh2 后端：进程内纯 JS 隧道 ——
+  // Windows / macOS 路径完全不变（仅在此守卫内分流）。
+  const useSsh2Backend =
+    (process.platform as string) === 'ohos' || process.env['WINVM_TUNNEL_BACKEND'] === 'ssh2';
+  if (useSsh2Backend) {
+    return establishSsh2Tunnel(cfg, {
+      readyTimeoutMs,
+      onStderr: opts.onStderr,
+    });
+  }
 
   const target = `${cfg.user}@${cfg.host}`;
   const forwardSpec = `${cfg.localPort}:127.0.0.1:${cfg.remotePort}`;

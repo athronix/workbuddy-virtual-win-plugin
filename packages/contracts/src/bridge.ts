@@ -48,13 +48,100 @@ export interface SessionHealth {
 
 export type ProviderState = 'ready' | 'degraded' | 'unavailable';
 
+/* ==================== CL-018 增量：可观测性（纯附加） ====================
+ *
+ * 铁律：以下类型**全部为纯附加**。`/health` 上缺席这些字段即为「旧版本行为」，
+ * 旧调用方不传新参数 / 不读新字段时行为不变（对齐 CL-017 的增量约束）。
+ */
+
+/**
+ * LLM 常驻会话状态（CL-018 C1）。
+ *
+ * - `stopped`  未启动（lazy：首次委派才拉起）
+ * - `starting` 已 spawn，尚未收到首个 `system/init`（冷启动窗口内）
+ * - `ready`    已就绪，可投喂多轮
+ * - `degraded` 会话**当前**处于失败态（进程启动失败 / 异常退出且未恢复）；经 D11 后，
+ *   会话被替换/终结（killChild）时会重置为 `stopped`，`degraded` 只反映当前、不再驻留历史
+ * - `disabled` 超出重启上限或本机明确禁用（此后恒定回退单次 `-p`，不再尝试常驻）
+ */
+export type LlmSessionState = 'stopped' | 'starting' | 'ready' | 'degraded' | 'disabled';
+
+/** 日志级别名（CL-018 C3）。与 `@winvm/core` 的 `LogLevel` 为同一字面量集。 */
+export type LogLevelName = 'debug' | 'info' | 'warn' | 'error' | 'silent';
+
+/** `/health.llmSession` 增量（CL-018 C1）。纯附加：缺席即旧行为。 */
+export interface LlmSessionHealth {
+  readonly state: LlmSessionState;
+  /** 常驻子进程 PID（未启动时缺省） */
+  readonly pid?: number;
+  /** 累计自愈/重建次数（必须计数并暴露，禁止静默） */
+  readonly restarts: number;
+  /** 距上次投喂的毫秒数（从未使用时为 0） */
+  readonly idleMs: number;
+  /** 最近一次失败原因（仅失败后出现） */
+  readonly lastError?: string;
+  /**
+   * D11：最近一次失败**发生时刻**（ISO 8601，与 `lastError` 成对出现）。
+   *
+   * 让「历史上失败过」（`lastError`/`lastErrorAt`）与「此刻是否健康」（`state`）两个信号分离：
+   * 会话被替换/终结后 `state` 会重置为如实的「未运行/探测中」，而失败痕迹由本字段保留。
+   */
+  readonly lastErrorAt?: string;
+}
+
+/**
+ * `/health.logging` 增量（CL-018 C3）。纯附加。
+ *
+ * `degraded=true` 表示日志目录不可写、已回退控制台/静默 —— **服务仍成功启动**
+ * （AC3.5 硬要求），`reason` 给出降级原因。
+ */
+export interface LoggingHealth {
+  readonly degraded: boolean;
+  /** 目标日志目录（含 %ENV% 占位符已展开） */
+  readonly dir: string;
+  readonly level: LogLevelName;
+  /** 降级原因（仅 degraded=true 时出现） */
+  readonly reason?: string;
+}
+
+/** `/health.cache` 增量（CL-018 C5）。纯附加。 */
+export interface CacheHealth {
+  /** `system.network.config` 进程内缓存状态（启动预热 + 正常调用均刷新） */
+  readonly netCfg?: {
+    /** 是否已有可用缓存（预热或任一正常调用成功即 true） */
+    readonly cached: boolean;
+    /**
+     * 缓存年龄（毫秒；无缓存为 -1）。
+     *
+     * CL-019 项①：语义为「自最近一次采集（PowerShell 回传的 `collectedAt`）起算的**真实缓存新鲜度**」，
+     * 即 `now - Date.parse(collectedAt)`；不再使用「距进程启动预热时长」。字段名不变（零破坏）。
+     */
+    readonly ageMs: number;
+    /** 生效 TTL（毫秒） */
+    readonly ttlMs: number;
+  };
+}
+
 export interface HealthStatus {
   readonly ok: boolean;
   readonly provider: { readonly id: string; readonly state: ProviderState; readonly detail?: string };
   readonly session: SessionHealth;
   readonly psBridge?: { readonly state: ProviderState; readonly uptimeMs: number; readonly pending: number };
   readonly capabilities?: { readonly count: number; readonly available: number };
-  readonly audit?: { readonly entries: number; readonly chainValid: boolean };
+  readonly audit?: {
+    readonly entries: number;
+    readonly chainValid: boolean;
+    /** D30：断裂位置 seq（仅 chainValid=false 时透出，向后兼容字段恒保留） */
+    readonly brokenAt?: number;
+    /** D30：断裂原因（SEQ_DUP / SEQ_GAP / HASH_MISMATCH / CHAIN_BREAK） */
+    readonly reason?: string;
+  };
+  /** CL-018 C1：LLM 常驻会话状态（纯附加，非 LLM provider 时缺席） */
+  readonly llmSession?: LlmSessionHealth;
+  /** CL-018 C3：日志落盘状态（纯附加） */
+  readonly logging?: LoggingHealth;
+  /** CL-018 C5：进程内缓存状态（纯附加） */
+  readonly cache?: CacheHealth;
 }
 
 /** 产出物（A2A artifact / MCP artifacts） */
@@ -108,6 +195,8 @@ export interface GoalRequest {
   readonly allowedCapabilities?: readonly CapabilityId[];
   /** 本次委派允许的最高风险（默认 L1） */
   readonly maxRisk?: RiskLevel;
+  /** A2A 委派任务 id（由 A2A 框架在 runGoal 前注入，供审批协调器挂接 input-required） */
+  readonly taskId?: string;
   readonly timeoutMs: number;
 }
 
@@ -139,9 +228,32 @@ export interface ProgressSink {
   onApprovalRequired(req: ApprovalRequest): Promise<boolean>;
 }
 
+/**
+ * K4 审批协调器：桥接层与 A2A 任务状态机之间的审批闸桥。
+ *
+ * 纯附加可选契约：VM 内 Agent（bridge）在命中宿主审批拦截时，经 `raise` 把任务挂起为
+ * input-required 并等待宿主人工决议；宿主批准前，续跑令牌（pendingApprovals 中的 token）
+ * 必须保持 `hostApproved=false`，绝不可被 `/mcp` 能力层放行（杜绝「不记名令牌」漏洞）。
+ *
+ * 非 A2A 场景（纯 MCP 直调 / 单测）不注入协调器，桥接层行为完全不变。
+ */
+export interface ApprovalCoordinator {
+  /** 进入一个委派任务（记录当前 taskId，供 raise 挂接） */
+  beginTask(taskId: string): void;
+  /** 离开一个委派任务（清空当前 taskId） */
+  endTask(): void;
+  /**
+   * 发出 input-required（挂起任务）并返回宿主决议 Promise。
+   * 实现必须把对应续跑令牌标记为「待宿主批准（hostApproved=false）」，宿主经 A2A
+   * `approval.reply` 批准后才置 true 并 resolve(true)。
+   */
+  raise(req: ApprovalRequest): Promise<boolean>;
+}
+
 export interface AuditSink {
   append(record: Omit<AuditRecord, 'hash' | 'prevHash' | 'seq'>): Promise<AuditRecord>;
-  verifyChain(): Promise<{ valid: boolean; brokenAt?: number; entries: number }>;
+  /** D30：reason 为断裂原因（SEQ_DUP / SEQ_GAP / HASH_MISMATCH / CHAIN_BREAK），valid=false 时有值 */
+  verifyChain(): Promise<{ valid: boolean; brokenAt?: number; reason?: string; entries: number }>;
 }
 
 export interface PolicyVerdict {
@@ -180,12 +292,52 @@ export interface Logger {
   error(msg: string, meta?: Record<string, unknown>): void;
 }
 
+/**
+ * ps-bridge 常驻进程客户端句柄（由 L2 `@winvm/vm-capabilities` 实现）。
+ *
+ * 为什么在契约层只声明「最小形状」：服务端（vm-service）与 provider 需要共享**同一个**
+ * ps-bridge 单例进程，否则会各起一个实例、双跑心跳看门狗，导致进程翻倍与健康态自相矛盾
+ * （CL-017 D1）。契约层不能反向依赖 L2，故仅声明 provider 实际用到的成员。
+ */
+export interface BridgeHandle {
+  readonly running: boolean;
+  readonly uptimeMs: number;
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  call<T = unknown>(
+    module: string,
+    fn: string,
+    params?: Record<string, unknown>,
+    timeoutMs?: number,
+  ): Promise<T>;
+  health(): {
+    readonly state: 'ready' | 'down';
+    readonly uptimeMs: number;
+    readonly pending: number;
+    readonly lastHeartbeatAgoMs: number;
+    /** 累计自愈/重启次数（CL-017 D2，纯增量） */
+    readonly restarts?: number;
+    /** 最近一次自愈/重启失败原因（CL-017 D2，纯增量） */
+    readonly lastError?: string;
+  };
+}
+
 export interface BridgeContext {
   readonly config: Record<string, unknown>;
   readonly audit: AuditSink;
   readonly policy: PolicyEngine;
   readonly capabilities: CapabilityRegistryView;
   readonly logger: Logger;
+  /**
+   * K4（纯附加可选）：A2A 审批协调器。VM 服务注入后，桥接层命中宿主审批拦截时经它
+   * 把任务挂起为 input-required 并等待宿主人工决议；缺席即旧行为（纯 MCP / 单测）。
+   */
+  readonly approvalCoordinator?: ApprovalCoordinator;
+  /**
+   * 服务侧注入的 ps-bridge 单例（CL-017 D1）。
+   * provider 必须优先复用它；仅当未注入（非 Windows / 单测）时才允许自建，避免进程翻倍。
+   */
+  readonly bridge?: BridgeHandle;
   newTraceId(): string;
 }
 
@@ -209,4 +361,25 @@ export interface AgentServiceProvider {
   runGoal(goal: GoalRequest, sink: ProgressSink): Promise<GoalResult>;
   health(): Promise<HealthStatus>;
   shutdown(): Promise<void>;
+
+  /**
+   * K2 修复（**纯附加可选成员**）：VM 服务启动后 fire-and-forget 预热 LLM 常驻会话，
+   * 消除 A2A 冷启动停滞（首个真实委派免付 codebuddy 进程级冷启动 ≈75–107s）。
+   *
+   * 仅 LLM provider（`kind='llm-agent'`）实现；非 LLM provider 无须实现，缺席即旧行为。
+   * 调用方（vm-service server.ts）以 `void provider.warmup?.()` 触发，**不阻塞启动**；
+   * 实现内部须自行捕获异常，失败只记日志、绝不抛到启动链路。
+   */
+  warmup?(): Promise<void>;
+
+  /**
+   * CL-018 C1（**纯附加可选成员**）：LLM 常驻会话健康快照。
+   *
+   * 为什么放在 SPI 而非只经 `health()`：`/health` 对 `provider.health()` 施加了 5s 短超时护栏
+   * （见 vm-service health-probe），而 `provider.health()` 内部会跑 20s 级会话探针 —— 超时降级快照
+   * 里就**没有** `llmSession`。把会话态做成独立同步取值，使 `/health.llmSession` 不受该护栏影响。
+   *
+   * 非 LLM provider（确定性执行器 / hermes 等）**无须实现**：缺席即旧行为。
+   */
+  llmSessionHealth?(): LlmSessionHealth | undefined;
 }

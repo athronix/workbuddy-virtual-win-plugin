@@ -81,7 +81,14 @@ export function collectStringValues(
 const DRIVE_RE = /^[a-z]:[\\/]/i;
 const UNC_RE = /^\\\\/;
 const SEP_RE = /[\\/]/;
-const REG_RE = /^(HK[A-Z_]+|HKEY_[A-Z_]+)[:\\/]/i;
+/**
+ * 注册表路径识别（D9）。
+ *
+ * 旧正则要求根键后必须紧跟 `:` 或分隔符且带冒号语义，导致 `HKLM\SOFTWARE\...`（**无冒号**）不被识别为
+ * 注册表路径，反而被当成文件系统路径去做白名单匹配 → 恒 POLICY_DENIED。
+ * 现同时接受 `HKLM:`、`HKLM:\`、`HKLM\` 三种形态（缺冒号由 normalizeRegistryPath 补齐）。
+ */
+const REG_RE = /^(HK[A-Z_]+|HKEY_[A-Z_]+)(?:[:\\/]|$)/i;
 
 /** 字符串是否像一个文件系统路径 */
 export function looksLikePath(s: string): boolean {
@@ -144,6 +151,23 @@ export function normalizePath(p: string): string {
   if (!UNC_RE.test(s)) s = s.replace(/\\\\+/g, '\\');
   if (s.length > 3 && s.endsWith('\\')) s = s.slice(0, -1);
   return s;
+}
+
+/**
+ * 归一化注册表路径（D9）：为缺冒号的根键自动补 `:`。
+ *
+ * 背景：PowerShell 里合法形式是 `HKLM:\SOFTWARE\...`（带冒号）；用户凭 Windows 习惯常写
+ * `HKLM\SOFTWARE\...`（不带冒号），旧策略会将其误判为文件系统路径并拒绝（POLICY_DENIED，令人困惑）。
+ * 这里统一补冒号，使两种写法等价；`HKLM:`、`HKLM:\SOFTWARE`、`HKLM\SOFTWARE` 都会被规范化为
+ * `HKLM:\SOFTWARE` 形态再参与白名单匹配。
+ */
+export function normalizeRegistryPath(p: string): string {
+  const s = p.trim();
+  const m = /^(HK[A-Z_]+|HKEY_[A-Z_]+)(?!:)([\\/].*)?$/i.exec(s);
+  if (!m) return s;
+  const root = m[1]!;
+  const rest = m[2] ?? '';
+  return `${root}:${rest.replace(/\//g, '\\')}`;
 }
 
 /* ------------------------------ Engine ------------------------------ */
@@ -296,7 +320,8 @@ export class CorePolicyEngine implements PolicyEngine {
         : this.cfg.registryReadAllowlist;
       const res = allowList.map(globToRegex);
       for (const { value } of regValues) {
-        const hit = res.some((re) => re.test(normalizePath(value)));
+        // D9：先补齐根键冒号（HKLM\ → HKLM:\）再归一化匹配
+        const hit = res.some((re) => re.test(normalizePath(normalizeRegistryPath(value))));
         if (!hit) {
           return {
             allowed: false,
@@ -350,7 +375,14 @@ export class CorePolicyEngine implements PolicyEngine {
     }
 
     // 6. 需要审批
+    //
+    // D11：dry-run 免审批 —— `params.dryRun === true` 时不改变系统状态（仅返回计划），
+    // 若也拦截审批，Skill 规定的「L3 先 dry-run 再确认」流程在审批闸前就断掉、无法取得计划。
+    // 放在路径/命令/注册表等安全校验之后，故 dry-run 仍不能绕过黑名单与白名单。
     if (riskAtLeast(req.risk, 'L2') && !req.approved) {
+      if (req.params['dryRun'] === true) {
+        return { allowed: true, matchedRule: 'allow:dry-run-bypass', requiresApproval: false };
+      }
       return {
         allowed: false,
         matchedRule: 'approval-required',

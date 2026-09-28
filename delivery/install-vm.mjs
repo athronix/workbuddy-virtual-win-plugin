@@ -67,6 +67,7 @@ import {
 import { ensureWorkspaceLinks } from './link-workspace.mjs';
 import { deployWinvmPlugin } from './deploy-winvm-plugin.mjs';
 import { addToUserPath, removeFromUserPath } from './path-util.mjs';
+import { checkLocalVmDeps, printChecks, assertDeps } from './preflight.mjs';
 
 /* ------------------------------ 参数 ------------------------------ */
 
@@ -83,6 +84,7 @@ function parseArgs(argv) {
     skipInstall: false,
     skipLinks: false,
     skipSkills: false,
+    noPreflight: false,
     config: undefined,
     port: 18443,
     taskName: 'WinVMBridge.Service',
@@ -103,6 +105,7 @@ function parseArgs(argv) {
       case '--skip-install': out.skipInstall = true; break;
       case '--skip-links': out.skipLinks = true; break;
       case '--skip-skills': out.skipSkills = true; break;
+      case '--no-preflight': out.noPreflight = true; break;
       case '--config': out.config = argv[++i]; break;
       case '--port': out.port = Number(argv[++i]); break;
       case '--provider': out.provider = argv[++i]; break;
@@ -142,6 +145,16 @@ function readJson(p) {
   return JSON.parse(readFileSync(p, 'utf8'));
 }
 
+/* ------------------------------ 逐步计时（取证用） ------------------------------
+ * 首跑全周期 VM 相位 300s 超时（side.json 未写 → install-vm 被截断）。
+ * 每个收尾步打点 [t+Xs]，配合远端 `| tee install-vm-run.log` 持久化：
+ * 即便 ssh 会话被超时杀掉，已打点内容仍在 VM 上可回查，用于定位慢/挂点。 */
+const INSTALL_T0 = Date.now();
+function mark(label) {
+  const s = ((Date.now() - INSTALL_T0) / 1000).toFixed(1);
+  console.log(`[t+${s}s] ${label}`);
+}
+
 function writeJson(p, obj) {
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(obj, null, 2) + '\n', 'utf8');
@@ -154,19 +167,23 @@ function taskExists(name) {
 
 /**
  * 停止服务并释放端口，确保后续 `schtasks /run` 能真正拉起新实例（而非被
- * 任务 XML 的 MultipleInstancesPolicy=IgnoreNew 拦截，或端口被旧实例占用 EADDRINUSE）。
+ * 孤儿 node 占用端口 EADDRINUSE、或旧任务实例一直 Running 卡住）。
  * 用于：① 卸载时先停掉运行中的服务（消除残留的 node 控制台窗口）；
  *      ② 部署重新注册任务前，清掉仍占用端口的旧实例。
- * 步骤：先 `schtasks /end` 让调度器标记任务结束 → 强杀仍占用端口的进程释放端口。
+ * 步骤：先 `schtasks /end` 让调度器标记任务结束 → 强杀仍占用端口的进程与启动器释放端口。
  */
 function killServiceProcess(port, taskName, dryRun, log) {
   if (dryRun) { log(`停止服务   : ${taskName}（端口 ${port}）[dry-run 不杀进程]`); return; }
-  // 1) 让调度器把任务标记为结束（新 run 才不会被 IgnoreNew 拦）
+  // 1) 让调度器把任务标记为结束（StopExisting 下 /run 会自动先停旧实例；此处双保险）
   spawnSync('schtasks', ['/End', '/TN', taskName], { stdio: 'ignore', shell: true });
-  // 2) 兜底强杀仍占用端口的进程，确保端口释放
+  // 2) 兜底强杀仍占用端口的进程（孤儿 node）以及启动它的 start-hidden.ps1 包装进程，
+  //    确保端口释放、任务实例完全退出（否则后续 /run 仍可能被旧实例卡住）。
   const script =
     `$p=(Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue).OwningProcess ` +
-    `| Select-Object -Unique; if($p){Stop-Process -Id $p -Force -ErrorAction SilentlyContinue}`;
+    `| Select-Object -Unique; if($p){Stop-Process -Id $p -Force -ErrorAction SilentlyContinue}; ` +
+    `Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue ` +
+    `| Where-Object { $_.CommandLine -like '*start-hidden.ps1*' } ` +
+    `| ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
   spawnSync('powershell', ['-NoProfile', '-Command', script], { stdio: 'ignore' });
   log(`停止服务   : 已结束 ${taskName} 并释放端口 ${port}`);
 }
@@ -196,10 +213,18 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir) {
   const ps1Path = join(out, 'start-hidden.ps1');
   const ps1 = [
     '# WinVM Bridge VM Service —— 隐藏窗口启动器（由 install-vm.mjs 生成，请勿手改）',
+    "$env:WINVM_PSBRIDGE_READY_TIMEOUT_MS = '60000'",
     '$nodeExe = ' + psStr(nodeExe),
     '$cliArgs = ' + psStr(cliArg),
     '$workDir = ' + psStr(workDir),
-    'Start-Process -WindowStyle Hidden -FilePath $nodeExe -ArgumentList $cliArgs -WorkingDirectory $workDir -Wait',
+    '$svcPort = ' + psStr(String(port)),
+    '# 自清理：若端口已被旧实例（孤儿 node，常见于任务被 /end 后游离）占用，先强杀，',
+    '# 避免新实例 EADDRINUSE 秒退、旧实例继续以旧代码服务（GUI 判定迟迟不刷新）。',
+    '$portPid = (Get-NetTCPConnection -LocalPort $svcPort -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique',
+    'if ($portPid) { Stop-Process -Id $portPid -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 }',
+    '# 以 -PassThru 捕获 node 子进程；脚本退出（任务被 /end 终止）时兜底强杀 node，避免孤儿残留。',
+    '$nodeProc = Start-Process -WindowStyle Hidden -FilePath $nodeExe -ArgumentList $cliArgs -WorkingDirectory $workDir -PassThru',
+    'try { $nodeProc.WaitForExit() } finally { if ($nodeProc -and -not $nodeProc.HasExited) { try { $nodeProc.Kill() } catch {} } }',
     '',
   ].join('\r\n');
   mkdirSync(out, { recursive: true });
@@ -212,6 +237,17 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir) {
     <Description>WinVM Bridge VM Service - 在交互式会话内自动启动双协议服务端</Description>
   </RegistrationInfo>
   <Triggers>
+    <!--
+      双触发：开机即启 + 登录即启。
+      ・BootTrigger：系统启动（含无人登录/锁屏）即尝试拉起 → 满足"注册为开机启动服务"。
+        注意：开机触发落在 Session 0（无交互式桌面），此时 GUI 能力（截图/键鼠/UIA/窗口/剪贴板）
+        不可用；待用户登录后 LogonTrigger 在交互式会话再拉起一次（StopExisting 保证先停后起），
+        GUI 才可用。两个触发器共存，既"开机即起"（系统/网络/应用类能力随时可用），又"登录即用 GUI"。
+      ・LogonTrigger：交互式登录时拉起（GUI 可用）。
+    -->
+    <BootTrigger>
+      <Enabled>true</Enabled>
+    </BootTrigger>
     <LogonTrigger>
       <Enabled>true</Enabled>
     </LogonTrigger>
@@ -223,7 +259,13 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir) {
     </Principal>
   </Principals>
   <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <!--
+      StopExisting（而非 IgnoreNew）：本服务靠 start-hidden.ps1 以 -Wait 拉起 node，
+      任务动作进程会一直 Running。若用 IgnoreNew，任何 schtasks /run（含崩溃后手动重启）
+      都会被"实例已 Running"直接吞掉、毫无动作 —— 导致"反复重启无用"的假象。
+      StopExisting 保证 /run 总会先停旧实例再起新实例，重启真实生效。
+    -->
+    <MultipleInstancesPolicy>StopExisting</MultipleInstancesPolicy>
     <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
     <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
     <AllowHardTerminate>true</AllowHardTerminate>
@@ -266,7 +308,7 @@ function planSteps(args, cfgPath) {
   if (!args.skipBuild) steps.push('npm run build （编译所有 packages → dist/）');
   steps.push(`生成运行配置: ${runtimeConfig}（强制 host=127.0.0.1, port=${args.port}）`);
   steps.push(`部署共享 Skills: 仓库 skills/ → 共享根（${args.skillsRoot || 'C:/WinVMBridge/shared-skills'}），并为各候选 Agent 建 symlink 引用${args.skipSkills ? '  [跳过 --skip-skills]' : ''}`);
-  steps.push(`注册任务计划程序任务: ${args.taskName}（登录即启 / 崩溃重启 / 仅交互式会话 / 隐藏窗口，避免误关）`);
+  steps.push(`注册任务计划程序任务: ${args.taskName}（开机自启 + 登录即启 / 崩溃重启 / 仅交互式会话 / 隐藏窗口，避免误关）`);
   steps.push(`自检: node ${cliEntry} --self-test`);
   return steps;
 }
@@ -442,6 +484,11 @@ async function main() {
   }
   console.log(`VM Agent   : agent.provider=${provider}${isLlmProvider ? `（LLM 运行时=${cli}）` : ''}`);
   console.log('');
+  mark('参数解析完成');
+  // ps-bridge 就绪超时放宽（run2/run3 取证：本 VM 上 powershell.exe 经 node spawn 进程创建
+  // ~10s + psmod dot-source ~6s → 握手 ~16.4s，恒定越过 15s 默认值，看门狗自锁重试永远失败）。
+  // 60s 给足 3.5x 余量；仅影响握手等待上限，不改任何默认行为语义。
+  process.env['WINVM_PSBRIDGE_READY_TIMEOUT_MS'] = process.env['WINVM_PSBRIDGE_READY_TIMEOUT_MS'] ?? '60000';
 
   /* ----- 卸载（安全：仅删本项目，目录/软链移入回收站） ----- */
   if (args.uninstall) {
@@ -534,6 +581,20 @@ async function main() {
     return;
   }
 
+  /* ----- VM 环境依赖预检（硬门禁）-----
+   * 本脚本在 VM 内部运行，故 VM 侧依赖（node / npm / Agent CLI）直接本地探测（shell 解析 PATH），不走 SSH；
+   * 不满足则中止部署，要求用户先在 VM 内补齐。--no-preflight 仅调试用。 */
+  if (!args.noPreflight) {
+    const vmDeps = checkLocalVmDeps({ provider, cli });
+    console.log(printChecks(vmDeps, { headline: '=== VM 环境依赖预检 ===' }));
+    if (!assertDeps(vmDeps)) {
+      console.error('VM 环境依赖不满足，请先按上方 remedy 完成部署后再安装本项目。');
+      process.exit(1);
+    }
+  } else {
+    console.log('（已跳过 VM 环境依赖预检：--no-preflight）');
+  }
+
   /* ----- 校验配置 ----- */
   const bindHost = cfg?.server?.host ?? cfg?.host;
   if (bindHost && bindHost !== '127.0.0.1' && !args.dryRun) {
@@ -602,6 +663,8 @@ async function main() {
     }
   }
 
+  mark('step 1/6 依赖解析+workspace 软链 完成');
+
   /* 2. build */
   if (!args.skipBuild) {
     console.log('[2/5] npm run build ...');
@@ -610,6 +673,7 @@ async function main() {
   } else {
     console.log('[2/5] 跳过构建（--skip-build）');
   }
+  mark('step 2 build 完成');
 
   /* 3. 生成运行配置（强制回环 + 应用 provider 选型） */
   console.log('[3/6] 生成运行配置 ...');
@@ -628,6 +692,7 @@ async function main() {
   }
   writeJson(runtimeConfig, runtime);
   console.log(`      已写入 ${runtimeConfig}（provider=${provider}）`);
+  mark('step 3/6 运行配置 完成');
 
   /* 4. 共享 Skills 部署（发布仓库 skills/ → 共享根，并为各候选 Agent 建 symlink） */
   console.log('[4/6] 部署共享 Skills ...');
@@ -636,6 +701,7 @@ async function main() {
   } else {
     await deploySkillsStep(args, cfg, provider);
   }
+  mark('step 4/6 共享 Skills 完成');
 
   /* 5. 注册任务计划程序 */
   console.log('[5/6] 注册任务计划程序任务 ...');
@@ -649,23 +715,41 @@ async function main() {
   buildTaskXml(args.taskName, nodeExe, cliEntry, args.port, runtimeConfig);
   r = run('schtasks', ['/Create', '/TN', args.taskName, '/XML', taskXmlPath, '/F']);
   if (r.status !== 0) { console.error('注册任务计划程序失败（需以管理员身份运行）'); process.exit(1); }
-  console.log(`      已注册任务 ${args.taskName}（登录即启 / 崩溃重启 ×3 / 交互式会话 / 无控制台窗口）`);
+  console.log(`      已注册任务 ${args.taskName}（开机自启 + 登录即启 / 崩溃重启 ×3 / 交互式会话 / 无控制台窗口）`);
   console.log(`      隐藏启动器：${join(genDir, 'start-hidden.ps1')}（任务经它以 -WindowStyle Hidden 拉起 node）`);
+  mark('step 5/6 计划任务注册 完成');
 
   /* 6. 自检 */
   console.log('[6/6] 自检 ...');
-  r = run('node', [cliEntry, '--self-test'], {});
+  const selfTestT0 = Date.now();
+  // run4/run5 取证：本 VM 上每次 spawn powershell.exe 的进程创建延迟波动极大（10s~60s+，
+  // Defender/AMSI 逐进程扫描），ps-bridge 握手可能连续数次越过就绪超时；服务端运行期靠
+  // 看门狗自愈（实测 restarts=1~2 后 ready）。自检同样按「最多 3 次」耐心重试，期间每次
+  // 失败都会预热下一次（模块缓存/Defender 白名单），两次都失败才是真部署问题。
+  let selfTestOk = false;
+  for (let attempt = 1; attempt <= 3 && !selfTestOk; attempt++) {
+    r = run('node', [cliEntry, '--self-test'], {});
+    if (r.status === 0) {
+      selfTestOk = true;
+    } else if (attempt < 3) {
+      console.log(`      自检第 ${attempt} 次未过（多为 PowerShell 进程创建延迟波动 > 就绪超时的瞬态），5s 后重试 ...`);
+      await new Promise((res) => setTimeout(res, 5000));
+    }
+  }
+  mark(`step 6/6 自检 完成（耗时 ${((Date.now() - selfTestT0) / 1000).toFixed(1)}s）`);
   if (r.status !== 0) { console.error('自检失败，请检查上方输出'); process.exit(1); }
 
   console.log('');
   console.log('=== 部署完成 ===');
-  console.log('vm-service 将以任务计划程序任务在交互式会话登录时自动启动。');
+  console.log('vm-service 已注册为「开机自启 + 登录即启」的任务计划程序任务（崩溃自动重启 ×3，隐藏窗口）。');
+  console.log('注意：开机触发落在 Session 0（无交互桌面），仅系统/网络/应用类能力可用；登录后交互式会话再拉起，GUI 能力方可用。');
   console.log(`手动启动（前台）：node ${cliEntry} --host 127.0.0.1 --port ${args.port} --config ${runtimeConfig}`);
   console.log('宿主侧建立 SSH 隧道后即可从 WorkBuddy 调用（见 DEPLOYMENT.md §4.2）。');
 
   /* 7. 部署插件管理 CLI winvm-plugin（VM 侧）—— 与 host 侧同源，自动识别 side=vm */
   if (!args.dryRun) {
     deployWinvmPlugin({ targetDir: deliveryDir, side: 'vm', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`) });
+    mark('step 7 管理命令部署 完成');
 
     /* 7a. 把 delivery/ 加入 VM 用户 PATH，使 `winvm-plugin` 在 VM 内可作为全局命令调用
      *      （否则只能进目录跑或手动加 PATH，表现为"不是内部或外部命令"）。 */
@@ -675,6 +759,7 @@ async function main() {
     } catch (e) {
       console.log(`  ⚠ 加入 VM 用户 PATH 失败（可手动将 ${deliveryDir} 加入 PATH）：${e.message}`);
     }
+    mark('step 7a 用户 PATH 完成');
 
     /* 7b. 写入 side 标记，确保 winvm-plugin 在 VM 内自动识别为 vm 侧
      *      （health 走本地 127.0.0.1:/health，无需 vm-host/vm-user）。 */
@@ -684,6 +769,7 @@ async function main() {
     } catch (e) {
       console.log(`  ⚠ 写入 side 标记失败：${e.message}`);
     }
+    mark('step 7b side 标记 完成（install-vm 全部收尾）');
   }
 }
 

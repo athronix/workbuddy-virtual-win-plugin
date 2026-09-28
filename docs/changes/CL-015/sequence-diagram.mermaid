@@ -1,0 +1,61 @@
+sequenceDiagram
+    autonumber
+    actor U as 用户 / 主理人
+    participant IH as install-host.mjs
+    participant DW as deploy-winvm-plugin.mjs
+    participant DEP as 依赖分发器(collectThirdPartyDeps)
+    participant TD as tunnel-daemon.mjs(detach)
+    participant OT as OhSshTunnel
+    participant SR as ssh2-resolve.mjs
+    participant CLI as winvm-plugin tunnel
+    participant WB as WorkBuddy
+    participant VM as Windows VM(172.16.100.2)
+
+    U->>IH: node delivery/install-host.mjs --apply
+    IH->>DW: deployWinvmPlugin({extraFiles:[oh-tunnel,ssh2-resolve,tunnel-daemon]})
+    DW-->>IH: 启动器+附带文件已落 pluginRoot（win32 额外写 .cmd）
+    IH->>DEP: copyThirdParty(ssh2 <- vendor/ | node_modules/)
+    DEP->>DEP: 递归复制 ssh2 + asn1 + bcrypt-pbkdf + tweetnacl（optional 缺失仅告警）
+    DEP-->>IH: <pluginRoot>/node_modules/ssh2 就绪（幂等，版本相同则跳过）
+    IH->>IH: 写 vm-conn.json / 注册表 / 沙箱白名单 / PATH
+    alt 平台∈{ohos} 或 WINVM_TUNNEL_BACKEND=ssh2 且未 --no-tunnel
+        IH->>CLI: tunnel start --vm-host … （in-proc 调用）
+        CLI->>CLI: 读 pidfile -> 端口探测
+        alt 已在运行
+            CLI-->>IH: 「已在运行」exit 0（幂等，不重复启动）
+        else 未运行
+            CLI->>TD: spawn(process.execPath,[tunnel-daemon],{detached:true,stdio:ignore}) + unref()
+            TD->>TD: 原子写 pidfile（tmp->rename）
+            TD->>SR: loadSsh2Client()（①注入 ②裸import ③绝对兜底 ④三要素）
+            SR-->>TD: ssh2 Client 构造器
+            TD->>OT: new OhSshTunnel(...).start()
+            OT->>OT: 监听 127.0.0.1:18443（仅回环，B7）
+            OT->>VM: ssh2 Client.connect(host,22)（凭据不落日志）
+            VM-->>OT: ready
+            OT-->>TD: TunnelHandle（alive=true）
+            TD->>TD: state=RUNNING（心跳写 tunnel.state.json）
+            CLI->>CLI: 轮询端口 OPEN（有界）
+            CLI-->>IH: 「已启动」exit 0
+        end
+    else win32 / darwin
+        IH-->>IH: 跳过拉起（NFR-2/B9：无新增常驻进程）
+    end
+    IH-->>U: 安装完成（含隧道状态行）
+
+    Note over WB,VM: —— 稳态使用 ——
+    WB->>OT: connector:winvm streamableHttp -> 127.0.0.1:18443/mcp
+    OT->>VM: forwardOut 127.0.0.1:18443
+    VM-->>WB: MCP 响应
+    Note over VM,OT: VM 服务短暂不可达 -> ssh close
+    OT->>TD: on('close') -> state=DEGRADED
+    OT->>VM: 退避重连（1s×2 上限 30s + jitter，无需人工）
+    VM-->>OT: ready -> state=RUNNING（自愈，B6）
+
+    U->>CLI: winvm-plugin tunnel status --json
+    CLI->>TD: 读 pidfile + state + 端口探测（无假阳性）
+    CLI-->>U: {state,healthy,localPort,vm,pid,since}（exit 0/4/3）
+
+    U->>IH: node delivery/install-host.mjs --uninstall --yes
+    IH->>CLI: tunnel stop（读 pidfile -> kill -> 等端口关闭 -> 删 pidfile）
+    CLI-->>IH: 已停止（幂等）
+    IH-->>U: 卸载完成，127.0.0.1:18443 不可达、无残留进程（B5）

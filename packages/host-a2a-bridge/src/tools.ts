@@ -9,12 +9,36 @@ import type { McpContent, McpTool } from '@winvm/mcp-framework';
 import { A2A, type RiskLevel } from '@winvm/contracts';
 
 import type { A2aDelegateClient, DelegateStreamOptions } from './client.js';
+import {
+  CREDENTIAL_KEY_RE,
+  REDACTED,
+  hashApprovalPreview,
+  recordHostApprovalAudit,
+  redactCredentials,
+} from './approval-audit.js';
 
 const RISK_LEVELS: readonly RiskLevel[] = ['L0', 'L1', 'L2', 'L3'];
 const MAX_IMAGE_CONTENTS = 8;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null;
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** 呈现文本脱敏：把 `凭据键[:=]值` 的值替换为 `凭据键=***REDACTED***`（键名来自统一并集正则） */
+const CRED_TEXT_RE = new RegExp(`(${CREDENTIAL_KEY_RE.source})\\s*[:=]\\s*\\S+`, 'gi');
+
+function scrubText(s: string): string {
+  if (!s) return s;
+  return s.replace(CRED_TEXT_RE, (_m, key: string) => `${key}=${REDACTED}`);
+}
+
+/** `impact` 逐项脱敏：`key=value` 形式且 key 命中凭据正则 → `key=***REDACTED***`；其余原样 */
+function redactImpactItem(item: string): string {
+  const eq = item.indexOf('=');
+  if (eq <= 0) return item;
+  const key = item.slice(0, eq).trim();
+  if (!key || !CREDENTIAL_KEY_RE.test(key)) return item;
+  return `${key}=${REDACTED}`;
 }
 
 /** 从 A2A Message 提取纯文本（用于进度与审批说明） */
@@ -34,9 +58,49 @@ export interface ExtractedApproval {
   readonly message: string;
   readonly risk?: RiskLevel;
   readonly capabilityId?: string;
+  // ---- CL-016 追加（全部可选，保住既有断言与调用方）----
+  /** 显式审批请求标记：仅当 data.type === 'approval-request' 时出现 */
+  readonly kind?: 'approval-request';
+  /** 人类可读摘要（优先 data.summary，其次「说明：」行，再次 text 首行） */
+  readonly summary?: string;
+  /** 影响清单（VM 已下发时原样透传，含空数组） */
+  readonly impact?: readonly string[];
+  /** dry-run 预览（VM 已下发时原样透传，含空对象） */
+  readonly preview?: Record<string, unknown>;
+  /** 宿主侧合成的续跑提示（A2A 通道，绝不含 __approvalId） */
+  readonly resumeHint?: string;
 }
 
-/** 从 A2A Message 提取审批闸请求（L2/L3 挂起时由 VM 侧下发） */
+/**
+ * 派生审批摘要（不得为空串或占位符）。
+ * 优先级：`data.summary`（字符串且非空）→ 同消息 text part 中 `说明：` 起始行 → text 首行。
+ */
+function deriveSummary(summaryRaw: unknown, message?: A2A.Message): string | undefined {
+  if (typeof summaryRaw === 'string' && summaryRaw.trim()) return summaryRaw.trim();
+  const text = extractText(message);
+  if (!text) return undefined;
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  const marker = lines.find((l) => l.startsWith('说明：') || l.startsWith('说明:'));
+  if (marker) {
+    const value = marker.replace(/^说明[：:]\s*/, '').trim();
+    if (value) return value;
+  }
+  return lines.length ? lines[0] : undefined;
+}
+
+/**
+ * 从 A2A Message 提取审批闸请求（L2/L3 挂起时由 VM 侧下发）。
+ *
+ * 识别条件：`data.type === 'approval-request'` 且 `typeof approvalId === 'string'`。
+ * 向后兼容：若 `data.type` 缺失但 `approvalId` 是字符串，仍按审批请求处理
+ * （既有 fixture 仅含 approvalId/risk/capabilityId/message）。
+ *
+ * 透传规则（唯一规则）：`impact`/`preview` **存在且类型合法 → 原样透传；否则省略该字段**。
+ * 全链路不输出 `undefined` 字面量。
+ */
 export function extractApproval(message?: A2A.Message): ExtractedApproval | undefined {
   const parts = message?.parts ?? [];
   for (const p of parts) {
@@ -45,18 +109,68 @@ export function extractApproval(message?: A2A.Message): ExtractedApproval | unde
     if (!isRecord(data)) continue;
     const approvalId = data['approvalId'];
     if (typeof approvalId !== 'string' || !approvalId) continue;
+
+    // type 存在但非 'approval-request' → 不是审批请求；type 缺失则向后兼容放行
+    const typeRaw = data['type'];
+    const isExplicit = typeRaw === 'approval-request';
+    if (typeRaw !== undefined && !isExplicit) continue;
+
     const riskRaw = data['risk'];
     const risk = typeof riskRaw === 'string' && (RISK_LEVELS as readonly string[]).includes(riskRaw)
       ? (riskRaw as RiskLevel)
       : undefined;
     const capabilityId = typeof data['capabilityId'] === 'string' ? data['capabilityId'] : undefined;
-    const msg =
+
+    // impact：字符串数组合法（含空数组）→ 逐项透传（凭据键项打码）；否则省略
+    const impactRaw = data['impact'];
+    const impact =
+      Array.isArray(impactRaw) && impactRaw.every((s) => typeof s === 'string')
+        ? (impactRaw as string[]).map(redactImpactItem)
+        : undefined;
+
+    // preview：record 合法（含空对象）→ 透传并对凭据键打码；否则省略
+    const previewRaw = data['preview'];
+    const preview = isRecord(previewRaw)
+      ? (redactCredentials(previewRaw) as Record<string, unknown>)
+      : undefined;
+
+    const msg = scrubText(
       (typeof data['message'] === 'string' && data['message']) ||
-      extractText(message) ||
-      '该步骤需宿主确认后继续';
-    return { approvalId, message: msg, ...(risk ? { risk } : {}), ...(capabilityId ? { capabilityId } : {}) };
+        extractText(message) ||
+        '该步骤需宿主确认后继续',
+    );
+
+    const summaryRaw = deriveSummary(data['summary'], message);
+    const summary = summaryRaw ? scrubText(summaryRaw) : undefined;
+
+    return {
+      approvalId,
+      message: msg,
+      ...(risk ? { risk } : {}),
+      ...(capabilityId ? { capabilityId } : {}),
+      ...(isExplicit ? { kind: 'approval-request' as const } : {}),
+      ...(summary ? { summary } : {}),
+      ...(impact !== undefined ? { impact } : {}),
+      ...(preview !== undefined ? { preview } : {}),
+    };
   }
   return undefined;
+}
+
+/**
+ * 合成 A2A 通道续跑提示（逐字模板）。
+ * **绝不包含 `__approvalId`**（那是 MCP 直调通道的标记，两通道不得混用）。
+ */
+export function buildA2aResumeHint(approvalId: string, taskId?: string): string {
+  return taskId
+    ? `（A2A 续跑）放行：a2a.approval.reply { taskId: "${taskId}", approvalId: "${approvalId}", approved: true }`
+    : `（A2A 续跑）放行：a2a.approval.reply { approvalId: "${approvalId}", approved: true }`;
+}
+
+/** 幂等补挂 resumeHint（不改动其它字段；已有 resumeHint 则原样返回） */
+export function withA2aResumeHint(a: ExtractedApproval, taskId?: string): ExtractedApproval {
+  if (a.resumeHint) return a;
+  return { ...a, resumeHint: buildA2aResumeHint(a.approvalId, taskId) };
 }
 
 /** artifact 摘要（不含大块 base64，避免 MCP 结果膨胀） */
@@ -138,7 +252,12 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
       },
       maxRisk: { type: 'string', enum: [...RISK_LEVELS], description: '本次委派允许的最高风险，默认 L1' },
       contextId: { type: 'string', description: '多轮续接同一上下文（可选）' },
-      timeoutMs: { type: 'number', description: '等待上限毫秒，默认 600000' },
+      timeoutMs: {
+        type: 'number',
+        description:
+          '等待上限毫秒，默认 600000。注意：VM 内 LLM 运行时**首次委派**需全额进程级冷启动' +
+          '（真机实测 75–107s），此区间内的等待属正常冷启动窗口，不是故障；如需更长可显式调大。',
+      },
     },
   };
 
@@ -208,7 +327,7 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
             contextId = ev.contextId;
             state = ev.status.state;
             const text = extractText(ev.status.message);
-            if (text) progress.push({ state, message: text.slice(0, 2000) });
+            if (text) progress.push({ state, message: scrubText(text.slice(0, 2000)) });
             if (state === 'input-required') {
               approval = extractApproval(ev.status.message);
             }
@@ -237,14 +356,49 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
 
       const ok = state !== 'failed' && state !== 'rejected' && state !== 'canceled' && !timedOut;
       const lastMsg = progress.length ? progress[progress.length - 1]!.message : '';
-      const summary = timedOut
-        ? `委派超时（>${Math.round(timeoutMs / 1000)}s），任务仍在 VM 侧运行，可用 a2a.task.get 查询结果`
-        : approval
-          ? `任务挂起等待审批：${approval.message}`
-          : lastMsg || `任务状态：${state}`;
+      const timeoutSec = Math.round(timeoutMs / 1000);
+      // CL-016：分级终止文案，优先级 timedOut → rejected → canceled → approval(挂起) → lastMsg → 状态
+      // 红线：三处终止文案均不得出现「超时默认批准/继续/放行」类暗示；
+      //      亦**严禁**「已修复 / 已解决」类承诺措辞（CL-018 C2 AC2.2）。
+      // CL-018 C2（AC2.2）：超时文案须如实说明 75–107s 属**正常冷启动窗口**，
+      //   避免宿主/用户把正常冷启动误判为故障或「已知问题已修复」。
+      // 呈现文本脱敏：summary 会作为 content[0].text 回传宿主，须剔除任何凭据明文
+      const summary = scrubText(
+        timedOut
+          ? `委派等待超时（>${timeoutSec}s）：可能仍处于**正常冷启动窗口（75–107s）**` +
+            `（VM 内 LLM 运行时首次/空闲回收后的首次委派需全额进程级冷启动），` +
+            `也可能仍在 VM 侧挂起等待审批 —— 审批未获批准，L2/L3 操作不会被执行。` +
+            `可用 a2a.task.get 查询后续结果，或以更大的 timeoutMs 重试。`
+          : state === 'rejected'
+            ? '任务已终止：审批被拒绝（rejected），未执行任何变更。如需继续，请重新发起该操作并再次确认。'
+            : state === 'canceled'
+              ? '任务已取消（canceled），审批通道已关闭，未执行任何变更。已产出的 artifact 仍可读取；如需继续，请重新发起。'
+              : approval
+                ? `任务挂起等待审批：${approval.message}`
+                : lastMsg || `任务状态：${state}`,
+      );
 
       const contents: McpContent[] = [{ type: 'text', text: summary }];
       for (const a of artifacts) contents.push(...artifactToContents(a));
+
+      // CL-016：A2A 通道续跑提示 + 宿主侧审批留痕（仅当挂起审批时）
+      const approvalOut = approval ? withA2aResumeHint(approval, taskId) : undefined;
+      const approvalAuditOut = approvalOut
+        ? recordHostApprovalAudit({
+            approvalId: approvalOut.approvalId,
+            traceId: ctx.traceId,
+            channel: 'a2a',
+            ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
+            ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
+            previewHash: hashApprovalPreview({
+              ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
+              ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
+              ...(approvalOut.preview !== undefined ? { preview: approvalOut.preview } : {}),
+              ...(approvalOut.impact !== undefined ? { impact: approvalOut.impact } : {}),
+            }),
+            result: 'pending',
+          })
+        : undefined;
 
       return {
         isError: !ok,
@@ -258,7 +412,8 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
           ...(timedOut ? { timedOut: true } : {}),
           progress,
           artifacts: artifacts.map(summarizeArtifact),
-          ...(approval ? { approval } : {}),
+          ...(approvalOut ? { approval: approvalOut } : {}),
+          ...(approvalAuditOut ? { approvalAudit: approvalAuditOut } : {}),
         },
         content: contents,
       };
@@ -294,8 +449,26 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
       }
       try {
         const task = await client.getTask(taskId, typeof params['historyLength'] === 'number' ? params['historyLength'] : undefined);
-        const message = extractText(task.status.message);
+        const message = scrubText(extractText(task.status.message));
         const approval = extractApproval(task.status.message);
+        // CL-016：A2A 通道续跑提示 + 宿主侧审批留痕（仅当挂起审批时）
+        const approvalOut = approval ? withA2aResumeHint(approval, task.id) : undefined;
+        const approvalAuditOut = approvalOut
+          ? recordHostApprovalAudit({
+              approvalId: approvalOut.approvalId,
+              traceId: ctx.traceId,
+              channel: 'a2a',
+              ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
+              ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
+              previewHash: hashApprovalPreview({
+                ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
+                ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
+                ...(approvalOut.preview !== undefined ? { preview: approvalOut.preview } : {}),
+                ...(approvalOut.impact !== undefined ? { impact: approvalOut.impact } : {}),
+              }),
+              result: 'pending',
+            })
+          : undefined;
         return {
           isError: false,
           structuredContent: {
@@ -306,7 +479,8 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
             state: task.status.state,
             ...(message ? { message } : {}),
             artifacts: (task.artifacts ?? []).map(summarizeArtifact),
-            ...(approval ? { approval } : {}),
+            ...(approvalOut ? { approval: approvalOut } : {}),
+            ...(approvalAuditOut ? { approvalAudit: approvalAuditOut } : {}),
           },
           content: [
             { type: 'text', text: `任务 ${task.id} 状态：${task.status.state}${message ? `\n${message}` : ''}` },

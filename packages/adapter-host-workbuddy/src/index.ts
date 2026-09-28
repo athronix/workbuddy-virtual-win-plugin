@@ -10,7 +10,7 @@
  * 实测支撑：WorkBuddy 官方 wecom 连接器即采用「1 connector + N skills」范式。
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import type {
@@ -63,7 +63,10 @@ export function resolveWorkBuddyPaths(
     version,
   );
   const marketplaceRoot = join(ctx.hostRoot, 'plugins', 'marketplaces', marketplace);
-  const accountId = ctx.accountId ?? 'default';
+  // 账户解析优先级：显式 ctx.accountId（--account）> 环境变量 WINVM_ACCOUNT > 'default'。
+  // 宿主机=鸿蒙场景下活跃账户是 uuid 目录（非 default），install-host 会按账户循环注入 ctx.accountId，
+  // 故此处默认值仅作兜底；WINVM_ACCOUNT 供未走循环的调用方（如直接 API 调用）复用同一解析语义。
+  const accountId = ctx.accountId ?? (process.env['WINVM_ACCOUNT'] || 'default');
 
   return {
     pluginRoot,
@@ -120,6 +123,9 @@ export function renderConnectorEntry(
         type: 'stdio',
         command: transport.command,
         args: [...transport.args],
+        // 与 HMOS/VM 现有 stdio 条目（connector:weisheng-scrm 等）保持同构：
+        // 显式声明 Node 运行时下限，供宿主选择/校验运行时。
+        runtime: { type: 'node', version: '>=18' },
         ...(transport.env ? { env: { ...transport.env } } : {}),
       };
   }
@@ -156,10 +162,22 @@ export class WorkBuddyRenderer implements HostRenderer {
           keywords: [...plugin.manifest.keywords],
           ...(plugin.manifest.homepage ? { homepage: plugin.manifest.homepage } : {}),
           ...(plugin.manifest.license ? { license: plugin.manifest.license } : {}),
+          /* CL-020 / D16 —— 平台**权威**自启动机制：顶层 `hooks` 指向插件内 hooks/hooks.json。
+           * 平台在「插件启用」时自动把插件 hooks 与用户级/项目级 hooks 合并（不覆盖），
+           * 其中 SessionStart 钩子在每次新会话启动时触发一次，从而随 WorkBuddy 启动拉起隧道。
+           *
+           * 历史教训：旧实现用自造的 `workbuddy.startup` 字段（command/args），平台**不识别**
+           * 任何插件清单里的 `startup` 机制（官方清单 Schema 无此字段，平台内置插件亦无一处使用），
+           * 故 WorkBuddy 重启后自启动不会被触发（实测 D16：14:21 重启后 tunnel.log 无新增）。
+           * 该字段已删除，不得再放回会被平台解释成「机制」的位置。 */
+          hooks: './hooks/hooks.json',
           workbuddy: {
             kind: `${plugin.manifest.name}`,
             bundleSegments: ['plugins', 'winvm', plugin.manifest.name],
             loadsCapabilities: true,
+            /* 注意：`workbuddy` 是本项目自用的**自定义命名空间**（平台不解释其内容）。
+             * 这里仅保留 kind/bundleSegments/loadsCapabilities 三项平台外元数据；
+             * 任何「会被平台当成机制」的键（如旧 startup）都不得出现在此命名空间下。 */
           },
         },
         null,
@@ -252,10 +270,11 @@ export class WorkBuddyRenderer implements HostRenderer {
 
     /* ---- 5. 风险与后置提示 ---- */
     if (transport.kind === 'ssh-tunnel') {
+      // D7：旧文案引导用户「手工建立系统 ssh 本地转发隧道」，与本项目机制（宿主侧常驻
+      // tunnel-daemon，winvm-plugin tunnel status/ensure 管理健康）矛盾。改为描述真实机制。
       warnings.push(
-        `SSH 隧道模式：需先建立隧道 ` +
-          `「ssh -f -N -L ${transport.localPort}:127.0.0.1:${transport.remotePort} ` +
-          `${transport.user}@${transport.host}」再调用工具，否则会出现难排查的超时故障。`,
+        `SSH 隧道模式：宿主侧由常驻 tunnel-daemon（进程内 ssh2）承载，调用工具前请确认隧道在线` +
+          `（winvm-plugin tunnel status），离线则 tunnel ensure 拉起；无需手工建立系统 ssh 本地转发隧道。`,
       );
       warnings.push('VM 侧服务必须仅监听 127.0.0.1；严禁将 VM 服务暴露到公网。');
     }
@@ -280,7 +299,7 @@ export class WorkBuddyRenderer implements HostRenderer {
         '重启 WorkBuddy 以加载新插件与连接器',
         ...(transport.kind === 'ssh-tunnel'
           ? [
-              `建立 SSH 隧道：ssh -f -N -L ${transport.localPort}:127.0.0.1:${transport.remotePort} ${transport.user}@${transport.host}`,
+              `确认 VM 隧道在线：winvm-plugin tunnel status（离线则 winvm-plugin tunnel ensure）`,
             ]
           : []),
         '在连接器管理中确认 winvm 连接器已启用',
@@ -392,21 +411,36 @@ export class WorkBuddyRenderer implements HostRenderer {
   }
 
   async uninstall(pluginId: string, ctx: RenderContext): Promise<void> {
-    // 移除连接器条目（保留用户其它连接器）
-    const accountId = ctx.accountId ?? 'default';
-    const mcpPath = join(ctx.hostRoot, 'connectors', accountId, 'mcp.json');
+    // 移除连接器条目（保留用户其它连接器）。
+    // 宿主机=鸿蒙场景下连接器按「账户 uuid 目录」组织，活跃账户未必是 'default'，
+    // 故遍历 connectors/ 下所有子目录，对每个存在的 <acct>/mcp.json 删除本项目条目后写回。
+    const connectorsRoot = join(ctx.hostRoot, 'connectors');
+    let accountIds: string[];
     try {
-      const raw = await readFile(mcpPath, 'utf8');
-      const json = JSON.parse(raw) as Record<string, unknown>;
-      if (json['mcpServers'] && typeof json['mcpServers'] === 'object') {
-        const servers = json['mcpServers'] as Record<string, unknown>;
-        delete servers[`connector:${pluginId}`];
-        // A2A 委派桥（若安装过）：约定 id 为 `${pluginId}-a2a`
-        delete servers[`connector:${pluginId}-a2a`];
-        await writeFile(mcpPath, JSON.stringify(json, null, 2) + '\n', 'utf8');
-      }
+      const entries = await readdir(connectorsRoot, { withFileTypes: true });
+      accountIds = entries.filter((e) => e.isDirectory()).map((e) => e.name);
     } catch {
-      // 文件不存在，忽略
+      // connectors 目录不存在：回退到 ctx.accountId（或环境变量）指定的单一账户，尽力清理。
+      accountIds = [ctx.accountId ?? (process.env['WINVM_ACCOUNT'] || 'default')];
+    }
+
+    for (const accountId of accountIds) {
+      const mcpPath = join(connectorsRoot, accountId, 'mcp.json');
+      try {
+        const raw = await readFile(mcpPath, 'utf8');
+        const json = JSON.parse(raw) as Record<string, unknown>;
+        if (json['mcpServers'] && typeof json['mcpServers'] === 'object') {
+          const servers = json['mcpServers'] as Record<string, unknown>;
+          // 仅当命中本插件 key 才写回，避免对无关键的用户 mcp.json 产生多余写盘（写放大）
+          const keys = [`connector:${pluginId}`, `connector:${pluginId}-a2a`];
+          if (keys.some((k) => k in servers)) {
+            for (const k of keys) delete servers[k];
+            await writeFile(mcpPath, JSON.stringify(json, null, 2) + '\n', 'utf8');
+          }
+        }
+      } catch {
+        // 文件不存在或不可读，忽略该账户，继续下一个
+      }
     }
   }
 }

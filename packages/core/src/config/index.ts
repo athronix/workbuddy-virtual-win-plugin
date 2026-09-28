@@ -13,6 +13,37 @@ import type { TransportDecl } from '@winvm/contracts';
 
 import type { AgentProviderConfig } from '../bridge/loader.js';
 import type { PolicyConfig } from '../policy/defaults.js';
+import {
+  ENV_LLM_PERSISTENT,
+  ENV_LLM_SESSION_ID,
+  ENV_LLM_SESSION_IDLE_MS,
+  ENV_LLM_SESSION_MAX_RESTARTS,
+  ENV_LLM_SESSION_MAX_WS_BYTES,
+  ENV_LLM_SESSION_READY_MS,
+  ENV_LLM_SESSION_WARMUP_MS,
+  ENV_LOG_DIR,
+  ENV_LOG_LEVEL,
+  ENV_LOG_MAX_BYTES,
+  ENV_LOG_MAX_DAYS,
+  ENV_LOG_MAX_FILES,
+  LLM_SESSION_ID_DEFAULT,
+  LLM_SESSION_IDLE_MS_DEFAULT,
+  LLM_SESSION_MAX_RESTARTS_DEFAULT,
+  LLM_SESSION_MAX_WS_BYTES_DEFAULT,
+  LLM_SESSION_READY_MS_DEFAULT,
+  LLM_SESSION_WARMUP_MS_DEFAULT,
+  LOG_DIR_TEMPLATE,
+  LOG_LEVEL_DEFAULT,
+  LOG_MAX_BYTES_DEFAULT,
+  LOG_MAX_DAYS_DEFAULT,
+  LOG_MAX_FILES_DEFAULT,
+  parseBoolean,
+  parseLogLevel,
+  parsePositiveInt,
+  type EnvView,
+  type LlmSessionConfig,
+  type LoggingConfig,
+} from '../constants.js';
 
 export interface ServerConfig {
   readonly host: string;
@@ -46,6 +77,10 @@ export interface ServiceConfig {
   readonly audit: AuditConfig;
   readonly session: SessionConfig;
   readonly security: SecurityConfig;
+  /** CL-018 C3：服务日志落盘（含轮转/保留/级别，全部 env 可覆盖） */
+  readonly logging: LoggingConfig;
+  /** CL-018 C1：codebuddy 常驻会话（空闲 TTL / 就绪超时 / 重建上限） */
+  readonly llmSession: LlmSessionConfig;
 }
 
 function isLoopback(host: string): boolean {
@@ -80,6 +115,25 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   audit: { dir: '%LOCALAPPDATA%/WinVMBridge/audit', redactParams: true },
   session: { probeIntervalMs: 15_000 },
   security: { requireLoopbackBind: true },
+  // CL-018 C3：日志落盘。目录保持 `%LOCALAPPDATA%` 模板（在 resolveServiceConfig 展开），
+  // 使 DEFAULT_SERVICE_CONFIG 在不同环境下保持确定性、且不产生副作用。
+  logging: {
+    dir: LOG_DIR_TEMPLATE,
+    level: LOG_LEVEL_DEFAULT,
+    maxBytes: LOG_MAX_BYTES_DEFAULT,
+    maxFiles: LOG_MAX_FILES_DEFAULT,
+    maxDays: LOG_MAX_DAYS_DEFAULT,
+  },
+  // CL-018 C1：常驻会话默认（真机实测冷启动 16–25s，就绪上限放宽见 constants.ts 注释）
+  llmSession: {
+    enabled: true,
+    sessionId: LLM_SESSION_ID_DEFAULT,
+    idleTtlMs: LLM_SESSION_IDLE_MS_DEFAULT,
+    readyTimeoutMs: LLM_SESSION_READY_MS_DEFAULT,
+    maxRestarts: LLM_SESSION_MAX_RESTARTS_DEFAULT,
+    maxWsBytes: LLM_SESSION_MAX_WS_BYTES_DEFAULT,
+    warmupReadyMs: LLM_SESSION_WARMUP_MS_DEFAULT,
+  },
 };
 
 /** 展开 Windows 环境变量占位符（%LOCALAPPDATA% 等），非 Windows 原样返回 */
@@ -87,10 +141,54 @@ export function expandEnvPath(p: string, env: NodeJS.ProcessEnv = process.env): 
   return p.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, name: string) => env[name] ?? m);
 }
 
-export function resolveServiceConfig(cfg: ServiceConfig): ServiceConfig {
+export function resolveServiceConfig(cfg: ServiceConfig, env: EnvView = process.env): ServiceConfig {
   return {
     ...cfg,
     audit: { ...cfg.audit, dir: isAbsolute(cfg.audit.dir) ? cfg.audit.dir : resolve(expandEnvPath(cfg.audit.dir)) },
+    logging: resolveLogging(cfg.logging, env),
+    llmSession: resolveLlmSession(cfg.llmSession, env),
+  };
+}
+
+/**
+ * 日志配置的 env 覆盖（CL-018 C3）。
+ *
+ * 优先级：**env（显式设置时）> 配置文件 > 内置默认**。
+ * 关键点：env **未设置**时必须保留配置文件里显式写的值 —— 不能拿「默认值」去盖掉它。
+ */
+function resolveLogging(cfg: LoggingConfig, env: EnvView): LoggingConfig {
+  const dirRaw = env[ENV_LOG_DIR]?.trim();
+  const dir = dirRaw ? dirRaw : cfg.dir;
+  return {
+    dir: isAbsolute(dir) ? dir : resolve(expandEnvPath(dir, env as NodeJS.ProcessEnv)),
+    level: env[ENV_LOG_LEVEL] ? parseLogLevel(env[ENV_LOG_LEVEL], cfg.level) : cfg.level,
+    maxBytes: env[ENV_LOG_MAX_BYTES] ? parsePositiveInt(env[ENV_LOG_MAX_BYTES], cfg.maxBytes) : cfg.maxBytes,
+    maxFiles: env[ENV_LOG_MAX_FILES] ? parsePositiveInt(env[ENV_LOG_MAX_FILES], cfg.maxFiles) : cfg.maxFiles,
+    maxDays: env[ENV_LOG_MAX_DAYS] ? parsePositiveInt(env[ENV_LOG_MAX_DAYS], cfg.maxDays) : cfg.maxDays,
+  };
+}
+
+/** 常驻会话配置的 env 覆盖（CL-018 C1）。优先级同 resolveLogging。 */
+function resolveLlmSession(cfg: LlmSessionConfig, env: EnvView): LlmSessionConfig {
+  const sessionIdRaw = env[ENV_LLM_SESSION_ID]?.trim();
+  return {
+    enabled: env[ENV_LLM_PERSISTENT] !== undefined && env[ENV_LLM_PERSISTENT] !== ''
+      ? parseBoolean(env[ENV_LLM_PERSISTENT], cfg.enabled)
+      : cfg.enabled,
+    sessionId: sessionIdRaw ? sessionIdRaw : cfg.sessionId,
+    idleTtlMs: env[ENV_LLM_SESSION_IDLE_MS] ? parsePositiveInt(env[ENV_LLM_SESSION_IDLE_MS], cfg.idleTtlMs) : cfg.idleTtlMs,
+    readyTimeoutMs: env[ENV_LLM_SESSION_READY_MS]
+      ? parsePositiveInt(env[ENV_LLM_SESSION_READY_MS], cfg.readyTimeoutMs)
+      : cfg.readyTimeoutMs,
+    maxRestarts: env[ENV_LLM_SESSION_MAX_RESTARTS]
+      ? parsePositiveInt(env[ENV_LLM_SESSION_MAX_RESTARTS], cfg.maxRestarts)
+      : cfg.maxRestarts,
+    maxWsBytes: env[ENV_LLM_SESSION_MAX_WS_BYTES]
+      ? parsePositiveInt(env[ENV_LLM_SESSION_MAX_WS_BYTES], cfg.maxWsBytes)
+      : cfg.maxWsBytes,
+    warmupReadyMs: env[ENV_LLM_SESSION_WARMUP_MS]
+      ? parsePositiveInt(env[ENV_LLM_SESSION_WARMUP_MS], cfg.warmupReadyMs)
+      : cfg.warmupReadyMs,
   };
 }
 
@@ -147,5 +245,7 @@ export async function loadServiceConfig(path: string): Promise<ServiceConfig> {
     audit: { ...DEFAULT_SERVICE_CONFIG.audit, ...(parsed.audit ?? {}) },
     session: { ...DEFAULT_SERVICE_CONFIG.session, ...(parsed.session ?? {}) },
     security: { ...DEFAULT_SERVICE_CONFIG.security, ...(parsed.security ?? {}) },
+    logging: { ...DEFAULT_SERVICE_CONFIG.logging, ...(parsed.logging ?? {}) },
+    llmSession: { ...DEFAULT_SERVICE_CONFIG.llmSession, ...(parsed.llmSession ?? {}) },
   };
 }
