@@ -3,9 +3,10 @@
 ## 顶层
 ```
 workbuddy-virtual-win-plugin/
+├── README.md                 # 【根】项目总览：目标/功能/技术方案/安装/运维/使用/后续建议
 ├── package.json              # workspace 根（npm workspaces，12 包）
 ├── tsconfig.base.json        # 共享 TS 配置（strict, ESM）
-├── tsconfig.build.json       # 构建引用图
+├── tsconfig.build.json       # 构建引用图（根无 tsconfig.json，构建须带此文件）
 ├── docs/                     # 调研 / 设计 / 交付文档
 ├── packages/                 # 12 个可独立编译/发布的 npm 包
 ├── skills/                   # 6 个 WorkBuddy Skill（1 总控 + 5 领域）+ 各 Skill 内的 mcps-reference 参考
