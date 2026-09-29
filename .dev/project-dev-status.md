@@ -35,7 +35,8 @@
 | vm-service | ✅ | ✅ e2e 双通道 | 装配 + CLI（agent.provider 总开关，3 选项：workbuddy-deterministic / workbuddy / hermes-agent） |
 
 ## 测试
-- 单元测试（逐文件复核，本会话）：**214/214 通过**（16 个 `tests/unit/*.test.js`；第十一轮新增 `install-vm-task.test.js` 8 项，第十二轮新增 `path-util.test.js` 9 项，第十四轮新增 `winvm-plugin.test.js` 7 项、`deploy-conn-side.test.js` 3 项）。历史快照曾记 178 单测 + 16 e2e（分类口径不同）。
+- 单元测试（逐文件复核，截至第十五轮 2026-09-29）：**636 tests / 634 pass / 0 fail / 2 skipped**（24 个 `tests/unit/*.test.js`；第十五轮新增 `k5-replay.test.js` 41 项、`k4-p3.test.js` 扩至 16 项，`k4-approval.test.js` 适配 ApprovalOutcome 契约 6 项；另含第十五轮前累计新增的 K2 预热/tunnel-mode 等测试）。历史快照曾记 214/214（第十四轮）、178 单测 + 16 e2e（分类口径不同）。
+- 审批链专项（K3/K4/P3/K5）：k5-replay 41/41、k4-approval 6/6、k4-p3 16/16 全绿；`tsc -b tsconfig.build.json` 0 error。
 - ⚠️ **运行方式硬约束**：必须**逐文件**跑（`for f in tests/unit/*.test.js; do node --test "$f"; done`）。整批 `node --test tests/unit/*.test.js` 会因 `link-workspace.test.js` 的 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`2147483651`/`0xC0000005`），共享 runner 被打崩，同进程**所有**文件被连带判死、呈假全红、且无汇总计数。单跑该文件 16/16 正常，故属环境问题非代码回归。
 - ps-bridge 真实拉起 PowerShell 5.1，五大模块加载并返回真实系统数据
 - 端到端委派冒烟通过：宿主桥 → A2A → VM provider → ps-bridge → PowerShell，`completed` 并回传产物

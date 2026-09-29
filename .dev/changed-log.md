@@ -460,3 +460,31 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
   - **VM 内**：重开终端即可 `winvm-plugin <cmd>`；health 自动走本地、无需 vm-host/vm-user。
   - **宿主侧**：health/server/command 自动读 vm-conn.json，无需再手传 --vm-host/--vm-user。
 - 旧已部署环境需重跑安装器才会生成 side.json / vm-conn.json（非破坏性，重跑即可）。
+
+---
+
+## 第十五轮 · 2026-09-28/29（K3+K4+P3+K5 审批链全量落地 + 双端部署）
+
+### 背景（K4 完整闭环真机验证暴露假成功）
+K4 审批结构化回传宿主真机验证（报告 `docs/test/reports/real-test-2026-09-28-k4-approval.md`）确认：宿主收到 `input-required` + `data.type='approval-request'` 结构化事件（挂起零副作用，WXWork.exe 完好）。但 `replyApproval(true)` 放行后任务虽 completed，**审计链零执行记录、企业微信完好 = 假成功**——根因：bridge 的 `resumeSuffix` 依赖提示 LLM「带 __approvalId 重发能力调用」，LLM 未重发即文本自宣完成。K3 正则兜底（reconcileApprovalWait）对「自称完成」无感知。
+
+### 三项修复（原子提交 `c93133f` → `c67398a`）
+1. **K5 · 服务端确定性重放（本轮核心）**：执行权收归 vm-service——批准后协调器直接用 pendingApprovals 留存原参数走真实执行段，LLM 文本永远不是完成证据。
+   - `packages/contracts/src/bridge.ts`：新增 `ApprovalUnderlying` / `ExecutedResult` / 判别联合 `ApprovalOutcome`（`{approved:false,reason}` | `{approved:true,executed?}`）；`ApprovalCoordinator.raise` 返回 `Promise<ApprovalOutcome>`。
+   - `packages/vm-service/src/server.ts`：执行段抽成命名函数 `executeCapability(cap, params, seg)`（handler 与重放共用；`seg.approved` 透传 provider，**顺带修复曾硬编码 approved:true 的真实缺陷**）；`VmApprovalCoordinator` 增 `setReplay/setReplayEnabled/noteTimeout`；raise 实现「补全审批请求 → await → 批准后原参数重放 → 结构化回执 → token 一次性删除 → 拒绝/超时/无任务 reason 细分」；拦截路径补 blocked 审计 + 留存 traceId/impact/underlying。
+   - `packages/vm-service/src/approval-replay.ts`（**新建**）：纯逻辑件 `toExecutedResult`（ok = isError!==true && structuredContent.ok===true）/ `recordBlockedApprovalAudit` / `deriveUnderlying`（脱敏+截断）。
+   - `packages/adapter-agent-workbuddy-llm/src/bridge.ts`：`maybeResume` 消费 ApprovalOutcome（approved+executed → `executionSuffix` 注入「系统已执行+真实回执+严禁重复调用」）；`taskReceipts/raisedApprovals/k5ReplayActive` 三态 + `reconcileExecutionTruth` 回执反查（有完成声称但无 ok 回执 → 改判 failed）；同 approvalId 去重；跨任务隔离（runGoal 清零）。
+   - `packages/host-a2a-bridge/src/tools.ts`：`extractUnderlying`+`scrubText` 脱敏透传，`buildA2aResumeHint` 追加「真实目标」行（审批卡片信息量）。
+   - `packages/a2a-framework/src/task-store.ts`：approvalMessage 条件写入 underlying。
+   - `packages/core/src/constants.ts`：灰度开关 `WINVM_APPROVAL_REPLAY`（默认 on，非法值回退默认）。
+2. **P3 两项（K4 遗留）**：P3-2 `Object.assign` 绕过 readonly → 构造期注入 `goalWithTask`；P3-3 waitApproval 30min TTL（finish/settled 先到先得、超时 resolve(false)→failed→onApprovalTimeout 清理 token、终态护栏收紧拒绝同态写、cancel 立即收口）。
+3. **配套**：`.gitignore` 追加 `%LOCALAPPDATA%/`、`.env.deploy*`、`.workbuddy/tmp/`、cl018 测试 mkdtemp 残留（`cfg-*/`、`log-*/`）；K2 预热 idle 回收修复一并入 `c67398a`。
+
+### 测试
+- 新增 `tests/unit/k5-replay.test.js`（**41 例**，A 协调器重放 11 / B 纯逻辑 6 / C 桥消费 11 / D 宿主透传 5 / E 源码形态守卫 8）；`k4-approval` 适配新契约 6/6；`k4-p3` 扩至 16/16。
+- 全量逐文件：**636 tests / 634 pass / 0 fail / 2 skipped**；`tsc -b tsconfig.build.json` 0 error。
+- 双端部署验证：VM `deploy-vm.mjs` EXIT=0（1m31s，服务重启 audit 新链 entries=0 chainValid=true）；宿主 `install-host.mjs` EXIT=0。三端 K5 标记确认（server.js `executeCapability`=3、approval-replay.js `deriveUnderlying`=2、bridge.js `executionSuffix`=3）。
+
+### 遗留（移交 changing-log）
+- 灰度 off 态 token 保留（K4 语义，短 TTL 后清）；COMPLETION_CLAIM_PATTERN 词表有限；workflow 场景 goalText 常缺席（input schema 无 goal 字段）；`tsc -b` 须带 tsconfig.build.json（根无 tsconfig.json）。
+- 待办：QA 独立深审（进行中）→ 宿主 MCP 路径真机端到端演示（最终验收）。

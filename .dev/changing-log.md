@@ -17,3 +17,10 @@
 ## ⬜ 未做（按用户范围，V1 不实现）
 - 真实 GUI 自动化在 VM 内的 UI 测试（需显示器/会话）；当前 GUI 模块提供截图+UIA 定位+键鼠 API，未跑真实点击回归。
 - 多 VM 联邦编排（当前单 VM）。
+
+## 🟡 进行中（第十五轮追加 · 2026-09-29）
+- [ ] **QA 独立深审 K5**（重派中）：安全语义（拒绝/超时零重放路径、seg.approved 透传全调用点、deriveUnderlying 脱敏覆盖、approvalId 伪造绕过面）+ 断言恒真抽查 → 报告 `docs/test/reports/k5-fix-qa-2026-09-29.md`。
+- [ ] **宿主 MCP 路径 K5 真机端到端演示**（最终验收）：委派"卸载VM企业微信" → 审批卡片（含真实目标行）→ 用户批准 → 服务端确定性重放真实执行 → 审计 `-replay` executed 条目 + WXWork.exe 磁盘消失双重证据 → 任务 completed。
+- [ ] **灰度 off 态 token 保留**（P2）：K4 语义下 REPLAY=off 时 token 待短 TTL 清理。
+- [ ] **COMPLETION_CLAIM_PATTERN 词表有限**（P2）：LLM 措辞绕过面，根治 = bridge 直读 MCP 结构化工具结果（更大改造）。
+- [ ] **workflow 场景 goalText 常缺席**（P3）：input schema 无 goal 字段，deriveUnderlying 尽力而为。
