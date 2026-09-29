@@ -488,3 +488,28 @@ K4 审批结构化回传宿主真机验证（报告 `docs/test/reports/real-test
 ### 遗留（移交 changing-log）
 - 灰度 off 态 token 保留（K4 语义，短 TTL 后清）；COMPLETION_CLAIM_PATTERN 词表有限；workflow 场景 goalText 常缺席（input schema 无 goal 字段）；`tsc -b` 须带 tsconfig.build.json（根无 tsconfig.json）。
 - 待办：QA 独立深审（进行中）→ 宿主 MCP 路径真机端到端演示（最终验收）。
+
+---
+
+## 第十六轮 · 2026-09-29（Skill 强制门禁落地 + 卸载实战复盘 + 三处漂移修复）
+
+### 背景
+用户两点要求：① 新版本完善必须**先落仓库**（`~/Documents/projects/workbuddy-virtual-win-plugin`），再经部署管道（install-host / deploy-vm）分发到宿主个人数据体系（`~/.workbuddy`）与 VM（`C:/WinVMBridge`），禁止两侧各改；② 卸载企业微信的执行过程不规范——宿主 agent 现场手写多个一次性 mjs 直打 A2A，应统一经 skill 指引调用插件标准工具面（发起→监控→审批卡→回传），任务间仅参数不同、无特殊路径。
+
+### 一、Skill 强制门禁（commit `5e37666`，9/29 下午）
+- `winvm-orchestrator` triggers 收窄为宽但准 3 词（`虚拟机`/`Windows 虚拟机`/`VM`）；5 领域 skill 统一 `虚拟机<域>` 前缀。
+- 正文新增「强制门禁（MUST·唯一入口）」与「域外任务处理流程」（五域之外先查网络定方案→经本项目通道执行→可自主扩展 skill/mcp 且必须接入审批闸）。
+
+### 二、真机实战：A2A 通道卸载 VM 企业微信（报告 `docs/test/reports/real-test-2026-09-29-uninstall-wecom-runtime.md`）
+- 用户真实请求驱动；A2A 委派 → 审批闸（`apr_b22f4f483cf44fa0872c`，underlying=`app.winget.uninstall id=Tencent.WeCom`）→ 用户批准 → 服务端确定性重放 → **NSIS Uninstall.exe 真实卸载** → completed。
+- 独立核验铁证（`wecom-status-report.txt`）：EXE/目录/进程/winget/注册表五项全空 → 已卸载。K6（纯 winget 假成功）本次未触发（workflow 路径自行选了 NSIS），能力层 K6 仍未修。
+- 过程有效经验：审批窗口短须单脚本一气呵成；审批形态有 data/text 二象；深度空闲首调需 ≥5min 冷启动预算；证据取 artifact 解码。
+
+### 三、执行规范缺口（本轮暴露 → 已补门禁）
+- 连接器已在双账户 mcp.json 注册，但会话工具面未注入 `a2a.*` 工具 → 宿主 agent 现场手写 5 个 mjs 绕行（无风险分级/审批闸/审计）。
+- **修复**：orchestrator 门禁新增第 5 条禁令「禁现场手写脚本直打通道；工具不可用唯一动作=停止并请求启用连接器」+「标准执行路径」4 步（winvm 直调 / winvm-a2a 委派→审批转呈用户→reply→task.get 轮询回传）。
+
+### 四、全链路一致性审计（仓库 ↔ 宿主部署 ↔ VM）
+- **SAME**：宿主插件缓存 4 件套 + a2a-bridge 六件 JS + hooks（逐字节）；VM 57 个 dist js 全 SAME；宿主 connectors 7 skills SAME（除 orchestrator 本轮新增条款）；mcp.json 三处注册一致。
+- **漂移修复**：① VM 侧 `C:/WinVMBridge/skills` + `shared-skills` 6 个 skill 停在 9/28 → 经部署管道推 9/29 门禁版（md5 校验）；② orchestrator 门禁第 5 条同步仓库→宿主 connectors→VM 三处；③ `.dev` 补记本轮。
+- 已知无害项：`a2a-bridge/package.json` 安装器改名（`@winvm/host-a2a-bridge`→`winvm-a2a-bridge`，打包转换预期）；仓库 `%LOCALAPPDATA%/` 为 gitignore 内 Windows 变量展开垃圾（9/28 服务日志误写本地，无害）。

@@ -29,3 +29,8 @@
 - [x] QA 独立深审 K5 → 报告 `docs/test/reports/k5-fix-qa-2026-09-29.md`，路由 **NoOne**（191/191 复跑 + a/b/c 安全语义全成立 + 12 例断言抽查无恒真）。
 - [x] 宿主 MCP 路径 K5 真机端到端演示 → **PASS**，报告 `docs/test/reports/real-test-2026-09-29-k5-e2e.md`：审批卡片含 underlying 真实目标 → 批准 → 服务端重放（审计 seq7 `-replay` approvedBy:host ok:true）→ 任务 completed。
 - [ ] **🆕 K6（能力层）**：`winget uninstall` 对企业微信报假成功（exit 0 但磁盘无变化，NSIS 包无 QuietUninstallString）→ 需卸载后核验 + NSIS `/S` 回退。实测 `Uninstall.exe /S` 真实卸载成功（EXE_GONE/DIR_GONE/WINGET_REMOVED）。
+
+## 🟡 进行中（第十六轮追加 · 2026-09-29）
+- [ ] **宿主审批卡原生渲染**：协议层已备好（approval + resumeHint + underlying），缺宿主工具面把 approval-request 渲染为 WorkBuddy 原生审批卡片（当前以 AskUserQuestion 近似替代）。
+- [ ] **会话工具面注入保障**：connector:winvm / connector:winvm-a2a 已注册但新会话常未注入工具 → 依赖 skill 门禁「停止并请求启用连接器」兜底；长期需 WB 侧连接器自动启用。
+- [ ] **K6 能力层修复**（承前）：app.winget.uninstall 卸载后核验 + NSIS /S 回退（本次实战 workflow 路径侥幸走 NSIS，能力层仍假成功）。
