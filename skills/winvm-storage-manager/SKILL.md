@@ -8,11 +8,9 @@ description: >
 version: 0.1.0
 domains: [storage]
 triggers:
-  - 磁盘空间不足
-  - 查看哪个目录最大
-  - 查找/移动/复制/删除文件
-  - 压缩或解压
-  - 清理建议
+  - 虚拟机磁盘
+  - 虚拟机存储
+  - 虚拟机文件
 relatedSkills:
   - winvm-orchestrator
 ---

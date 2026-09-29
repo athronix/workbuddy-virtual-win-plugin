@@ -7,10 +7,9 @@ description: >
 version: 0.1.0
 domains: [app]
 triggers:
-  - 安装/卸载/升级软件
-  - 查看已安装的软件
-  - 启动某个应用
-  - 创建桌面快捷方式
+  - 虚拟机安装软件
+  - 虚拟机应用
+  - 虚拟机卸载
 relatedSkills:
   - winvm-orchestrator
 ---

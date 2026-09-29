@@ -11,12 +11,9 @@ version: 0.1.0
 domains: [appops]
 entry: false
 triggers:
-  - 用 Photoshop / 美图 / 画图 处理图片
-  - 用 Word / Excel / PPT / WPS 生成或转换文档
-  - 用浏览器在网页里完成操作（登录、填表、下载、截图）
-  - 用 ffmpeg / ImageMagick 转码、裁剪、批量处理
-  - 用 IDE（VS / Cursor / PyCharm）跑命令、构建、运行脚本
-  - 把这张照片的背景换成海洋 / 给这张图加水印 / 把这段视频转成 gif
+  - 虚拟机里用软件
+  - 虚拟机生产
+  - 虚拟机软件操作
 relatedSkills:
   - winvm-orchestrator
   - winvm-gui-automation

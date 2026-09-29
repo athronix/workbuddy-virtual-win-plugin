@@ -8,11 +8,9 @@ description: >
 version: 0.1.0
 domains: [system]
 triggers:
-  - 查看/启动/停止/重启服务
-  - 查看/结束进程
-  - 查看事件日志排查故障
-  - 修改注册表或环境变量
-  - 查看网络配置
+  - 虚拟机系统
+  - 虚拟机服务
+  - 虚拟机网络
 relatedSkills:
   - winvm-orchestrator
 ---

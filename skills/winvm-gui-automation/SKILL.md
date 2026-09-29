@@ -8,11 +8,9 @@ description: >
 version: 0.1.0
 domains: [gui]
 triggers:
-  - 看看虚拟机屏幕
-  - 截图
-  - 点击/输入/操作窗口
-  - 打开浏览器并访问
-  - 自动化某个桌面应用
+  - 虚拟机屏幕
+  - 虚拟机截图
+  - 虚拟机窗口
 relatedSkills:
   - winvm-orchestrator
 ---
