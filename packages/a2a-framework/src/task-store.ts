@@ -262,6 +262,17 @@ export class TaskStore {
   }
 
   private approvalMessage(id: string, req: ApprovalRequest): A2A.Message {
+    // K5：外层是壳（如 appops.workflow.run）时，把内层真实目标写进人话提示 → 人工才判得准。
+    // 无 underlying 时该行整体缺席（旧文案逐字不变）。
+    const underlyingLine = req.underlying
+      ? `真实目标：${[
+          req.underlying.goalText,
+          req.underlying.capabilityId ? `能力 ${req.underlying.capabilityId}` : '',
+          req.underlying.paramsSummary ? `参数 ${req.underlying.paramsSummary}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')}\n`
+      : '';
     return {
       kind: 'message',
       role: 'agent',
@@ -273,6 +284,7 @@ export class TaskStore {
           text:
             `需要人工审批（风险 ${req.risk}）后才能继续。\n` +
             `操作：${req.capabilityId}\n` +
+            underlyingLine +
             `说明：${req.summary}\n` +
             `确认后请回复 message/send（同一 taskId），附带 DataPart：` +
             `{"approvalId":"${req.approvalId}","approved":true}\n` +
@@ -292,6 +304,9 @@ export class TaskStore {
             impact: req.impact,
             // P3-3：把「审批有 TTL」如实告知宿主（含绝对截止时刻），避免宿主以为可无限期拖延
             expiresAtMs: this.approvalExpiresAtMs(),
+            // K5：真实意图（内层目标/真实参数摘要）——被拦能力是「壳」时宿主卡片才有信息量。
+            // 缺席即不写该键（绝不输出 undefined 字面量，保持既有 fixture 深比对）。
+            ...(req.underlying ? { underlying: req.underlying } : {}),
           },
         },
       ],

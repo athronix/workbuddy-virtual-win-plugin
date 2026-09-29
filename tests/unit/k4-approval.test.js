@@ -5,6 +5,18 @@
  *    宿主经 A2A approval.reply 批准（resolveApproval(true)）→ hostApproved=true → 放行。
  * ② bridge 命中审批拦截且 coordinator 存在时调用 raise 并 await：
  *    approved=true 走续跑（最终 ok=true）；approved=false 返回 base（ok=false，绝不自批）。
+ *
+ * ── K5 适配点（本文件随契约变更同步修改，语义覆盖只增不减）──────────────────
+ * 1. `ApprovalCoordinator.raise` 返回类型由 `Promise<boolean>` 升级为
+ *    `Promise<ApprovalOutcome>`（判别联合：`{approved:false, reason}` | `{approved:true, executed?}`）。
+ *    → 断言从 `assert.equal(x, true/false)` 改为 `assert.equal(x.approved, true/false)`，
+ *      并**新增** reason 断言（拒绝 → 'rejected'；无挂接任务 → 'no-active-task'）。
+ * 2. 本文件构造的 fake coordinator 返回 `{ approved: true }`（**不带 executed**）——
+ *    即「灰度 `WINVM_APPROVAL_REPLAY=off` / 服务端未注入重放」的 K4 兼容态：
+ *    桥必须退回 K4 提示词续跑行为（`resumeSuffix`），且**不得**触发 K5 回执反查。
+ *    → 原「approved → 续跑成功」用例语义逐字保留（这是 K4 回滚路径的回归保险）。
+ * 3. 重放态（`approved + executed`）与回执反查的新语义由 `k5-replay.test.js` 覆盖。
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 import { test, describe } from 'node:test';
@@ -63,8 +75,12 @@ describe('K4 审批协调器安全闸', () => {
     // 宿主经 A2A approval.reply 批准
     const handled = tasks.resolveApproval(taskId, 'apr_1', true);
     assert.equal(handled, true);
-    const approved = await decision;
-    assert.equal(approved, true);
+    const outcome = await decision;
+    // K5 适配：raise 返回结构化 ApprovalOutcome（不再是 boolean）
+    assert.equal(outcome.approved, true);
+    // 未注入 replay（等价灰度 off）→ executed 缺席（K4 兼容态），token 保留供 /mcp 人工续跑
+    assert.equal(outcome.executed, undefined, '未注入重放时不得凭空造出执行回执');
+    assert.equal(pendingApprovals.has('apr_1'), true, 'K4 兼容态不得消费 token（/mcp 续跑仍需用它）');
 
     // 批准后 token 置为已批准 → 能力层放行（杜绝不记名令牌漏洞）
     assert.equal(pendingApprovals.get('apr_1').hostApproved, true);
@@ -73,7 +89,7 @@ describe('K4 审批协调器安全闸', () => {
     coordinator.endTask();
   });
 
-  test('宿主拒绝 → raise 返回 false，token 仍 hostApproved=false（保持不放行）', async () => {
+  test('宿主拒绝 → raise 返回 approved:false / reason:rejected，token 仍 hostApproved=false（保持不放行）', async () => {
     const tasks = new TaskStore();
     const rec = tasks.create();
     const taskId = rec.task.id;
@@ -102,14 +118,18 @@ describe('K4 审批协调器安全闸', () => {
     assert.equal(tasks.tryGet(taskId).task.status.state, 'input-required');
 
     tasks.resolveApproval(taskId, 'apr_2', false);
-    const approved = await decision;
-    assert.equal(approved, false);
+    const outcome = await decision;
+    // K5 适配：拒绝 → approved:false，且 reason 明确为 'rejected'（非 timeout / 非 no-active-task）
+    assert.equal(outcome.approved, false);
+    assert.equal(outcome.reason, 'rejected');
+    assert.equal(outcome.executed, undefined, '被拒绝不可能带回执（绝不重放）');
     assert.equal(pendingApprovals.get('apr_2').hostApproved, false);
+    assert.equal(pendingApprovals.has('apr_2'), true, '拒绝不消费 token（宿主可人工经 /mcp 处理）');
 
     coordinator.endTask();
   });
 
-  test('无 activeTaskId → raise 直接返回 false（不挂起、不误放行）', async () => {
+  test('无 activeTaskId → raise 直接返回 approved:false / reason:no-active-task（不挂起、不误放行）', async () => {
     const tasks = new TaskStore();
     const pendingApprovals = new Map();
     const coordinator = new VmApprovalCoordinator();
@@ -124,7 +144,10 @@ describe('K4 审批协调器安全闸', () => {
       preview: {},
       impact: [],
     });
-    assert.equal(await decision, false);
+    const outcome = await decision;
+    // K5 适配：无挂接 A2A 任务 → approved:false + reason:'no-active-task'（不放行、不重放）
+    assert.equal(outcome.approved, false);
+    assert.equal(outcome.reason, 'no-active-task');
     assert.equal(pendingApprovals.size, 0);
   });
 });
@@ -150,6 +173,12 @@ function makeFakeCli(dir) {
   return p;
 }
 
+/**
+ * K5 适配：fake coordinator 现在必须返回 `ApprovalOutcome`（判别联合）而非 boolean。
+ * - `approved=true` → `{ approved: true }`（**故意不带 executed**）：等价服务端
+ *   `WINVM_APPROVAL_REPLAY=off` / 未注入重放的 **K4 兼容态**，用于回归「回滚后行为逐字保持」；
+ * - `approved=false` → `{ approved: false, reason: 'rejected' }`。
+ */
 function makeCoordinator(approved) {
   const calls = [];
   return {
@@ -158,7 +187,7 @@ function makeCoordinator(approved) {
     endTask() {},
     raise(req) {
       calls.push(req);
-      return Promise.resolve(approved);
+      return Promise.resolve(approved ? { approved: true } : { approved: false, reason: 'rejected' });
     },
   };
 }

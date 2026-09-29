@@ -183,6 +183,29 @@ export function resolveApprovalTtlMs(env: EnvView = process.env): number {
   return parsePositiveInt(env[ENV_APPROVAL_TTL_MS], APPROVAL_TTL_MS_DEFAULT);
 }
 
+/* ======================== K5 · 审批放行后服务端重放（灰度开关） ======================== */
+
+/**
+ * K5 灰度开关 env 名：**审批放行后由服务端确定性重放被拦截的能力调用**。
+ *
+ * 为什么需要开关：K5 把执行权从「LLM 是否愿意重发」收归服务端（`resolveApproval(true)` 后
+ * 协调器直接用留存原参数走真实执行段）。这是执行路径的实质变更，需要一个可一键回滚的保险：
+ *   - `on`（默认）：批准后服务端重放，结构化回执随决议返回，桥把真实回执注入续跑 prompt。
+ *   - `off`：跳过重放，批准后仅返回 `approved:true`（`executed` 缺席）→ 桥退回 K4 提示词行为
+ *     （提示 LLM 带 `__approvalId` 重发）。
+ *
+ * 纪律（与既有 env 一致）：解析**只在此处**做；非法值回退默认（on）；绝不抛错 ——
+ * 服务启动不得因一个坏 env 失败。注意 `off` 只关闭**重放**，绝不放宽任何审批闸：
+ * 未获宿主批准时依旧 `approved:false`。
+ */
+export const ENV_APPROVAL_REPLAY = 'WINVM_APPROVAL_REPLAY';
+export const APPROVAL_REPLAY_DEFAULT = true;
+
+/** 审批重放开关（true=服务端重放；false=退回 K4 提示词行为） */
+export function resolveApprovalReplay(env: EnvView = process.env): boolean {
+  return parseBoolean(env[ENV_APPROVAL_REPLAY], APPROVAL_REPLAY_DEFAULT);
+}
+
 /* ============================ tunnel-mode 通道模式 ============================
  *
  * 宿主侧「通道选择策略」的单一事实来源。插件有两条通往 VM 的通道：

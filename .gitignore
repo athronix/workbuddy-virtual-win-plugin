@@ -35,3 +35,7 @@ qa/archive/
 
 # 会话临时诊断脚本
 .workbuddy/tmp/
+
+# 测试运行产生的临时 fixture（mkdtempSync 随机后缀，非静态资产）
+tests/fixtures/cl018-config/cfg-*/
+tests/fixtures/cl018-logs/log-*/

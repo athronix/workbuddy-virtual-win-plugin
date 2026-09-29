@@ -53,6 +53,18 @@ export function extractText(message?: A2A.Message): string {
   return texts.join('\n').trim();
 }
 
+/**
+ * K5（纯附加）：被拦截调用的**真实意图**（VM 侧 approval-request 的 data.underlying 透传）。
+ *
+ * 用途：外层被拦能力常是「壳」（如 appops.workflow.run），人工真正要批准的是内层目标；
+ * 卡片只有壳名时信息量不足（真机取证：preview:{} / impact:[] → 卡片不可读）。
+ */
+export interface ExtractedUnderlying {
+  readonly capabilityId?: string;
+  readonly paramsSummary?: string;
+  readonly goalText?: string;
+}
+
 export interface ExtractedApproval {
   readonly approvalId: string;
   readonly message: string;
@@ -69,6 +81,8 @@ export interface ExtractedApproval {
   readonly preview?: Record<string, unknown>;
   /** 宿主侧合成的续跑提示（A2A 通道，绝不含 __approvalId） */
   readonly resumeHint?: string;
+  /** K5：真实意图（VM 下发时透传，各子字段缺失即省略；整块缺失则字段不出现） */
+  readonly underlying?: ExtractedUnderlying;
 }
 
 /**
@@ -143,6 +157,9 @@ export function extractApproval(message?: A2A.Message): ExtractedApproval | unde
     const summaryRaw = deriveSummary(data['summary'], message);
     const summary = summaryRaw ? scrubText(summaryRaw) : undefined;
 
+    // K5 underlying：真实意图透传（record 合法才取；子字段逐个类型收敛，绝不输出 undefined 字面量）
+    const underlying = extractUnderlying(data['underlying']);
+
     return {
       approvalId,
       message: msg,
@@ -152,25 +169,66 @@ export function extractApproval(message?: A2A.Message): ExtractedApproval | unde
       ...(summary ? { summary } : {}),
       ...(impact !== undefined ? { impact } : {}),
       ...(preview !== undefined ? { preview } : {}),
+      ...(underlying ? { underlying } : {}),
     };
   }
   return undefined;
 }
 
 /**
+ * K5：提取 approval-request data part 的 `underlying`（真实意图）。
+ *
+ * 纪律（与 impact/preview 同规则）：类型合法才透传、非法即整块省略、子字段缺失不写 undefined；
+ * 文本做凭据脱敏（与 message/summary 同一 scrubText 口径）。
+ */
+function extractUnderlying(raw: unknown): ExtractedUnderlying | undefined {
+  if (!isRecord(raw)) return undefined;
+  const capabilityId = typeof raw['capabilityId'] === 'string' && raw['capabilityId'] ? raw['capabilityId'] : undefined;
+  const paramsSummary =
+    typeof raw['paramsSummary'] === 'string' && raw['paramsSummary'] ? scrubText(raw['paramsSummary']) : undefined;
+  const goalText =
+    typeof raw['goalText'] === 'string' && raw['goalText'] ? scrubText(raw['goalText']) : undefined;
+  if (!capabilityId && !paramsSummary && !goalText) return undefined;
+  return {
+    ...(capabilityId ? { capabilityId } : {}),
+    ...(paramsSummary ? { paramsSummary } : {}),
+    ...(goalText ? { goalText } : {}),
+  };
+}
+
+/**
  * 合成 A2A 通道续跑提示（逐字模板）。
  * **绝不包含 `__approvalId`**（那是 MCP 直调通道的标记，两通道不得混用）。
+ *
+ * K5：带 `underlying`（真实意图）时在其后追加一行「真实目标：…」，提升审批卡片信息量；
+ * 不带时输出**逐字不变**（保住 CL-016 既有逐字断言）。
  */
-export function buildA2aResumeHint(approvalId: string, taskId?: string): string {
-  return taskId
+export function buildA2aResumeHint(
+  approvalId: string,
+  taskId?: string,
+  underlying?: ExtractedUnderlying,
+): string {
+  const base = taskId
     ? `（A2A 续跑）放行：a2a.approval.reply { taskId: "${taskId}", approvalId: "${approvalId}", approved: true }`
     : `（A2A 续跑）放行：a2a.approval.reply { approvalId: "${approvalId}", approved: true }`;
+  const goal = describeUnderlying(underlying);
+  return goal ? `${base}\n真实目标：${goal}（批准后由服务端按原始参数直接执行，无需 LLM 重发）` : base;
+}
+
+/** K5：把 underlying 收敛成一行可读的「真实目标」描述；无有效信息时返回 '' （不拼空句）。 */
+function describeUnderlying(u?: ExtractedUnderlying): string {
+  if (!u) return '';
+  const parts: string[] = [];
+  if (u.goalText) parts.push(u.goalText);
+  if (u.capabilityId) parts.push(`能力 ${u.capabilityId}`);
+  if (u.paramsSummary) parts.push(`参数 ${u.paramsSummary}`);
+  return parts.join(' · ');
 }
 
 /** 幂等补挂 resumeHint（不改动其它字段；已有 resumeHint 则原样返回） */
 export function withA2aResumeHint(a: ExtractedApproval, taskId?: string): ExtractedApproval {
   if (a.resumeHint) return a;
-  return { ...a, resumeHint: buildA2aResumeHint(a.approvalId, taskId) };
+  return { ...a, resumeHint: buildA2aResumeHint(a.approvalId, taskId, a.underlying) };
 }
 
 /** artifact 摘要（不含大块 base64，避免 MCP 结果膨胀） */
@@ -374,7 +432,12 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
             : state === 'canceled'
               ? '任务已取消（canceled），审批通道已关闭，未执行任何变更。已产出的 artifact 仍可读取；如需继续，请重新发起。'
               : approval
-                ? `任务挂起等待审批：${approval.message}`
+                ? `任务挂起等待审批：${approval.message}` +
+                  // K5：卡片信息量 —— 有真实意图（underlying）时把「真实目标」并入呈现文本，
+                  // 宿主 Agent 依 SKILL.md 纪律渲染审批卡片时可直接展示内层目标。
+                  (describeUnderlying(approval.underlying)
+                    ? `\n真实目标：${describeUnderlying(approval.underlying)}`
+                    : '')
                 : lastMsg || `任务状态：${state}`,
       );
 

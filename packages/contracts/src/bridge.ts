@@ -154,6 +154,22 @@ export interface Artifact {
   readonly encoding?: 'base64' | 'utf8' | 'json';
 }
 
+/**
+ * K5（纯附加可选）：被拦截调用的**真实意图**描述，供宿主审批卡片展示。
+ *
+ * 背景：A2A 委派里被审批闸拦截的能力往往是「外壳」（如 `appops.workflow.run`），
+ * 人工真正要批准的是内层目标（goal 文本 / 真实参数）。缺席该字段时卡片只能看到外壳名，
+ * 信息量不足以做人工判断（真机取证：`preview:{}` / `impact:[]` 空 → 卡片无可读内容）。
+ */
+export interface ApprovalUnderlying {
+  /** 内层真实能力（若已知），如 `app.winget.uninstall` */
+  readonly capabilityId: CapabilityId;
+  /** 真实参数摘要（人类可读，已脱敏由调用方负责），如 `packageId=WXWork` */
+  readonly paramsSummary?: string;
+  /** 目标文本（workflow 场景 = 内层 goal），如「卸载 VM 企业微信」 */
+  readonly goalText?: string;
+}
+
 export interface ApprovalRequest {
   readonly approvalId: string;
   readonly capabilityId: CapabilityId;
@@ -162,7 +178,39 @@ export interface ApprovalRequest {
   /** dry-run 预览：将影响什么 */
   readonly preview: Record<string, unknown>;
   readonly impact: readonly string[];
+  /**
+   * K5（纯附加）：被拦截调用的真实意图（外层能力是壳时尤其重要）。
+   * 缺席即旧行为（卡片只显示 capabilityId/summary）。
+   */
+  readonly underlying?: ApprovalUnderlying;
 }
+
+/**
+ * K5：能力**真实执行**的结构化回执 —— 由服务端重放（replay）产生，不是 LLM 文本。
+ *
+ * 核心不变式：A2A 任务是否完成，**只以本回执为准**；LLM 自称完成不构成完成证据。
+ */
+export interface ExecutedResult {
+  readonly ok: boolean;
+  readonly capabilityId: string;
+  /** 人类可读结果摘要（成功=做了什么；失败=为什么没做成） */
+  readonly summary: string;
+  /** 失败原因（ok=false 时给出） */
+  readonly error?: string;
+}
+
+/**
+ * K5：审批协调器 `raise` 的结果（判别联合）。
+ *
+ * - `approved:false` —— 拒绝 / TTL 超时 / 无挂接任务，语义与 K3/K4 完全一致：
+ *   桥保持「等待审批」（ok=false），**绝不自批**。
+ * - `approved:true`  —— 宿主已批准，且（`WINVM_APPROVAL_REPLAY=on` 时）**服务端已确定性重放**
+ *   被拦截的原调用，`executed` 为真实执行回执。
+ *   `executed` 缺席（可选）= 灰度开关 off 或未注入 replay → 退回 K4「提示词让 LLM 重发」行为。
+ */
+export type ApprovalOutcome =
+  | { readonly approved: false; readonly reason: 'rejected' | 'timeout' | 'no-active-task' }
+  | { readonly approved: true; readonly executed?: ExecutedResult };
 
 export interface CapabilityRequest {
   readonly traceId: string;
@@ -229,11 +277,15 @@ export interface ProgressSink {
 }
 
 /**
- * K4 审批协调器：桥接层与 A2A 任务状态机之间的审批闸桥。
+ * K4/K5 审批协调器：桥接层与 A2A 任务状态机之间的审批闸桥。
  *
  * 纯附加可选契约：VM 内 Agent（bridge）在命中宿主审批拦截时，经 `raise` 把任务挂起为
  * input-required 并等待宿主人工决议；宿主批准前，续跑令牌（pendingApprovals 中的 token）
  * 必须保持 `hostApproved=false`，绝不可被 `/mcp` 能力层放行（杜绝「不记名令牌」漏洞）。
+ *
+ * K5：`raise` 返回值由 `Promise<boolean>` 升级为 `Promise<ApprovalOutcome>` ——
+ * 执行权收归服务端：宿主批准后由协调器**在服务进程内**用留存的原参数确定性重放被拦截的
+ * 能力调用，把**真实执行回执**（`executed`）随决议一并返回，桥不再依赖 LLM 是否"愿意重发"。
  *
  * 非 A2A 场景（纯 MCP 直调 / 单测）不注入协调器，桥接层行为完全不变。
  */
@@ -243,11 +295,12 @@ export interface ApprovalCoordinator {
   /** 离开一个委派任务（清空当前 taskId） */
   endTask(): void;
   /**
-   * 发出 input-required（挂起任务）并返回宿主决议 Promise。
+   * 发出 input-required（挂起任务）并等待宿主决议；宿主批准后由**服务端重放**原调用。
    * 实现必须把对应续跑令牌标记为「待宿主批准（hostApproved=false）」，宿主经 A2A
-   * `approval.reply` 批准后才置 true 并 resolve(true)。
+   * `approval.reply` 批准后才置 true 并重放；重放结束（成功或失败）后令牌**一次性消费删除**。
+   * 拒绝 / TTL 超时 / 无挂接任务 → `{ approved:false, reason }`，绝不放行。
    */
-  raise(req: ApprovalRequest): Promise<boolean>;
+  raise(req: ApprovalRequest): Promise<ApprovalOutcome>;
 }
 
 export interface AuditSink {

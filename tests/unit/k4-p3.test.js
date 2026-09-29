@@ -15,6 +15,19 @@
  *   ⑤ 超时后迟到的应答 → resolveApproval 返回 false，绝不复活任务 / 绝不放行。
  *
  * 纪律：全部用短 TTL（50–200ms）避免慢测。
+ *
+ * ── K5 适配点（本文件随契约变更同步修改，语义覆盖只增不减）──────────────────
+ * 1. `VmApprovalCoordinator.raise` 返回值由 `Promise<boolean>` 升级为
+ *    `Promise<ApprovalOutcome>`（判别联合）。受影响用例仅 1 条：
+ *      旧 `assert.equal(raised, false)`（TTL 超时）
+ *      → 新 `assert.equal(outcome.approved, false)` + `outcome.reason === 'timeout'`
+ *        + `outcome.executed === undefined`（超时绝不重放）
+ *        + token 未被消费（超时分支不删 token，清理权在 onApprovalTimeout）。
+ *    其余 P3-3 用例直连 `TaskStore.waitApproval`（契约未变，仍返回 boolean），逐字保持。
+ * 2. **新增**用例：审批挂起中被 `tasks/cancel` → `reason:'rejected'`（证明 reason 细分
+ *    没有把「取消/拒绝」误报成 timeout —— K5 决议可解释性）。
+ * 3. 重放态（`approved:true + executed`）与桥侧回执反查由 `k5-replay.test.js` 覆盖。
+ * ─────────────────────────────────────────────────────────────────────────
  */
 
 import { readFileSync } from 'node:fs';
@@ -142,7 +155,7 @@ describe('P3-3 · waitApproval TTL 超时收口', () => {
     assert.equal(tasks.currentApproval(taskId), undefined);
   });
 
-  test('coordinator.raise 超时 → 得到 resolved=false 的正常返回（非抛错），token 不置 hostApproved', async () => {
+  test('coordinator.raise 超时 → approved:false / reason:timeout 的正常返回（非抛错），token 不置 hostApproved', async () => {
     const tasks = new TaskStore({ approvalTtlMs: 60 });
     const pendingApprovals = new Map();
     pendingApprovals.set('apr_c1', {
@@ -160,18 +173,56 @@ describe('P3-3 · waitApproval TTL 超时收口', () => {
     const rec = tasks.create();
     coordinator.beginTask(rec.task.id);
 
-    // raise 不抛错，超时后正常返回 false
-    let raised;
+    // raise 不抛错，超时后正常返回结构化决议
+    let outcome;
     let threw = false;
     try {
-      raised = await awaitWithKeepAlive(coordinator.raise(approvalReq('apr_c1')));
+      outcome = await awaitWithKeepAlive(coordinator.raise(approvalReq('apr_c1')));
     } catch {
       threw = true;
     }
     assert.equal(threw, false, 'raise 超时不应抛错（保证桥走 ok=false 正常分支）');
-    assert.equal(raised, false, 'raise 超时返回 false');
+    // K5 适配：raise 返回 ApprovalOutcome 判别联合（旧断言 `equal(outcome, false)` → 新断言）
+    assert.equal(outcome.approved, false, '超时绝不放行');
+    assert.equal(outcome.executed, undefined, '超时绝不重放，不得凭空造出执行回执');
+    // K5 新增语义：超时须能与「宿主明确拒绝」区分（reason='timeout'）。
+    // 判别依据双信号：① onApprovalTimeout → coordinator.noteTimeout 登记；
+    // ② TaskStore 固化进 task.metadata 的 approvalTimedOut + approvalTimeoutApprovalId。
+    assert.equal(outcome.reason, 'timeout', 'TTL 超时应细分为 timeout（非 rejected）');
     // hostApproved 保持 false（K4 安全点：绝不自批）
     assert.equal(pendingApprovals.get('apr_c1').hostApproved, false, '超时不得置 hostApproved=true');
+    // 超时不消费 token（token 保留交由 onApprovalTimeout 侧清理，协调器不越权删）
+    assert.equal(pendingApprovals.has('apr_c1'), true, '超时分支不删 token');
+
+    coordinator.endTask();
+  });
+
+  test('coordinator.raise：审批挂起中被 cancel → reason 归为 rejected（非 timeout）', async () => {
+    // 与 TTL 超时相区分：取消走 requestCancel → resolve(false)，metadata 无 approvalTimedOut
+    const tasks = new TaskStore({ approvalTtlMs: 5_000 });
+    const pendingApprovals = new Map();
+    pendingApprovals.set('apr_c2', {
+      approvalId: 'apr_c2',
+      capabilityId: 'app.winget.uninstall',
+      risk: 'L2',
+      params: {},
+      preview: {},
+      createdAtMs: Date.now(),
+      hostApproved: false,
+    });
+    const coordinator = new VmApprovalCoordinator();
+    coordinator.bind(tasks, pendingApprovals);
+    const rec = tasks.create();
+    coordinator.beginTask(rec.task.id);
+
+    const decision = coordinator.raise(approvalReq('apr_c2'));
+    tasks.requestCancel(rec.task.id);
+    const outcome = await decision;
+
+    assert.equal(outcome.approved, false);
+    assert.equal(outcome.reason, 'rejected', '取消按拒绝收口，不得谎报 timeout');
+    assert.equal(outcome.executed, undefined);
+    assert.equal(pendingApprovals.get('apr_c2').hostApproved, false, '取消绝不置已批准');
 
     coordinator.endTask();
   });

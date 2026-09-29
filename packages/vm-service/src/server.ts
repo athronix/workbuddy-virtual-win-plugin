@@ -16,15 +16,19 @@ import {
   A2A,
   type AgentServiceProvider,
   type ApprovalCoordinator,
+  type ApprovalOutcome,
   type ApprovalRequest,
+  type ApprovalUnderlying,
   type Artifact,
   type BridgeContext,
   type CacheHealth,
   type CapabilityDefinition,
   type CapabilityId,
+  type ExecutedResult,
   type GoalRequest,
   type HealthStatus,
   type LoggingHealth,
+  type PolicyVerdict,
   type ProgressSink,
   type RiskLevel,
   makeError,
@@ -39,6 +43,7 @@ import {
   loadProvider,
   newId,
   newTraceId,
+  resolveApprovalReplay,
   resolveNetCfgTtlMs,
   resolveNetCfgPrewarmTimeoutMs,
   resolveServiceConfig,
@@ -47,9 +52,10 @@ import {
   type ServiceConfig,
 } from '@winvm/core';
 import { A2AServer, TaskStore } from '@winvm/a2a-framework';
-import { McpServer, type McpTool } from '@winvm/mcp-framework';
+import { McpServer, type McpTool, type McpToolResult } from '@winvm/mcp-framework';
 import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime } from '@winvm/vm-capabilities';
 import { raceHealthSubProbes, resolveHealthProbeTimeoutMs, resolvePsBridgeHealthState } from './health-probe.js';
+import { deriveUnderlying, recordBlockedApprovalAudit, toExecutedResult } from './approval-replay.js';
 
 export interface PendingApproval {
   readonly approvalId: string;
@@ -64,6 +70,19 @@ export interface PendingApproval {
    * 续跑（杜绝「不记名令牌」漏洞：谁拿到 token 谁就能续跑）。
    */
   hostApproved: boolean;
+  /**
+   * K5：拦截时的 traceId 留存 —— 重放执行段用它派生 `<traceId>-replay`，
+   * 使「被拦 → 批准 → 重放执行」在审计链上串成一条可回溯的因果线。
+   */
+  readonly traceId?: string;
+  /** K5：宿主批准前挂起的 impact 摘要留存（MCP 拦截路径写入，供 approval-request 可读化）。 */
+  readonly impact?: readonly string[];
+  /**
+   * K5：被拦截调用的**真实意图**（外层是壳时=内层目标）。
+   * 由 MCP 拦截路径尽力推断留存（workflow 外壳 → 内层 goal/真实能力），
+   * 协调器 raise 时并入 approval-request 的 data part → 宿主卡片可读。
+   */
+  readonly underlying?: ApprovalUnderlying;
 }
 
 export interface ServiceRuntime {
@@ -78,22 +97,58 @@ export interface ServiceRuntime {
 }
 
 /**
- * K4 VM 侧审批协调器：桥接层（bridge）命中宿主审批拦截时，把 A2A 任务挂起为 input-required，
+ * K4/K5 VM 侧审批协调器：桥接层（bridge）命中宿主审批拦截时，把 A2A 任务挂起为 input-required，
  * 并把对应续跑令牌（pendingApprovals 中的 token）标记为「待宿主批准」。
  *
- * 安全点：token 在 `/mcp` 能力层注册时 `hostApproved=false`；宿主经 A2A `approval.reply`
+ * K4 安全点：token 在 `/mcp` 能力层注册时 `hostApproved=false`；宿主经 A2A `approval.reply`
  * 批准（resolveApproval(true)）后，本协调器才把 token 置 `hostApproved=true` —— 在此之前
  * 能力层绝不放行，杜绝「不记名令牌」续跑漏洞（K3 要堵的安全点）。
+ *
+ * K5 执行权收归服务端（根治 A2A 假成功）：宿主批准后**不再依赖 LLM 是否重发工具调用**，
+ * 协调器直接用 pendingApprovals 留存的**原参数**调用注入的 `replay`（= handler 同一段真实执行
+ * 段：policy(approved=true) → provider.execute → 审计），把**结构化回执** `executed` 随决议返回。
+ * 重放结束（成功或失败）后 token **一次性消费删除**，杜绝同一 approvalId 被二次使用。
+ *
+ * 不可妥协的纪律：
+ *   1. 重放**仅在** `resolveApproval(true)` 之后由本协调器触发，参数取服务端留存原值
+ *      —— VM 内任何角色（含 LLM）无法伪造执行；
+ *   2. 拒绝 / TTL 超时 / 无挂接任务 / 无留存 token → 一律 `approved:false`，绝不重放；
+ *   3. `WINVM_APPROVAL_REPLAY=off`（灰度回滚）→ 跳过重放，仅返回 `approved:true`
+ *      （`executed` 缺席）→ 桥退回 K4 提示词行为；开关只关重放，绝不放宽审批闸。
  */
 export class VmApprovalCoordinator implements ApprovalCoordinator {
   private activeTaskId: string | undefined;
   private tasks: TaskStore | undefined;
   private pendingApprovals: Map<string, PendingApproval> | undefined;
+  /** K5：服务端重放函数（由 createService 注入；缺席即不重放，行为退回 K4）。 */
+  private replay: ReplayFn | undefined;
+  /** K5：重放开关（默认 on；由 createService 从 env 解析后注入，便于单测覆盖）。 */
+  private replayEnabled = true;
+  /**
+   * K5：TTL 超时标记集 —— TaskStore 的 onApprovalTimeout 回调经 `noteTimeout` 登记。
+   * raise 用它把 `false` 细分成 `timeout` / `rejected`（登记后即消费删除，不留残）。
+   */
+  private readonly timedOutApprovals = new Set<string>();
 
   /** 注入 A2A 任务存储与 MCP 续跑令牌表（createService 内二者就绪后调用一次） */
   bind(tasks: TaskStore, pendingApprovals: Map<string, PendingApproval>): void {
     this.tasks = tasks;
     this.pendingApprovals = pendingApprovals;
+  }
+
+  /** K5：注入服务端重放实现（走 handler 同一段真实执行段）。 */
+  setReplay(replay: ReplayFn): void {
+    this.replay = replay;
+  }
+
+  /** K5：设置重放灰度开关（`WINVM_APPROVAL_REPLAY` 解析结果）。 */
+  setReplayEnabled(enabled: boolean): void {
+    this.replayEnabled = enabled;
+  }
+
+  /** K5：登记「该审批因 TTL 超时收口」（TaskStore onApprovalTimeout 回调调用）。 */
+  noteTimeout(approvalId: string): void {
+    this.timedOutApprovals.add(approvalId);
   }
 
   beginTask(taskId: string): void {
@@ -104,19 +159,73 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
     this.activeTaskId = undefined;
   }
 
-  raise(req: ApprovalRequest): Promise<boolean> {
-    if (!this.activeTaskId || !this.tasks) return Promise.resolve(false);
-    const done = this.tasks.waitApproval(this.activeTaskId, req);
-    // 宿主批准（resolveApproval(true)）后，才把续跑令牌置为「已批准」，能力层方可放行。
-    done.then((approved) => {
-      if (approved && this.pendingApprovals) {
-        const p = this.pendingApprovals.get(req.approvalId);
-        if (p) p.hostApproved = true;
-      }
-    });
-    return done;
+  async raise(req: ApprovalRequest): Promise<ApprovalOutcome> {
+    // 无挂接任务（非 A2A / 任务已结束）→ 不放行，保持「等待审批」语义
+    if (!this.activeTaskId || !this.tasks) return { approved: false, reason: 'no-active-task' };
+
+    // K5：宿主卡片可读性 —— 拦截时服务端留存的 preview/impact/underlying 并入审批请求
+    //（桥侧只能给出 LLM 回显的粗信息；真实参数只存在于服务端 token 里）。
+    const token = this.pendingApprovals?.get(req.approvalId);
+    const enriched: ApprovalRequest = token
+      ? {
+          ...req,
+          preview: Object.keys(req.preview).length > 0 ? req.preview : token.preview,
+          impact: req.impact.length > 0 ? req.impact : (token.impact ?? []),
+          underlying: req.underlying ?? token.underlying,
+        }
+      : req;
+
+    const done = this.tasks.waitApproval(this.activeTaskId, enriched);
+    const approved = await done;
+
+    if (!approved) {
+      // 拒绝 / TTL 超时 / 挂起中被取消：一律不放行，绝不重放（K3/K4 纪律逐字保持）。
+      // reason 细分两个信号（任一命中即为 timeout）：
+      //   ① TaskStore 把超时事实固化进 task.metadata（approvalTimedOut + 对应 approvalId）；
+      //   ② 服务侧 onApprovalTimeout 回调经 noteTimeout 显式登记（metadata 被后续写覆盖时的兜底）。
+      const meta = this.tasks.tryGet(this.activeTaskId)?.task.metadata as Record<string, unknown> | undefined;
+      const timedOut =
+        this.timedOutApprovals.delete(req.approvalId) ||
+        (meta?.['approvalTimedOut'] === true && meta?.['approvalTimeoutApprovalId'] === req.approvalId);
+      return { approved: false, reason: timedOut ? 'timeout' : 'rejected' };
+    }
+
+    // 宿主批准：token 置为「已批准」——保留 K4 语义，`/mcp` 人工显式续跑路径仍可用
+    if (token) token.hostApproved = true;
+    // token 已消失（超时清理 / 异常）：决议虽为 true 但无留存参数可重放 → 不放行
+    if (!token) return { approved: false, reason: 'rejected' };
+
+    // 灰度关闭 / 未注入重放：只返回批准事实（executed 缺席）→ 桥退回 K4 提示词行为，
+    // token 保留（K4 /mcp 续跑路径需它放行）。
+    if (!this.replayEnabled || !this.replay) return { approved: true };
+
+    let outcome: ApprovalOutcome;
+    try {
+      const exec = await this.replay(token);
+      outcome = { approved: true, executed: exec };
+    } catch (e) {
+      // 重放异常同样不得伪装成功：executed.ok=false，桥据此改判
+      outcome = {
+        approved: true,
+        executed: {
+          ok: false,
+          capabilityId: token.capabilityId,
+          summary: '服务端重放异常',
+          error: String(e),
+        },
+      };
+    }
+    // K5 一次性消费：无论成功失败都删除 token，杜绝同一 approvalId 二次重放/二次续跑
+    this.pendingApprovals?.delete(req.approvalId);
+    return outcome;
   }
 }
+
+/**
+ * K5：服务端重放函数的形状 —— 输入被拦截时留存的 token（含原参数），输出结构化执行回执。
+ * 由 createService 构造（内部复用 handler 的执行段），协调器只管调用、不认识 provider。
+ */
+export type ReplayFn = (pending: PendingApproval) => Promise<ExecutedResult>;
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
@@ -324,6 +433,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    */
   const taskStore = new TaskStore({
     onApprovalTimeout: ({ taskId, approvalId, timedOutAfterMs, ttlMs }) => {
+      // K5：登记超时事实，使协调器把 raise 的 false 细分成 'timeout'
+      //（区别于宿主显式拒绝 'rejected'）；二者一律不放行、绝不重放。
+      approvalCoordinator.noteTimeout(approvalId);
       const removed = pendingApprovals.delete(approvalId);
       logger.warn('审批等待超时，任务按拒绝收口', {
         taskId,
@@ -334,6 +446,142 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       });
     },
   });
+
+  /* ================================ 能力执行段（K5：MCP handler 与重放共用） ================================ */
+
+  /**
+   * K5 执行段上下文。
+   *
+   * - `approved` 传给 provider 的审批位（重放路径恒为 true —— 宿主已批准才有重放）。
+   * - `verdict` 由调用方传入（MCP handler 已在审批闸处评估过，避免二次评估漂移）；
+   *   重放路径不传 → 本段内部按 `approved:true` 自行评估（命中黑名单照样拒绝，**不放行**）。
+   * - `replayed=true` 时审计 traceId 带 `-replay` 后缀，使「被拦 → 批准 → 重放执行」在链上可串。
+   */
+  interface ExecutionSegment {
+    readonly traceId: string;
+    readonly approved: boolean;
+    readonly approvalId?: string;
+    readonly verdict?: PolicyVerdict;
+    readonly replayed?: boolean;
+  }
+
+  /**
+   * K5：把「provider.execute + 结果映射」抽成命名函数，供 MCP handler 与服务端重放**共用同一段
+   * 真实执行**（杜绝两条路径行为漂移）。审计条目由 provider 内部落哈希链（重放天然再出一条
+   * executed 记录，与拦截时的 blocked 记录串成完整取证线）。
+   */
+  async function executeCapability(
+    cap: CapabilityDefinition,
+    params: Record<string, unknown>,
+    seg: ExecutionSegment,
+  ): Promise<McpToolResult> {
+    const verdict =
+      seg.verdict ??
+      policy.evaluate({
+        capabilityId: cap.id,
+        params,
+        risk: cap.risk,
+        approved: seg.approved,
+        ...(seg.approvalId ? { approvalId: seg.approvalId } : {}),
+        ...(cap.policy ? { capabilityPolicy: cap.policy } : {}),
+      });
+
+    if (!verdict.allowed) {
+      // 重放路径理论上不会走到这里（宿主已批准）；若策略黑名单命中等硬拒绝，
+      // 仍如实返回失败 → 重放回执 ok:false，桥据此改判，绝不伪装成功。
+      return {
+        isError: true,
+        structuredContent: {
+          traceId: seg.traceId,
+          ok: false,
+          error: verdict.error ?? { code: 'POLICY_DENIED', message: '被策略拒绝' },
+          risk: cap.risk,
+          ...(seg.replayed ? { replayed: true } : {}),
+        },
+      };
+    }
+
+    if (!provider) {
+      return {
+        isError: true,
+        structuredContent: {
+          traceId: seg.traceId,
+          ok: false,
+          error: { code: 'PROVIDER_UNAVAILABLE', message: providerError ?? 'provider 未就绪' },
+        },
+      };
+    }
+
+    const res = await provider.execute({
+      traceId: seg.traceId,
+      capabilityId: cap.id,
+      params,
+      risk: cap.risk,
+      // K5：审批位透传上下文值 —— 重放路径恒为 true（宿主已批准才有重放），
+      // MCP 原路径按闸的实际判定走，绝不在此处擅自升级为「已批准」。
+      approved: seg.approved,
+      ...(seg.approvalId ? { approvalId: seg.approvalId } : {}),
+      timeoutMs: cap.timeoutMs,
+    });
+
+    // CL-020 F2：采集时间戳的捕获已从 handler 层移走（避免双写、单一数据源）。
+    // 现由 provider.execute 内部的 reportNetCfg 注入回调统一上抛写入 netCfgCache，
+    // MCP 与 A2A 两条路径共用同一 execute，全覆盖。此处不再重复捕获。
+
+    return {
+      isError: !res.ok,
+      structuredContent: {
+        traceId: res.traceId,
+        ok: res.ok,
+        risk: cap.risk,
+        data: res.data,
+        ...(seg.replayed ? { replayed: true } : {}),
+        ...(res.artifacts && res.artifacts.length > 0
+          ? { artifacts: res.artifacts.map((a) => ({ kind: a.kind, name: a.name, mime: a.mime })) }
+          : {}),
+        durationMs: res.durationMs,
+        ...(res.auditRef ? { auditRef: res.auditRef } : {}),
+        ...(res.error ? { error: res.error } : {}),
+      },
+    };
+  }
+
+  /**
+   * K5：服务端重放实现 —— 宿主批准后，直接用 pendingApprovals 留存的**原参数**走真实执行段。
+   * 参数只可能来自服务端留存值，VM 内任何角色无法伪造（安全纪律 1）。
+   */
+  const replay: ReplayFn = async (p: PendingApproval): Promise<ExecutedResult> => {
+    if (!exposedIds.has(p.capabilityId)) {
+      return {
+        ok: false,
+        capabilityId: p.capabilityId,
+        summary: '重放被拒：能力不在本服务暴露面内',
+        error: 'CAPABILITY_NOT_EXPOSED',
+      };
+    }
+    const cap = capabilityDefs.get(p.capabilityId);
+    if (!cap) {
+      return {
+        ok: false,
+        capabilityId: p.capabilityId,
+        summary: '重放被拒：能力未注册',
+        error: 'UNKNOWN_CAPABILITY',
+      };
+    }
+    const traceId = `${p.traceId ?? newTraceId()}-replay`;
+    logger.info('审批放行，服务端确定性重放执行', {
+      approvalId: p.approvalId,
+      capabilityId: p.capabilityId,
+      traceId,
+    });
+    const result = await executeCapability(cap, p.params, {
+      traceId,
+      approved: true,
+      approvalId: p.approvalId,
+      replayed: true,
+    });
+    return toExecutedResult(p.capabilityId, result);
+  };
 
   /* ================================ MCP ================================ */
 
@@ -374,6 +622,7 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       if (!verdict.allowed) {
         if (verdict.requiresApproval) {
           const id = newId('apr');
+          const impact = collectImpact(rest);
           pendingApprovals.set(id, {
             approvalId: id,
             capabilityId: cap.id,
@@ -383,7 +632,30 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
             createdAtMs: Date.now(),
             // K4：注册时恒为「待宿主批准」，杜绝未批准即放行。
             hostApproved: false,
+            // K5：留存 traceId / impact / 真实意图 —— 供服务端重放（traceId 派生 -replay）
+            // 与宿主审批卡片展示（impact/underlying 由协调器并入 approval-request）。
+            traceId: ctx.traceId,
+            impact,
+            underlying: deriveUnderlying(cap.id, rest),
           });
+
+          // K5 取证盲区闭合：被拦调用**必须入审计**（旧实现只在执行成功/失败时落条目，
+          // 拦截路径无痕 → 事后无法证明「该调用到过、且从未执行」）。
+          // best-effort：审计写失败不得影响拦截结果（拦截语义优先）。
+          void recordBlockedApprovalAudit(
+            audit,
+            logger,
+            {
+              traceId: ctx.traceId,
+              approvalId: id,
+              capabilityId: cap.id,
+              risk: cap.risk,
+              params: rest,
+              startedAtMs: Date.now(),
+            },
+            () => newId('aud'),
+          );
+
           return {
             isError: false,
             structuredContent: {
@@ -395,7 +667,7 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
                 risk: cap.risk,
                 capabilityId: cap.id,
                 preview: buildPreview(cap, rest),
-                impact: collectImpact(rest),
+                impact,
                 resumeHint: '确认后以 __approvalId 重发同一请求',
               },
             },
@@ -414,46 +686,13 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
 
       if (approvalId) pendingApprovals.delete(approvalId);
 
-      if (!provider) {
-        return {
-          isError: true,
-          structuredContent: {
-            traceId: ctx.traceId,
-            ok: false,
-            error: { code: 'PROVIDER_UNAVAILABLE', message: providerError ?? 'provider 未就绪' },
-          },
-        };
-      }
-
-      const res = await provider.execute({
+      // K5：执行段抽成命名函数（与重放共用），本路径按既有语义逐字保持
+      return executeCapability(cap, rest, {
         traceId: ctx.traceId,
-        capabilityId: cap.id,
-        params: rest,
-        risk: cap.risk,
-        approved: true,
+        approved,
         ...(approvalId ? { approvalId } : {}),
-        timeoutMs: cap.timeoutMs,
+        verdict,
       });
-
-      // CL-020 F2：采集时间戳的捕获已从 handler 层移走（避免双写、单一数据源）。
-      // 现由 provider.execute 内部的 reportNetCfg 注入回调统一上抛写入 netCfgCache，
-      // MCP 与 A2A 两条路径共用同一 execute，全覆盖。此处不再重复捕获。
-
-      return {
-        isError: !res.ok,
-        structuredContent: {
-          traceId: res.traceId,
-          ok: res.ok,
-          risk: cap.risk,
-          data: res.data,
-          ...(res.artifacts && res.artifacts.length > 0
-            ? { artifacts: res.artifacts.map((a) => ({ kind: a.kind, name: a.name, mime: a.mime })) }
-            : {}),
-          durationMs: res.durationMs,
-          ...(res.auditRef ? { auditRef: res.auditRef } : {}),
-          ...(res.error ? { error: res.error } : {}),
-        },
-      };
     },
   }));
 
@@ -544,6 +783,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
 
   /* ---- K4：把 A2A 任务存储与 MCP 续跑令牌表注入审批协调器（二者此刻已就绪） ---- */
   approvalCoordinator.bind(a2a.tasks, pendingApprovals);
+  /* ---- K5：注入服务端重放实现 + 灰度开关（WINVM_APPROVAL_REPLAY，非法值回退 on） ---- */
+  approvalCoordinator.setReplay(replay);
+  approvalCoordinator.setReplayEnabled(resolveApprovalReplay());
 
   /* ================================ HTTP ================================ */
 

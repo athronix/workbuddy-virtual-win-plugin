@@ -9,6 +9,14 @@ export { createService } from './server.js';
 export type { ServiceRuntime, PendingApproval } from './server.js';
 /** K4：导出审批协调器（供单测验证安全闸；生产由 createService 内部实例化并注入） */
 export { VmApprovalCoordinator } from './server.js';
+/** K5：导出重放函数形状与纯逻辑件（可脱离 HTTP 服务与 ps-bridge 单测） */
+export type { ReplayFn } from './server.js';
+export {
+  deriveUnderlying,
+  recordBlockedApprovalAudit,
+  toExecutedResult,
+} from './approval-replay.js';
+export type { BlockedAuditInput, SegmentResultLike } from './approval-replay.js';
 export {
   providerHealthTimeoutSnapshot,
   raceHealthSubProbes,

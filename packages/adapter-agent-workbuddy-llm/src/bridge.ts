@@ -17,6 +17,7 @@ import type {
   Artifact,
   BridgeError,
   CapabilityId,
+  ExecutedResult,
   GoalStep,
   LlmSessionHealth,
   ProgressSink,
@@ -24,7 +25,7 @@ import type {
   TaskState,
 } from '@winvm/contracts';
 import { makeError } from '@winvm/contracts';
-import { resolveLlmSessionConfig, type LlmSessionConfig } from '@winvm/core';
+import { resolveApprovalReplay, resolveLlmSessionConfig, type LlmSessionConfig } from '@winvm/core';
 
 import {
   PersistentCliSession,
@@ -470,6 +471,11 @@ export interface CliLlmBridgeOptions {
    * 第二个会话单例、预热错对象）。缺省 `'%USERPROFILE%\\WinVMWorkspace\\out'`，与 provider 默认一致。
    */
   readonly outputDir?: string;
+  /**
+   * K5：服务端重放模式（显式配置优先；未指定时取 env `WINVM_APPROVAL_REPLAY`，缺省 on）。
+   * on：批准后消费服务端回执 + 完成声明做回执反查；off：退回 K4 提示词行为（不反查）。
+   */
+  readonly approvalReplay?: boolean;
 }
 
 /** 产物逐步回传的扫描节流间隔 */
@@ -530,6 +536,18 @@ function parseApprovalBlock(text: string): { approvalId?: string; capabilityId?:
   };
 }
 
+/* ============================ K5：完成声称识别（回执反查用） ============================ */
+
+/**
+ * LLM 文本中的「目标已完成」声称特征（K5 回执反查的触发面）。
+ *
+ * 真机实证（K5 根因）：宿主批准后 LLM 没有重发工具调用，却直接文本自宣完成
+ * （「已卸载」「已完成」）→ A2A 任务 completed 而服务端零执行记录（假成功）。
+ * K5 纪律：**服务端结构化回执是唯一完成证据**；声称完成但无 ok=true 回执 → 改判 failed。
+ */
+const COMPLETION_CLAIM_PATTERN =
+  /(已完成|已卸载|已删除|已移除|已安装|卸载成功|删除成功|安装成功|执行成功|任务完成|目标完成|uninstalled?|deleted?|removed?|completed successfully)/i;
+
 /**
  * 对「轮次/进程正常结束」的结果做如实性修正（runPersistent 与 runOneShot 共用）。
  *
@@ -573,7 +591,22 @@ interface RunContext {
   readonly skillsDir: string;
   readonly started: number;
   readonly cli: CliResolveResult;
+  /**
+   * K5：最近一轮 LLM 的**最终文本**（回执反查的判定输入）。
+   * 每轮结束（常驻 turn / 单次 stdout 收尾）按时间顺序覆写；续跑轮的文本是最终答案，
+   * 所以「内层先写、外层 await 后不再写」天然留下最后一轮的值。
+   */
+  lastFinalText: string;
 }
+
+/**
+ * K5 续跑轮指令的两态（判别联合）：
+ * - `{ executed }` —— 服务端已真实执行（重放），注入真实回执（`executionSuffix`）；
+ * - `{ approvalId, capabilityId }` —— 灰度 off 的 K4 路径，提示 LLM 带 `__approvalId` 重发。
+ */
+type ResumeTurn =
+  | { readonly executed: ExecutedResult }
+  | { readonly approvalId: string; readonly capabilityId: CapabilityId };
 
 export class CliLlmBridge implements LlmBridge {
   private readonly cliPath: string;
@@ -593,6 +626,29 @@ export class CliLlmBridge implements LlmBridge {
   private readonly outputDir: string;
   /** K4：A2A 审批协调器（VM 服务注入；缺席即非 A2A 旧行为） */
   private coordinator: ApprovalCoordinator | undefined;
+  /**
+   * K5：服务端执行回执登记表（approvalId → 真实执行结果）。
+   * 核心不变式的载体：**能力是否真实执行，以服务端结构化回执为准，LLM 文本永远不是完成证据**。
+   * beginTask 时清空（每个委派任务独立）。
+   */
+  private readonly taskReceipts = new Map<string, ExecutedResult>();
+  /** K5：本任务已 raise 过的 approvalId 集合（去重二次 raise + 回执反查的触发面）。 */
+  private readonly raisedApprovals = new Set<string>();
+  /**
+   * K5：本任务是否**实际进入过服务端重放模式**（任一 raise 回包携带 `executed`）。
+   *
+   * 只有服务端真的重放过，才有「回执」这个客观参照物可反查；若服务端处于
+   * `WINVM_APPROVAL_REPLAY=off`（回包只有 `approved:true`、无 `executed`），则整条链路
+   * 逐字退回 K4 提示词行为 —— 此时做反查会把 K4 下合法的「LLM 带 __approvalId 重发成功」
+   * 误杀成假失败，故反查退场（回滚保险的另一半）。
+   */
+  private k5ReplayActive = false;
+  /**
+   * K5：服务端重放模式开关（env `WINVM_APPROVAL_REPLAY`，非法值回退 on；显式配置优先）。
+   * 仅决定**回执反查**是否启用：off 时协调器不重放、无回执可查，若仍反查会把合法的
+   * K4「LLM 重发」完成误杀成假成功 —— 故 off 时反查退场，逐字保持 K4 行为。
+   */
+  private readonly replayEnabled: boolean;
 
   constructor(opts: CliLlmBridgeOptions = {}) {
     this.cliPath = opts.cliPath ?? opts.runtime ?? 'codebuddy';
@@ -604,6 +660,7 @@ export class CliLlmBridge implements LlmBridge {
     this.outputDir = opts.outputDir ?? '%USERPROFILE%\\WinVMWorkspace\\out';
     // 默认取 env（缺省启用）；显式配置优先
     this.persistentEnabled = opts.persistent ?? resolveLlmSessionConfig(process.env).enabled;
+    this.replayEnabled = opts.approvalReplay ?? resolveApprovalReplay(process.env);
   }
 
   /**
@@ -613,6 +670,12 @@ export class CliLlmBridge implements LlmBridge {
    * 差别只在「是否复用长驻进程」。常驻不可用时降级并在 `summary` 如实标注，绝不伪装成功。
    */
   async runGoal(input: LlmGoalInput, sink: ProgressSink): Promise<LlmGoalResult> {
+    // K5：每次委派任务独立的回执登记从干净状态开始（设计 §3.3：beginTask/endTask 清）。
+    // k5ReplayActive 一并清零：它决定「回执反查」是否介入，跨任务残留会让上一任务的
+    // 「服务端在重放」事实错误污染本任务（本任务服务端若处于灰度 off 就会被误判成假失败）。
+    this.taskReceipts.clear();
+    this.raisedApprovals.clear();
+    this.k5ReplayActive = false;
     // K4：进入委派任务（供审批协调器挂接 input-required）；无 coordinator 时为空操作。
     this.coordinator?.beginTask(input.taskId ?? '');
     try {
@@ -641,9 +704,17 @@ export class CliLlmBridge implements LlmBridge {
     const prompt = buildSystemPrompt({ ...input, outputDir, skillsDir });
     // D4：先按 PATHEXT 解析真实 CLI 文件（win32 上 npm 安装的可能是 codebuddy.cmd）
     const cli = resolveCliPath(this.cliPath);
-    const ctx: RunContext = { prompt, outputDir, skillsDir, started, cli };
+    const ctx: RunContext = { prompt, outputDir, skillsDir, started, cli, lastFinalText: '' };
 
-    if (this.persistentEnabled && cli.resolved) {
+    const res = await this.runGoalCore(input, sink, ctx);
+    // K5 回执反查：对**最终一轮** LLM 文本做「完成声称 vs 服务端回执」核对
+    // （放在最外层，保证续跑轮的文本才是被核对的那一份）。
+    return this.reconcileExecutionTruth(res, ctx.lastFinalText);
+  }
+
+  /** runGoalInner 的执行主体（常驻优先 → 单次兜底），K5 反查在其返回后由 runGoalInner 施加。 */
+  private async runGoalCore(input: LlmGoalInput, sink: ProgressSink, ctx: RunContext): Promise<LlmGoalResult> {
+    if (this.persistentEnabled && ctx.cli.resolved) {
       const out = await this.runPersistent(input, sink, ctx);
       if ('result' in out) return out.result;
       sink.onStatus('working', `常驻会话不可用（${out.unavailable}），回退单次 -p 冷启动`);
@@ -708,10 +779,13 @@ export class CliLlmBridge implements LlmBridge {
   }
 
   /**
-   * K4 续跑指令：追加给 codebuddy 的提示。
+   * K4 续跑指令（`WINVM_APPROVAL_REPLAY=off` 灰度回退路径）：追加给 codebuddy 的提示。
    *
    * 纪律（对齐 K3）：`__approvalId` 只在本续跑真实能力调用里出现（此时已被宿主批准）；
    * A2A 首轮 data 绝不携带 `__approvalId`。
+   *
+   * ⚠ K5 根因（真机实证）：本提示依赖 LLM「愿意重发」。实测它不重发、直接文本自宣完成
+   * → 假成功。K5 默认走 `executionSuffix`（服务端已真实执行，只要求如实转告）。
    */
   private resumeSuffix(approval: { approvalId: string; capabilityId: CapabilityId }): string {
     return (
@@ -722,8 +796,34 @@ export class CliLlmBridge implements LlmBridge {
   }
 
   /**
-   * K4 审批续跑中枢：命中审批拦截且存在 coordinator 时，把任务挂起为 input-required 并等待宿主决议；
-   * 宿主批准后按对应模式续跑一次真实执行；拒绝 / 无 coordinator / 未命中则保持 K3 旧行为（绝不自批）。
+   * K5 续跑指令（默认路径）：把**服务端真实执行回执**如实注入续跑 turn。
+   *
+   * 与 K4 的本质区别：执行已经完成，LLM 的任务只剩「如实转告 + 处理剩余步骤」，
+   * 严禁重复调用该能力（重复调用会真的重复执行），严禁声称未经执行的操作。
+   * 回执内容全部来自服务端结构化结果，不来自 LLM 文本。
+   */
+  private executionSuffix(executed: ExecutedResult): string {
+    const verdict = executed.ok
+      ? `结果：成功 —— ${executed.summary}`
+      : `结果：失败 —— ${executed.summary}${executed.error ? `（原因：${executed.error}）` : ''}`;
+    return (
+      `【系统已执行】宿主已批准该操作，服务端已按批准的原始参数**真实执行**能力 ${executed.capabilityId}。` +
+      `${verdict}。` +
+      `你的任务是**如实转告用户上述真实执行结果**并处理目标中剩余的未完成步骤；` +
+      `严禁再次调用该能力（该操作已执行完毕，重复调用会造成重复的真实变更）；` +
+      `对未经服务端执行的操作严禁声称完成/已卸载/已删除；` +
+      `严禁把上述回执当作需要你重新发起的待办。`
+    );
+  }
+
+  /**
+   * K5 审批续跑中枢：命中审批拦截且存在 coordinator 时，把任务挂起为 input-required 并等待宿主决议。
+   *
+   * - `!approved`（拒绝 / TTL 超时 / 无挂接任务）→ 保持 K3 行为（等待审批，绝不自批）。
+   * - `approved + executed`（K5 默认）→ 服务端已真实执行：登记回执，续跑 turn 注入**真实回执**
+   *   （`executionSuffix`），LLM 只需如实转告；随后由 `reconcileExecutionTruth` 对完成声明做反查。
+   * - `approved` 无 `executed`（灰度 off / 未注入重放）→ 退回 K4 提示词行为（`resumeSuffix`）。
+   * - 同一 approvalId 二次进入 → **不再二次挂起**，直接用已登记回执判定（修 K4 的旧 token 复用）。
    *
    * @param mode 'oneshot' 续跑重拉一次 `-p`；'persistent' 在常驻会话上补发一轮续跑消息。
    */
@@ -746,6 +846,12 @@ export class CliLlmBridge implements LlmBridge {
       : 'appops.workflow.run') as CapabilityId;
     const risk = (typeof details['risk'] === 'string' ? details['risk'] : 'L2') as RiskLevel;
 
+    // K5 去重：同一 approvalId 已挂起过（真机实证：续跑 turn 里 LLM 回显旧 apr_ token →
+    // 二次 raise 会复用同一 token 再挂一轮审批）。二次进入不再挂起，直接用已登记回执判定。
+    if (this.raisedApprovals.has(approvalId)) {
+      return this.applyReceipt(approvalId, base);
+    }
+
     const req: ApprovalRequest = {
       approvalId,
       capabilityId,
@@ -755,19 +861,109 @@ export class CliLlmBridge implements LlmBridge {
       impact: [],
     };
 
-    const approved = await this.coordinator.raise(req);
-    if (!approved) return base; // 宿主拒绝 / 无决议：保持「等待审批」，绝不自批（K3 纪律）
+    this.raisedApprovals.add(approvalId);
+    const outcome = await this.coordinator.raise(req);
+    if (!outcome.approved) return base; // 宿主拒绝 / 超时 / 无任务：保持「等待审批」，绝不自批（K3 纪律）
 
-    // 宿主批准：续跑执行（同一目标，追加续跑指令；__approvalId 仅在此真实能力调用里出现）。
-    sink.onStatus('working', `宿主已批准（approvalId=${approvalId}），续跑执行${capabilityId ? `：${capabilityId}` : ''}`);
-    const approvalArg = { approvalId, capabilityId };
-    if (mode === 'oneshot') {
+    // K4 兼容（灰度 off / 未注入重放）：无回执 → 退回「提示 LLM 带 __approvalId 重发」行为
+    if (!outcome.executed) {
+      sink.onStatus('working', `宿主已批准（approvalId=${approvalId}），续跑执行${capabilityId ? `：${capabilityId}` : ''}`);
+      const approvalArg = { approvalId, capabilityId };
+      if (mode === 'oneshot') {
+        return this.runOneShot(input, sink, ctx, approvalArg);
+      }
+      const retry = await this.runPersistent(input, sink, ctx, approvalArg);
+      if ('result' in retry) return retry.result;
+      // 常驻不可用：降级为单次 `-p` 续跑（语义不变）
       return this.runOneShot(input, sink, ctx, approvalArg);
     }
-    const retry = await this.runPersistent(input, sink, ctx, approvalArg);
+
+    // K5 默认：服务端已真实执行 → 登记回执，续跑 turn 只要求「如实转告 + 处理剩余步骤」
+    const executed = outcome.executed;
+    this.taskReceipts.set(approvalId, executed);
+    // 服务端确实处于重放模式（回包带回执）→ 才启用「完成声明 vs 回执」反查
+    this.k5ReplayActive = true;
+    sink.onStatus(
+      'working',
+      `宿主已批准（approvalId=${approvalId}），服务端已执行 ${executed.capabilityId}：` +
+        (executed.ok ? executed.summary : `${executed.summary}${executed.error ? `（${executed.error}）` : ''}`),
+    );
+    if (mode === 'oneshot') {
+      return this.runOneShot(input, sink, ctx, { executed });
+    }
+    const retry = await this.runPersistent(input, sink, ctx, { executed });
     if ('result' in retry) return retry.result;
-    // 常驻不可用：降级为单次 `-p` 续跑（语义不变）
-    return this.runOneShot(input, sink, ctx, approvalArg);
+    // 常驻不可用：降级为单次 `-p` 续跑（回执注入语义不变）
+    return this.runOneShot(input, sink, ctx, { executed });
+  }
+
+  /**
+   * K5 回执反查（升级自 K3/K4 的纯文本判定）。
+   *
+   * 仅在「本任务发生过审批挂起」时介入，其余路径零改动（K3 语义逐字保留）：
+   *   - 最终文本含完成声称 + 回执集中**无** `ok:true` → 改判 `failed`
+   *     （执行回执缺失，完成声明不予采信）—— 这就是根治的「假成功」判据；
+   *   - 回执集中**有** `ok:true` → **采信**，放行 completed（执行事实以服务端回执为准）。
+   */
+  private reconcileExecutionTruth(base: LlmGoalResult, finalText: string): LlmGoalResult {
+    // 反查只在「本桥开启 K5 且服务端确实重放过」时介入：
+    //   - 灰度 off（本桥或桥侧 env 关）→ 无回执这一客观参照物，硬做反查会把 K4 下合法的
+    //     「LLM 带 __approvalId 重发成功」误判成假失败，故退场（退回 K4 行为）；
+    //   - 服务端未重放（回包无 executed）同理退场。
+    if (!this.replayEnabled || !this.k5ReplayActive) return base;
+    if (this.raisedApprovals.size === 0) return base; // 本任务未发生审批 → K3 行为逐字不变
+    if (!base.ok) return base; // 已是失败态：交给既有「等待审批」判定，不重复改判
+    if (!COMPLETION_CLAIM_PATTERN.test(finalText)) return base; // 无完成声称：不猜
+
+    const receipts = [...this.taskReceipts.values()];
+    if (receipts.some((r) => r.ok)) return base; // 有成功回执 → 采信 completed
+
+    const failedReceipt = receipts.find((r) => !r.ok);
+    return {
+      ...base,
+      ok: false,
+      summary:
+        `执行回执缺失：审批后服务端未产生成功执行记录，完成声明不予采信。` +
+        (failedReceipt ? `已登记的失败回执：${failedReceipt.summary}（${failedReceipt.error ?? '无原因'}）` : ''),
+      steps: base.steps.map((s) => ({ ...s, ok: false, summary: '无服务端成功回执，完成声明不予采信' })),
+      error: makeError('EXECUTION_FAILED', '执行回执缺失（服务端未记到执行成功）', {
+        reason: 'NO_EXECUTION_RECEIPT',
+        details: { approvalIds: [...this.raisedApprovals], receipts: receipts.length },
+      }),
+    };
+  }
+
+  /**
+   * K5 同 approvalId 二次进入时的判定：以**已登记回执**为准，不再挂起等待。
+   *
+   * 真机实证续跑 turn 的 LLM 会回显旧 `apr_` token 文本（被 K3 判为「等待审批」），
+   * 若此时服务端其实已成功执行，就应据回执改判；反之（回执失败）也据回执给出真实结论。
+   */
+  private applyReceipt(approvalId: string, base: LlmGoalResult): LlmGoalResult {
+    const r = this.taskReceipts.get(approvalId);
+    if (!r) {
+      // 无回执（首轮被拒 / 超时 / 灰度 off）：保持「等待审批」旧语义，绝不二次挂起
+      return base;
+    }
+    if (r.ok) {
+      return {
+        ...base,
+        ok: true,
+        summary: `服务端执行回执（${r.capabilityId}）：${r.summary}`,
+        error: undefined,
+        steps: base.steps.map((s) => ({ ...s, ok: true, summary: r.summary })),
+      };
+    }
+    return {
+      ...base,
+      ok: false,
+      summary: `服务端执行回执（${r.capabilityId}）失败：${r.summary}${r.error ? `（${r.error}）` : ''}`,
+      steps: base.steps.map((s) => ({ ...s, ok: false, summary: '服务端执行回执为失败' })),
+      error: makeError('EXECUTION_FAILED', r.summary, {
+        reason: 'REPLAY_FAILED',
+        ...(r.error ? { details: { error: r.error } } : {}),
+      }),
+    };
   }
 
   /** 常驻会话（lazy 单例；产物目录变化时重建） */
@@ -814,7 +1010,7 @@ export class CliLlmBridge implements LlmBridge {
     input: LlmGoalInput,
     sink: ProgressSink,
     ctx: RunContext,
-    approval?: { approvalId: string; capabilityId: CapabilityId },
+    resume?: ResumeTurn,
   ): Promise<{ result: LlmGoalResult } | { unavailable: string }> {
     const mcpConfigPath = await this.prepareMcpConfig(ctx.outputDir);
     if (!mcpConfigPath) return { unavailable: 'MCP 配置文件落盘失败（产物目录不可写）' };
@@ -832,9 +1028,10 @@ export class CliLlmBridge implements LlmBridge {
 
     let turn: TurnResult;
     try {
-      // K4：续跑轮仅发「宿主已批准的续跑指令」（常驻会话保留前轮上下文，无需重复系统提示）。
+      // K4/K5：续跑轮只发续跑指令（常驻会话保留前轮上下文，无需重复系统提示）——
+      // K5 默认注入「系统已真实执行 + 回执」；灰度 off 时退回「请带 __approvalId 重发」。
       turn = await session.runTurn(
-        approval ? this.resumeSuffix(approval) : ctx.prompt,
+        resume ? this.resumeTurnText(resume) : ctx.prompt,
         turnSink,
         input.timeoutMs,
       );
@@ -842,6 +1039,8 @@ export class CliLlmBridge implements LlmBridge {
       return { unavailable: `常驻会话异常：${(e as Error).message}` };
     }
     if (turn.unavailable) return { unavailable: turn.error ?? '常驻会话不可用' };
+    // K5：记录本轮最终文本（供最外层回执反查；续跑轮后写 → 留下的是最后一轮）
+    ctx.lastFinalText = turn.text;
 
     await pump.flush();
     const artifacts = await collectArtifacts(ctx.outputDir, ctx.started);
@@ -888,6 +1087,11 @@ export class CliLlmBridge implements LlmBridge {
     };
   }
 
+  /** 选择续跑轮文案：有回执=K5「系统已执行」；仅 token=K4「请重发」（灰度 off 路径）。 */
+  private resumeTurnText(resume: ResumeTurn): string {
+    return 'executed' in resume ? this.executionSuffix(resume.executed) : this.resumeSuffix(resume);
+  }
+
   /**
    * 降级路径（AC1.5）：单次 `-p` 冷启动，语义与改造前**完全一致**。
    */
@@ -895,12 +1099,13 @@ export class CliLlmBridge implements LlmBridge {
     input: LlmGoalInput,
     sink: ProgressSink,
     ctx: RunContext,
-    approval?: { approvalId: string; capabilityId: CapabilityId },
+    resume?: ResumeTurn,
   ): Promise<LlmGoalResult> {
     const { outputDir, started, cli } = ctx;
     const pump = createArtifactPump(outputDir, started, sink, this.artifactScanIntervalMs);
-    // K4：续跑时把「宿主已批准的续跑指令」追加到完整系统提示之后，重新拉起一次 codebuddy。
-    const prompt = approval ? `${ctx.prompt}\n\n${this.resumeSuffix(approval)}` : ctx.prompt;
+    // K4/K5：续跑时把续跑指令追加到完整系统提示之后，重新拉起一次 codebuddy。
+    // K5 默认注入「服务端已真实执行 + 回执」；灰度 off 时退回「请带 __approvalId 重发」。
+    const prompt = resume ? `${ctx.prompt}\n\n${this.resumeTurnText(resume)}` : ctx.prompt;
 
     sink.onStatus('working', `调起 LLM 运行时：${this.cliPath}`);
 
@@ -1027,6 +1232,8 @@ export class CliLlmBridge implements LlmBridge {
         } else if (code === 0) {
           await pump.flush(); // 收尾：把最后一批产物推送给宿主
           const artifacts = await collectArtifacts(outputDir, started);
+          // K5：记录本轮最终文本（供最外层回执反查；续跑轮后写覆盖 → 留最后一轮）
+          ctx.lastFinalText = stdoutText;
           // K3 结果如实性检查：LLM 上报「等待审批」时不得断言成功（防结构性假成功）
           // K4：若命中审批拦截且存在 coordinator，挂起 input-required 等宿主批准后续跑；
           //     无 coordinator / 未命中则保持 K3 旧行为（返回「等待审批」）。
