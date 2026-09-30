@@ -1,0 +1,38 @@
+%% R17 · R1 审批卡交互闭环（对应 docs/design/r17-design.md §A4）
+sequenceDiagram
+    autonumber
+    participant U as 用户
+    participant HA as 宿主 Agent（WorkBuddy 会话）
+    participant BR as host-a2a-bridge（stdio MCP）
+    participant VM as VM 侧 A2A 服务
+
+    HA->>BR: a2a.delegate { goal }
+    BR->>VM: A2A streamMessage
+    VM-->>BR: status-update(input-required) + approval-request data
+    BR-->>HA: structuredContent{ ok, taskId, state, approval{approvalId,risk,capabilityId,impact,preview,underlying,resumeHint} }
+    Note over HA: SKILL 门禁：识别 approval 数据 → 映射七槽位（缺失走 §5 降级文案）
+
+    HA->>HA: show_widget( HTML 审批卡 )
+    U->>HA: 浏览卡片（按钮点击仅展示结构化审批指令，可复制）
+    HA->>U: AskUserQuestion「批准 / 拒绝」
+    U-->>HA: 选择 批准（或 拒绝）
+
+    alt 批准
+        HA->>BR: a2a.approval.reply { taskId, approvalId, approved:true }
+        BR->>VM: replyApproval(approved)
+        VM-->>BR: task 继续（服务端按原始参数确定性重放，K5）
+        BR-->>HA: { ok, state }
+        loop 直至终态
+            HA->>BR: a2a.task.get { taskId }
+            BR-->>HA: { state, progress, artifacts }
+        end
+        Note over VM: 审计：-replay executed 条目（K5 语义）
+    else 拒绝
+        HA->>BR: a2a.approval.reply { taskId, approvalId, approved:false }
+        VM-->>BR: task rejected（零重放，K3）
+        BR-->>HA: { ok:false, state:'rejected' }
+    else 超时未答
+        Note over VM: 审批闸保持挂起，零重放（fail-closed）
+    end
+
+    Note over HA: 兜底：show_widget 或 AskUserQuestion 不可用 → 逐字降级 approval-card.md v1 文本模板，后续流程不变

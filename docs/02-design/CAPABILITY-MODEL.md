@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档 ID | CAPABILITY-MODEL-winvm-bridge-v1 |
-| 版本 | v1.0 |
+| 版本 | v1.1（R17-T01：`app.winget.uninstall` 回执语义增补 §3.2.1） |
 | 层 | L0 规范层（`packages/contracts`） |
 | 日期 | 2026-08-28 |
 
@@ -62,13 +62,35 @@
 | `app.inventory.list` | 已安装应用清单（含 UWP/Store） | L0 | 注册表卸载键 + `Get-AppxPackage` |
 | `app.winget.search` | 搜索可安装包 | L0 | `winget search` |
 | `app.winget.install` | 安装应用 | L1 | `winget install --exact --id` |
-| `app.winget.uninstall` | 卸载应用 | L2 | `winget uninstall` |
+| `app.winget.uninstall` | 卸载应用（**卸载后核验 + NSIS 静默回退**，回执语义见 §3.2.1） | L2 | `winget uninstall` + 事后磁盘/注册表核验 |
 | `app.winget.upgrade` | 升级应用（可批量） | L1 | `winget upgrade` |
 | `app.process.launch` | 启动应用/打开文件/打开 URL | L1 | `Start-Process` |
 | `app.process.activate` | 激活已运行窗口 | L0 | `AppActivate` |
 | `app.shortcut.manage` | 快捷方式增删改 | L1 | `WScript.Shell` COM |
 | `app.default.manage` | 默认程序关联 | L2 | 注册表 UserChoice |
 | `app.appx.manage` | UWP 包安装/移除 | L2 | `Add/Remove-AppxPackage` |
+
+#### 3.2.1 `app.winget.uninstall` 回执语义（R17 / K6 契约）
+
+> 背景：winget 对 NSIS 安装包可能**假成功**（exit 0 但磁盘/注册表无变化）。自 R17 起该能力的
+> `success` **不再等价于 `exitCode === 0`**，而以卸载后核验为准。实现状态机见
+> `docs/design/r17-design.md` §A1.3/§A5；契约字段以 `packages/vm-capabilities/src/registry/definitions.ts`
+> 的 output schema 为唯一权威，判定规则基线见 `tests/unit/r3-uninstall-verify.test.js`。
+
+回执结构：`{ id, dryRun, exitCode, success, verified, fallbackUsed, residualEvidence?, output }`
+
+| 字段 | 语义 |
+|---|---|
+| `success` | **以最终核验为准**：`exitCode=0` 且（首次核验通过 **或** NSIS 回退后核验通过）才为 `true`。winget exit 0 但核验未过（且不可回退/回退后仍残留）→ `success=false` |
+| `verified` | 事后核验证据对象：`{ exeGone:boolean, dirGone:boolean\|null, registryGone:boolean, installLocation?:string, installerType:'nsis'\|'msi'\|'other'\|'unknown' }`。核验目标派生：优先注册表 `InstallLocation`；缺失时按 `UninstallString` 去引号/参数取所在目录反推；仍派生不出 → `dirGone=null`（只做注册表核验，如实标注）。**不在 PS 内全盘扫描** |
+| `fallbackUsed` | 是否触发 NSIS 静默回退（`Uninstall.exe /S`）。回退仅在卸载键判定为 NSIS 型（`UninstallString` 指向 `Uninstall.exe` 且无 `QuietUninstallString`）时触发；**MSI（`msiexec`）及其它类型永不回退** |
+| `residualEvidence` | 核验失败（`success=false`）时的残留证据（残留 exe/目录/注册表键清单）。**宿主/调用方必须如实向用户转呈，不得改写为成功** |
+| `exitCode` | 仅为 winget 原始退出码，保留供诊断，**不得**单独作为成功依据 |
+
+特殊语义：
+- **dryRun**：不核验、不回退，`verified=null` 且 `fallbackUsed=false`（免审批语义保持，`success` 退化为 `exitCode=0`）。
+- **超时预算**：维持能力级 600s 总预算（严禁突破），内部软分配 winget ≤300s / NSIS 回退 ≤240s / 核验 ≤30s。
+- **winget 非零退出**：不触发回退（`fallbackUsed=false`），`success=false`，`verified` 为核验前证据。
 
 ### 3.3 `storage` —— 存储管理（FR-203）
 

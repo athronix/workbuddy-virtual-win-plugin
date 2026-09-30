@@ -154,7 +154,71 @@ const APP: CapabilityDefinition[] = [
   }),
   cap({ id: 'app.winget.search', name: '搜索可安装包', description: '用 winget 搜索包', risk: 'L0', module: 'app', fn: 'Search-WingetPackage', input: obj({ query: { type: 'string' }, limit: { type: 'integer' } }, ['query']), idempotent: true, timeoutMs: 60_000, outputArray: true }),
   cap({ id: 'app.winget.install', name: '安装应用', description: '用 winget 安装包（无人值守）', risk: 'L1', module: 'app', fn: 'Install-WingetPackage', input: obj({ id: { type: 'string' }, version: { type: 'string' }, dryRun: { type: 'boolean' } }, ['id']), timeoutMs: 600_000, snapshot: 'after' }),
-  cap({ id: 'app.winget.uninstall', name: '卸载应用', description: '用 winget 卸载包', risk: 'L2', module: 'app', fn: 'Uninstall-WingetPackage', input: obj({ id: { type: 'string' }, dryRun: { type: 'boolean' } }, ['id']), destructive: true, timeoutMs: 600_000, snapshot: 'before-after' }),
+  cap({
+    id: 'app.winget.uninstall',
+    name: '卸载应用',
+    description:
+      '用 winget 卸载包，并在 winget 退出后做磁盘 + 注册表**事后核验**（R17/R3，K6 状态机）。' +
+      '`success` 以**最终核验结果为准**：exitCode=0 但核验未过（NSIS 包假成功）一律 `success=false`；' +
+      '核验未过且卸载注册表键判定为 NSIS 型（`UninstallString` 指向 Uninstall.exe 且无 `QuietUninstallString`）时，' +
+      '自动以 `Uninstall.exe /S` 静默回退并再核验，是否回退见 `fallbackUsed`；MSI 及其它类型**永不回退**。' +
+      '核验失败时 `success=false` 并附 `residualEvidence` 残留证据，宿主必须如实转呈，不得改写为成功。' +
+      '时间预算：能力级 600s 总预算（严禁突破），内部软分配 winget ≤300s / NSIS 回退 ≤240s / 核验 ≤30s。' +
+      'dryRun 路径语义不变：不核验、不回退，回执 `verified=null`、`fallbackUsed=false`（免审批语义保持）。',
+    risk: 'L2',
+    module: 'app',
+    fn: 'Uninstall-WingetPackage',
+    input: obj({ id: { type: 'string' }, dryRun: { type: 'boolean' } }, ['id']),
+    // R17-T01（K6 契约层）：回执新增 verified / fallbackUsed / residualEvidence，success 语义改为「以最终核验为准」。
+    //   实现侧（psmod/app.ps1，T02）必须逐字对齐 docs/design/r17-design.md §A1.3/§A5 与
+    //   tests/unit/r3-uninstall-verify.test.js 中的判定规则（NSIS 判定 / InstallLocation 反推 / 核验三态 / dryRun 语义）。
+    output: obj(
+      {
+        id: { type: 'string' },
+        dryRun: { type: 'boolean' },
+        exitCode: { type: 'integer', description: 'winget uninstall 退出码（单独为 0 不再代表卸载成功）' },
+        success: {
+          type: 'boolean',
+          description: '以最终核验为准：非 dryRun 时 = exitCode=0 且（首次核验通过 或 NSIS 回退后核验通过）；dryRun 时 = exitCode=0',
+        },
+        verified: {
+          type: ['object', 'null'],
+          description: '事后核验证据（核验方式与结果）；dryRun 时为 null',
+          properties: {
+            exeGone: { type: 'boolean', description: '目标可执行文件已从磁盘消失' },
+            dirGone: {
+              type: ['boolean', 'null'],
+              description: '安装目录已从磁盘消失；派生不出安装根时可为 null（此时只做注册表核验）',
+            },
+            registryGone: { type: 'boolean', description: 'HKLM/HKCU 卸载键已消失' },
+            installLocation: {
+              type: 'string',
+              description: '核验目标安装根：注册表 InstallLocation；缺失时按 UninstallString 去引号/参数取所在目录反推；派生不出则省略',
+            },
+            installerType: {
+              type: 'string',
+              enum: ['nsis', 'msi', 'other', 'unknown'],
+              description: '安装器类型判定；仅 nsis 允许 /S 静默回退，取不到卸载键时为 unknown',
+            },
+          },
+          required: ['exeGone', 'dirGone', 'registryGone', 'installerType'],
+        },
+        fallbackUsed: {
+          type: 'boolean',
+          description: '是否触发了 NSIS 静默回退（Uninstall.exe /S）；dryRun、非 NSIS、winget 非零退出时恒为 false',
+        },
+        residualEvidence: {
+          type: 'string',
+          description: '可选：success=false 时的残留证据（残留 exe / 目录 / 注册表键清单，人类可读文本）',
+        },
+        output: { type: 'array', items: { type: 'string' }, description: 'winget 原始输出行（触发回退时含回退阶段输出）' },
+      },
+      ['id', 'dryRun', 'exitCode', 'success', 'verified', 'fallbackUsed'],
+    ),
+    destructive: true,
+    timeoutMs: 600_000,
+    snapshot: 'before-after',
+  }),
   cap({ id: 'app.winget.upgrade', name: '升级应用', description: '升级指定包或全部可升级包', risk: 'L1', module: 'app', fn: 'Update-WingetPackage', input: obj({ id: { type: 'string' }, all: { type: 'boolean' }, dryRun: { type: 'boolean' } }), timeoutMs: 600_000, snapshot: 'after' }),
   cap({ id: 'app.process.launch', name: '启动应用', description: '启动可执行文件/打开文件/打开 URL', risk: 'L1', module: 'app', fn: 'Start-AppProcess', input: obj({ target: { type: 'string' }, arguments: { type: 'string' }, workingDirectory: { type: 'string' }, wait: { type: 'boolean' } }, ['target']), timeoutMs: 120_000 }),
   cap({ id: 'app.shortcut.manage', name: '管理快捷方式', description: '读取或创建 .lnk 快捷方式', risk: 'L1', module: 'app', fn: 'Get-ShortcutInfo', input: obj({ path: { type: 'string' }, targetPath: { type: 'string' }, arguments: { type: 'string' }, workingDirectory: { type: 'string' } }, ['path']), snapshot: 'after' }),

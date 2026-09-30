@@ -1,0 +1,80 @@
+%% R17 增量类图（对应 docs/design/r17-design.md §A3.1）
+classDiagram
+    %% R1：审批卡渲染（adapter-host-workbuddy，L2）
+    class ApprovalCardData {
+        +capabilityId: string
+        +risk: 'L2'|'L3'
+        +target: string
+        +channel: string
+        +impact: string[]
+        +reversibility: string
+        +preview: string
+        +approvalId: string
+        +taskId: string
+        +resumeInstruction: string
+    }
+    class ApprovalCardRenderer {
+        <<module approval-card.ts>>
+        +APPROVAL_CARD_WIDGET_HTML$ string
+        +fillApprovalCard(data: ApprovalCardData) string
+        +needsTextFallback(capability: string) boolean
+    }
+    class WorkBuddyRenderer {
+        %% 现有 L2 Renderer，仅扩展
+        +plan(plugin, ctx) RenderPlan
+    }
+    WorkBuddyRenderer ..> ApprovalCardRenderer : plan() 注入模板为 skill reference
+
+    %% R1 数据源（host-a2a-bridge 既有，零改动）
+    class ExtractedApproval {
+        <<(*) 既有 tools.ts>>
+        +approvalId: string
+        +message: string
+        +risk: RiskLevel
+        +capabilityId: string
+        +kind: 'approval-request'
+        +summary: string
+        +impact: string[]
+        +preview: Record~string,unknown~
+        +resumeHint: string
+        +underlying: ExtractedUnderlying
+    }
+    ExtractedApproval ..> ApprovalCardData : SKILL 门禁映射填充
+
+    %% R3：K6 卸载核验（psmod/app.ps1）
+    class UninstallReceipt {
+        +id: string
+        +dryRun: bool
+        +exitCode: int
+        +success: bool
+        +verified: UninstallVerification
+        +fallbackUsed: bool
+        +output: string[]
+        +residualEvidence: string[]
+    }
+    class UninstallVerification {
+        +exeGone: bool
+        +dirGone: bool
+        +registryGone: bool
+        +installLocation: string
+        +installerType: 'nsis'|'msi'|'other'|'unknown'
+    }
+    class K6StateMachine {
+        <<psmod/app.ps1 函数族>>
+        +Uninstall-WingetPackage(Id, DryRun) UninstallReceipt
+        +Get-PackageUninstallEntry(Id) PackageEntry
+        +Test-UninstallState(Id, entry) UninstallVerification
+        +Invoke-NsisSilentFallback(uninstExe) int
+    }
+    K6StateMachine ..> UninstallReceipt : 产出
+    K6StateMachine ..> UninstallVerification : 复用于回退后再核验
+
+    %% R2：诊断脚本
+    class ConnectorDiagnostics {
+        <<delivery/tools/diagnose-connectors.mjs>>
+        +globalMcpRegistered: bool
+        +accountMcpRegistered: bool[]
+        +trustStateFound: bool
+        +stdioCommandExecutable: bool
+        +summary() string
+    }
