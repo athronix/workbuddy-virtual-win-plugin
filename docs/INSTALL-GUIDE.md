@@ -303,6 +303,39 @@ node delivery/winvm-plugin.mjs tunnel stop     # 向 daemon 发 SIGTERM，清理
 | 单测整批跑全红 | 铁律：`node --test tests/unit/*.test.js` 整批会因 junction symlink 打崩共享 runner。逐文件跑 〔《安装运行测试》§5.2 + MEMORY〕 |
 | HMOS 沙箱跑 qa 脚本 node 崩（Exit 133） | node 二进制选错了。**版本号不可作判据**（hnp 与 bundled 的版本都会随 WB 升级浮动）：以「运行是否触发 native getcwd 断言（Exit 133）」为准——崩的就是该换的。用 bundled `/data/storage/el1/bundle/libs/arm64/node/bin/node`（实测可用；实测版本 v24.21.0，随 WB 升级浮动）〔MEMORY「Node 选择」〕 |
 
+### §8.1 连接器已注册但会话未注入工具（R2 · R17-T04）
+
+**现象**：安装器已把 `winvm`（streamableHttp）与 `winvm-a2a`（stdio）写入全局 `~/.workbuddy/mcp.json`
+与各 `connectors/<account>/mcp.json`（install-host 输出「全局 mcp.json : 已增量合并 / 已就位」），
+但会话里 ToolSearch 搜不到 `winvm__*` / `a2a.*` 工具。
+
+**先定性**：工具注入是 WorkBuddy 平台行为（加载时机 / trust 状态 / stdio 子进程拉起），
+本插件只能诊断与规避、无法根治。**旧会话永不热注入属预期**——注册发生在会话建立之后，
+平台不会向既有会话补注入，这不是缺陷。
+
+**自助三步路径**：
+
+1. **连接器页确认「信任 + 启用」**：WorkBuddy → 连接器 / 自定义 MCP，逐项确认 `winvm` 与 `winvm-a2a`
+   处于已信任、已启用状态（`connector-states.v3.json` 由平台首启时创建，可能为加密态，以页面为准）；
+2. **重开一个新会话**再查工具面（判定口径：新会话 ToolSearch `winvm` 应命中 `winvm__*` / `a2a.*`）；
+3. **仍异常 → 跑只读诊断**并按其 FAIL/WARN 处置：
+
+```bash
+node delivery/tools/diagnose-connectors.mjs          # 人读 + JSON 双段；exit 0=注册面就位 / 1=有必需缺失
+node delivery/tools/diagnose-connectors.mjs --json   # 供程序消费
+```
+
+   诊断四项：① 全局 mcp.json 两条 server 与 transports；② 各账户 mcp.json 的 winvm 条目；
+   ③ `connector-states.v3.json` 存在性/大小/mtime（可解析则报 enabled/trust 摘要，加密态如实标注、绝不解密）；
+   ④ `winvm-a2a` stdio command 可执行性（只 stat + mode 位，绝不 spawn）。
+   典型 FAIL 与补救：server 未注册 → 重跑 `node delivery/install-host.mjs`；
+   stdio command/桥入口脚本不存在 → 插件缓存缺失，同样重跑 install-host；
+   `disabled=true` / states 缺失 → 回到第 1 步在连接器页启用。
+
+**若诊断为「注册全就位但新会话仍不注入」**：属 WB 平台侧疑点，证据（诊断 JSON + 会话新旧 + 账户 id）
+按 `docs/design/r17-connector-injection-diagnosis.md` 的「WB 平台缺陷上报」模板整理上报；
+期间宿主 agent 仍须遵守 orchestrator 门禁（工具不可用 → 停止并请求启用连接器，**严禁手写脚本绕行**）。
+
 ---
 
 ## §9 卸载/重装要点
