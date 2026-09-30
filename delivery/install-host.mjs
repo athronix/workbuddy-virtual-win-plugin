@@ -1168,6 +1168,65 @@ async function main() {
   console.log('');
   console.log('后续动作：');
   for (const a of postActionsAll) console.log(`  → ${a}`);
+
+  /* ---- 连接器注入自检（R17-T04 / R2-2）：安装末尾跑一次只读诊断 ----
+   * 目的：全局与各 account 双处注册在“安装后即刻可验证”，并把“新会话未注入工具”的
+   * 自助三步路径打印在用户眼前（trust 启用 → 重开新会话 → 诊断工具 + troubleshooting）。
+   * 诊断工具为**纯只读**（零写入/零网络/零解密，见 delivery/tools/diagnose-connectors.mjs 头注）。
+   * 非致命：任何异常仅告警，绝不影响安装主干。卸载相位走不到这里（--uninstall 提前 return）。 */
+  runConnectorSelfCheck(args.home, args.dryRun);
+}
+
+/**
+ * 安装末尾的连接器注入自检：调用只读诊断工具并打印摘要 + 自助指引。
+ *
+ * dry-run 语义（本仓历史踩坑，铁律）：**只打印将执行什么，绝不实际 spawn**；
+ * 诊断工具自身虽只读，但 dry-run 下连子进程都不该拉起，保持“零副作用”可核验。
+ *
+ * @param {string} home 目标用户主目录
+ * @param {boolean} dryRun 安装器 --dry-run 标志
+ * @returns {{ ran: boolean, ok?: boolean, failures?: string[], warnings?: string[], error?: string }}
+ */
+export function runConnectorSelfCheck(home, dryRun) {
+  const toolPath = join(dirname(fileURLToPath(import.meta.url)), 'tools', 'diagnose-connectors.mjs');
+  if (dryRun) {
+    console.log('');
+    console.log(`连接器自检 : [dry-run 将执行] ${process.execPath} ${toolPath} --json（纯只读，零写入/零 spawn/零网络/零解密）`);
+    return { ran: false };
+  }
+  console.log('');
+  try {
+    if (!existsSync(toolPath)) {
+      console.log(`连接器自检 : ⚠ 诊断工具缺失（${toolPath}），跳过（不影响安装结果）`);
+      return { ran: false, error: 'tool-missing' };
+    }
+    // 只读子进程：node + 诊断脚本 --json。脚本自身保证不写盘、不发网络请求。
+    const r = spawnSync(process.execPath, [toolPath, '--json'], { encoding: 'utf8', timeout: 30000, env: process.env });
+    if (r.error) {
+      console.log(`连接器自检 : ⚠ 诊断子进程异常（${r.error.message}），跳过（不影响安装结果）`);
+      return { ran: false, error: r.error.message };
+    }
+    let report = null;
+    try {
+      report = JSON.parse(r.stdout);
+    } catch {
+      console.log(`连接器自检 : ⚠ 诊断输出非 JSON（exit=${r.status}），可手动复跑：node ${toolPath}`);
+      return { ran: false, error: 'unparsable-output' };
+    }
+    const failures = Array.isArray(report.failures) ? report.failures : [];
+    const warnings = Array.isArray(report.warnings) ? report.warnings : [];
+    console.log(`连接器自检 : ${report.ok ? '注册面就位 ✓' : `发现 ${failures.length} 项必需缺失 ✗`}（exit=${r.status}）`);
+    for (const f of failures) console.log(`  ✗ ${f}`);
+    for (const w of warnings) console.log(`  ⚠ ${w}`);
+    console.log('  若新会话 ToolSearch 找不到 winvm__* / a2a.* 工具：');
+    console.log('    ① WorkBuddy 连接器页确认 winvm / winvm-a2a 已「信任 + 启用」；');
+    console.log('    ② 重开一个新会话（旧会话永不热注入，属平台会话生命周期预期行为）；');
+    console.log(`    ③ 仍异常则跑 node ${toolPath} 并按 docs/INSTALL-GUIDE.md troubleshooting 处置。`);
+    return { ran: true, ok: !!report.ok, failures, warnings };
+  } catch (e) {
+    console.log(`连接器自检 : ⚠ 自检异常（${e.message}），跳过（不影响安装结果）`);
+    return { ran: false, error: e.message };
+  }
 }
 
 const __filename = fileURLToPath(import.meta.url);
