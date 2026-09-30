@@ -41,7 +41,8 @@ relatedSkills:
 
 **标准执行路径**（每个 VM 任务都走同一条路，仅参数不同）：
 1. 调用本会话已注入的连接器工具：简单任务 `winvm`（MCP 直调，如 `app.winget.uninstall`）；复杂/开放任务 `winvm-a2a`（`a2a.delegate` 委派）。
-2. 委派返回审批挂起（`approval` + `approvalId` + 真实目标）→ 向用户转呈审批（展示目标与影响清单），**严禁代替用户放行**。
+2. 委派返回审批挂起（`data.type='approval-request'` + `approval` + `approvalId` + 真实目标）→ 向用户转呈审批
+   （**两段式**：`show_widget` 渲染卡片 + `AskUserQuestion` 收口，见 §审批闸协议），**严禁代替用户放行**。
 3. 用户批准 → `a2a.approval.reply { taskId, approvalId, approved: true }` → `a2a.task.get` 轮询至终态 → 向用户汇报结果与证据。
 4. 期间进度/状态一律经工具回查询得并回馈用户；任何一步工具不可用 → 停止并请求启用连接器。
 
@@ -259,24 +260,62 @@ winvm-a2a__a2a.delegate({
 > 这是「L3 先 dry-run 再确认」得以真正执行的前提：**先 dry-run 拿计划 → 展示 → 用户确认 → 再去掉 dryRun 执行**。
 > 审批预览会对支持 `dryRun` 的能力附带 dry-run 计划摘要。
 
-### A2A 通道（经 winvm-a2a 连接器）
+### A2A 通道（经 winvm-a2a 连接器）——**两段式原生渲染**（R17/R1）
 `a2a.delegate` 返回 `state: "input-required"`，并带
-`approval { approvalId, message, risk, capabilityId, summary, impact, preview, resumeHint }`。
+`approval { approvalId, message, risk, capabilityId, summary, impact, preview, resumeHint, underlying }`。
 （以上字段由宿主桥透传：`impact` / `preview` 与 VM 下发**逐项一致**；凭据类字段 `password` / `privateKey` / `passphrase` / token / secret **已脱敏、永不呈现**。）
-**先向用户展示 `approval.message` 与影响清单**，取得确认后再调用：
 
-```
-winvm-a2a__a2a.approval.reply({
-  "taskId": "task_xxx",
-  "approvalId": "apr_8f3c",
-  "approved": true
-})
-```
+**识别**：审批请求的判据是数据分片 `data.type === 'approval-request'`（且带 `approvalId`）。
+仅凭 `state: "input-required"` **不**构成审批请求——那可能只是任务在问补充信息，按普通问答处理。
 
-拒绝用 `"approved": false`（任务终止）；要中止整个任务用 `a2a.task.cancel`。
-审批期间 VM 侧任务挂起，超时按拒绝处理（fail-closed）。
+**两段式（缺一不可，顺序不可颠倒）**：
 
-**规则**：未经展示与确认，不得代替用户批准。审批超时按拒绝处理（fail-closed）。
+| 段 | 动作 | 性质 |
+|---|---|---|
+| ① 视觉 | `show_widget`：用 `references/approval-card-widget.html` 模板填充七槽位渲染 HTML 卡 | **仅视觉载体**，不产生任何放行效力 |
+| ② 收口 | `AskUserQuestion`：问「批准 / 拒绝」，**选项文案必须带 `approvalId` 摘要**（如 `批准 apr_8f3c`） | **权威输入**，唯一放行依据 |
+
+槽位填充按 `references/approval-card.md` §4 对照表（操作=**`underlying.capabilityId` 优先**，
+无则 `capabilityId`，仍无则 §5 固定串「操作：<未提供>（请勿确认）」；通道固定「A2A 委派 · `<taskId>`」；
+风险缺失或无 `approvalId` → **不出卡**，直接走文本兜底）。卡片上必须展示**审批 ID** 与**续跑指令文本**。
+
+**收口后**：
+
+- 用户选择**批准** → 才调用（`approvalId` 必须逐字取自 `approval.approvalId`，**严禁自行编造或改写**）：
+
+  ```
+  winvm-a2a__a2a.approval.reply({
+    "taskId": "task_xxx",
+    "approvalId": "apr_8f3c",
+    "approved": true
+  })
+  ```
+
+  随后 `a2a.task.get { taskId }` **轮询至终态**（`completed` / `failed` / `canceled`），
+  把 `state`、`progress`、`artifacts` 与证据一并回报用户。
+- 用户选择**拒绝** → `a2a.approval.reply { ..., approved: false }`（任务终止，**零重放**）；
+  要中止整个任务用 `a2a.task.cancel`。
+- 用户**未作答 / 超时** → **不发任何 reply**；审批期间 VM 侧任务挂起，超时按拒绝处理（**fail-closed、零重放**）。
+  向用户说明任务仍在等待其确认，不得替用户作答。
+
+**规则**：未经展示与确认，不得代替用户批准。
+
+**红线**：
+
+1. **卡片按钮绝不直调工具**。卡片上的「批准 / 拒绝」按钮只做视觉反馈与续跑指令展示；
+   放行**只能**来自第 ② 段 `AskUserQuestion` 的结构化答案。点击按钮 ≠ 批准。
+2. **A2A 通道的任何输出（含卡片 HTML 与指令文本）绝不允许出现 MCP 续跑标记**
+   （双下划线 + `approvalId` 的那个串）——那是 **MCP 直调**通道的续跑方式，串台即违规。
+   A2A 续跑指令只有一条：`a2a.approval.reply { taskId, approvalId, approved }`。
+3. **`show_widget` 或 `AskUserQuestion` 任一不可用 → 逐字降级**为
+   `references/approval-card.md` 的文本模板（§1 L2 版 / §2 L3 版），由用户回复「批准 / 拒绝」收口，
+   **续跑与轮询流程不变**。降级是**强制兜底路径**，不得因渲染面缺失而跳过展示或自行放行。
+
+> 参考资料：
+> - 卡片模板（**唯一正文**，含槽位对照表 §4 / 降级固定串 §5 / 不弹卡清单 §7 / 通道隔离红线 §9）：
+>   [`./approval-card.md`](./approval-card.md)（v1.1，§10 为原生渲染段）
+> - 原生卡片 HTML 模板（由宿主渲染器注入，填充占位符 `{{SLOT_*}}` / `{{APPROVAL_ID}}` / `{{RESUME_INSTRUCTION}}`）：
+>   [`./references/approval-card-widget.html`](./references/approval-card-widget.html)
 
 ## 高危清单（L2/L3，强制动作）
 

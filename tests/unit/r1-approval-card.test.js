@@ -18,7 +18,7 @@
  *      `node --test tests/unit/r1-approval-card.test.js`
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -775,5 +775,165 @@ describe('R1-8 · 通道隔离的全仓静态守卫', () => {
     const md = read('skills', 'winvm-orchestrator', 'references', 'approval-card.md');
     assert.ok(md.includes(MCP_MARKER), '文本模板必须含 MCP 直调续跑说明（那是 §9 的合法内容）');
     assert.ok(md.includes(APPROVAL_CARD_REPLY_TOOL), '文本模板必须含 A2A 续跑指令');
+  });
+});
+
+/* ==========================================================================
+ * ③ 静态守卫 —— SKILL.md 审批门禁（两段式）与 approval-card.md v1.1
+ * ======================================================================== */
+
+describe('R1-9 · SKILL.md 两段式门禁（静态守卫）', () => {
+  const SKILL = read('skills', 'winvm-orchestrator', 'SKILL.md');
+  const A2A_SECTION = (() => {
+    const start = SKILL.indexOf('### A2A 通道');
+    assert.ok(start > 0, 'SKILL.md 必须有「### A2A 通道」小节');
+    const rest = SKILL.slice(start + 1);
+    const next = rest.search(/\n##\s|\n###\s/);
+    return next === -1 ? rest : rest.slice(0, next);
+  })();
+
+  test('门禁升级为两段式：识别 approval-request → show_widget → AskUserQuestion → reply → 轮询', () => {
+    assert.match(A2A_SECTION, /data\.type === 'approval-request'/, '必须以 approval-request 分片为识别判据');
+    assert.match(A2A_SECTION, /show_widget/, '第①段必须是 show_widget 视觉载体');
+    assert.match(A2A_SECTION, /AskUserQuestion/, '第②段必须是 AskUserQuestion 收口');
+    assert.match(A2A_SECTION, /a2a\.task\.get/, '批准后必须轮询 task.get 至终态');
+    assert.match(A2A_SECTION, /approval-card-widget\.html/, '必须引用注入的 HTML 模板 reference');
+    // 次序：show_widget 在 AskUserQuestion 之前，reply 在收口之后
+    const iWidget = A2A_SECTION.indexOf('show_widget');
+    const iAsk = A2A_SECTION.indexOf('AskUserQuestion');
+    const iReply = A2A_SECTION.indexOf('a2a.approval.reply');
+    assert.ok(iWidget < iAsk && iAsk < iReply, '两段式次序不可颠倒');
+  });
+
+  test('红线保留：按钮不直调 / 选项含 approvalId / 超时零重放', () => {
+    assert.match(A2A_SECTION, /按钮绝不直调|点击按钮 ≠ 批准/, '必须有「按钮不直调」红线');
+    assert.match(A2A_SECTION, /approvalId`? 摘要|含 `approvalId` 摘要/, 'AskUserQuestion 选项文案必须带 approvalId 摘要');
+    assert.match(A2A_SECTION, /未作答|超时/, '必须写明未作答/超时分支');
+    assert.match(A2A_SECTION, /不发任何 reply/, '超时必须是零重放（不发 reply）');
+    assert.match(A2A_SECTION, /fail-closed/, '超时语义 fail-closed');
+  });
+
+  test('强制兜底：任一渲染面不可用 → 逐字降级文本模板，且不得自行放行', () => {
+    assert.match(A2A_SECTION, /任一不可用/, '必须声明「任一不可用」触发降级');
+    assert.match(A2A_SECTION, /逐字降级/, '降级必须逐字');
+    assert.match(A2A_SECTION, /approval-card\.md/, '降级目标必须是文本模板');
+    assert.match(A2A_SECTION, /不得因渲染面缺失而跳过展示|不得.*自行放行/, '降级不得成为放行口实');
+  });
+
+  test('通道隔离：A2A 小节零 MCP 续跑标记（MCP 小节才允许，且只出现一次）', () => {
+    assert.ok(!A2A_SECTION.includes(MCP_MARKER), 'A2A 通道小节绝不允许出现 MCP 续跑标记');
+    const mcpSection = SKILL.slice(SKILL.indexOf('### MCP 通道'), SKILL.indexOf('### A2A 通道'));
+    assert.ok(mcpSection.includes(MCP_MARKER), 'MCP 通道小节保留其续跑方式（不被误删）');
+  });
+
+  test('门禁第 5 条（禁手写脚本绕行）与其它节未被动摇', () => {
+    assert.match(SKILL, /现场手写一次性脚本/, '门禁第 5 条必须保留');
+    assert.match(SKILL, /唯一正确动作是停止并告知用户启用连接器/, '第 5 条处置文案必须原样保留');
+    assert.match(SKILL, /跳过审批闸直接执行 L2\/L3 操作/, '禁止绕过审批闸条目必须保留');
+    assert.match(SKILL, /## 审批闸协议（L2\/L3 必守）/, '审批闸协议节标题不变');
+    assert.match(SKILL, /## 高危清单（L2\/L3，强制动作）/, '高危清单节标题不变');
+    // 强制门禁「严格禁止」条目数不因本次改动减少（原 5 条）
+    const forbid = SKILL.slice(SKILL.indexOf('**严格禁止**'), SKILL.indexOf('**标准执行路径**'));
+    assert.equal([...forbid.matchAll(/^- ❌/gm)].length, 5, '严格禁止条目数漂移');
+  });
+
+  test('标准执行路径第 2 步已指向两段式（与门禁一致，不留旧口径）', () => {
+    const path = SKILL.slice(SKILL.indexOf('**标准执行路径**'), SKILL.indexOf('**为什么**'));
+    assert.match(path, /两段式/, '标准路径必须指向两段式审批');
+    assert.match(path, /approval-request/, '标准路径必须用 approval-request 判据');
+  });
+});
+
+describe('R1-10 · approval-card.md v1.1（§1–9 不动 + §10 新增）', () => {
+  const MD = read('skills', 'winvm-orchestrator', 'references', 'approval-card.md');
+  const SECTION_10 = MD.slice(MD.indexOf('## 10. 原生渲染'));
+
+  test('版本升级且顶部唯一性哨兵串保持 v1（兼容既有 QA 三 grep）', () => {
+    assert.match(MD, /^<!-- APPROVAL-CARD-TEMPLATE v1 · 唯一正文 · 不得复制 -->$/m, '哨兵串必须逐字不变');
+    assert.match(MD, /^# 审批卡片模板 v1\.1（L2 \/ L3 · 唯一正文）$/m, '标题需标 v1.1');
+    assert.match(MD, /模板版本 v1\.1/, '需有版本说明注释');
+  });
+
+  test('§1–§9 关键固定串一字未动（§5 降级串 / §6 判定 / §7 不弹卡 / §8 红线 / §9 通道隔离）', () => {
+    const verbatim = [
+      '🔐 需要你确认（L2 破坏性操作）',
+      '⛔ 高危操作，需要二次确认（L3）',
+      '目标：见影响清单',
+      '影响清单：VM 未提供（按参数推断：…）',
+      '可逆性：未知 —— 按不可逆处理',
+      '操作：<未提供>（请勿确认）',
+      '预览：未提供',
+      '可逆 —— 默认进回收站，可从回收站还原',
+      '不可逆 —— 无法自动回滚',
+      '本系统不提供该能力，需人工在 VM 内执行',
+      '7 个槽位',
+      '通道隔离红线',
+    ];
+    for (const s of verbatim) {
+      assert.ok(MD.includes(s), `§1–§9 固定串丢失或被改写：${s}`);
+    }
+  });
+
+  test('§10 存在且声明「§1–§9 正文一字未改」+ 降级为强制路径', () => {
+    assert.ok(MD.includes('## 10. 原生渲染'), '必须新增 §10');
+    assert.match(SECTION_10, /§1–§9 正文一字未改/, '§10 必须声明前九节未改');
+    assert.match(SECTION_10, /强制兜底路径|强制路径/, '必须把文本模板定位为强制兜底');
+  });
+
+  test('§10 槽位与红线对齐 approval-card.ts 常量（跨文件一致性）', () => {
+    for (const label of APPROVAL_CARD_SLOT_LABELS) {
+      assert.ok(SECTION_10.includes(label), `§10 必含项缺槽位：${label}`);
+    }
+    assert.match(SECTION_10, /underlying\.capabilityId[`*\s]*优先/, '§10 必须写明操作槽位的优先级');
+    assert.match(SECTION_10, /a2a\.approval\.reply \{ taskId, approvalId, approved \}/, '§10 必须给出唯一续跑形态');
+    assert.match(SECTION_10, /暗色主题/, '§10 必须声明暗色主题约束');
+    assert.match(SECTION_10, /单一事实源/, '§10 必须声明模板单一事实源');
+    assert.match(SECTION_10, /approval-card-widget\.html/, '§10 必须指向注入的 HTML 模板');
+    // §10 只**引用** §4/§5 权威，不得另立一套降级串（复制即漂移源）
+    assert.ok(SECTION_10.includes('§5'), '§10 必须把降级权威指向 §5');
+    assert.ok(SECTION_10.includes('§4'), '§10 必须把槽位权威指向 §4');
+    assert.ok(
+      SECTION_10.includes(APPROVAL_CARD_FALLBACK_TEXTS.target) ||
+        !SECTION_10.includes('目标：'),
+      '§10 不得改写 §5 目标降级串',
+    );
+    // L0/L1 直接执行、不出卡也不文本确认（与实现一致）
+    assert.match(SECTION_10, /L0` \/ `L1`? 时按 §7 \*\*直接执行\*\*|L0 \/ L1 按 §7 直接执行/, '§10 必须保留 §7 的 L0/L1 直接执行语义');
+  });
+
+  test('§10.5 降级触发条件与实现的 skipReason 一一对应', () => {
+    assert.match(SECTION_10, /show_widget` 或 `AskUserQuestion/, '渲染面不可用必须列为降级触发');
+    assert.match(SECTION_10, /缺 `risk` 或缺 `approvalId`/, '缺 risk / approvalId 必须列为降级触发');
+    assert.match(SECTION_10, /既无 `resumeHint` 又无 `taskId`/, '无续跑途径必须列为降级触发');
+    assert.match(SECTION_10, /auditApprovalCardHtml/, '产物自检失败必须列为降级触发');
+  });
+
+  test('§9 的 MCP 续跑说明仍合法保留（红线只针对 A2A 卡片产物，不针对文本模板）', () => {
+    const s9 = MD.slice(MD.indexOf('## 9.'), MD.indexOf('## 10.'));
+    assert.ok(s9.length > 0, '§9 必须存在');
+    assert.ok(s9.includes(MCP_MARKER), '§9 必须保留 MCP 直调续跑说明');
+    assert.ok(s9.includes(APPROVAL_CARD_REPLY_TOOL), '§9 必须保留 A2A 续跑说明');
+  });
+
+  test('全 skills 唯一性三串仍各只命中 1 个文件（未复制模板正文）', () => {
+    const files = [];
+    const walk = (dir, rel) => {
+      for (const ent of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+        if (ent.isDirectory()) walk(join(dir, ent.name), join(rel, ent.name));
+        else if (/\.(md|mdx|txt)$/i.test(ent.name)) files.push(join(rel, ent.name));
+      }
+    };
+    walk('skills', 'skills');
+    const countOf = (pattern) =>
+      files.filter((f) => read(...f.split('/')).includes(pattern)).length;
+    assert.equal(countOf('APPROVAL-CARD-TEMPLATE'), 1, '哨兵串唯一性被破坏');
+    assert.equal(countOf('需要你确认（L2 破坏性操作）'), 1, 'L2 首行唯一性被破坏');
+    assert.equal(countOf('高危操作，需要二次确认（L3）'), 1, 'L3 首行唯一性被破坏');
+  });
+
+  test('SKILL.md 与 approval-card.md 均未复制 HTML 模板正文（唯一性延伸）', () => {
+    const SKILL2 = read('skills', 'winvm-orchestrator', 'SKILL.md');
+    assert.ok(!SKILL2.includes('wac-'), 'SKILL.md 不得内嵌卡片 HTML');
+    assert.ok(!MD.includes('wac-'), 'approval-card.md 不得内嵌卡片 HTML');
   });
 });
