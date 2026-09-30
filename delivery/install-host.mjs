@@ -38,6 +38,7 @@ import { deployWinvmPlugin } from './deploy-winvm-plugin.mjs';
 import {
   WorkBuddyRenderer,
   resolveWorkBuddyPaths,
+  renderConnectorEntry,
 } from '@winvm/adapter-host-workbuddy';
 import { WINDOWS_CAPABILITIES } from '@winvm/vm-capabilities';
 import { addToUserPath, removeFromUserPath } from './path-util.mjs';
@@ -647,6 +648,27 @@ function uninstallConnectors(home, dryRun) {
   if (!any) console.log('连接器注册 : 未发现本项目的连接器条目（无需改动）');
 }
 
+/** 移除全局 ~/.workbuddy/mcp.json 中的本项目条目（winvm / winvm-a2a，与安装期全局注册对称）。 */
+function uninstallGlobalMcp(home, dryRun) {
+  const p = join(home, '.workbuddy', 'mcp.json');
+  if (!existsSync(p)) { console.log('全局 mcp.json : 不存在（无需改动）'); return; }
+  let json;
+  try { json = JSON.parse(readFileSync(p, 'utf8')); } catch { console.log('全局 mcp.json : 解析失败，跳过'); return; }
+  const servers = json.mcpServers;
+  if (!servers || typeof servers !== 'object') return;
+  const ourKeys = ['winvm', 'winvm-a2a'];
+  const had = ourKeys.filter((k) => k in servers);
+  if (had.length === 0) { console.log('全局 mcp.json : 无本项目条目（无需改动）'); return; }
+  if (dryRun) { console.log(`全局 mcp.json : ${p}  [dry-run 将移除 ${had.join(', ')}]`); return; }
+  const bak = backupFile(p);
+  for (const k of had) delete servers[k];
+  writeFileSync(p, JSON.stringify(json, null, 2) + '\n', 'utf8');
+  console.log(`\n全局 mcp.json : ${p}`);
+  console.log(`  移除 : ${had.join(', ')}`);
+  if (bak) { console.log(`  diff（备份 ${bak}）：`); console.log(lineDiff(readFileSync(bak, 'utf8'), readFileSync(p, 'utf8')));
+}
+}
+
 /** 把项目自建目录移入回收站（仅本项目，不碰父目录里的其它条目）。 */
 function uninstallDirectories(home, dryRun, trashDir, yes) {
   const wb = join(home, '.workbuddy');
@@ -783,6 +805,7 @@ async function main() {
     console.log('');
     uninstallRegistry(args.home, args.dryRun);
     uninstallConnectors(args.home, args.dryRun);
+    uninstallGlobalMcp(args.home, args.dryRun);
     console.log('');
     uninstallDirectories(args.home, args.dryRun, args.trashDir, args.yes);
     console.log('');
@@ -984,6 +1007,42 @@ async function main() {
     skippedFiles.push(...resultFor.skippedFiles);
     warnings.push(...resultFor.warnings);
     postActions.push(...planFor.postActions);
+  }
+
+  /* ---- 全局自定义 MCP 注册（Q-connector-page）----
+   * WorkBuddy「连接器 / 自定义 MCP」页面读取全局 ~/.workbuddy/mcp.json；
+   * 仅写 connectors/<account>/mcp.json 时该页面看不到 winvm / winvm-a2a，
+   * 会话工具面也不会注入 a2a.* 工具（9/29 卸载实战绕行手写脚本的根因之一）。
+   * 同样**增量合并**：只增改本项目两条 server，不碰用户已有条目；改动前备份。 */
+  {
+    const globalMcpPath = join(args.home, '.workbuddy', 'mcp.json');
+    const entryDirect = renderConnectorEntry(plugin.connector, plugin.connector.transports[0]);
+    const entryA2a = renderConnectorEntry(plugin.a2aBridge, plugin.a2aBridge.transports[0]);
+    const ourServers = { 'winvm': entryDirect, 'winvm-a2a': entryA2a };
+    let globalJson = { mcpServers: {} };
+    if (existsSync(globalMcpPath)) {
+      try { globalJson = JSON.parse(readFileSync(globalMcpPath, 'utf8')); }
+      catch { console.log(`全局 mcp.json : 解析失败（${globalMcpPath}），跳过全局注册（不影响账户级注册）`); globalJson = null; }
+    }
+    if (globalJson) {
+      globalJson.mcpServers = globalJson.mcpServers && typeof globalJson.mcpServers === 'object' ? globalJson.mcpServers : {};
+      let changed = false;
+      for (const [k, v] of Object.entries(ourServers)) {
+        const prev = JSON.stringify(globalJson.mcpServers[k] ?? null);
+        const next = JSON.stringify(v);
+        if (prev !== next) { globalJson.mcpServers[k] = v; changed = true; }
+      }
+      if (args.dryRun) {
+        console.log(`全局 mcp.json : ${changed ? '[dry-run 将增量合并 winvm / winvm-a2a]' : 'winvm / winvm-a2a 已就位（无变化）'} → ${globalMcpPath}`);
+      } else if (changed || !existsSync(globalMcpPath)) {
+        const bak = backupFile(globalMcpPath);
+        writeFileSync(globalMcpPath, JSON.stringify(globalJson, null, 2) + '\n', 'utf8');
+        console.log(`全局 mcp.json : 已增量合并 winvm / winvm-a2a → ${globalMcpPath}${bak ? `（备份 ${bak}）` : ''}`);
+        patchedFiles.push(globalMcpPath);
+      } else {
+        console.log(`全局 mcp.json : winvm / winvm-a2a 已就位（无变化）`);
+      }
+    }
   }
 
   // 多账户会重复同一 pluginRoot 下的文件路径与同名告警，汇总后去重再打印。
