@@ -31,6 +31,11 @@
 - [ ] **🆕 K6（能力层）**：`winget uninstall` 对企业微信报假成功（exit 0 但磁盘无变化，NSIS 包无 QuietUninstallString）→ 需卸载后核验 + NSIS `/S` 回退。实测 `Uninstall.exe /S` 真实卸载成功（EXE_GONE/DIR_GONE/WINGET_REMOVED）。
 
 ## 🟡 进行中（第十六轮追加 · 2026-09-29）
-- [ ] **宿主审批卡原生渲染**：协议层已备好（approval + resumeHint + underlying），缺宿主工具面把 approval-request 渲染为 WorkBuddy 原生审批卡片（当前以 AskUserQuestion 近似替代）。
-- [ ] **会话工具面注入保障**：connector:winvm / connector:winvm-a2a 已注册但新会话常未注入工具 → 依赖 skill 门禁「停止并请求启用连接器」兜底；长期需 WB 侧连接器自动启用。
-- [ ] **K6 能力层修复**（承前）：app.winget.uninstall 卸载后核验 + NSIS /S 回退（本次实战 workflow 路径侥幸走 NSIS，能力层仍假成功）。
+- [x] **宿主审批卡原生渲染**：R17-T03 已落地（`approval-card.ts` 填充/净化 + SKILL 两段式门禁 + 模板 v1.1 §10）；QA 离线回归全绿（r1 68/68 + 21 边界探针零抛穿），**真机端到端闭环 BLOCKED** → 遗留至真机轮（见下 R17 段）。
+- [x] **会话工具面注入保障**：R17-T04 已落地（`diagnose-connectors.mjs` 只读诊断 + install-host 末尾自检 + orchestrator 工具缺失指引）；QA 本机抽测全过（exit 0/1 语义、零写入实证），**矩阵 M4 连续≥3 新会话 ToolSearch 命中 BLOCKED** → 遗留至真机轮。
+- [x] **K6 能力层修复**（承前）：R17-T01/T02/T02b 已落地（verified/fallbackUsed 契约 + app.ps1 R-1…R-8 状态机 + NSIS /S 回退 + A2A 超时注册表权威）；QA r3 35/35 + 消费者四处对齐 + PS 静态配平过，**企业微信 NSIS/MSI 对照、dryRun/exit≠0/600s/长卸载不掐断实测 BLOCKED** → 遗留至真机轮。
+
+## ✅ 已闭环（第十七轮 P4 · 2026-09-30）
+- [x] **R17 P4 集成回归（T05 离线可证部分）** → 报告 `docs/test/reports/r17-qa-2026-09-30.md`，结论 **条件 PASS / 路由 NoOne**：tsc EXIT=0；全量 51 文件 **736 pass / 0 fail / 2 skipped**（修复前唯一 fail 为 `sandbox-allowwrite` 测试桩缺 `renderConnectorEntry` 导出——`d183a76` 基线即坏，**非 R17 回归**，QA 自修一行桩后 9/9 pass）；`__approvalId` 全仓逐处语境核查合规（A2A 卡片产物源码+dist 零标记，双向净化实证）；SKILL 严格禁止恰 5 条 + 工具缺失指引零自动批准路径；host-a2a-bridge/src、contracts/、host-sdk/ 零改动复核成立；K6 四处消费者口径对齐；诊断工具 exit 0/1 语义 + md5 零写入 + 只读性源码核验 + install-host --dry-run 自检块零落盘；T02b 超时链 `capTimeoutMs ?? req.timeoutMs ?? 30_000` 源码逐字核对。
+- [ ] **遗留（非阻塞）**：F-2 skills 域未显式承载「success=false 如实转呈」文案（旧口径零残留、注册表描述已承载，建议下轮 app-manager「已知陷阱」补一行）；F-3 `fillApprovalCard([])` reason 码归 `MISSING_APPROVAL_ID` 而非 `NO_INPUT`（拒卡结果正确，P3 码表美学差）。
+- [ ] **R17 真机 BLOCKED 五例**（均因需 Windows VM 真机环境，清单见报告 §7）：①R1 审批卡端到端闭环 + 审计 -replay ②R2 矩阵 M4 连续≥3 新会话 ToolSearch 命中 ③R3 企业微信 NSIS/MSI 对照 / dryRun / exit≠0 / 600s 实测 ④T02b A2A 长卸载（>300s）不被掐断 ⑤R-4 预捕获时序真机复证。

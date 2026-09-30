@@ -50,7 +50,7 @@ function stubPkg(pkg, body) {
 }
 stubPkg('host-sdk', 'export function loadSkillBundles(){return [];}\nexport function validateNeutralPlugin(){return {ok:true,issues:[]};}\n');
 stubPkg('vm-capabilities', 'export const WINDOWS_CAPABILITIES=[];\n');
-stubPkg('adapter-host-workbuddy', 'export class WorkBuddyRenderer {}\nexport function resolveWorkBuddyPaths(){return {};}\n');
+stubPkg('adapter-host-workbuddy', 'export class WorkBuddyRenderer {}\nexport function resolveWorkBuddyPaths(){return {};}\nexport function renderConnectorEntry(){return {};}\n');
 
 // 导入**副本中的真实 install-host.mjs**（含本次新增的两个导出）
 const { injectSandboxAllowWrite, removeSandboxAllowWrite } = await import(
