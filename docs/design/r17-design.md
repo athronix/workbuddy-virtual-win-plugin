@@ -276,6 +276,16 @@ sequenceDiagram
 
 ## A5. K6 卸载核验状态机（时序图）
 
+> **R-0（entry 预捕获）修正说明（T02 落地后回写，team-lead 已批准）**
+> 本节原时序把 `Get-PackageUninstallEntry` 画在 `exitCode = 0` **之后**。该顺序有缺陷：真卸载成功后
+> 注册表 `Uninstall` 键随即消失，届时再查就取不到 `InstallLocation / UninstallString / QuietUninstallString`，
+> `installerType` 会被误降级为 `unknown`、`dirGone` 退化为 `null`——**把一次真成功核验成"无法判定"**，
+> 与 R3 的"以最终核验为准"目标相反（假失败与假成功同样是假）。
+> 因此实现（`psmod/app.ps1`）改为：**在跑 winget 之前预捕获 entry**，卸载后用「entry + 当前磁盘/注册表存在性」
+> 产出 `verified`；`registryGone` 由**卸载后的独立重查**决定，不依赖预捕获的 entry 本身。
+> 下图已按此顺序回写。这也与 `tests/unit/r3-uninstall-verify.test.js` 的等价参考夹具同构
+> （`entry` / `disk` / `registryKeyExists` 三参数分离：entry 是卸载前的事实，后两者是卸载后的观测）。
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -289,14 +299,14 @@ sequenceDiagram
         PS->>PS: winget uninstall --dry-run
         PS-->>RC: { success=exit0, verified=null, fallbackUsed=false }
     else 正常卸载
+        PS->>RG: 【R-0 预捕获】Get-PackageUninstallEntry(Id)：<br/>HKLM/HKLM-WOW6432Node/HKCU Uninstall 键匹配 → InstallLocation / UninstallString / QuietUninstallString<br/>（必须先于卸载，成功后键即消失）
         PS->>PS: winget uninstall --id <Id>（≤300s 预算）
         PS->>PS: exitCode = 0 ?
         alt exitCode ≠ 0
-            PS-->>RC: { success=false, verified=核验前证据, fallbackUsed=false, output }
+            PS-->>RC: { success=false, verified=核验前证据（由预捕获 entry 构造）, fallbackUsed=false, output }
         else exitCode = 0
-            PS->>RG: Get-PackageUninstallEntry(Id)：<br/>HKLM/HKCU Uninstall 键匹配 → InstallLocation / UninstallString / QuietUninstallString
-            Note over PS: InstallLocation 缺失 → 按 UninstallString 目录反推安装根；仍缺失 → dirGone=null
-            PS->>RG: Test-UninstallState：exeGone? / dirGone? / registryGone?（≤30s）
+            Note over PS: InstallLocation 缺失 → 按 UninstallString 目录反推安装根（MSI 型禁止反推，R-2b）；仍缺失 → dirGone=null<br/>预捕获失败（无 entry）→ installerType=unknown、dirGone=null，只做注册表核验
+            PS->>RG: Test-UninstallState：重查注册表键是否消失 + 用 entry 判定 exeGone? / dirGone? / registryGone?（≤30s）
             alt 全部核验通过
                 PS-->>RC: { success=true, verified{exeGone,dirGone,registryGone,installerType}, fallbackUsed=false }
             else 核验失败 且 installerType='nsis'（Uninstall.exe 且无 QuietUninstallString）
@@ -305,7 +315,7 @@ sequenceDiagram
                 alt 再核验通过
                     PS-->>RC: { success=true, verified=…, fallbackUsed=true }
                 else 仍失败
-                    PS-->>RC: { success=false, verified=…, fallbackUsed=true, residualEvidence=[残留exe/目录/键] }
+                    PS-->>RC: { success=false, verified=…, fallbackUsed=true, residualEvidence='残留exe/目录/键（单串，见 A3 契约）' }
                 end
             else 核验失败 且 installerType≠'nsis'（MSI/other：永不回退，R3-5）
                 PS-->>RC: { success=false, verified=…, fallbackUsed=false, residualEvidence=… }
