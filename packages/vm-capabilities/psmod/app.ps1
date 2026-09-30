@@ -262,18 +262,594 @@ function Install-WingetPackage {
 }
 
 # ------------------------------ app.winget.uninstall ------------------------------
+#
+# R17-T02 · K6 卸载核验状态机（设计 docs/design/r17-design.md §A1.3 / §A5）。
+# 规则合同 R-1…R-8 定义在 tests/unit/r3-uninstall-verify.test.js（头部注释 + 测试内等价参考函数）。
+# 本节的每个函数上方都标出其覆盖的 R 编号 —— **PS 与测试规则必须逐条一致**，
+# 任何一侧改动都要同步另一侧（QA R3-6 真机对照回归以此为判据）。
+#
+# 与旧实现（只看 winget exit code）的差异：
+#   * `success` 以**最终核验**为准：winget exit 0 但磁盘/注册表未变（NSIS 包假成功）一律 success=false；
+#   * 仅 NSIS 型（R-1）触发 `Uninstall.exe /S` 静默回退（R-6）；MSI / other / unknown **永不回退**（R3-5）；
+#   * 核验目标派生（R-2 / R-2b / R-3）：InstallLocation 缺失 → 按 UninstallString 去引号/参数反推；
+#     仍派生不出 → dirGone=$null 且**只做注册表核验**（严禁全盘扫描 —— 不可靠且慢）；
+#   * dryRun 语义不变（R-7）：不核验、不回退，verified=$null、fallbackUsed=$false（免审批语义保持）；
+#   * 核验失败必附 residualEvidence（R-8），宿主必须如实转呈，不得改写为成功。
+#
+# 预算（维持能力级 600s 总预算，definitions.ts timeoutMs=600_000，**严禁突破**；不新增分段超时参数）：
+#   内部软分配 winget ≤300s / NSIS 回退 ≤240s / 核验 ≤30s。核验是本地 stat/registry 读取（实际秒级）；
+#   唯一可强制约束的是回退阶段（Start-Process 受限等待 + 超时 Kill），并保证给核验留足预留量。
+#
+# R-0（实现前置纪律，测试参考函数隐含）：**卸载前预捕获**注册表卸载键快照。
+#   真卸载成功后键即消失，若事后再读键（设计 §A5 时序图把 Get-PackageUninstallEntry 画在 exit=0 之后）
+#   就拿不到 InstallLocation/UninstallString，磁盘核验目标无从派生，会把「真成功」降级为
+#   installerType='unknown' + dirGone=null 的弱结论。故本实现前移为：预捕获 entry → 跑 winget →
+#   用「entry（历史快照）+ 当前磁盘/注册表存在性」产出 verified —— 与测试夹具
+#   （testUninstallState(entry, disk, registryKeyExists) 三者分离）完全同构。
+
+# R-0 · 卸载键所在的三个 hive（与 app.inventory.list 同一口径：HKLM64 / HKLM32(WOW6432Node) / HKCU）
+function Get-UninstallRegistryHives {
+    return @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+}
+
+# R-0 依赖 · 从 winget list 取该包的**注册表显示名**（best-effort）。
+# 为什么需要：winget Id（如 `Tencent.WeChatWork`）常**不等于**注册表键名（可能是 GUID / `WXWork` /
+# `xxx_is1`），中文包的 DisplayName 更不会与 Id 相同 —— 只按 Id 匹配会「找不到键」，
+# 从而把 NSIS 假成功误判成 unknown + 仅注册表核验（弱结论）。用 winget 自己的显示名去匹配 DisplayName
+# 才可靠。任何失败一律返回空串，**绝不**因取名字失败而拖垮卸载。
+function Get-WingetInstalledName {
+    param([Parameter(Mandatory)][string]$Id)
+
+    $name = ''
+    try {
+        $raw = & winget list --exact --id $Id --accept-source-agreements --disable-interactivity 2>$null
+        $idEsc = [regex]::Escape($Id)
+        foreach ($line in @($raw | ForEach-Object { "$_" })) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line -match '^\s*-{3,}') { continue }
+            # 数据行形态：'<Name>  <Id>  <Version>[  <Source>]'；--exact --id 命中时通常仅 1 行
+            $m = [regex]::Match($line, ('(?i)^\s*(.+?)\s+' + $idEsc + '(?=[\s]|$)'))
+            if ($m.Success) {
+                $cand = $m.Groups[1].Value.Trim()
+                if ($cand) { $name = $cand; break }
+            }
+        }
+    } catch { }
+    return $name
+}
+
+# D13 纪律沿用 · 可选注册表属性安全读取（StrictMode 下属性常不存在 → 一律走 PSObject.Properties 守卫）
+function Get-UninstallPropertyValue {
+    param($Item, [string]$Name)
+    if ($null -eq $Item) { return '' }
+    $p = $Item.PSObject.Properties[$Name]
+    if ($null -eq $p) { return '' }
+    if ($null -eq $p.Value) { return '' }
+    return ([string]$p.Value).Trim()
+}
+
+# R-0 匹配依赖 · 包名归一化：小写 + 去掉空格/连字符等分隔符，保留字母数字与 CJK。
+# 用归一化比较而非手写中文字面量比较 —— 一律以**注册表/命令返回的原值**为准（PS 5.1 编码安全）。
+function Get-NormalizedPackageName {
+    param([string]$Text)
+    if ($null -eq $Text) { return '' }
+    if ([string]::IsNullOrWhiteSpace($Text)) { return '' }
+    return [regex]::Replace($Text.ToLowerInvariant(), '[^0-9a-z\u4e00-\u9fff]', '')
+}
+
+# R-2 依赖 · 从卸载命令串解析可执行文件路径（兼容三种真机形态）：
+#   `"C:\Dir\Uninstall.exe" /S`              → 引号内即路径
+#   `C:\Program Files\X\Uninstall.exe /S`    → 未加引号且路径含空格 → 按首个 .exe/.msi 切分
+#   `MsiExec.exe /X{GUID}`                   → 命令本身即 msiexec
+function Get-UninstallCommandExePath {
+    param([string]$Command)
+    if ($null -eq $Command) { return $null }
+    $s = $Command.Trim()
+    if (-not $s) { return $null }
+    if ($s.StartsWith('"')) {
+        $end = $s.IndexOf('"', 1)
+        $inner = if ($end -gt 0) { $s.Substring(1, $end - 1) } else { $s.Substring(1) }
+        $inner = $inner.Trim()
+        if ($inner) { return $inner }
+        return $null
+    }
+    $m = [regex]::Match($s, '^(.*?\.(?:exe|msi))(?:\s|$)', 'IgnoreCase')
+    $exe = if ($m.Success) { $m.Groups[1].Value.Trim() } else { (@($s -split '\s+')[0]).Trim() }
+    if ($exe) { return $exe }
+    return $null
+}
+
+# R-1 · 安装器类型判定（'nsis' | 'msi' | 'other' | 'unknown'）
+#   取不到卸载键 → 'unknown'
+#   UninstallString / QuietUninstallString 任一含 msiexec → 'msi'（永不回退）
+#   UninstallString 指向 uninstall.exe（不区分大小写）**且无 QuietUninstallString** → 'nsis'
+#   其余 → 'other'（有 QuietUninstallString 的包不判 nsis，避免误伤本可静默卸载的包）
+# ⚠ 取文件名一律走 [IO.Path]::GetFileName（纯字符串运算）：Split-Path 会做 provider 解析，
+#   在非常规/相对路径上行为不稳且可能抛错，而这里只是字符串判定，无须访问文件系统。
+function Get-UninstallInstallerType {
+    param($Entry)
+    if ($null -eq $Entry) { return 'unknown' }
+    $un = [string]$Entry['UninstallString']
+    $qu = [string]$Entry['QuietUninstallString']
+    if (($un + ' ' + $qu) -match '(?i)msiexec') { return 'msi' }
+    # 有 QuietUninstallString 的包本就能静默卸载 → 不判 nsis，交由 winget 的 quiet 路径（避免多余回退）
+    if ($qu) { return 'other' }
+    $exe = Get-UninstallCommandExePath -Command $un
+    if ($exe) {
+        $leaf = ''
+        try { $leaf = [System.IO.Path]::GetFileName($exe) } catch { $leaf = '' }
+        if ($leaf -ieq 'uninstall.exe') { return 'nsis' }
+    }
+    return 'other'
+}
+
+# R-2 / R-2b · 核验目标（安装根）派生。返回空串 = 派生不出（调用方据此置 dirGone=$null）。
+#   ① 注册表 InstallLocation 非空 → 用它（去尾分隔符）
+#   ② 否则按 UninstallString（退而 QuietUninstallString）解析出的 exe **取所在目录反推**
+#   ③ R-2b：msi 型**禁止**反推 —— `MsiExec.exe` 位于 System32，反推会把系统目录当成安装根
+function Get-PackageInstallRoot {
+    param($Entry)
+    if ($null -eq $Entry) { return '' }
+    $il = ([string]$Entry['InstallLocation']).Trim().TrimEnd('\', '/')
+    if ($il) { return $il }
+    if ((Get-UninstallInstallerType -Entry $Entry) -eq 'msi') { return '' }
+    foreach ($key in @('UninstallString', 'QuietUninstallString')) {
+        $exe = Get-UninstallCommandExePath -Command ([string]$Entry[$key])
+        if (-not $exe) { continue }
+        $parent = ''
+        try { $parent = [string][System.IO.Path]::GetDirectoryName($exe) } catch { $parent = '' }
+        $parent = $parent.Trim().TrimEnd('\', '/')
+        # 必须仍含分隔符（即真的是个目录），否则视为反推失败（如仅有 `Uninstall.exe` 相对名）
+        if ($parent -and ($parent -match '[\\/]')) { return $parent }
+    }
+    return ''
+}
+
+# R-3 · 主程序 exe 名（DisplayIcon 提供时才能精确核验 exeGone；取不到则退化由目录存在性推定）
+#   DisplayIcon 常带图标索引后缀（`C:\...\WXWork.exe,0`）→ **必须先剥离 `,0`**，否则主程序名取不出
+function Get-PackagePrimaryExeName {
+    param($Entry)
+    if ($null -eq $Entry) { return '' }
+    $raw = ([string]$Entry['DisplayIcon']).Trim()
+    if (-not $raw) { return '' }
+    $noIdx = [regex]::Replace($raw, ',\s*\d+\s*$', '').Trim()
+    $icon = Get-UninstallCommandExePath -Command $noIdx
+    if (-not $icon) { return '' }
+    $leaf = ''
+    try { $leaf = [System.IO.Path]::GetFileName($icon) } catch { $leaf = '' }
+    if ($leaf -and ($leaf -match '(?i)\.exe$')) { return $leaf }
+    return ''
+}
+
+# R-0 / R-1 / R-4 数据源 · 卸载注册表键查找（设计 §A5 的 Get-PackageUninstallEntry）。
+# 匹配层级（**打分取胜**，全部基于注册表原值 + 归一化比较，不手写中文字面量）：
+#   5 键名 -ieq $Id      4 键名 -like "*$Id*"（如 `Tencent.WeChatWork_is1`）
+#   3 DisplayName 归一化 == $DisplayName（$DisplayName 来自 winget list 预捕获，解决键名为 GUID/中文的错位）
+#   2 DisplayName 归一化互相包含          1 键名 -ieq Id 末段 / DisplayName 含 Id 末段
+# 为什么打分而非「首个命中即返回」：Get-ItemProperty 的枚举顺序**不保证稳定**，
+#   预捕获与事后重查若选到不同的键，`registryGone` 就会漂移（把「换了个名字的键」判成已消失，
+#   正是假成功的新变体）。同分时优先「带 UninstallString」的那条（核验与回退都依赖它）。
+function Get-PackageUninstallEntry {
+    param(
+        [Parameter(Mandatory)][string]$Id,
+        [string]$DisplayName = ''
+    )
+
+    $idLeaf = $Id
+    if ($Id -match '\.') { $idLeaf = (@($Id -split '\.')[-1]) }
+    $dnNorm = Get-NormalizedPackageName -Text $DisplayName
+    $idNorm = Get-NormalizedPackageName -Text $Id
+    $idLeafNorm = Get-NormalizedPackageName -Text $idLeaf
+    $idHasWildcard = [bool]($Id -match '[\*\?\[]')
+
+    $best = $null
+    $bestScore = 0
+    foreach ($hive in (Get-UninstallRegistryHives)) {
+        $items = @(Get-ItemProperty -Path ($hive + '\*') -ErrorAction SilentlyContinue)
+        foreach ($item in $items) {
+            if ($null -eq $item) { continue }
+            $keyName = Get-UninstallPropertyValue -Item $item -Name 'PSChildName'
+            if (-not $keyName) {
+                $psPath = Get-UninstallPropertyValue -Item $item -Name 'PSPath'
+                if ($psPath) {
+                    # PSPath 形如 `Microsoft.PowerShell.Core\Registry::...\AppID` → 取末段即键名。
+                    # 用纯字符串运算（Split-Path 需 provider 解析，含 `::` 的前缀路径上行为不稳）
+                    $segs = @($psPath -split '[\\/]')
+                    if ($segs.Count -gt 0) { $keyName = [string]$segs[$segs.Count - 1] }
+                }
+            }
+            $displayName = Get-UninstallPropertyValue -Item $item -Name 'DisplayName'
+            if (-not $displayName) { $displayName = Get-UninstallPropertyValue -Item $item -Name 'UninstallDisplayName' }
+            $un = Get-UninstallPropertyValue -Item $item -Name 'UninstallString'
+            $qu = Get-UninstallPropertyValue -Item $item -Name 'QuietUninstallString'
+
+            # 系统组件（无 DisplayName 且 SystemComponent=1）不参与匹配
+            $sysComp = Get-UninstallPropertyValue -Item $item -Name 'SystemComponent'
+            if ($sysComp -eq '1' -and -not $displayName) { continue }
+
+            $n = Get-NormalizedPackageName -Text $displayName
+            $score = 0
+            if ($keyName -and ($keyName -ieq $Id)) { $score = 5 }
+            elseif ($keyName -and (-not $idHasWildcard) -and ($keyName -like ('*' + $Id + '*'))) { $score = 4 }
+            elseif ($dnNorm -and $n -and ($n -ieq $dnNorm)) { $score = 3 }
+            elseif ($dnNorm -and $n -and ($n.Contains($dnNorm) -or $dnNorm.Contains($n))) { $score = 2 }
+            elseif ($idLeafNorm -and $n -and (($n -ieq $idLeafNorm) -or $n.Contains($idLeafNorm))) { $score = 1 }
+            elseif ($keyName -and $idLeaf -and ($keyName -ieq $idLeaf)) { $score = 1 }
+            if ($score -eq 0) { continue }
+
+            # 同分但本条带卸载命令 → 视同更优（+0 分不变，用并列判定处理）
+            $entry = [ordered]@{
+                hive                 = $hive
+                keyName              = $keyName
+                DisplayName          = $displayName
+                DisplayVersion       = Get-UninstallPropertyValue -Item $item -Name 'DisplayVersion'
+                InstallLocation      = Get-UninstallPropertyValue -Item $item -Name 'InstallLocation'
+                UninstallString      = $un
+                QuietUninstallString = $qu
+                DisplayIcon          = Get-UninstallPropertyValue -Item $item -Name 'DisplayIcon'
+            }
+            $better = ($score -gt $bestScore)
+            if ((-not $better) -and ($score -eq $bestScore) -and ($null -ne $best)) {
+                if ((-not [string]$best['UninstallString']) -and $un) { $better = $true }
+            }
+            if ($better) { $best = $entry; $bestScore = $score }
+        }
+    }
+    return $best
+}
+
+# R-3 / R-4 · 核验一次（Test-UninstallState），产出 verified 载荷。
+# ⚠ **四个必填子字段恒在**（exeGone / dirGone / registryGone / installerType），含 unknown 场景 ——
+#   与 definitions.ts 的 verified.required 对齐；installLocation 仅在能派生时出现（契约里为可选）。
+# R-5（核验通过判定）由调用方 `Test-UninstallVerificationPassed` 承担，本函数**只如实采集证据**。
+# 参数 DisplayName：R-4 的键存在性重查必须与预捕获用**同一套匹配算法**，否则「键换了个名字」
+#   就会被判成 registryGone=true（假成功的新变体）。
+function Test-UninstallState {
+    param(
+        [Parameter(Mandatory)][string]$Id,
+        $Entry = $null,
+        [string]$DisplayName = ''
+    )
+
+    $installerType = Get-UninstallInstallerType -Entry $Entry
+    $root = [string](Get-PackageInstallRoot -Entry $Entry)
+
+    # R-4：卸载键是否仍然存在（重查三 hive）。
+    # ⚠ 查找**异常**必须与「键确实不存在」区分开：把异常当成 $null 会得出 registryGone=true，
+    #   进而 success=true —— 即「核验器自己坏了却报告成功」，正是 R3 要消灭的假成功形态。
+    #   故异常走 fail-closed：registryGone=$false（宁可判残留，交人工/回退处置）。
+    $still = $null
+    $stillLookupFailed = $false
+    try { $still = Get-PackageUninstallEntry -Id $Id -DisplayName $DisplayName } catch { $stillLookupFailed = $true }
+    $registryGone = ((-not $stillLookupFailed) -and ($null -eq $still))
+
+    $v = [ordered]@{
+        exeGone       = $true
+        dirGone       = $null
+        registryGone  = [bool]$registryGone
+        installerType = $installerType
+    }
+    # 补派生：预捕获没拿到有效信息、但事后重查查到了键时，用当前键补齐（把弱结论升级为可核验）。
+    # ⚠ 只在「预捕获确实没拿到键」（installerType='unknown'，即 $Entry 为 $null）时才用 $still 重新分类；
+    #   $Entry 存在时其自身分类结论必须保留 —— 否则可能因为重查选到**另一条键**而把类型改错，
+    #   进而在非 NSIS 包上触发回退（违反 R3-5）。
+    if ($null -ne $still) {
+        if (-not $root) { $root = [string](Get-PackageInstallRoot -Entry $still) }
+        if ($installerType -eq 'unknown') {
+            $installerType = Get-UninstallInstallerType -Entry $still
+            $v['installerType'] = $installerType
+        }
+    }
+
+    if ($root) {
+        $v['installLocation'] = $root
+        # R-3：目录与主程序**各自独立**判定（主程序已删但目录残壳是真机常见形态，不得互盖）。
+        # ⚠ 不用 `-PathType Container`：路径若被替换成同名文件，它会返回 $false → 误判 dirGone=true。
+        #   「残壳仍在」的正确判据是 Test-Path（任意存在形态）。
+        $dirExists = $false
+        try { $dirExists = [bool](Test-Path -LiteralPath $root -ErrorAction SilentlyContinue) } catch { $dirExists = $true }
+        $v['dirGone'] = (-not $dirExists)
+
+        $exeName = Get-PackagePrimaryExeName -Entry $Entry
+        if (-not $exeName) { $exeName = Get-PackagePrimaryExeName -Entry $still }
+        if ($exeName) {
+            # ⚠ 用 [IO.Path]::Combine 而非 Join-Path：Join-Path 会先解析父路径，
+            #   目录**已消失**时（正是我们要判定的情形）直接抛「找不到路径」→ 回执会变成 EXECUTION_FAILED。
+            $exePath = ''
+            try { $exePath = [System.IO.Path]::Combine($root, $exeName) } catch { $exePath = '' }
+            $exeExists = $false
+            if ($exePath) {
+                # 不指定 -PathType：判据是「该路径是否仍占据这个名字」（异常按仍存在处理，fail-closed）
+                try { $exeExists = [bool](Test-Path -LiteralPath $exePath -ErrorAction SilentlyContinue) } catch { $exeExists = $true }
+            }
+            $v['exeGone'] = (-not $exeExists)
+        } else {
+            # 无主程序名线索 → 不凭空造 false，退化由目录存在性推定（与测试基线 R-3 一致）
+            $v['exeGone'] = (-not $dirExists)
+        }
+    }
+    # else：R-3 硬约束 —— 派生不出安装根时 dirGone 保持 $null（只做注册表核验，**不做全盘扫描**）
+    return $v
+}
+
+# R-5 · 核验通过判定：注册表键消失 + exe 消失 + 目录未被判为残留。
+# dirGone=$null 表示「无从核验」，**不阻断**通过（此时由 registryGone 单独把关，如实标注）。
+# ⚠ 三态判定一律「先判 $null 再判布尔」：PS 里 `$null -eq $false` 为假，但写成
+#   `if (-not $V['dirGone'])` 会把 $null 当成 false 而**误判为残留** —— 故显式区分。
+function Test-UninstallVerificationPassed {
+    param($V)
+    if ($null -eq $V) { return $false }
+    if (-not [bool]$V['registryGone']) { return $false }
+    if (-not [bool]$V['exeGone']) { return $false }
+    if (($null -ne $V['dirGone']) -and (-not [bool]$V['dirGone'])) { return $false }
+    return $true
+}
+
+# R-8 · 残留证据（单串文本，与契约 residualEvidence?: string 对齐；路径/名称一律取注册表原值拼接）。
+function Get-UninstallResidualEvidence {
+    param($V)
+    $items = @()
+    if ($null -ne $V) {
+        $root = [string]$V['installLocation']
+        if (-not [bool]$V['registryGone']) {
+            $where = if ($root) { $root } else { [string]$V['installerType'] }
+            $items += ('注册表卸载键仍在: ' + $where)
+        }
+        if (($null -ne $V['dirGone']) -and (-not [bool]$V['dirGone'])) { $items += ('安装目录仍在: ' + $root) }
+        if (-not [bool]$V['exeGone']) { $items += ('主程序仍在: ' + $root) }
+    }
+    if ($items.Count -eq 0) { return '' }
+    return ($items -join ' | ')
+}
+
+# R-6 · NSIS 静默回退：`Uninstall.exe /S`，受限等待 + 超时终止（预算由调用方按总额裁剪）。
+# 返回码（负数为本函数的诊断码，写进 output 供转呈；**卸载结论一律以再核验为准，不看它**）：
+#   >=0     卸载器退出码        -9999 卸载器 exe 不存在   -9998 启动失败
+#   -9997 拿不到进程对象        -9996 超时（多为 UAC 提权等待/自锁），已 Kill，绝不谎报
+function Invoke-NsisSilentFallback {
+    param(
+        [Parameter(Mandatory)][string]$UninstallExe,
+        [int]$TimeoutMs = 240000
+    )
+
+    $exists = $false
+    try { $exists = [bool](Test-Path -LiteralPath $UninstallExe -PathType Leaf -ErrorAction SilentlyContinue) } catch { $exists = $false }
+    if (-not $exists) { return -9999 }
+
+    $workDir = ''
+    try { $workDir = [string][System.IO.Path]::GetDirectoryName($UninstallExe) } catch { $workDir = '' }
+
+    $proc = $null
+    try {
+        if ($workDir) {
+            $proc = Start-Process -FilePath $UninstallExe -ArgumentList '/S' -WorkingDirectory $workDir -PassThru -ErrorAction Stop
+        } else {
+            $proc = Start-Process -FilePath $UninstallExe -ArgumentList '/S' -PassThru -ErrorAction Stop
+        }
+    } catch { return -9998 }
+    if ($null -eq $proc) { return -9997 }
+
+    $exited = $false
+    try { $exited = [bool]$proc.WaitForExit($TimeoutMs) } catch { $exited = $false }
+    if (-not $exited) {
+        try { $proc.Kill() | Out-Null } catch { }
+        try { $proc.WaitForExit(5000) | Out-Null } catch { }
+        return -9996
+    }
+    # 再等一下确保退出码可读
+    try { $proc.WaitForExit() | Out-Null } catch { }
+    $code = $null
+    try { $code = $proc.ExitCode } catch { $code = $null }
+    if ($null -eq $code) { return 0 }
+    return [int]$code
+}
 
 function Uninstall-WingetPackage {
     param([Parameter(Mandatory)][string]$Id, [switch]$DryRun)
 
-    $args = @('uninstall', '--exact', '--id', $Id, '--accept-source-agreements', '--disable-interactivity')
-    if ($DryRun) { $args += '--dry-run' }
+    # —— 预算常量（软分配；总预算严禁突破 600s，由能力级 timeoutMs=600_000 硬顶）——
+    $totalBudgetMs = 600000
+    $wingetBudgetMs = 300000
+    $fallbackBudgetMs = 240000
+    $verifyBudgetMs = 30000
+    $reserveAfterFallbackMs = $verifyBudgetMs + 5000
 
-    $raw = & winget @args 2>&1
-    return [ordered]@{
-        id = $Id; dryRun = [bool]$DryRun; exitCode = $LASTEXITCODE
-        success = ($LASTEXITCODE -eq 0); output = @($raw | ForEach-Object { "$_" })
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $lines = New-Object System.Collections.ArrayList
+    $installedName = ''        # R-0：winget list 预捕获的显示名（供注册表匹配）
+    $entry = $null             # R-0：卸载前的注册表卸载键快照
+    $verified = $null          # 回执 verified
+    $exit = 0
+    $success = $false
+    $fallbackUsed = $false
+    $evidence = ''
+
+    $wingetArgs = @('uninstall', '--exact', '--id', $Id, '--accept-source-agreements', '--disable-interactivity')
+    if ($DryRun) { $wingetArgs += '--dry-run' }
+
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        throw 'WINGET_NOT_FOUND: 未找到 winget，请先安装「应用安装程序」'
     }
+
+    # R-7：dryRun 不核验、不回退（免审批语义保持）→ verified=$null、fallbackUsed=$false
+    if ($DryRun) {
+        $raw = & winget @wingetArgs 2>&1
+        $exit = $LASTEXITCODE
+        foreach ($l in @($raw | ForEach-Object { "$_" })) { [void]$lines.Add($l) }
+        [void]$lines.Add('[k6] dry-run: 不核验、不回退（verified=null & fallbackUsed=false）')
+        $sw.Stop()
+        return [ordered]@{
+            id           = $Id
+            dryRun       = $true
+            exitCode     = [int]$exit
+            success      = ([int]$exit -eq 0)
+            verified     = $null
+            fallbackUsed = $false
+            output       = @($lines.ToArray() | ForEach-Object { "$_" })
+        }
+    }
+
+    # —— R-0 预捕获（须在跑 winget 之前）——
+    $installedName = Get-WingetInstalledName -Id $Id
+    $entry = Get-PackageUninstallEntry -Id $Id -DisplayName $installedName
+    $preType = Get-UninstallInstallerType -Entry $entry
+    $preRoot = [string](Get-PackageInstallRoot -Entry $entry)
+    if ($installedName) {
+        [void]$lines.Add('[k6] precapture: wingetName=' + $installedName)
+    } else {
+        [void]$lines.Add('[k6] precapture: wingetName=<unresolved>（仅按 Id/键名匹配）')
+    }
+    if ($null -ne $entry) {
+        [void]$lines.Add('[k6] precapture: key=' + [string]$entry['keyName'] +
+            ' installerType=' + $preType +
+            ' installRoot=' + $(if ($preRoot) { $preRoot } else { '<undetermined>' }))
+    } else {
+        [void]$lines.Add('[k6] precapture: key=<none>（卸载键未匹配到；核验退化为注册表判定）')
+    }
+
+    # —— winget 卸载（软预算 ≤300s）——
+    $raw = & winget @wingetArgs 2>&1
+    $exit = [int]$LASTEXITCODE
+    foreach ($l in @($raw | ForEach-Object { "$_" })) { [void]$lines.Add($l) }
+    $wingetElapsedMs = [int]$sw.Elapsed.TotalMilliseconds
+    [void]$lines.Add('[k6] winget exit=' + $exit + ' elapsed=' + $wingetElapsedMs + 'ms (soft budget ' + $wingetBudgetMs + 'ms)')
+    if ($wingetElapsedMs -gt $wingetBudgetMs) {
+        [void]$lines.Add('[k6] winget 阶段超出软预算（总预算仍受 600s 硬顶约束），回退预算相应缩减')
+    }
+
+    # —— R-6：winget 非零退出 → 直接失败，**绝不回退**（回退只用于纠正「假成功」）——
+    if ($exit -ne 0) {
+        $verified = Test-UninstallState -Id $Id -Entry $entry -DisplayName $installedName
+        [void]$lines.Add('[k6] verify(pre) exeGone=' + [bool]$verified['exeGone'] +
+            ' dirGone=' + $(if ($null -eq $verified['dirGone']) { 'null' } else { [bool]$verified['dirGone'] }) +
+            ' registryGone=' + [bool]$verified['registryGone'] +
+            ' installerType=' + [string]$verified['installerType'])
+        $success = $false
+        $evidence = Get-UninstallResidualEvidence -V $verified
+        $sw.Stop()
+        $receipt = [ordered]@{
+            id           = $Id
+            dryRun       = $false
+            exitCode     = $exit
+            success      = $false
+            verified     = $verified
+            fallbackUsed = $false
+            output       = @($lines.ToArray() | ForEach-Object { "$_" })
+        }
+        # 非零退出时的「残留」只是现状证据，不代表卸载器还在工作 —— 仅在确有残留项时附证据
+        if ($evidence) { $receipt['residualEvidence'] = $evidence }
+        return $receipt
+    }
+
+    # —— 首次核验（≤30s：本地 stat/registry 读取）——
+    $verified = Test-UninstallState -Id $Id -Entry $entry -DisplayName $installedName
+    $passed1 = Test-UninstallVerificationPassed -V $verified
+    [void]$lines.Add('[k6] verify#1 exeGone=' + [bool]$verified['exeGone'] +
+        ' dirGone=' + $(if ($null -eq $verified['dirGone']) { 'null' } else { [bool]$verified['dirGone'] }) +
+        ' registryGone=' + [bool]$verified['registryGone'] +
+        ' installerType=' + [string]$verified['installerType'] + ' passed=' + $passed1)
+
+    # —— R-5 通过：winget 真成功 ——
+    if ($passed1) {
+        $success = $true
+        $sw.Stop()
+        return [ordered]@{
+            id           = $Id
+            dryRun       = $false
+            exitCode     = $exit
+            success      = $true
+            verified     = $verified
+            fallbackUsed = $false
+            output       = @($lines.ToArray() | ForEach-Object { "$_" })
+        }
+    }
+
+    # —— R-6：核验未过。仅 NSIS 型允许 `Uninstall.exe /S` 回退；MSI/other/unknown 永不回退（R3-5）——
+    $fbType = [string]$verified['installerType']
+    if ($fbType -ne 'nsis') {
+        $success = $false
+        $evidence = Get-UninstallResidualEvidence -V $verified
+        [void]$lines.Add('[k6] fallback: skipped (installerType=' + $fbType + ' —— 非 NSIS 永不回退)')
+        $sw.Stop()
+        $receipt = [ordered]@{
+            id           = $Id
+            dryRun       = $false
+            exitCode     = $exit
+            success      = $false
+            verified     = $verified
+            fallbackUsed = $false
+            output       = @($lines.ToArray() | ForEach-Object { "$_" })
+        }
+        if ($evidence) { $receipt['residualEvidence'] = $evidence }
+        return $receipt
+    }
+
+    # —— 回退预算裁剪：min(≤240s, 600s - 已用时 - 核验预留)；不足则如实放弃并判失败（不谎报）——
+    $elapsedMs = [int]$sw.Elapsed.TotalMilliseconds
+    $fbBudgetMs = [int][Math]::Min($fallbackBudgetMs, ($totalBudgetMs - $elapsedMs - $reserveAfterFallbackMs))
+    # ⚠ $entry 可能为 $null（installerType 由「事后补派生」从 unknown 升级为 nsis 的分支）—— 先守卫再索引
+    $unstrFromEntry = ''
+    if ($null -ne $entry) { $unstrFromEntry = [string]$entry['UninstallString'] }
+    $uninstExe = Get-UninstallCommandExePath -Command $unstrFromEntry
+    if (-not $uninstExe -and [string]$verified['installLocation']) {
+        try { $uninstExe = [System.IO.Path]::Combine([string]$verified['installLocation'], 'Uninstall.exe') } catch { $uninstExe = '' }
+    }
+
+    if ($fbBudgetMs -lt 5000 -or -not $uninstExe) {
+        $why = if (-not $uninstExe) { 'Uninstall.exe 路径无法定位' } else { '剩余预算不足（' + $fbBudgetMs + 'ms）' }
+        [void]$lines.Add('[k6] fallback: skipped (' + $why + ') —— 不谎报，success=false')
+        $success = $false
+        $evidence = Get-UninstallResidualEvidence -V $verified
+        $sw.Stop()
+        $receipt = [ordered]@{
+            id           = $Id
+            dryRun       = $false
+            exitCode     = $exit
+            success      = $false
+            verified     = $verified
+            fallbackUsed = $false
+            output       = @($lines.ToArray() | ForEach-Object { "$_" })
+        }
+        if ($evidence) { $receipt['residualEvidence'] = ($evidence + ' | 回退未执行: ' + $why) }
+        else { $receipt['residualEvidence'] = ('回退未执行: ' + $why) }
+        return $receipt
+    }
+
+    [void]$lines.Add('[k6] fallback: invoke ' + $uninstExe + ' /S (budget ' + $fbBudgetMs + 'ms)')
+    $fbExit = Invoke-NsisSilentFallback -UninstallExe $uninstExe -TimeoutMs $fbBudgetMs
+    $fbElapsedMs = [int]$sw.Elapsed.TotalMilliseconds - $elapsedMs
+    [void]$lines.Add('[k6] fallback: code=' + $fbExit + ' elapsed=' + $fbElapsedMs + 'ms（结论以下方再核验为准）')
+
+    # —— 回退后再核验（R-6 要求「等待退出后再次核验」）——
+    $verified = Test-UninstallState -Id $Id -Entry $entry -DisplayName $installedName
+    $passed2 = Test-UninstallVerificationPassed -V $verified
+    $fallbackUsed = $true
+    [void]$lines.Add('[k6] verify#2 exeGone=' + [bool]$verified['exeGone'] +
+        ' dirGone=' + $(if ($null -eq $verified['dirGone']) { 'null' } else { [bool]$verified['dirGone'] }) +
+        ' registryGone=' + [bool]$verified['registryGone'] +
+        ' installerType=' + [string]$verified['installerType'] + ' passed=' + $passed2)
+
+    $success = [bool]$passed2
+    $sw.Stop()
+    $receipt = [ordered]@{
+        id           = $Id
+        dryRun       = $false
+        exitCode     = $exit
+        success      = $success
+        verified     = $verified
+        fallbackUsed = $fallbackUsed
+        output       = @($lines.ToArray() | ForEach-Object { "$_" })
+    }
+    if (-not $success) {
+        $evidence = Get-UninstallResidualEvidence -V $verified
+        if ($evidence) { $receipt['residualEvidence'] = $evidence }
+        else { $receipt['residualEvidence'] = '回退后仍未通过核验（详见 output 的 verify#2）' }
+    }
+    return $receipt
 }
 
 # ------------------------------ app.winget.upgrade ------------------------------

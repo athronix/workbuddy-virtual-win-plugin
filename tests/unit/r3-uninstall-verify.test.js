@@ -776,3 +776,231 @@ describe('R-6/R-7/R-8 · 状态机三态回执', () => {
     }
   });
 });
+
+/* ============================================================================
+ * ③ PS 侧静态守卫 —— app.ps1 与 R-1…R-8 的一致性（沙箱无 PowerShell，按 CL-017/018/019
+ *    既有惯例做源码级锁定；真机行为由 QA T05 / R3-6 对照回归兜底）
+ * ========================================================================== */
+
+const APP_PS1 = read('packages', 'vm-capabilities', 'psmod', 'app.ps1');
+
+/** 把全文切成 { text, start, end } 行数组（供按行定位用） */
+const PS_LINES = (() => {
+  const out = [];
+  let off = 0;
+  for (const text of APP_PS1.split('\n')) {
+    out.push({ text, start: off, end: off + text.length });
+    off += text.length + 1;
+  }
+  return out;
+})();
+
+/** 按大括号配平取出 PS 函数体（含函数头与其紧邻的**上方注释块**），取不到返回 null */
+function psFn(name) {
+  const re = new RegExp(`function\\s+${name}\\s*\\{`, 'm');
+  const m = re.exec(APP_PS1);
+  if (!m) return null;
+  const from = APP_PS1.indexOf('{', m.index + m[0].length - 1);
+  let depth = 0;
+  let inSQ = false;
+  let inDQ = false;
+  for (let i = from; i < APP_PS1.length; i++) {
+    const c = APP_PS1[i];
+    if (inSQ) { if (c === "'") inSQ = false; continue; }
+    if (inDQ) { if (c === '`') { i++; continue; } if (c === '"') inDQ = false; continue; }
+    if (c === "'") { inSQ = true; continue; }
+    if (c === '"') { inDQ = true; continue; }
+    if (c === '#') { const nl = APP_PS1.indexOf('\n', i); i = nl === -1 ? APP_PS1.length : nl; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) {
+        // R 编号标注写在函数**上方注释**里，须一并纳入守卫范围
+        const defLine = PS_LINES.findIndex((l) => l.start <= m.index && m.index < l.end);
+        let start = defLine >= 0 ? PS_LINES[defLine].start : m.index;
+        for (let k = defLine - 1; k >= 0; k--) {
+          if (/^\s*#/.test(PS_LINES[k].text)) { start = PS_LINES[k].start; continue; }
+          break;
+        }
+        return APP_PS1.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
+/** 逐行剥离 PS 注释（`#` 在单/双引号内不生效），用于「代码形态」断言 */
+function stripPsComments(text) {
+  return text
+    .split('\n')
+    .map((line) => {
+      let inSQ = false;
+      let inDQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (inSQ) { if (c === "'") inSQ = false; continue; }
+        if (inDQ) { if (c === '`') { i++; continue; } if (c === '"') inDQ = false; continue; }
+        if (c === "'") { inSQ = true; continue; }
+        if (c === '"') { inDQ = true; continue; }
+        if (c === '#') return line.slice(0, i);
+      }
+      return line;
+    })
+    .join('\n');
+}
+
+/** 取 PS 函数的**纯代码**（去注释） */
+function psFnCode(name) {
+  const f = psFn(name);
+  return f ? stripPsComments(f) : null;
+}
+
+describe('R17-T02 · app.ps1 K6 状态机（静态守卫）', () => {
+  test('规则合同要求的函数族齐备，且函数头标注 R 编号（可追溯性）', () => {
+    for (const fn of [
+      'Get-PackageUninstallEntry',        // 设计 §A5
+      'Test-UninstallState',              // 设计 §A5
+      'Invoke-NsisSilentFallback',        // 设计 §A5
+      'Get-UninstallInstallerType',       // R-1
+      'Get-PackageInstallRoot',           // R-2 / R-2b
+      'Test-UninstallVerificationPassed', // R-5
+      'Get-UninstallResidualEvidence',    // R-8
+    ]) {
+      assert.ok(psFn(fn), `app.ps1 应定义函数 ${fn}`);
+    }
+    assert.ok(/R-1/.test(psFn('Get-UninstallInstallerType')), 'Get-UninstallInstallerType 注释应标 R-1');
+    assert.ok(/R-2/.test(psFn('Get-PackageInstallRoot')), 'Get-PackageInstallRoot 注释应标 R-2');
+    assert.ok(/R-3/.test(psFn('Test-UninstallState')), 'Test-UninstallState 注释应标 R-3');
+    assert.ok(/R-5/.test(psFn('Test-UninstallVerificationPassed')), '通过判定注释应标 R-5');
+    assert.ok(/R-6/.test(psFn('Invoke-NsisSilentFallback')), '回退函数注释应标 R-6');
+    assert.ok(/R-8/.test(psFn('Get-UninstallResidualEvidence')), '证据函数注释应标 R-8');
+  });
+
+  test('R-1：msiexec 先判 msi；有 QuietUninstallString 不得判 nsis；叶名不区分大小写', () => {
+    const f = psFnCode('Get-UninstallInstallerType');
+    assert.ok(/-match '\(\?i\)msiexec'/.test(f), '须先以不区分大小写的 msiexec 判 msi');
+    assert.ok(/return 'msi'/.test(f), '须有 msi 分支');
+    assert.ok(/return 'unknown'/.test(f), '无键须返回 unknown');
+    const idxQu = f.indexOf("if ($qu) { return 'other' }");
+    const idxNsis = f.indexOf("'uninstall.exe'");
+    assert.ok(idxQu > 0, '须有「QuietUninstallString 非空 → other」分支');
+    assert.ok(idxNsis > 0 && idxQu < idxNsis, 'QuietUninstallString 门槛必须先于 nsis 判定');
+    assert.ok(/-ieq 'uninstall\.exe'/.test(f), '叶名比较须 -ieq（不区分大小写）');
+    assert.ok(f.includes('[System.IO.Path]::GetFileName'), '叶名须用 [IO.Path]::GetFileName（纯字符串）');
+    assert.ok(!f.includes('Split-Path'), 'R-1 判定代码内不得用 Split-Path（provider 解析不稳）');
+  });
+
+  test('R-2 / R-2b：InstallLocation 优先 → UninstallString 反推 → msi 禁止反推 → 仍无则空串', () => {
+    const f = psFnCode('Get-PackageInstallRoot');
+    assert.ok(f.includes("['InstallLocation']"), '① 须优先读 InstallLocation');
+    assert.ok(f.includes("TrimEnd('\\', '/')"), '须去尾分隔符');
+    assert.ok(
+      /Get-UninstallInstallerType -Entry \$Entry\) -eq 'msi'/.test(f),
+      'R-2b：msi 型须直接返回空（禁止用 MsiExec.exe 反推出 System32）',
+    );
+    assert.ok(f.includes("'UninstallString', 'QuietUninstallString'"), '② 反推须按 Uninstall→Quiet 顺序');
+    assert.ok(f.includes('[System.IO.Path]::GetDirectoryName'), '反推须取所在目录（纯字符串运算）');
+    assert.ok(f.includes("-match '[\\\\/]'"), '反推结果须仍含分隔符才算真目录，否则视为派生失败');
+  });
+
+  test('R-3：DisplayIcon 剥离 `,0`；不递归扫描；dirGone 三态；探针异常 fail-closed', () => {
+    const f = psFnCode('Get-PackagePrimaryExeName');
+    assert.ok(/Replace\(\$raw, ',\\s\*\\d\+\\s\*\$'/.test(f), '须剥离 DisplayIcon 的 `,0` 图标索引后缀');
+    const s = psFnCode('Test-UninstallState');
+    assert.ok(!/-Recurse/.test(s), '核验代码不得含递归扫描（R-3：不做全盘扫描）');
+    assert.ok(/dirGone\s+=\s+\$null/.test(s), 'dirGone 须初始为 $null（派生不出即保持 null）');
+    assert.ok(s.indexOf("$v['dirGone'] = ") > s.indexOf('if ($root)'), 'dirGone 赋值须在 $root 非空分支内');
+    assert.ok(/\$v\['exeGone'\] = \(-not \$exeExists\)/.test(s), '有主程序名线索时 exeGone 独立于目录判定');
+    assert.ok(/\$v\['exeGone'\] = \(-not \$dirExists\)/.test(s), '无主程序名线索时退化由目录存在性推定');
+    assert.ok(/catch \{ \$dirExists = \$true \}/.test(s), '目录探针异常须按仍存在处理（fail-closed，不得误判已删）');
+    assert.ok(/catch \{ \$exeExists = \$true \}/.test(s), 'exe 探针异常须按仍存在处理（fail-closed）');
+    assert.ok(/catch \{ \$stillLookupFailed = \$true \}/.test(s), '注册表查找异常须置标志（区别于「键不存在」）');
+    assert.ok(/\(-not \$stillLookupFailed\)/.test(s), 'registryGone 须与查找异常联合判定（异常⇒false）');
+  });
+
+  test('R-4：预捕获必须先于 winget 卸载（否则真卸载后取不到核验目标）', () => {
+    const u = psFnCode('Uninstall-WingetPackage');
+    const idxPrecap = u.indexOf('Get-PackageUninstallEntry -Id $Id -DisplayName $installedName');
+    // 真卸载是**最后一次** `& winget @wingetArgs`（第一次位于 dryRun 块内，带 --dry-run）
+    const idxRun = u.lastIndexOf('& winget @wingetArgs 2>&1');
+    assert.ok(idxPrecap > 0, '应预捕获卸载键');
+    assert.ok(idxPrecap < idxRun, 'R-0：预捕获须先于 `winget uninstall`（真卸载成功后键即消失）');
+    const e = psFn('Get-PackageUninstallEntry');
+    assert.ok(/-ieq \$Id/.test(e), '匹配须含键名精确层级');
+    assert.ok(/Get-NormalizedPackageName/.test(e), '匹配须走归一化比较（不手写中文字面量）');
+  });
+
+  test('R-5：dirGone=$null 不阻断通过；三态先判 $null 再判布尔', () => {
+    const f = psFnCode('Test-UninstallVerificationPassed');
+    assert.ok(f.includes("[bool]$V['registryGone']"), '应判 registryGone');
+    assert.ok(f.includes("[bool]$V['exeGone']"), '应判 exeGone');
+    assert.ok(/\$null -ne \$V\['dirGone'\]/.test(f), 'dirGone 须先判 $null（三态）');
+    assert.ok(!/if\s*\(\s*-not\s+\$V\['dirGone'\]\s*\)/.test(f), '不得写 `-not $V[dirGone]`（会把 $null 误判为残留）');
+  });
+
+  test('R-6/R-7：分支次序、dryRun 短路、非 NSIS 永不回退、success 以核验为准', () => {
+    const u = psFnCode('Uninstall-WingetPackage');
+    const idxArgs = u.indexOf("$wingetArgs += '--dry-run'");
+    const idxDry = u.indexOf('if ($DryRun) {', idxArgs);
+    const idxPrecap = u.indexOf('Get-PackageUninstallEntry -Id $Id -DisplayName $installedName');
+    const idxRun = u.indexOf('& winget @wingetArgs 2>&1', idxPrecap);
+    assert.ok(idxDry > 0 && idxDry < idxPrecap && idxPrecap < idxRun, '顺序：dryRun 短路 → 预捕获 → 卸载');
+    const dryBlock = u.slice(idxDry, idxPrecap);
+    assert.ok(/verified\s+=\s+\$null/.test(dryBlock), 'dryRun 回执 verified=$null');
+    assert.ok(/fallbackUsed = \$false/.test(dryBlock), 'dryRun 回执 fallbackUsed=$false');
+    assert.ok(/success      = \(\[int\]\$exit -eq 0\)/.test(dryBlock), 'dryRun success 退化为 exitCode===0');
+    assert.ok(!dryBlock.includes('Invoke-NsisSilentFallback'), 'dryRun 绝不回退');
+
+    const idxExit = u.indexOf('if ($exit -ne 0) {', idxRun);
+    const idxNonNsis = u.indexOf("if ($fbType -ne 'nsis') {", idxRun);
+    const idxFbCall = u.indexOf('Invoke-NsisSilentFallback -UninstallExe', idxRun);
+    assert.ok(idxExit > 0 && idxExit < idxNonNsis && idxNonNsis < idxFbCall, '分支次序：exit≠0 → 非 NSIS 拒回退 → 才回退');
+    assert.ok(u.slice(idxExit, idxNonNsis).includes('fallbackUsed = $false'), 'exit≠0 分支不触发回退');
+    assert.ok(u.indexOf('fallbackUsed = $false', idxNonNsis) < idxFbCall, '非 NSIS 分支必须 fallbackUsed=$false（R3-5）');
+
+    const tail = u.slice(idxFbCall);
+    assert.ok(tail.includes('Test-UninstallState -Id $Id'), '回退后必须再核验（R-6）');
+    assert.ok(/\$success = \[bool\]\$passed2/.test(tail), '回退后 success 以再核验为准');
+    assert.ok(/\$fallbackUsed = \$true/.test(tail), '回退分支置 fallbackUsed=$true');
+
+    for (const [lit, label] of [
+      ['$totalBudgetMs = 600000', '600s 总预算'],
+      ['$wingetBudgetMs = 300000', 'winget ≤300s'],
+      ['$fallbackBudgetMs = 240000', '回退 ≤240s'],
+      ['$verifyBudgetMs = 30000', '核验 ≤30s'],
+    ]) {
+      assert.ok(u.includes(lit), `应声明${label}（${lit}）`);
+    }
+    assert.ok(
+      /\[Math\]::Min\(\$fallbackBudgetMs, \(\$totalBudgetMs - \$elapsedMs - \$reserveAfterFallbackMs\)\)/.test(u),
+      '回退预算须按「总预算 − 已用时 − 核验预留」裁剪（严禁突破 600s）',
+    );
+    const fbWait = psFnCode('Invoke-NsisSilentFallback');
+    assert.ok(/WaitForExit\(\$TimeoutMs\)/.test(fbWait), '回退须受限等待（不得无限阻塞）');
+    assert.ok(/-9996/.test(fbWait), '超时必须返回可诊断错误码（不得静默当成功）');
+  });
+
+  test('R-8 + 契约对齐：每条回执恒含 verified/fallbackUsed 与四必填子字段；成功不携残留证据', () => {
+    const u = psFnCode('Uninstall-WingetPackage');
+    const fbCount = (u.match(/fallbackUsed\s?=\s+\$(?:true|false|fallbackUsed)/g) || []).length;
+    assert.ok(fbCount >= 6, `六条返回路径都应有 fallbackUsed，实际=${fbCount}`);
+    const vCount = (u.match(/verified\s+=\s+\$(?:null|verified)/g) || []).length;
+    assert.ok(vCount >= 6, `六条返回路径都应有 verified，实际=${vCount}`);
+
+    const s = psFnCode('Test-UninstallState');
+    for (const key of ['exeGone', 'dirGone', 'registryGone', 'installerType']) {
+      assert.ok(
+        new RegExp(`\\$v\\s*=\\s*\\[ordered\\]@\\{[\\s\\S]*?${key}\\s+=`).test(s),
+        `verified 载荷须恒含必填字段 ${key}（含 unknown 场景）`,
+      );
+    }
+    // 成功路径不携带残留证据
+    const idxPassed1 = u.indexOf('if ($passed1) {');
+    assert.ok(idxPassed1 > 0, '应存在「首次核验通过」分支');
+    assert.ok(!u.slice(idxPassed1, u.indexOf("if ($fbType -ne 'nsis')")).includes('residualEvidence'), '核验通过分支不得携带残留证据');
+    // 失败路径必附证据（含「无从判定」兜底文案，杜绝空串逃逸）
+    assert.ok(/if \(\$evidence\) \{ \$receipt\['residualEvidence'\]/.test(u), '失败分支应附残留证据');
+    assert.ok(/else \{ \$receipt\['residualEvidence'\]/.test(u), '证据为空时须有兜底文案（不得缺失字段）');
+    assert.ok(!APP_PS1.includes("DisplayName' -eq '企业"), '不得手写中文字面量做包名比较');
+  });
+});
