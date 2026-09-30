@@ -29,7 +29,18 @@ import type {
 } from '@winvm/contracts';
 import { assertValidPlugin, deepMerge, getAtPointer, setAtPointer } from '@winvm/host-sdk';
 
+import {
+  APPROVAL_CARD_REFERENCE_PATH,
+  APPROVAL_CARD_SKILL_ID,
+  APPROVAL_CARD_WIDGET_HTML,
+  auditApprovalCardTemplate,
+  MCP_RESUME_MARKER,
+} from './approval-card.js';
+
 export const HOST_ID = 'workbuddy';
+
+/* R17-T03：审批卡原生渲染（L2 产物层）——模板常量与填充函数由本包对外提供 */
+export * from './approval-card.js';
 
 /* ------------------------------ 路径规划 ------------------------------ */
 
@@ -220,10 +231,32 @@ export class WorkBuddyRenderer implements HostRenderer {
         content: skill.body.endsWith('\n') ? skill.body : `${skill.body}\n`,
       });
       for (const [rel, content] of Object.entries(skill.references ?? {})) {
+        /* R17-T03：卡片模板路径为**保留名**——skill 源里若出现同名 reference 一律忽略，
+         * 由本 Renderer 注入代码态模板（单一事实源），避免同路径写两次（后者覆盖前者）
+         * 或让漂移的手工副本混进产物。 */
+        if (rel === APPROVAL_CARD_REFERENCE_PATH) {
+          warnings.push(
+            `skill「${skill.id}」源内自带的 references/${APPROVAL_CARD_REFERENCE_PATH} 已忽略：` +
+              `审批卡模板由 adapter-host-workbuddy 代码态注入（单一事实源）。`,
+          );
+          continue;
+        }
         files.push({
           path: join(paths.connectorSkillsRoot, skill.id, 'references', rel),
           mode: 'overwrite',
           content,
+        });
+      }
+      /* ---- 3a. R17-T03：审批卡 HTML 模板作为 reference 注入（仅总控 skill） ----
+       * 分层依据 §A1.1「卡片 HTML 模板作为 **install-time 产物**由 L2 Renderer 渲染进
+       * skill references，运行时由 SKILL 门禁指挥宿主 agent 填充调用」。
+       * 只注入 `winvm-orchestrator`（唯一 entry skill，也是唯一承载审批门禁的 skill）；
+       * 其它 skill 只允许引用 references/approval-card.md，不得各自复制一份卡片模板。 */
+      if (skill.id === APPROVAL_CARD_SKILL_ID) {
+        files.push({
+          path: join(paths.connectorSkillsRoot, skill.id, 'references', APPROVAL_CARD_REFERENCE_PATH),
+          mode: 'overwrite',
+          content: APPROVAL_CARD_WIDGET_HTML,
         });
       }
       for (const [rel, content] of Object.entries(skill.workflows ?? {})) {
@@ -333,6 +366,26 @@ export class WorkBuddyRenderer implements HostRenderer {
         issues.push({ level: 'warning', message: `${f.path} 缺少 frontmatter`, path: f.path });
       }
     }
+
+    /* ---- R17-T03：审批卡模板红线（R1-a 通道隔离 / R1-b 只展示不放行） ----
+     * 仅约束**卡片产物**：注入的 widget HTML 参考文件。
+     * 注意 references/approval-card.md（文本模板）里出现 MCP 续跑标记是**合法的**——
+     * 那是 MCP 直调通道的续跑说明（§9）；红线只针对 A2A 卡片与其指令文本。 */
+    const templateProblems = auditApprovalCardTemplate();
+    for (const problem of templateProblems) {
+      issues.push({ level: 'error', message: `审批卡模板违规：${problem}` });
+    }
+    for (const f of plan.files) {
+      if (!f.path.endsWith(APPROVAL_CARD_REFERENCE_PATH)) continue;
+      if (f.content.includes(MCP_RESUME_MARKER)) {
+        issues.push({
+          level: 'error',
+          message: `审批卡产物违反 R1-a 通道隔离：出现 MCP 续跑标记`,
+          path: f.path,
+        });
+      }
+    }
+
     return { ok: issues.every((i) => i.level !== 'error'), issues };
   }
 
