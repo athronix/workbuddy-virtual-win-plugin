@@ -1004,3 +1004,50 @@ describe('R17-T02 · app.ps1 K6 状态机（静态守卫）', () => {
     assert.ok(!APP_PS1.includes("DisplayName' -eq '企业"), '不得手写中文字面量做包名比较');
   });
 });
+
+/* ============================================================================
+ * ③+ T02b 静态守卫 —— A2A 路径能力超时以**注册表**为权威（防 300s 掐断回归）
+ *    600s（K6）能否真正生效是本条的唯一守卫点；真机端到端由 QA T05 兜底。
+ * ========================================================================== */
+
+const ADAPTER_INDEX = read('packages', 'adapter-agent-workbuddy', 'src', 'index.ts');
+
+describe('R17-T02b · A2A 路径超时以注册表为权威（静态守卫）', () => {
+  test('bridge.call 超时须为「注册表优先 → req 回落 → 30s 兜底」，且不得残留裸 req.timeoutMs 写法', () => {
+    // ① 决策注释必须可追溯（标 T02b）
+    assert.ok(/T02b/.test(ADAPTER_INDEX), '改动处须标注 T02b 决策注释');
+    // ② 超时实参形态：注册表值优先，?? 链回落
+    assert.ok(
+      /bridge\.call\(impl\.module,\s*impl\.fn,\s*req\.params,\s*capTimeoutMs \?\? req\.timeoutMs \?\? 30_000\)/.test(
+        ADAPTER_INDEX,
+      ),
+      'bridge.call 第 4 参须为 `capTimeoutMs ?? req.timeoutMs ?? 30_000`（注册表权威）',
+    );
+    assert.ok(
+      /const capTimeoutMs = impl\.timeoutMs;/.test(ADAPTER_INDEX),
+      'capTimeoutMs 须取自 implementationOf 的同源返回值（注册表）',
+    );
+    // ③ 回归锁：旧的「仅看 req」写法不得再出现（否则 540s 最坏路径必被 PSBRIDGE_TIMEOUT 杀）
+    assert.ok(
+      !ADAPTER_INDEX.includes('req.timeoutMs || 30_000'),
+      'T02b 不得回退：源码不应再出现裸 `req.timeoutMs || 30_000`',
+    );
+    // ④ 同源取值须做有效性过滤（正的有限数），且注册表缺项时回落（不硬编码 600s）
+    const implFn =
+      ADAPTER_INDEX.slice(ADAPTER_INDEX.indexOf('private implementationOf'));
+    const implBody = implFn.slice(0, implFn.indexOf('\n  /**', 10) > 0 ? implFn.indexOf('\n  /**', 10) : undefined);
+    assert.ok(/timeoutMs\?:\s*number/.test(implBody), 'implementationOf 返回类型须带可选 timeoutMs');
+    assert.ok(/Number\.isFinite\(t\) && t > 0/.test(implBody), '注册表 timeoutMs 须过滤非正/非有限值');
+    assert.ok(
+      !/return\s*\{\s*module:[\s\S]*?timeoutMs:\s*600_000/.test(implBody) && !implBody.includes('timeoutMs: 600000'),
+      '兜底分支不得硬编码能力超时（缺项须回落 req）',
+    );
+    // ⑤ __meta 健康内置路径不得被改动波及（不走 bridge.call）
+    assert.ok(
+      /impl\.module === '__meta' && impl\.fn === 'healthCheck'[\s\S]{0,160}\? await this\.buildHealthSnapshot\(\)/.test(
+        ADAPTER_INDEX,
+      ),
+      'meta.health.check 仍须走 Node 内置快照，不受 T02b 影响',
+    );
+  });
+});

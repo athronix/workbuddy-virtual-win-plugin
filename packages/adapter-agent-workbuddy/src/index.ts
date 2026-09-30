@@ -303,13 +303,26 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       // 能力定义 → PowerShell 模块/函数（从注册表取实现绑定）
       const impl = this.implementationOf(req.capabilityId);
 
+      // T02b：能力级超时以**注册表为权威**，请求级仅作回落。
+      //   决策理由：
+      //   1) A2A 通道透传的 metadata 超时仅 300s；K6（app.uninstall）最坏路径
+      //      winget 300s + NSIS 静默回退 240s = 540s，若沿用 `req.timeoutMs || 30_000`
+      //      （req 未带或带 300s）必被 ps-bridge 的 PSBRIDGE_TIMEOUT 掐断，
+      //      把「已经成功的卸载」误报为超时失败。
+      //   2) 超时属于能力自身属性（contracts `CapabilityDefinition.timeoutMs` 必填），
+      //      不是调用方属性；MCP 路径 `vm-service/src/server.ts:524` 已如此
+      //      注入 `cap.timeoutMs`。两条通道口径在此对齐，避免同一能力两种时限。
+      //   注册表缺项（如 provider 自建兜底）才回落 `req.timeoutMs`，最后 30s 兜底。
+      //   `__meta.healthCheck` 走 Node 内置快照，不经过 bridge.call，不受影响。
+      const capTimeoutMs = impl.timeoutMs;
+
       // D5：meta.health.check 由 Node 侧**内置**返回与 GET /health 同构的快照
       //     （原绑定 system.Get-SystemInfo 返回的是系统信息而非健康态，语义不符）。
       // 其余 __meta.* 仍走 ps-bridge（保持既有语义）。
       const raw =
         impl.module === '__meta' && impl.fn === 'healthCheck'
           ? await this.buildHealthSnapshot()
-          : await bridge.call(impl.module, impl.fn, req.params, req.timeoutMs || 30_000);
+          : await bridge.call(impl.module, impl.fn, req.params, capTimeoutMs ?? req.timeoutMs ?? 30_000);
 
       // D10：列表类能力强制保形为数组（空 → []，单元素 → [{...}]）。
       // 注意：bridge.call 的 lazy 自愈（D2）在此处生效 —— 进程死亡时会先自愈再执行。
@@ -603,15 +616,38 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     );
   }
 
-  /** 从注册表取实现绑定（模块 + 函数） */
-  private implementationOf(capabilityId: string): { module: string; fn: string } {
+  /**
+   * 从注册表取实现绑定（模块 + 函数），并**同源**带出能力级超时。
+   *
+   * T02b：`timeoutMs` 是注册表属性（`CapabilityDefinition.timeoutMs`，契约必填），
+   * 与实现绑定同源同址，故一并在此取出，供调用方以注册表为权威设定桥调用超时。
+   * 注册表缺项（自建兜底路径）时返回 `undefined`，由调用方回落到请求级超时。
+   */
+  private implementationOf(capabilityId: string): {
+    module: string;
+    fn: string;
+    timeoutMs?: number;
+  } {
     const def = (
       this.ctx as unknown as {
-        capabilityDefs?: Map<string, { implementation: { module: string; function: string } }>;
+        capabilityDefs?: Map<
+          string,
+          { implementation: { module: string; function: string }; timeoutMs?: number }
+        >;
       }
     )?.capabilityDefs?.get(capabilityId);
-    if (def) return { module: def.implementation.module, fn: def.implementation.function };
-    // 兜底：按 ID 前缀推断模块
+    if (def) {
+      // 仅接受正的有限数（0/负数/NaN 一律视为「注册表未给出」，交由调用方回落）
+      const t = def.timeoutMs;
+      const timeoutMs =
+        typeof t === 'number' && Number.isFinite(t) && t > 0 ? t : undefined;
+      return {
+        module: def.implementation.module,
+        fn: def.implementation.function,
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+      };
+    }
+    // 兜底：按 ID 前缀推断模块（此时无注册表定义可依据，超时回落 req 层）
     return { module: capabilityId.split('.')[0] ?? 'system', fn: 'Get-SystemInfo' };
   }
 
