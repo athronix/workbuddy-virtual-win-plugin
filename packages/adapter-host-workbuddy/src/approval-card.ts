@@ -437,7 +437,7 @@ export interface NormalizedApprovalCard {
  * **不出卡**的原因码。必须区分两类语义——把「本就不该有审批」误当成「降级到文本确认」
  * 会给宿主 agent 留下多余的确认口实（approval-card.md §7 是**直接执行**，不是**换一种确认方式**）。
  *
- *   - `NO_INPUT`            ：输入缺失或非对象；
+ *   - `NO_INPUT`            ：输入缺失、非对象或数组；
  *   - `L0_L1_NO_CARD`       ：§7 不弹卡清单——L0/L1 直接执行，**既不弹卡也不产生二次确认**；
  *   - `MISSING_APPROVAL_ID` ：§4 末行 + §7「缺少 approvalId：无从应答，**不得出卡片**」；
  *   - `MISSING_RISK`        ：§4「风险缺失 → 不出卡片，明确报错」（**绝不猜测**风险等级）；
@@ -460,6 +460,8 @@ export type ApprovalCardNormalizeResult =
 /** 出卡所需的全部硬前提检查；通过则返回 null（可出卡） */
 function skipReasonFor(input: ApprovalCardInput | ApprovalCardApprovalLike | null | undefined): ApprovalCardSkipReason | null {
   if (input === null || input === undefined || typeof input !== 'object') return 'NO_INPUT';
+  // 数组同为 typeof === 'object'，但不是合法审批载荷形态 → 归入 NO_INPUT（R18-F3）
+  if (Array.isArray(input)) return 'NO_INPUT';
   const raw = readRawFields(input);
   if (!raw.approvalId) return 'MISSING_APPROVAL_ID';
   // 「没下发」与「下发了但畸形」必须分别报错（§4：风险缺失 → 不出卡并明确报错）

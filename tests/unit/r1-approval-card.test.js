@@ -374,6 +374,15 @@ describe('R1-3 · 降级判定：任一硬前提缺失 → 不出卡（null / tr
     assert.equal(reasonOf(undefined), 'NO_INPUT');
   });
 
+  // R18-F3：数组同为 typeof === 'object'，但非法审批载荷形态 → 归 NO_INPUT（非 MISSING_APPROVAL_ID）
+  test('数组输入 → NO_INPUT（typeof object 闸不得放行非载荷形态，R18-F3）', () => {
+    for (const bad of [[], [1, 2, 3], [{ approvalId: 'a', risk: 'L2' }]]) {
+      assert.equal(reasonOf(bad), 'NO_INPUT', `数组输入必须归 NO_INPUT：${JSON.stringify(bad)}`);
+      assert.equal(fillApprovalCard(bad), null);
+      assert.equal(needsTextFallback(bad), true);
+    }
+  });
+
   test('needsTextFallback 与 tryNormalize().ok 严格互斥（两口径不得漂移）', () => {
     const cases = [
       fullApproval(),
