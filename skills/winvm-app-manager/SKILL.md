@@ -107,7 +107,7 @@ app.shortcut.manage { path: "C:\\Users\\<user>\\Desktop\\MyApp.lnk" }
 
 | 操作 | 风险 | 强制动作 |
 |---|---|---|
-| `app.winget.uninstall` | L2 | 展示应用名+版本+影响范围 → 审批 → 执行 → 验证 |
+| `app.winget.uninstall` | L2 | 展示应用名+版本+影响范围 → 审批 → 执行 → 验证；回执 `success=false` 时必须如实转呈 `residualEvidence` 与 `verified`，不得改写为成功（详见 `docs/02-design/CAPABILITY-MODEL.md` §3.2.1） |
 | 批量 `upgrade --all` | L1（影响面大） | 先列出可升级包清单，取得用户确认 |
 
 > 上表「应用名 + 版本 + 影响范围」即模板的 **操作**、**目标**、**影响清单** 槽位；卡片格式与填充规则以模板为准（引用见本节开头），本文件不复制正文。
