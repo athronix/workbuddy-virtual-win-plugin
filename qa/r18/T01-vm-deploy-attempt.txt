@@ -1,0 +1,14 @@
+读取配置：/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/.env
+
+══════════════════════════════════════════════════════════════
+ WinVM Bridge · VM 侧一键部署（于鸿蒙宿主端运行，SSH 推送至 VM）  [APPLY 真执行]
+ VM provider 选型：workbuddy
+══════════════════════════════════════════════════════════════
+ 将执行：BUILD → VM（scp→ssh install-vm.mjs）→ VM-START（重启服务）→ QA-PROBE（探针）→ 端口轮询验证
+
+[BUILD] 构建全部包...
+[BUILD] ✅ 完成
+[VM] 推送产物并安装到 VM...
+❌ VM 部署失败（输出尾部）：
+创建 VM 部署目录失败：ssh: connect to host 172.16.100.2 port 22: Host is unreachable
+

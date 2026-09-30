@@ -1,0 +1,15 @@
+=== WinVM Bridge · 虚拟机侧一键部署 ===
+仓库根目录 : /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin
+配置文件   : /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/delivery/vm-service.config.json
+端口       : 18443（仅 127.0.0.1）
+任务名     : WinVMBridge.Service
+模式       : 实际部署
+VM Agent   : agent.provider=workbuddy-deterministic
+
+[t+0.0s] 参数解析完成
+=== VM 环境依赖预检 ===
+[OK] VM 内 Node.js — 检测到 v24.13.0（要求 >= 18.0.0）
+[OK] VM 内 npm — npm 可用
+[警告] VM AI Agent CLI（codebuddy） — 未检测到 codebuddy（command 未找到或非 0 退出）
+       ↳ 处置：VM 侧 LLM provider 需要 codebuddy CLI；请安装 codebuddy（WorkBuddy CLI）并加入 PATH，或把 WINVM_VM_PROVIDER 改为 workbuddy-deterministic。
+结论：环境依赖满足，可以继续安装。

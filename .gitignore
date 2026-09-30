@@ -29,6 +29,8 @@ qa/archive/
 
 # Windows 变量展开失败产生的垃圾目录（字面量 %LOCALAPPDATA%）
 %LOCALAPPDATA%/
+# 同上同类缺陷：VM 侧安装器在鸿蒙宿主裸跑时盘符路径被按相对路径物化（R18-A §3，证据目录保留不删）
+C:/
 
 # 本地部署环境文件（VM 主机/用户等连接配置，禁止入库；模板见 delivery/env.example）
 .env.deploy*

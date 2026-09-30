@@ -1,0 +1,192 @@
+连接器注入只读诊断（本工具零写入 / 零 spawn / 零网络 / 零解密）
+宿主目录 : /storage/Users/currentUser
+
+[1] 全局 mcp.json  /storage/Users/currentUser/.workbuddy/mcp.json
+    文件     : 存在（935 B，2026-09-30T02:41:46.576Z）
+    winvm : ✓ streamableHttp http://127.0.0.1:18443/mcp
+    winvm-a2a : ✓ stdio cmd=/data/storage/el1/bundle/libs/arm64/node/bin/node args=5
+
+[2] 账户级 mcp.json  /storage/Users/currentUser/.workbuddy/connectors
+    8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8 : ✓ connector:winvm, connector:winvm-a2a
+    default : ✓ connector:winvm, connector:winvm-a2a
+    skills : ✓ connector:winvm, connector:winvm-a2a
+
+[3] connector-states.v3.json  /storage/Users/currentUser/.workbuddy/connector-states.v3.json
+    不存在 → state=missing
+
+[4] winvm-a2a stdio command 可执行性（只 stat，不拉起）
+    command  : /data/storage/el1/bundle/libs/arm64/node/bin/node
+    判定     : 文件存在 / mode=755 / 可执行 ✓
+    桥入口   : 存在 ✓ /storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/a2a-bridge/cli.js
+
+提示（WARN，不影响退出码；多为平台侧 trust/会话生命周期行为）：
+  ⚠ connector-states.v3.json 不存在——trust/enabled 由平台在连接器页首次操作时创建；若新会话工具缺失，请先去连接器页确认已「信任 + 启用」winvm / winvm-a2a
+
+结论：注册面就位（winvm + winvm-a2a）；新会话若仍未注入工具 → 走连接器页信任启用 → 重开新会话 → 见 docs/INSTALL-GUIDE.md troubleshooting
+
+--- JSON ---
+{
+  "ok": true,
+  "home": "/storage/Users/currentUser",
+  "generatedAt": "2026-09-30T07:25:23.275Z",
+  "global": {
+    "path": "/storage/Users/currentUser/.workbuddy/mcp.json",
+    "file": {
+      "exists": true,
+      "size": 935,
+      "mtime": "2026-09-30T02:41:46.576Z"
+    },
+    "exists": true,
+    "servers": {
+      "winvm": {
+        "present": true,
+        "transport": {
+          "type": "streamableHttp",
+          "url": "http://127.0.0.1:18443/mcp",
+          "command": null,
+          "argsCount": 0,
+          "disabled": false,
+          "timeout": 120000
+        }
+      },
+      "winvm-a2a": {
+        "present": true,
+        "transport": {
+          "type": "stdio",
+          "url": null,
+          "command": "/data/storage/el1/bundle/libs/arm64/node/bin/node",
+          "argsCount": 5,
+          "disabled": false,
+          "timeout": 600000
+        }
+      }
+    },
+    "failures": [],
+    "warnings": []
+  },
+  "accounts": {
+    "dir": "/storage/Users/currentUser/.workbuddy/connectors",
+    "accounts": [
+      {
+        "accountId": "8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8",
+        "path": "/storage/Users/currentUser/.workbuddy/connectors/8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8/mcp.json",
+        "exists": true,
+        "winvmKeys": [
+          "connector:winvm",
+          "connector:winvm-a2a"
+        ],
+        "transports": {
+          "connector:winvm": {
+            "type": "streamableHttp",
+            "url": "http://127.0.0.1:18443/mcp",
+            "command": null,
+            "argsCount": 0,
+            "disabled": false,
+            "timeout": 120000
+          },
+          "connector:winvm-a2a": {
+            "type": "stdio",
+            "url": null,
+            "command": "/data/storage/el1/bundle/libs/arm64/node/bin/node",
+            "argsCount": 5,
+            "disabled": false,
+            "timeout": 600000
+          }
+        }
+      },
+      {
+        "accountId": "default",
+        "path": "/storage/Users/currentUser/.workbuddy/connectors/default/mcp.json",
+        "exists": true,
+        "winvmKeys": [
+          "connector:winvm",
+          "connector:winvm-a2a"
+        ],
+        "transports": {
+          "connector:winvm": {
+            "type": "streamableHttp",
+            "url": "http://127.0.0.1:18443/mcp",
+            "command": null,
+            "argsCount": 0,
+            "disabled": false,
+            "timeout": 120000
+          },
+          "connector:winvm-a2a": {
+            "type": "stdio",
+            "url": null,
+            "command": "/data/storage/el1/bundle/libs/arm64/node/bin/node",
+            "argsCount": 5,
+            "disabled": false,
+            "timeout": 600000
+          }
+        }
+      },
+      {
+        "accountId": "skills",
+        "path": "/storage/Users/currentUser/.workbuddy/connectors/skills/mcp.json",
+        "exists": true,
+        "winvmKeys": [
+          "connector:winvm",
+          "connector:winvm-a2a"
+        ],
+        "transports": {
+          "connector:winvm": {
+            "type": "streamableHttp",
+            "url": "http://127.0.0.1:18443/mcp",
+            "command": null,
+            "argsCount": 0,
+            "disabled": false,
+            "timeout": 120000
+          },
+          "connector:winvm-a2a": {
+            "type": "stdio",
+            "url": null,
+            "command": "/data/storage/el1/bundle/libs/arm64/node/bin/node",
+            "argsCount": 5,
+            "disabled": false,
+            "timeout": 600000
+          }
+        }
+      }
+    ],
+    "failures": [],
+    "warnings": [],
+    "summary": {
+      "accounts": 3,
+      "withWinvm": [
+        "8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8",
+        "default",
+        "skills"
+      ]
+    }
+  },
+  "states": {
+    "path": "/storage/Users/currentUser/.workbuddy/connector-states.v3.json",
+    "file": {
+      "exists": false
+    },
+    "state": "missing",
+    "winvm": {},
+    "failures": [],
+    "warnings": [
+      "connector-states.v3.json 不存在——trust/enabled 由平台在连接器页首次操作时创建；若新会话工具缺失，请先去连接器页确认已「信任 + 启用」winvm / winvm-a2a"
+    ]
+  },
+  "stdio": {
+    "command": "/data/storage/el1/bundle/libs/arm64/node/bin/node",
+    "path": "/data/storage/el1/bundle/libs/arm64/node/bin/node",
+    "exists": true,
+    "executable": true,
+    "mode": "755",
+    "failures": [],
+    "script": {
+      "path": "/storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/a2a-bridge/cli.js",
+      "exists": true,
+      "size": 5481
+    }
+  },
+  "failures": [],
+  "warnings": [
+    "connector-states.v3.json 不存在——trust/enabled 由平台在连接器页首次操作时创建；若新会话工具缺失，请先去连接器页确认已「信任 + 启用」winvm / winvm-a2a"
+  ]
+}
