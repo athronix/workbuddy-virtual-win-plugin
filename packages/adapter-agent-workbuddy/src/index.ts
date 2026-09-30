@@ -306,8 +306,8 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       // T02b：能力级超时以**注册表为权威**，请求级仅作回落。
       //   决策理由：
       //   1) A2A 通道透传的 metadata 超时仅 300s；K6（app.uninstall）最坏路径
-      //      winget 300s + NSIS 静默回退 240s = 540s，若沿用 `req.timeoutMs || 30_000`
-      //      （req 未带或带 300s）必被 ps-bridge 的 PSBRIDGE_TIMEOUT 掐断，
+      //      winget 300s + NSIS 静默回退 240s = 540s，若只看请求级超时（未带或带 300s）
+      //      必被 ps-bridge 的 PSBRIDGE_TIMEOUT 掐断，
       //      把「已经成功的卸载」误报为超时失败。
       //   2) 超时属于能力自身属性（contracts `CapabilityDefinition.timeoutMs` 必填），
       //      不是调用方属性；MCP 路径 `vm-service/src/server.ts:524` 已如此

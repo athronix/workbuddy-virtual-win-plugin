@@ -1012,30 +1012,59 @@ describe('R17-T02 · app.ps1 K6 状态机（静态守卫）', () => {
 
 const ADAPTER_INDEX = read('packages', 'adapter-agent-workbuddy', 'src', 'index.ts');
 
+/**
+ * 逐行剥离 TS/JS **行注释**（引号/反引号内的 `//` 与 `://` 不误伤），
+ * 供「代码形态」断言使用——守卫判定只看真实代码，注释里提及旧写法不算回退。
+ */
+function stripTsLineComments(text) {
+  return text
+    .split('\n')
+    .map((line) => {
+      let inSQ = false;
+      let inDQ = false;
+      let inBT = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (inSQ) { if (c === "'") inSQ = false; continue; }
+        if (inDQ) { if (c === '"') inDQ = false; continue; }
+        if (inBT) { if (c === '`') inBT = false; continue; }
+        if (c === "'") { inSQ = true; continue; }
+        if (c === '"') { inDQ = true; continue; }
+        if (c === '`') { inBT = true; continue; }
+        if (c === '/' && line[i + 1] === '/') return line.slice(0, i);
+      }
+      return line;
+    })
+    .join('\n');
+}
+
+/** adapter index.ts 的纯代码（去行注释） */
+const ADAPTER_CODE = stripTsLineComments(ADAPTER_INDEX);
+
 describe('R17-T02b · A2A 路径超时以注册表为权威（静态守卫）', () => {
   test('bridge.call 超时须为「注册表优先 → req 回落 → 30s 兜底」，且不得残留裸 req.timeoutMs 写法', () => {
-    // ① 决策注释必须可追溯（标 T02b）
+    // ① 决策注释必须可追溯（标 T02b）——注释里提及旧写法是允许的，故这条读原文
     assert.ok(/T02b/.test(ADAPTER_INDEX), '改动处须标注 T02b 决策注释');
     // ② 超时实参形态：注册表值优先，?? 链回落
     assert.ok(
       /bridge\.call\(impl\.module,\s*impl\.fn,\s*req\.params,\s*capTimeoutMs \?\? req\.timeoutMs \?\? 30_000\)/.test(
-        ADAPTER_INDEX,
+        ADAPTER_CODE,
       ),
       'bridge.call 第 4 参须为 `capTimeoutMs ?? req.timeoutMs ?? 30_000`（注册表权威）',
     );
     assert.ok(
-      /const capTimeoutMs = impl\.timeoutMs;/.test(ADAPTER_INDEX),
+      /const capTimeoutMs = impl\.timeoutMs;/.test(ADAPTER_CODE),
       'capTimeoutMs 须取自 implementationOf 的同源返回值（注册表）',
     );
-    // ③ 回归锁：旧的「仅看 req」写法不得再出现（否则 540s 最坏路径必被 PSBRIDGE_TIMEOUT 杀）
+    // ③ 回归锁：旧的「仅看 req」写法在**代码**里不得再出现（否则 540s 最坏路径必被 PSBRIDGE_TIMEOUT 杀）
     assert.ok(
-      !ADAPTER_INDEX.includes('req.timeoutMs || 30_000'),
-      'T02b 不得回退：源码不应再出现裸 `req.timeoutMs || 30_000`',
+      !ADAPTER_CODE.includes('req.timeoutMs || 30_000'),
+      'T02b 不得回退：代码不应再出现裸 `req.timeoutMs || 30_000`',
     );
     // ④ 同源取值须做有效性过滤（正的有限数），且注册表缺项时回落（不硬编码 600s）
-    const implFn =
-      ADAPTER_INDEX.slice(ADAPTER_INDEX.indexOf('private implementationOf'));
-    const implBody = implFn.slice(0, implFn.indexOf('\n  /**', 10) > 0 ? implFn.indexOf('\n  /**', 10) : undefined);
+    const implFn = ADAPTER_CODE.slice(ADAPTER_CODE.indexOf('private implementationOf'));
+    const nextFnIdx = implFn.indexOf('\n  private ', 10);
+    const implBody = nextFnIdx > 0 ? implFn.slice(0, nextFnIdx) : implFn;
     assert.ok(/timeoutMs\?:\s*number/.test(implBody), 'implementationOf 返回类型须带可选 timeoutMs');
     assert.ok(/Number\.isFinite\(t\) && t > 0/.test(implBody), '注册表 timeoutMs 须过滤非正/非有限值');
     assert.ok(
