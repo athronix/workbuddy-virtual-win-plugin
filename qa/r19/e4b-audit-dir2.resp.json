@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 167447,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muqc9fqn_168\",\n  \"ok\": true,\n  \"risk\": \"L1\",\n  \"data\": {\n    \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\",\n    \"created\": false,\n    \"existed\": true\n  },\n  \"durationMs\": 420,\n  \"auditRef\": \"aud_785df35bcc1c4d95a38e\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muqc9fqn_168",
+        "ok": true,
+        "risk": "L1",
+        "data": {
+          "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit",
+          "created": false,
+          "existed": true
+        },
+        "durationMs": 420,
+        "auditRef": "aud_785df35bcc1c4d95a38e"
+      },
+      "isError": false
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 40557,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muqcgi80_175\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": {\n    \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\logs\\\\winvm-service-2026-10-02.log\",\n    \"encoding\": \"utf8\",\n    \"content\": \"{\\\"ts\\\":\\\"2026-10-01T22:34:31.311Z\\\",\\\"level\\\":\\\"info\\\",\\\"msg\\\":\\\"[llm-session] LLM 常驻会话重建\\\",\\\"service\\\":\\\"winvm\\\",\\\"attempt\\\":6}\\n{\\\"ts\\\":\\\"2026-10-01T22:34:31.314Z\\\",\\\"level\\\":\\\"info\\\",\\\"msg\\\":\\\"[llm-session] LLM 常驻会话已启动\\\",\\\"service\\\":\\\"winvm\\\",\\\"attempt\\\":6}\\n{\\\"ts\\\":\\\"2026-10-01T22:34:42.470Z\\\",\\\"level\\\":\\\"info\\\",\\\"msg\\\":\\\"[llm-session] LLM 常驻会话就绪\\\",\\\"service\\\":\\\"winvm\\\"}\\n{\\\"ts\\\":\\\"2026-10-01T22:34:43.976Z\\\",\\\"level\\\":\\\"info\\\",\\\"msg\\\":\\\"[llm-session] LLM 常驻会话就绪\\\",\\\"service\\\":\\\"winvm\\\"}\\n{\\\"ts\\\":\\\"2026-10-01T22:34:44.135Z\\\",\\\"level\\\":\\\"info\\\",\\\"msg\\\":\\\"[llm-session] LLM 常驻会话轮次完成\\\",\\\"service\\\":\\\"winvm\\\",\\\"durationMs\\\":12819,\\\"ok\\\":false}\\n{\\\"ts\\\":\\\"2026-10-01T22:39:40.690Z\\\",\\\"level\\\":\\\"info\\\",\\\"msg\\\":\\\"[llm-session] LLM 常驻会话空闲回收\\\",\\\"service\\\":\\\"winvm\\\",\\\"ttlMs\\\":300000}\\n{\\\"ts\\\":\\\"2026-10-01T22:40:04.718Z\\\",\\\"level\\\":\\\"info\\\",\\\"msg\\\":\\\"[llm-session] LLM 常驻会话已停用\\\",\\\"service\\\":\\\"winvm\\\",\\\"restarts\\\":5}\\n{\\\"ts\\\":\\\"2026-10-02T02:22:48.024Z\\\",\\\"level\\\":\\\"warn\\\",\\\"msg\\\":\\\"入参契约校验未通过，未发起桥调用\\\",\\\"service\\\":\\\"winvm\\\",\\\"capabilityId\\\":\\\"storage.dir.manage\\\",\\\"reason\\\":\\\"INVALID_ARGUMENT\\\"}\\n\",\n    \"bytes\": 1072\n  },\n  \"durationMs\": 20,\n  \"auditRef\": \"aud_e4c522d5c4374db5a6db\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muqcgi80_175",
+        "ok": true,
+        "risk": "L0",
+        "data": {
+          "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\logs\\winvm-service-2026-10-02.log",
+          "encoding": "utf8",
+          "content": "{\"ts\":\"2026-10-01T22:34:31.311Z\",\"level\":\"info\",\"msg\":\"[llm-session] LLM 常驻会话重建\",\"service\":\"winvm\",\"attempt\":6}\n{\"ts\":\"2026-10-01T22:34:31.314Z\",\"level\":\"info\",\"msg\":\"[llm-session] LLM 常驻会话已启动\",\"service\":\"winvm\",\"attempt\":6}\n{\"ts\":\"2026-10-01T22:34:42.470Z\",\"level\":\"info\",\"msg\":\"[llm-session] LLM 常驻会话就绪\",\"service\":\"winvm\"}\n{\"ts\":\"2026-10-01T22:34:43.976Z\",\"level\":\"info\",\"msg\":\"[llm-session] LLM 常驻会话就绪\",\"service\":\"winvm\"}\n{\"ts\":\"2026-10-01T22:34:44.135Z\",\"level\":\"info\",\"msg\":\"[llm-session] LLM 常驻会话轮次完成\",\"service\":\"winvm\",\"durationMs\":12819,\"ok\":false}\n{\"ts\":\"2026-10-01T22:39:40.690Z\",\"level\":\"info\",\"msg\":\"[llm-session] LLM 常驻会话空闲回收\",\"service\":\"winvm\",\"ttlMs\":300000}\n{\"ts\":\"2026-10-01T22:40:04.718Z\",\"level\":\"info\",\"msg\":\"[llm-session] LLM 常驻会话已停用\",\"service\":\"winvm\",\"restarts\":5}\n{\"ts\":\"2026-10-02T02:22:48.024Z\",\"level\":\"warn\",\"msg\":\"入参契约校验未通过，未发起桥调用\",\"service\":\"winvm\",\"capabilityId\":\"storage.dir.manage\",\"reason\":\"INVALID_ARGUMENT\"}\n",
+          "bytes": 1072
+        },
+        "durationMs": 20,
+        "auditRef": "aud_e4c522d5c4374db5a6db"
+      },
+      "isError": false
+    }
+  }
+}

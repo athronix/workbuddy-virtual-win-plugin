@@ -1,0 +1,1601 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 50582,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munx6vqg_9\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"processId\": 9796,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 766.8,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" --type=renderer --user-data-dir=\\\"C:\\\\Users\\\\User\\\\.workbuddy\\\\app\\\" --standard-schemes=wb-cover,local-file,vscode-file,wb-extension --secure-schemes=wb-cover,local-file,vscode-file,wb-extension --cors-schemes=vscode-file,wb-extension --fetch-schemes=wb-cover,local-file,vscode-file,wb-extension --streaming-schemes=local-file --app-user-model-id=WorkBuddy.WorkBuddy --app-path=\\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar\\\" --enable-sandbox --no-sandbox --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=4 --time-ticks-at-unix-epoch=-1790217052541814 --launch-time-ticks=359335371728 --field-trial-handle=2148,i,6940032148771681219,738012605039298609,262144 --enable-features=EnableTransparentHwndEnlargement,PdfUseShowSaveFilePicker --disable-features=ScreenAIOCREnabled,SpareRendererForSitePerProcess,WinDelaySpellcheckServiceInit --variations-seed-version --mojo-platform-channel-handle=3668 /prefetch:1\"\n    },\n    {\n      \"processId\": 2844,\n      \"name\": \"explorer.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 437.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\Explorer.EXE\"\n    },\n    {\n      \"processId\": 1256,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 356.9,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" \"\n    },\n    {\n      \"processId\": 12356,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 351.5,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" \\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar\\\\main\\\\daemon-app-server-entry.js\\\" --stdio\"\n    },\n    {\n      \"processId\": 3788,\n      \"name\": \"MsMpEng.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 317.3,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 10352,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 283.3,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" \\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar.unpacked\\\\cli\\\\bin\\\\codebuddy\\\" --prewarm --prewarm-id wb-pool-1790652138784-af72d8\"\n    },\n    {\n      \"processId\": 10096,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 233.2,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" \"\n    },\n    {\n      \"processId\": 14992,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 188,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=43 --launch-time-ticks=360587469516 --metrics-shmem-handle=10416,i,9891409041410702810,10830731624225777139,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709026604671001 --mojo-platform-channel-handle=10420 /prefetch:1\"\n    },\n    {\n      \"processId\": 636,\n      \"name\": \"Taskmgr.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 159.7,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\system32\\\\taskmgr.exe\\\" /7\"\n    },\n    {\n      \"processId\": 12548,\n      \"name\": \"powershell.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 154.7,\n      \"commandLine\": \"powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\\\\WinVMBridge\\\\packages\\\\vm-capabilities\\\\psmod\\\\ps-bridge.ps1\"\n    },\n    {\n      \"processId\": 4488,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 152.4,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" \\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar.unpacked\\\\resources\\\\extensions\\\\edge-sync\\\\server\\\\index.cjs\\\"\"\n    },\n    {\n      \"processId\": 8564,\n      \"name\": \"StartMenuExperienceHost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 151.8,\n      \"commandLine\": \"\\\"C:\\\\Windows\\\\SystemApps\\\\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\\\\StartMenuExperienceHost.exe\\\" -ServerName:FullTrustApp.AppXykjsye98af63ez2annt9djke8trg8stn.mca\"\n    },\n    {\n      \"processId\": 1200,\n      \"name\": \"dwm.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 146.7,\n      \"commandLine\": \"\\\"dwm.exe\\\"\"\n    },\n    {\n      \"processId\": 15112,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 142.4,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=32 --launch-time-ticks=360588658572 --metrics-shmem-handle=10820,i,3451495918642119052,11179418222256733777,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709016297210662 --mojo-platform-channel-handle=10084 /prefetch:1\"\n    },\n    {\n      \"processId\": 8576,\n      \"name\": \"SearchHost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 142.4,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\SystemApps\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\SearchHost.exe\\\" -ServerName:CortanaUI.AppXstmwaab17q5s3y22tp6apqz7a45vwv65.mca\"\n    },\n    {\n      \"processId\": 11984,\n      \"name\": \"msedge.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 141.9,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\\\" --no-startup-window /prefetch:5\"\n    },\n    {\n      \"processId\": 14096,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 139.1,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=26 --launch-time-ticks=360581147880 --metrics-shmem-handle=6604,i,16638522905101144469,11691017983818686658,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709010674959568 --mojo-platform-channel-handle=6488 /prefetch:1\"\n    },\n    {\n      \"processId\": 15232,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 135.6,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=30 --launch-time-ticks=360590239299 --metrics-shmem-handle=10984,i,16159983845725962556,10095676734921642879,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709014423126964 --mojo-platform-channel-handle=10980 /prefetch:1\"\n    },\n    {\n      \"processId\": 10060,\n      \"name\": \"msedgewebview2.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 126.4,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\\\\153.0.4234.48\\\\msedgewebview2.exe\\\" --type=renderer --noerrdialogs --user-agent=\\\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\\\" --user-data-dir=\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Packages\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\LocalState\\\\EBWebView\\\" --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --embedded-browser-webview=1 --video-capture-use-gpu-memory-buffer --lang=zh-CN --js-flags --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=5 --launch-time-ticks=50228922 --always-read-main-dll --metrics-shmem-handle=3864,i,2313175398959574218,11390029867076779975,1048576 --field-trial-handle=2000,i,4006701544644464230,8863301774286685587,262144 --enable-features=msEdgeFluentOverlayScrollbar --disable-features=msSmartScreenProtection --variations-seed-version --pseudonymization-salt-handle=2004,i,5109095284685560073,6964372885394267088,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3888 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7 /prefetch:1\"\n    },\n    {\n      \"processId\": 4716,\n      \"name\": \"msedgewebview2.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 118.3,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\\\\153.0.4234.48\\\\msedgewebview2.exe\\\" --embedded-browser-webview=1 --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --user-data-dir=\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Packages\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\LocalState\\\\EBWebView\\\" --noerrdialogs --disable-features=msSmartScreenProtection --edge-webview-enable-mojo-ipcz --enable-features=msEdgeFluentOverlayScrollbar --user-agent=\\\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\\\" --lang=zh-Hans-CN --mojo-named-platform-channel-pipe=8576.7836.5269987880054784039 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7\"\n    },\n    {\n      \"processId\": 14524,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 109.8,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=20 --launch-time-ticks=360586133665 --metrics-shmem-handle=8228,i,3690041415282679653,14156354848451877799,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709005052708474 --mojo-platform-channel-handle=1832 /prefetch:1\"\n    },\n    {\n      \"processId\": 2396,\n      \"name\": \"Memory Compression\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 101,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 8592,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 95.4,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" --type=gpu-process --no-sandbox --user-data-dir=\\\"C:\\\\Users\\\\User\\\\.workbuddy\\\\app\\\" --gpu-preferences=UAAAAAAAAADgAAAEAAAAAAAAAAAAAAAAAABgAAEAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAIAAAAAAAAAAgAAAAAAAAA --field-trial-handle=2148,i,6940032148771681219,738012605039298609,262144 --enable-features=EnableTransparentHwndEnlargement,PdfUseShowSaveFilePicker --disable-features=ScreenAIOCREnabled,SpareRendererForSitePerProcess,WinDelaySpellcheckServiceInit --variations-seed-version --mojo-platform-channel-handle=2144 /prefetch:2\"\n    },\n    {\n      \"processId\": 10656,\n      \"name\": \"TextInputHost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 90.4,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\SystemApps\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\TextInputHost.exe\\\" -ServerName:InputApp.AppXk0k6mrh4r2q0ct33a9wgbez0x7v9cz5y.mca\"\n    },\n    {\n      \"processId\": 8836,\n      \"name\": \"RuntimeBroker.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 90.2,\n      \"commandLine\": \"C:\\\\Windows\\\\System32\\\\RuntimeBroker.exe -Embedding\"\n    },\n    {\n      \"processId\": 8456,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 86.2,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --extension-process --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=10 --launch-time-ticks=360580888744 --metrics-shmem-handle=4344,i,6008102848496615742,6113240575955521181,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708995682289984 --mojo-platform-channel-handle=4552 /prefetch:9\"\n    },\n    {\n      \"processId\": 12832,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 84.6,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=76 --launch-time-ticks=361912363927 --metrics-shmem-handle=6852,i,1346145018636027310,9039328465600230198,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709057527052018 --mojo-platform-channel-handle=8008 /prefetch:1\"\n    },\n    {\n      \"processId\": 13244,\n      \"name\": \"backgroundTaskHost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 82.2,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\system32\\\\backgroundTaskHost.exe\\\" -ServerName:App.AppXe9cvj1thv1hmcw0cs98xm3r97tyzy2xs.mca\"\n    },\n    {\n      \"processId\": 5576,\n      \"name\": \"ShellExperienceHost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 82.2,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\SystemApps\\\\ShellExperienceHost_cw5n1h2txyewy\\\\ShellExperienceHost.exe\\\" -ServerName:App.AppXtk181tbxbce2qsex02s8tw7hfxa9xb3t.mca\"\n    },\n    {\n      \"processId\": 584,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 82.1,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 12736,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 80,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" \\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar\\\\main\\\\sidecar-entry.js\\\" --token 615fd198-0a42-485e-94ba-2f208fed35f5 --control-pipe-uuid c2608118\"\n    },\n    {\n      \"processId\": 3096,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 77.9,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s winmgmt\"\n    },\n    {\n      \"processId\": 4548,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 74.4,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k netsvcs -p\"\n    },\n    {\n      \"processId\": 8736,\n      \"name\": \"EcoengineNetHelper.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 72.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\ecoengine\\\\EcoengineNetHelper.exe\\\"\"\n    },\n    {\n      \"processId\": 11872,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 67,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=97 --launch-time-ticks=362546638646 --metrics-shmem-handle=4000,i,16298537463186074976,8756991030495187193,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709077204930847 --mojo-platform-channel-handle=11776 /prefetch:1\"\n    },\n    {\n      \"processId\": 5660,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 64.9,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --extension-process --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=6 --launch-time-ticks=360580857457 --metrics-shmem-handle=3492,i,6090066244495830764,9889810616063887887,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708991934122588 --mojo-platform-channel-handle=3516 /prefetch:9\"\n    },\n    {\n      \"processId\": 8496,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 64.4,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=gpu-process --disable-gpu-rasterization --disable-breakpad --no-pre-read-main-dll --gpu-preferences=WAAAAAAAAADgAAAMAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --metrics-shmem-handle=1840,i,295542201507866494,10081074628521984763,262144 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1932 /prefetch:2\"\n    },\n    {\n      \"processId\": 10564,\n      \"name\": \"TabTip.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 62.9,\n      \"commandLine\": \"/QuitInfo:000000000000035C;0000000000000378;  \"\n    },\n    {\n      \"processId\": 14192,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 62.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --no-sandbox --user-data-dir=\\\"C:\\\\Users\\\\User\\\\.workbuddy\\\\app\\\" --standard-schemes=wb-cover,local-file,vscode-file,wb-extension --secure-schemes=wb-cover,local-file,vscode-file,wb-extension --cors-schemes=vscode-file,wb-extension --fetch-schemes=wb-cover,local-file,vscode-file,wb-extension --streaming-schemes=local-file --field-trial-handle=2148,i,6940032148771681219,738012605039298609,262144 --enable-features=EnableTransparentHwndEnlargement,PdfUseShowSaveFilePicker --disable-features=ScreenAIOCREnabled,SpareRendererForSitePerProcess,WinDelaySpellcheckServiceInit --variations-seed-version --mojo-platform-channel-handle=2224 /prefetch:11\"\n    },\n    {\n      \"processId\": 7912,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 59.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --top-chrome-webui --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=17 --launch-time-ticks=360580965069 --metrics-shmem-handle=6184,i,8621028312817933281,17571036075743325011,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709002241582927 --mojo-platform-channel-handle=6228 /prefetch:1\"\n    },\n    {\n      \"processId\": 5480,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 58.9,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=27 --launch-time-ticks=360581145290 --metrics-shmem-handle=6568,i,11157129419727325844,8743413053763704392,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709011612001417 --mojo-platform-channel-handle=6548 /prefetch:1\"\n    },\n    {\n      \"processId\": 2936,\n      \"name\": \"editor_sdk.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 58.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar.unpacked\\\\node_modules\\\\@tencent\\\\tencent-docs-ai-engine\\\\bin\\\\win32-x64\\\\editor_sdk.exe\\\" --port 39099 --log_dir C:\\\\Users\\\\User\\\\.workbuddy\\\\logs\\\\editor_sdk --tmp_dir=C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\workbuddy-editor-sdk-sandbox\\\\tmp\"\n    },\n    {\n      \"processId\": 8776,\n      \"name\": \"ctfmon.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 58.4,\n      \"commandLine\": \"/QuitInfo:0000000000000318;0000000000000300; \"\n    },\n    {\n      \"processId\": 4872,\n      \"name\": \"tailscaled.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 57.2,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Tailscale\\\\tailscaled.exe\\\" /subproc 6bf2a2238cc050e25fad1204a0f99d79261403046e2487340bf04a06a4c4e4a9\"\n    },\n    {\n      \"processId\": 14604,\n      \"name\": \"node.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 56.1,\n      \"commandLine\": \"\\\"C:\\\\Users\\\\User\\\\.workbuddy\\\\binaries\\\\node\\\\versions\\\\22.22.2-3\\\\node.exe\\\"  \\\"C:\\\\Users\\\\User\\\\.workbuddy\\\\plugins\\\\cache\\\\workbuddy-builtin\\\\weixinpay\\\\1.6.110/dist/mcp-server.mjs\\\"\"\n    },\n    {\n      \"processId\": 2800,\n      \"name\": \"sihost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 55.4,\n      \"commandLine\": \"sihost.exe\"\n    },\n    {\n      \"processId\": 2352,\n      \"name\": \"tailscale-ipn.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 54.8,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Tailscale\\\\tailscale-ipn.exe\\\" \"\n    },\n    {\n      \"processId\": 4844,\n      \"name\": \"MicrosoftStartFeedProvider.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 53,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WindowsApps\\\\Microsoft.StartExperiencesApp_1.380.2.0_arm64__8wekyb3d8bbwe\\\\MicrosoftStartFeedProvider\\\\MicrosoftStartFeedProvider.exe\\\" -Embedding\"\n    },\n    {\n      \"processId\": 484,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 52.4,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k DcomLaunch -p\"\n    },\n    {\n      \"processId\": 10812,\n      \"name\": \"SystemSettings.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 52.2,\n      \"commandLine\": \"\\\"C:\\\\Windows\\\\ImmersiveControlPanel\\\\SystemSettings.exe\\\" -ServerName:microsoft.windows.immersivecontrolpanel\"\n    },\n    {\n      \"processId\": 11640,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 50.9,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --no-pre-read-main-dll --metrics-shmem-handle=2076,i,5142424712451740632,12012299023042460385,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2244 /prefetch:11\"\n    },\n    {\n      \"processId\": 5520,\n      \"name\": \"ApplicationFrameHost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 50.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\ApplicationFrameHost.exe -Embedding\"\n    },\n    {\n      \"processId\": 14564,\n      \"name\": \"node.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 49.7,\n      \"commandLine\": \"node C:\\\\Users\\\\User\\\\.workbuddy\\\\plugins\\\\cache\\\\workbuddy-builtin\\\\sheetagent\\\\5.6.2-wb.39298511.g37a65c0b.he233403f909a/mcp/start.mjs\"\n    },\n    {\n      \"processId\": 2104,\n      \"name\": \"AppActions.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 47.4,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\SystemApps\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\AppActions.exe\\\" -Embedding\"\n    },\n    {\n      \"processId\": 14908,\n      \"name\": \"winget.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 46.7,\n      \"commandLine\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsApps\\\\winget.exe\\\" install --exact --id Tencent.WeCom --accept-package-agreements --accept-source-agreements --disable-interactivity\"\n    },\n    {\n      \"processId\": 6676,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 45.8,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k UnistackSvcGroup -s WpnUserService\"\n    },\n    {\n      \"processId\": 7288,\n      \"name\": \"msedge.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 44.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\\\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --startup-read-main-dll --metrics-shmem-handle=2316,i,2950170676751313620,10206103772051978545,524288 --field-trial-handle=2064,i,17500701497335168289,12163297699990572454,262144 --enable-features=ParallelDownloading --variations-seed-version --pseudonymization-salt-handle=2208,i,12991639702949362336,710178013708230021,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2480 /prefetch:11\"\n    },\n    {\n      \"processId\": 13140,\n      \"name\": \"node.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 43.5,\n      \"commandLine\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Author Software\\\\nvm\\\\installs\\\\v24.21.0\\\\node.exe\\\" \\\"C:\\\\WinVMBridge\\\\packages\\\\vm-service\\\\dist\\\\cli.js\\\" --host 127.0.0.1 --port 18443 --config \\\"C:\\\\WinVMBridge\\\\delivery\\\\.generated\\\\vm-service.runtime.json\\\" \"\n    },\n    {\n      \"processId\": 3452,\n      \"name\": \"tailscaled.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 43.1,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Tailscale\\\\tailscaled.exe\\\"\"\n    },\n    {\n      \"processId\": 9800,\n      \"name\": \"msedgewebview2.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 42.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\\\\153.0.4234.48\\\\msedgewebview2.exe\\\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --noerrdialogs --user-agent=\\\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\\\" --user-data-dir=\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Packages\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\LocalState\\\\EBWebView\\\" --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --embedded-browser-webview=1 --always-read-main-dll --metrics-shmem-handle=1984,i,6431789612409878164,10626896915204925740,524288 --field-trial-handle=2000,i,4006701544644464230,8863301774286685587,262144 --enable-features=msEdgeFluentOverlayScrollbar --disable-features=msSmartScreenProtection --variations-seed-version --pseudonymization-salt-handle=2004,i,5109095284685560073,6964372885394267088,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2256 /prefetch:11 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7\"\n    },\n    {\n      \"processId\": 9768,\n      \"name\": \"msedgewebview2.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 42.1,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\\\\153.0.4234.48\\\\msedgewebview2.exe\\\" --type=gpu-process --noerrdialogs --user-agent=\\\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\\\" --user-data-dir=\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Packages\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\LocalState\\\\EBWebView\\\" --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --embedded-browser-webview=1 --gpu-preferences=WAAAAAAAAADgAAAEAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --always-read-main-dll --metrics-shmem-handle=1760,i,11023788224001468305,8127352467813091372,262144 --field-trial-handle=2000,i,4006701544644464230,8863301774286685587,262144 --enable-features=msEdgeFluentOverlayScrollbar --disable-features=msSmartScreenProtection --variations-seed-version --pseudonymization-salt-handle=2004,i,5109095284685560073,6964372885394267088,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1996 /prefetch:2 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7\"\n    },\n    {\n      \"processId\": 12172,\n      \"name\": \"WindowsPackageManagerServer.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 40.6,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WindowsApps\\\\Microsoft.DesktopAppInstaller_1.29.379.0_arm64__8wekyb3d8bbwe\\\\WindowsPackageManagerServer.exe\\\" -Embedding\"\n    },\n    {\n      \"processId\": 7128,\n      \"name\": \"ShellHost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 40.5,\n      \"commandLine\": \"\\\"C:\\\\Windows\\\\System32\\\\ShellHost.exe\\\"\"\n    },\n    {\n      \"processId\": 6040,\n      \"name\": \"WeCom_5.0.11.6018.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 39.7,\n      \"commandLine\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\WinGet\\\\Tencent.WeCom.5.0.11.6018\\\\WeCom_5.0.11.6018.exe\\\" /S\"\n    },\n    {\n      \"processId\": 3708,\n      \"name\": \"agent_service.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 38.8,\n      \"commandLine\": \"C:\\\\ProgramData\\\\VMAgent\\\\agent_service.exe\"\n    },\n    {\n      \"processId\": 12876,\n      \"name\": \"WorkBuddy.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 38.5,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\WorkBuddy.exe\\\" --type=crashpad-handler --user-data-dir=C:\\\\Users\\\\User\\\\.workbuddy\\\\app /prefetch:4 --no-rate-limit --no-upload-gzip --monitor-self-annotation=ptype=crashpad-handler --database=C:\\\\Users\\\\User\\\\.workbuddy\\\\app\\\\Crashpad \\\"--url=https://galileotelemetry.tencent.com/crashReport?aegis={\\\\\\\"topic\\\\\\\":\\\\\\\"SDK-768de26ec97715a3bbab\\\\\\\",\\\\\\\"bean\\\\\\\":{\\\\\\\"uid\\\\\\\":\\\\\\\"8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8\\\\\\\",\\\\\\\"version\\\\\\\":\\\\\\\"5.6.2\\\\\\\",\\\\\\\"aid\\\\\\\":\\\\\\\"21a30464-a89a-41c1-a89e-3a933f0c1f4d\\\\\\\",\\\\\\\"env\\\\\\\":\\\\\\\"production\\\\\\\",\\\\\\\"platform\\\\\\\":\\\\\\\"windows_x64\\\\\\\"},\\\\\\\"ext\\\\\\\":{\\\\\\\"node\\\\\\\":\\\\\\\"22.21.1\\\\\\\",\\\\\\\"electron\\\\\\\":\\\\\\\"37.10.3\\\\\\\",\\\\\\\"chrome\\\\\\\":\\\\\\\"138.0.7204.251\\\\\\\",\\\\\\\"browser\\\\\\\":\\\\\\\"Chrome\\\\\\\",\\\\\\\"process\\\\\\\":\\\\\\\"browser\\\\\\\",\\\\\\\"os\\\\\\\":\\\\\\\"windows 10.0.26200\\\\\\\",\\\\\\\"appName\\\\\\\":\\\\\\\"WorkBuddy\\\\\\\",\\\\\\\"appVersion\\\\\\\":\\\\\\\"5.6.2\\\\\\\",\\\\\\\"appStartAt\\\\\\\":1790576382223,\\\\\\\"device\\\\\\\":\\\\\\\"Desktop\\\\\\\",\\\\\\\"bootTime\\\\\\\":1790217052702,\\\\\\\"cpu\\\\\\\":\\\\\\\"StratoVirt\\\\\\\",\\\\\\\"arch\\\\\\\":\\\\\\\"x64\\\\\\\",\\\\\\\"cpuCore\\\\\\\":6,\\\\\\\"cpuFreq\\\\\\\":3000,\\\\\\\"memorySize\\\\\\\":\\\\\\\"8 GB\\\\\\\",\\\\\\\"online\\\\\\\":true,\\\\\\\"uuidDuration\\\\\\\":382,\\\\\\\"type\\\\\\\":\\\\\\\"crash\\\\\\\",\\\\\\\"level\\\\\\\":\\\\\\\"error\\\\\\\",\\\\\\\"plugin\\\\\\\":\\\\\\\"crash\\\\\\\",\\\\\\\"crashReporterStartAt\\\\\\\":1790576399671},\\\\\\\"scheme\\\\\\\":\\\\\\\"v2\\\\\\\",\\\\\\\"d2\\\\\\\":[],\\\\\\\"v\\\\\\\":\\\\\\\"2.6.13\\\\\\\"}&waitUploadFilesMap={}\\\" --annotation=_productName=WorkBuddy --annotation=_version=5.6.2 --annotation=plat=Win64 --annotation=prod=Electron --annotation=ver=37.10.3 --initial-client-data=0x164c,0x1668,0x1674,0x163c,0x1394,0x7ff72da360c4,0x7ff72da360d0,0x7ff72da360e0\"\n    },\n    {\n      \"processId\": 14860,\n      \"name\": \"hdc.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 38.2,\n      \"commandLine\": \"dummy -l 3 -s ::ffff:127.0.0.1:8710 -m\"\n    },\n    {\n      \"processId\": 1936,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 38.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s PcaSvc\"\n    },\n    {\n      \"processId\": 3596,\n      \"name\": \"RuntimeBroker.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 37.3,\n      \"commandLine\": \"C:\\\\Windows\\\\System32\\\\RuntimeBroker.exe -Embedding\"\n    },\n    {\n      \"processId\": 148,\n      \"name\": \"Registry\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 37,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 13880,\n      \"name\": \"RuntimeBroker.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 36.9,\n      \"commandLine\": \"C:\\\\Windows\\\\System32\\\\RuntimeBroker.exe -Embedding\"\n    },\n    {\n      \"processId\": 11976,\n      \"name\": \"SearchIndexer.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 36.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\SearchIndexer.exe /Embedding\"\n    },\n    {\n      \"processId\": 14704,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 36.1,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=utility --utility-sub-type=video_capture.mojom.VideoCaptureService --lang=zh-CN --service-sandbox-type=none --video-capture-use-gpu-memory-buffer --no-pre-read-main-dll --metrics-shmem-handle=9944,i,4543347491974291697,17145726886905320857,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709023793545454 --mojo-platform-channel-handle=9948 /prefetch:14\"\n    },\n    {\n      \"processId\": 8792,\n      \"name\": \"WidgetBoard.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 35.5,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WindowsApps\\\\MicrosoftWindows.Client.WebExperience_526.21100.40.0_arm64__cw5n1h2txyewy\\\\WidgetBoard.exe\\\" -RegisterProcessAsComServer -ServerName:Microsoft.Windows.WidgetBoardServer\"\n    },\n    {\n      \"processId\": 3080,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 34.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k appmodel -p -s StateRepository\"\n    },\n    {\n      \"processId\": 7448,\n      \"name\": \"CrossDeviceResume.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 34.6,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\SystemApps\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\CrossDeviceResume.exe\\\" /tileid MicrosoftWindows.Client.CBS_cw5n1h2txyewy!CrossDeviceResumeApp\"\n    },\n    {\n      \"processId\": 3752,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 34.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s WpnService\"\n    },\n    {\n      \"processId\": 7932,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 32.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k ClipboardSvcGroup -p -s cbdhsvc\"\n    },\n    {\n      \"processId\": 3548,\n      \"name\": \"EcoengineServer.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 32.4,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\ecoengine\\\\EcoengineServer.exe\\\"\"\n    },\n    {\n      \"processId\": 3556,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 31.9,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalServiceNoNetwork -p -s DPS\"\n    },\n    {\n      \"processId\": 8360,\n      \"name\": \"DataReporter.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 31.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\ecoengine\\\\DataReporter.exe\\\"\"\n    },\n    {\n      \"processId\": 7992,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 31,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=102 --launch-time-ticks=362609614838 --metrics-shmem-handle=3936,i,4887169540616796481,826868205017538392,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709081890140092 --mojo-platform-channel-handle=7340 /prefetch:1\"\n    },\n    {\n      \"processId\": 3652,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 30.9,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 4556,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 30.8,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p\"\n    },\n    {\n      \"processId\": 940,\n      \"name\": \"lsass.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 30.6,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 1272,\n      \"name\": \"msedge.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 30.4,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\\\" --type=gpu-process --gpu-recent-crash-count=0 --disable-gpu-rasterization --disable-breakpad --gpu-preferences=WAAAAAAAAADgAAAMAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --startup-read-main-dll --metrics-shmem-handle=2084,i,1145135684812118646,11932433497258035002,262144 --field-trial-handle=2064,i,17500701497335168289,12163297699990572454,262144 --enable-features=ParallelDownloading --variations-seed-version --pseudonymization-salt-handle=2208,i,12991639702949362336,710178013708230021,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=2216 /prefetch:2\"\n    },\n    {\n      \"processId\": 3644,\n      \"name\": \"MpDefenderCoreService.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 29.8,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 9272,\n      \"name\": \"NotifyHelper.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 29.2,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\ecoengine\\\\\\\\tray\\\\NotifyHelper.exe\\\"\"\n    },\n    {\n      \"processId\": 8856,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 27.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k UdkSvcGroup -s UdkUserSvc\"\n    },\n    {\n      \"processId\": 4608,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 27.3,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalService -p -s LicenseManager\"\n    },\n    {\n      \"processId\": 14964,\n      \"name\": \"Un.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 27.2,\n      \"commandLine\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\~nsu2.tmp\\\\Un.exe\\\"   _?=C:\\\\Program Files (x86)\\\\WXWork\\\\\"\n    },\n    {\n      \"processId\": 3240,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 26.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceNoNetworkFirewall -p\"\n    },\n    {\n      \"processId\": 8464,\n      \"name\": \"WidgetService.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 26.3,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WindowsApps\\\\Microsoft.WidgetsPlatformRuntime_1.6.19.0_arm64__8wekyb3d8bbwe\\\\WidgetService\\\\WidgetService.exe\\\" -RegisterProcessAsComServer -Embedding\"\n    },\n    {\n      \"processId\": 12460,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 26.2,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s wlidsvc\"\n    },\n    {\n      \"processId\": 6340,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 26,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k UnistackSvcGroup -s CDPUserSvc\"\n    },\n    {\n      \"processId\": 7412,\n      \"name\": \"SecurityHealthService.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 25.7,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 2380,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 25.4,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s UserManager\"\n    },\n    {\n      \"processId\": 1276,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 25.2,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k NetworkService -p\"\n    },\n    {\n      \"processId\": 3000,\n      \"name\": \"sandbox-center.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 24.9,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar.unpacked\\\\cli\\\\vendor\\\\sandbox\\\\5.6.10\\\\sandbox-center.exe\\\" --config \\\"{\\\\\\\"appHome\\\\\\\":\\\\\\\"C:\\\\\\\\Users\\\\\\\\User\\\\\\\\.workbuddy\\\\\\\",\\\\\\\"ipcAddress\\\\\\\":\\\\\\\"\\\\\\\\\\\\\\\\.\\\\\\\\pipe\\\\\\\\WorkBuddy_SandboxCenter_627878d416d97cec_1256\\\\\\\",\\\\\\\"cipher\\\\\\\":{\\\\\\\"detectionEnabled\\\\\\\":true,\\\\\\\"detectMaxFileSizeBytes\\\\\\\":1048576},\\\\\\\"approval\\\\\\\":{\\\\\\\"callbackAddress\\\\\\\":\\\\\\\"\\\\\\\\\\\\\\\\.\\\\\\\\pipe\\\\\\\\WorkBuddy_SensitiveApproval_45b545703f02eb8a\\\\\\\"}}\\\" --app_home C:\\\\Users\\\\User\\\\.workbuddy\"\n    },\n    {\n      \"processId\": 7968,\n      \"name\": \"spoolsv.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 23.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\spoolsv.exe\"\n    },\n    {\n      \"processId\": 13692,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 22.9,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k whesvc -p -s whesvc\"\n    },\n    {\n      \"processId\": 6828,\n      \"name\": \"taskhostw.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 22.3,\n      \"commandLine\": \"taskhostw.exe {222A245B-E637-4AE9-A93F-A59CA119A75E}\"\n    },\n    {\n      \"processId\": 1700,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 21.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k netprofm -p -s netprofm\"\n    },\n    {\n      \"processId\": 7228,\n      \"name\": \"msedge.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 21,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\\\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --startup-read-main-dll --metrics-shmem-handle=2784,i,4326937393650789795,8825612764324115924,524288 --field-trial-handle=2064,i,17500701497335168289,12163297699990572454,262144 --enable-features=ParallelDownloading --variations-seed-version --pseudonymization-salt-handle=2208,i,12991639702949362336,710178013708230021,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2804 /prefetch:13\"\n    },\n    {\n      \"processId\": 2108,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 20.8,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s SysMain\"\n    },\n    {\n      \"processId\": 5088,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 20.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k osprivacy -p -s camsvc\"\n    },\n    {\n      \"processId\": 1996,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 20.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalServiceNetworkRestricted -p -s EventLog\"\n    },\n    {\n      \"processId\": 12540,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 20.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=utility --utility-sub-type=on_device_model.mojom.OnDeviceModelService --lang=zh-CN --service-sandbox-type=on_device_model_execution --video-capture-use-gpu-memory-buffer --no-pre-read-main-dll --metrics-shmem-handle=6264,i,6061354849044312626,17584317099084628879,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709037849173189 --mojo-platform-channel-handle=7716 /prefetch:14\"\n    },\n    {\n      \"processId\": 6484,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 20.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalService -p -s CDPSvc\"\n    },\n    {\n      \"processId\": 14696,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 20.4,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=utility --utility-sub-type=audio.mojom.AudioService --lang=zh-CN --service-sandbox-type=audio --video-capture-use-gpu-memory-buffer --no-pre-read-main-dll --metrics-shmem-handle=9932,i,16024339561893585631,18399741319953425041,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709022856503605 --mojo-platform-channel-handle=8652 /prefetch:12\"\n    },\n    {\n      \"processId\": 2904,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 20.4,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalServiceNetworkRestricted -p\"\n    },\n    {\n      \"processId\": 11044,\n      \"name\": \"WmiPrvSE.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 20.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\wbem\\\\wmiprvse.exe\"\n    },\n    {\n      \"processId\": 11172,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 19.8,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalService -p -s NPSMSvc\"\n    },\n    {\n      \"processId\": 5484,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 19.7,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --no-pre-read-main-dll --metrics-shmem-handle=2732,i,3318217815805605608,15502262282100383697,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2752 /prefetch:13\"\n    },\n    {\n      \"processId\": 14128,\n      \"name\": \"powershell.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 19.7,\n      \"commandLine\": \"\\\"powershell.exe\\\" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \\\"C:\\\\WinVMBridge\\\\delivery\\\\.generated\\\\start-hidden.ps1\\\"\"\n    },\n    {\n      \"processId\": 10284,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 19.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalSystemNetworkRestricted -p\"\n    },\n    {\n      \"processId\": 4040,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 19.3,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 5540,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 18.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s Appinfo\"\n    },\n    {\n      \"processId\": 1056,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 18.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k RPCSS -p\"\n    },\n    {\n      \"processId\": 9936,\n      \"name\": \"msedgewebview2.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 18.5,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\\\\153.0.4234.48\\\\msedgewebview2.exe\\\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --noerrdialogs --user-agent=\\\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\\\" --user-data-dir=\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Packages\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\LocalState\\\\EBWebView\\\" --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --embedded-browser-webview=1 --always-read-main-dll --metrics-shmem-handle=2496,i,14218774864097602041,17048062347013554187,524288 --field-trial-handle=2000,i,4006701544644464230,8863301774286685587,262144 --enable-features=msEdgeFluentOverlayScrollbar --disable-features=msSmartScreenProtection --variations-seed-version --pseudonymization-salt-handle=2004,i,5109095284685560073,6964372885394267088,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2508 /prefetch:13 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7\"\n    },\n    {\n      \"processId\": 844,\n      \"name\": \"winlogon.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 18.3,\n      \"commandLine\": \"winlogon.exe\"\n    },\n    {\n      \"processId\": 1140,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 17.9,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k netsvcs\"\n    },\n    {\n      \"processId\": 3156,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 17.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k netsvcs -p -s ShellHWDetection\"\n    },\n    {\n      \"processId\": 13476,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 17.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s UsoSvc\"\n    },\n    {\n      \"processId\": 10780,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 17.4,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcsRedirectionGuard -p -s lfsvc\"\n    },\n    {\n      \"processId\": 1460,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 17,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceNetworkRestricted -p -s TimeBrokerSvc\"\n    },\n    {\n      \"processId\": 2532,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 16.9,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s Schedule\"\n    },\n    {\n      \"processId\": 13788,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 15.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k NetworkService -p -s WinRM\"\n    },\n    {\n      \"processId\": 3612,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 15.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k NetSvcs -p -s iphlpsvc\"\n    },\n    {\n      \"processId\": 7560,\n      \"name\": \"smartscreen.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 15.4,\n      \"commandLine\": \"C:\\\\Windows\\\\System32\\\\smartscreen.exe -Embedding\"\n    },\n    {\n      \"processId\": 5420,\n      \"name\": \"NisSrv.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 15,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 6848,\n      \"name\": \"msedge.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 14.9,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\\\" --type=crashpad-handler \\\"--user-data-dir=C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Microsoft\\\\Edge\\\\User Data\\\" /prefetch:4 --monitor-self-annotation=ptype=crashpad-handler \\\"--database=C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Microsoft\\\\Edge\\\\User Data\\\\Crashpad\\\" --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=154.0.8037.58 \\\"--annotation=exe=C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\\\" --annotation=prod=Edge --annotation=ver=154.0.4258.37 --initial-client-data=0x274,0x278,0x27c,0x270,0x284,0x7ff833b295e0,0x7ff833b295f0,0x7ff833b29600\"\n    },\n    {\n      \"processId\": 13872,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 14.7,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 8964,\n      \"name\": \"SecurityHealthSystray.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 13.9,\n      \"commandLine\": \"\\\"C:\\\\Windows\\\\System32\\\\SecurityHealthSystray.exe\\\" \"\n    },\n    {\n      \"processId\": 6620,\n      \"name\": \"sandbox-cli-gc.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 13.8,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar.unpacked\\\\cli\\\\vendor\\\\sandbox\\\\5.6.10\\\\sandbox-cli-gc.exe\\\" --workspace C:\\\\Users\\\\User\\\\.workbuddy\\\\workspace --parent-pid 3000\"\n    },\n    {\n      \"processId\": 2412,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 13.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s DsSvc\"\n    },\n    {\n      \"processId\": 2076,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 13.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k UserProfileService -p -s ProfSvc\"\n    },\n    {\n      \"processId\": 1452,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 13.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s NcbService\"\n    },\n    {\n      \"processId\": 14916,\n      \"name\": \"sandbox-cli.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 13.5,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar.unpacked\\\\cli\\\\vendor\\\\sandbox\\\\5.6.10\\\\sandbox-cli.exe\\\" --config \\\"{\\\\\\\"ipcAddress\\\\\\\":\\\\\\\"EditorSdk_eb99aba76e19\\\\\\\",\\\\\\\"extraPath\\\\\\\":[],\\\\\\\"enableGlobalProjection\\\\\\\":false}\\\" --rule_decision center --uid 8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8 --app_home C:\\\\Users\\\\User\\\\.workbuddy\"\n    },\n    {\n      \"processId\": 252,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 13.2,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k InvSvcGroup -p -s InventorySvc\"\n    },\n    {\n      \"processId\": 5552,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 13.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k IsolationSession -p\"\n    },\n    {\n      \"processId\": 13628,\n      \"name\": \"sshd.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 13,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\System32\\\\OpenSSH\\\\sshd.exe\\\" -R\"\n    },\n    {\n      \"processId\": 2652,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 13,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalService -p -s FontCache\"\n    },\n    {\n      \"processId\": 12596,\n      \"name\": \"sshd.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.8,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\System32\\\\OpenSSH\\\\sshd.exe\\\" -z\"\n    },\n    {\n      \"processId\": 2364,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.8,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalServiceNetworkRestricted -p -s DusmSvc\"\n    },\n    {\n      \"processId\": 1384,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceNetworkRestricted -p -s Wcmsvc\"\n    },\n    {\n      \"processId\": 1468,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k NetworkService -p\"\n    },\n    {\n      \"processId\": 7648,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.7,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 4612,\n      \"name\": \"unsecapp.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 12.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\wbem\\\\unsecapp.exe -Embedding\"\n    },\n    {\n      \"processId\": 2688,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalServiceNoNetwork -p -s NcdAutoSetup\"\n    },\n    {\n      \"processId\": 5960,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s DisplayEnhancementService\"\n    },\n    {\n      \"processId\": 6388,\n      \"name\": \"sshd.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.2,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\System32\\\\OpenSSH\\\\sshd.exe\\\" -R\"\n    },\n    {\n      \"processId\": 1128,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k GPSvcGroup\"\n    },\n    {\n      \"processId\": 3628,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s LanmanServer\"\n    },\n    {\n      \"processId\": 916,\n      \"name\": \"services.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 12,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 5264,\n      \"name\": \"sshd.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 11.8,\n      \"commandLine\": \"\\\"C:\\\\WINDOWS\\\\System32\\\\OpenSSH\\\\sshd.exe\\\" -z\"\n    },\n    {\n      \"processId\": 9420,\n      \"name\": \"msedgewebview2.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 11.8,\n      \"commandLine\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\\\\153.0.4234.48\\\\msedgewebview2.exe\\\" --type=crashpad-handler --user-data-dir=C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Packages\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\LocalState\\\\EBWebView /prefetch:4 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7 --monitor-self-annotation=ptype=crashpad-handler --database=C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Packages\\\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\\\LocalState\\\\EBWebView\\\\Crashpad --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=153.0.8010.53 \\\"--annotation=exe=C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\\\\153.0.4234.48\\\\msedgewebview2.exe\\\" \\\"--annotation=prod=Edge WebView2\\\" --annotation=ver=153.0.4234.48 --initial-client-data=0x16c,0x170,0x174,0x148,0x17c,0x7ff83efe5550,0x7ff83efe5560,0x7ff83efe5570\"\n    },\n    {\n      \"processId\": 2948,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 11.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceAndNoImpersonation -p -s FDResPub\"\n    },\n    {\n      \"processId\": 3232,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 11.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s SensorService\"\n    },\n    {\n      \"processId\": 1784,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 11.4,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceHttp -p\"\n    },\n    {\n      \"processId\": 13204,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 11.3,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s WdiSystemHost\"\n    },\n    {\n      \"processId\": 13384,\n      \"name\": \"sandbox-cli.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 11.3,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar.unpacked\\\\cli\\\\vendor\\\\sandbox\\\\5.6.10\\\\sandbox-cli.exe\\\" --config \\\"{\\\\\\\"extraPath\\\\\\\":[\\\\\\\"C:\\\\\\\\Program Files\\\\\\\\WorkBuddy\\\\\\\\resources\\\\\\\\app.asar.unpacked\\\\\\\\cli\\\\\\\\bin\\\\\\\\runtime\\\\\\\\git\\\\\\\\bin\\\\\\\",\\\\\\\"C:\\\\\\\\Users\\\\\\\\User\\\\\\\\.workbuddy\\\\\\\\binaries\\\\\\\\PortableGit\\\\\\\\versions\\\\\\\\1.2.0\\\\\\\\bin\\\\\\\"],\\\\\\\"enableGlobalProjection\\\\\\\":false,\\\\\\\"ipcAddress\\\\\\\":\\\\\\\"WorkBuddy_86790cd1e690f0b4\\\\\\\"}\\\" --rule_decision center --uid 8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8 --app_home C:\\\\Users\\\\User\\\\.workbuddy\"\n    },\n    {\n      \"processId\": 6224,\n      \"name\": \"audio_session.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 11.2,\n      \"commandLine\": \"C:\\\\ProgramData\\\\VMAgent\\\\AudioSession\\\\audio_session.exe\"\n    },\n    {\n      \"processId\": 2468,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 11,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcsRedirectionGuard -p -s SENS\"\n    },\n    {\n      \"processId\": 11120,\n      \"name\": \"ChsIME.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 10.9,\n      \"commandLine\": \"C:\\\\Windows\\\\System32\\\\InputMethod\\\\CHS\\\\ChsIME.exe -Embedding\"\n    },\n    {\n      \"processId\": 1108,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 10.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k DcomLaunch -p -s LSM\"\n    },\n    {\n      \"processId\": 3344,\n      \"name\": \"chrome.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 10.5,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\\\" --type=crashpad-handler \\\"--user-data-dir=C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\" /prefetch:4 --monitor-self-annotation=ptype=crashpad-handler \\\"--database=C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Crashpad\\\" \\\"--metrics-dir=C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\" --url=https://clients2.google.com/cr/report --annotation=channel= --annotation=prod=Chrome --annotation=ver=153.0.8010.54 --initial-client-data=0x11c,0x120,0x124,0xf8,0x128,0x7fffdc8109f0,0x7fffdc810a00,0x7fffdc810a10\"\n    },\n    {\n      \"processId\": 2624,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 10.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s AudioEndpointBuilder\"\n    },\n    {\n      \"processId\": 1808,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 10.3,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s TextInputManagementService\"\n    },\n    {\n      \"processId\": 1556,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 10.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceNetworkRestricted -p -s Dhcp\"\n    },\n    {\n      \"processId\": 2088,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 10.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceRedirectionGuard -p -s EventSystem\"\n    },\n    {\n      \"processId\": 12808,\n      \"name\": \"FilterAgent.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 10.1,\n      \"commandLine\": \"\\\"C:\\\\ProgramData\\\\AppFilter\\\\FilterAgent.exe\\\"\"\n    },\n    {\n      \"processId\": 4468,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 10.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalServiceNetworkRestricted -s RmSvc\"\n    },\n    {\n      \"processId\": 6156,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 10.1,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 13584,\n      \"name\": \"cmd.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 10,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\cmd.exe /d /s /c \\\"C:\\\\Users\\\\User\\\\.workbuddy\\\\plugins\\\\cache\\\\workbuddy-builtin\\\\weixinpay\\\\1.6.110\\\\bin\\\\run-node ^\\\"C:\\\\Users\\\\User\\\\.workbuddy\\\\plugins\\\\cache\\\\workbuddy-builtin\\\\weixinpay\\\\1.6.110/dist/mcp-server.mjs^\\\"\\\"\"\n    },\n    {\n      \"processId\": 764,\n      \"name\": \"fontdrvhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 10,\n      \"commandLine\": \"\\\"fontdrvhost.exe\\\"\"\n    },\n    {\n      \"processId\": 2828,\n      \"name\": \"vmgtsharemgr.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 10,\n      \"commandLine\": \"vmgtsharemgr.exe 1\"\n    },\n    {\n      \"processId\": 3540,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 9.8,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s IKEEXT\"\n    },\n    {\n      \"processId\": 3636,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 9.8,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k NetworkServiceNetworkRestricted -p -s PolicyAgent\"\n    },\n    {\n      \"processId\": 4768,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 9.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceAndNoImpersonationRedirectionGuard -p -s SSDPSRV\"\n    },\n    {\n      \"processId\": 13616,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 9.6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalService -p -s SstpSvc\"\n    },\n    {\n      \"processId\": 768,\n      \"name\": \"wininit.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 9.6,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 9100,\n      \"name\": \"AutoRunningTask.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 9.5,\n      \"commandLine\": \"\\\"C:\\\\Program Files\\\\ecoengine\\\\AutoRunningTask.exe\\\" -bootend\"\n    },\n    {\n      \"processId\": 7060,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 9.3,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 3308,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 9.3,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k NetworkService -p -s LanmanWorkstation\"\n    },\n    {\n      \"processId\": 1564,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 9.1,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 5208,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 9,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k WSAIFabricSvcGroup -p -s WSAIFabricSvc\"\n    },\n    {\n      \"processId\": 7664,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 9,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 6408,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 8.9,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 1312,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 8.9,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalService -p -s nsi\"\n    },\n    {\n      \"processId\": 6028,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 8.8,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 13456,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 8.8,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 7632,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 8.8,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 6268,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 8.7,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 3700,\n      \"name\": \"sshd.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 8.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\OpenSSH\\\\sshd.exe\"\n    },\n    {\n      \"processId\": 12564,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 8.6,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 12160,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 8.5,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 2244,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 8.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalService -p -s DispBrokerDesktopSvc\"\n    },\n    {\n      \"processId\": 2740,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 8.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalService -p -s fdPHost\"\n    },\n    {\n      \"processId\": 3860,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 8.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s DeviceAssociationService\"\n    },\n    {\n      \"processId\": 2024,\n      \"name\": \"XtaCache.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 8.4,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 6984,\n      \"name\": \"display.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 7.8,\n      \"commandLine\": \"C:\\\\ProgramData\\\\display\\\\display.exe startUp\"\n    },\n    {\n      \"processId\": 5048,\n      \"name\": \"win_evt_monitor.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 7.5,\n      \"commandLine\": \"C:\\\\ProgramData\\\\WinEvtMonitor\\\\win_evt_monitor.exe\"\n    },\n    {\n      \"processId\": 776,\n      \"name\": \"csrss.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 7.2,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 4328,\n      \"name\": \"dasHost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 7.2,\n      \"commandLine\": \"dashost.exe {2e2f3c18-1d97-423d-b74e18314287dce1}\"\n    },\n    {\n      \"processId\": 1684,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 7.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalServiceNoNetwork -p\"\n    },\n    {\n      \"processId\": 1732,\n      \"name\": \"DefenderAiPlatformHost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 6.9,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 2148,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 6.7,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k netsvcs -p -s Themes\"\n    },\n    {\n      \"processId\": 696,\n      \"name\": \"csrss.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 6.7,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 3716,\n      \"name\": \"vmgtsrv.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 6.5,\n      \"commandLine\": \"\\\"C:\\\\ProgramData\\\\VMAgent\\\\driver1\\\\viogpu\\\\vmgtsrv.exe\\\"\"\n    },\n    {\n      \"processId\": 6412,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 6.5,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k LocalSystemNetworkRestricted -p -s webthreatdefusersvc\"\n    },\n    {\n      \"processId\": 6444,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 6.3,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\system32\\\\svchost.exe -k netsvcs -p -s seclogon\"\n    },\n    {\n      \"processId\": 3668,\n      \"name\": \"ssh-agent.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 6.1,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\OpenSSH\\\\ssh-agent.exe\"\n    },\n    {\n      \"processId\": 2696,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 6,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 1320,\n      \"name\": \"svchost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 6,\n      \"commandLine\": \"C:\\\\WINDOWS\\\\System32\\\\svchost.exe -k LocalServiceNetworkRestricted -p -s lmhosts\"\n    },\n    {\n      \"processId\": 13844,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 5.9,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 5804,\n      \"name\": \"DefenderSessionHelper.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 5.8,\n      \"commandLine\": \"\\\"C:\\\\ProgramData\\\\Microsoft\\\\Windows Defender\\\\Platform\\\\4.18.26080.4-0\\\\DefenderSessionHelper.exe\\\"\"\n    },\n    {\n      \"processId\": 15628,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 5.2,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 692,\n      \"name\": \"fontdrvhost.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 4.7,\n      \"commandLine\": \"\\\"fontdrvhost.exe\\\"\"\n    },\n    {\n      \"processId\": 15320,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 2.6,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 11932,\n      \"name\": \"cua-driver.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 1.8,\n      \"commandLine\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Programs\\\\Cua\\\\cua-driver\\\\bin\\\\cua-driver.exe\\\" serve \"\n    },\n    {\n      \"processId\": 508,\n      \"name\": \"smss.exe\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 1.4,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 704,\n      \"name\": \"conhost.exe\",\n      \"sessionId\": 1,\n      \"workingSetMB\": 1.1,\n      \"commandLine\": \"\\\\??\\\\C:\\\\WINDOWS\\\\system32\\\\conhost.exe 0x4\"\n    },\n    {\n      \"processId\": 4,\n      \"name\": \"System\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 0.2,\n      \"commandLine\": null\n    },\n    {\n      \"processId\": 0,\n      \"name\": \"System Idle Process\",\n      \"sessionId\": 0,\n      \"workingSetMB\": 0,\n      \"commandLine\": null\n    }\n  ],\n  \"durationMs\": 994,\n  \"auditRef\": \"aud_20ddee823a7b464db625\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munx6vqg_9",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "processId": 9796,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 766.8,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" --type=renderer --user-data-dir=\"C:\\Users\\User\\.workbuddy\\app\" --standard-schemes=wb-cover,local-file,vscode-file,wb-extension --secure-schemes=wb-cover,local-file,vscode-file,wb-extension --cors-schemes=vscode-file,wb-extension --fetch-schemes=wb-cover,local-file,vscode-file,wb-extension --streaming-schemes=local-file --app-user-model-id=WorkBuddy.WorkBuddy --app-path=\"C:\\Program Files\\WorkBuddy\\resources\\app.asar\" --enable-sandbox --no-sandbox --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=4 --time-ticks-at-unix-epoch=-1790217052541814 --launch-time-ticks=359335371728 --field-trial-handle=2148,i,6940032148771681219,738012605039298609,262144 --enable-features=EnableTransparentHwndEnlargement,PdfUseShowSaveFilePicker --disable-features=ScreenAIOCREnabled,SpareRendererForSitePerProcess,WinDelaySpellcheckServiceInit --variations-seed-version --mojo-platform-channel-handle=3668 /prefetch:1"
+          },
+          {
+            "processId": 2844,
+            "name": "explorer.exe",
+            "sessionId": 1,
+            "workingSetMB": 437.6,
+            "commandLine": "C:\\WINDOWS\\Explorer.EXE"
+          },
+          {
+            "processId": 1256,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 356.9,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" "
+          },
+          {
+            "processId": 12356,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 351.5,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" \"C:\\Program Files\\WorkBuddy\\resources\\app.asar\\main\\daemon-app-server-entry.js\" --stdio"
+          },
+          {
+            "processId": 3788,
+            "name": "MsMpEng.exe",
+            "sessionId": 0,
+            "workingSetMB": 317.3,
+            "commandLine": null
+          },
+          {
+            "processId": 10352,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 283.3,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" \"C:\\Program Files\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\bin\\codebuddy\" --prewarm --prewarm-id wb-pool-1790652138784-af72d8"
+          },
+          {
+            "processId": 10096,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 233.2,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" "
+          },
+          {
+            "processId": 14992,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 188,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=43 --launch-time-ticks=360587469516 --metrics-shmem-handle=10416,i,9891409041410702810,10830731624225777139,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709026604671001 --mojo-platform-channel-handle=10420 /prefetch:1"
+          },
+          {
+            "processId": 636,
+            "name": "Taskmgr.exe",
+            "sessionId": 1,
+            "workingSetMB": 159.7,
+            "commandLine": "\"C:\\WINDOWS\\system32\\taskmgr.exe\" /7"
+          },
+          {
+            "processId": 12548,
+            "name": "powershell.exe",
+            "sessionId": 1,
+            "workingSetMB": 154.7,
+            "commandLine": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File C:\\WinVMBridge\\packages\\vm-capabilities\\psmod\\ps-bridge.ps1"
+          },
+          {
+            "processId": 4488,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 152.4,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" \"C:\\Program Files\\WorkBuddy\\resources\\app.asar.unpacked\\resources\\extensions\\edge-sync\\server\\index.cjs\""
+          },
+          {
+            "processId": 8564,
+            "name": "StartMenuExperienceHost.exe",
+            "sessionId": 1,
+            "workingSetMB": 151.8,
+            "commandLine": "\"C:\\Windows\\SystemApps\\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\\StartMenuExperienceHost.exe\" -ServerName:FullTrustApp.AppXykjsye98af63ez2annt9djke8trg8stn.mca"
+          },
+          {
+            "processId": 1200,
+            "name": "dwm.exe",
+            "sessionId": 1,
+            "workingSetMB": 146.7,
+            "commandLine": "\"dwm.exe\""
+          },
+          {
+            "processId": 15112,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 142.4,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=32 --launch-time-ticks=360588658572 --metrics-shmem-handle=10820,i,3451495918642119052,11179418222256733777,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709016297210662 --mojo-platform-channel-handle=10084 /prefetch:1"
+          },
+          {
+            "processId": 8576,
+            "name": "SearchHost.exe",
+            "sessionId": 1,
+            "workingSetMB": 142.4,
+            "commandLine": "\"C:\\WINDOWS\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\SearchHost.exe\" -ServerName:CortanaUI.AppXstmwaab17q5s3y22tp6apqz7a45vwv65.mca"
+          },
+          {
+            "processId": 11984,
+            "name": "msedge.exe",
+            "sessionId": 1,
+            "workingSetMB": 141.9,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --no-startup-window /prefetch:5"
+          },
+          {
+            "processId": 14096,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 139.1,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=26 --launch-time-ticks=360581147880 --metrics-shmem-handle=6604,i,16638522905101144469,11691017983818686658,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709010674959568 --mojo-platform-channel-handle=6488 /prefetch:1"
+          },
+          {
+            "processId": 15232,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 135.6,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=30 --launch-time-ticks=360590239299 --metrics-shmem-handle=10984,i,16159983845725962556,10095676734921642879,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709014423126964 --mojo-platform-channel-handle=10980 /prefetch:1"
+          },
+          {
+            "processId": 10060,
+            "name": "msedgewebview2.exe",
+            "sessionId": 1,
+            "workingSetMB": 126.4,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe\" --type=renderer --noerrdialogs --user-agent=\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\" --user-data-dir=\"C:\\Users\\User\\AppData\\Local\\Packages\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\LocalState\\EBWebView\" --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --embedded-browser-webview=1 --video-capture-use-gpu-memory-buffer --lang=zh-CN --js-flags --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=5 --launch-time-ticks=50228922 --always-read-main-dll --metrics-shmem-handle=3864,i,2313175398959574218,11390029867076779975,1048576 --field-trial-handle=2000,i,4006701544644464230,8863301774286685587,262144 --enable-features=msEdgeFluentOverlayScrollbar --disable-features=msSmartScreenProtection --variations-seed-version --pseudonymization-salt-handle=2004,i,5109095284685560073,6964372885394267088,4 --trace-process-track-uuid=3190708990997080739 --mojo-platform-channel-handle=3888 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7 /prefetch:1"
+          },
+          {
+            "processId": 4716,
+            "name": "msedgewebview2.exe",
+            "sessionId": 1,
+            "workingSetMB": 118.3,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe\" --embedded-browser-webview=1 --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --user-data-dir=\"C:\\Users\\User\\AppData\\Local\\Packages\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\LocalState\\EBWebView\" --noerrdialogs --disable-features=msSmartScreenProtection --edge-webview-enable-mojo-ipcz --enable-features=msEdgeFluentOverlayScrollbar --user-agent=\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\" --lang=zh-Hans-CN --mojo-named-platform-channel-pipe=8576.7836.5269987880054784039 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7"
+          },
+          {
+            "processId": 14524,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 109.8,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=20 --launch-time-ticks=360586133665 --metrics-shmem-handle=8228,i,3690041415282679653,14156354848451877799,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709005052708474 --mojo-platform-channel-handle=1832 /prefetch:1"
+          },
+          {
+            "processId": 2396,
+            "name": "Memory Compression",
+            "sessionId": 0,
+            "workingSetMB": 101,
+            "commandLine": null
+          },
+          {
+            "processId": 8592,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 95.4,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" --type=gpu-process --no-sandbox --user-data-dir=\"C:\\Users\\User\\.workbuddy\\app\" --gpu-preferences=UAAAAAAAAADgAAAEAAAAAAAAAAAAAAAAAABgAAEAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAIAAAAAAAAAAgAAAAAAAAA --field-trial-handle=2148,i,6940032148771681219,738012605039298609,262144 --enable-features=EnableTransparentHwndEnlargement,PdfUseShowSaveFilePicker --disable-features=ScreenAIOCREnabled,SpareRendererForSitePerProcess,WinDelaySpellcheckServiceInit --variations-seed-version --mojo-platform-channel-handle=2144 /prefetch:2"
+          },
+          {
+            "processId": 10656,
+            "name": "TextInputHost.exe",
+            "sessionId": 1,
+            "workingSetMB": 90.4,
+            "commandLine": "\"C:\\WINDOWS\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\TextInputHost.exe\" -ServerName:InputApp.AppXk0k6mrh4r2q0ct33a9wgbez0x7v9cz5y.mca"
+          },
+          {
+            "processId": 8836,
+            "name": "RuntimeBroker.exe",
+            "sessionId": 1,
+            "workingSetMB": 90.2,
+            "commandLine": "C:\\Windows\\System32\\RuntimeBroker.exe -Embedding"
+          },
+          {
+            "processId": 8456,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 86.2,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --extension-process --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=10 --launch-time-ticks=360580888744 --metrics-shmem-handle=4344,i,6008102848496615742,6113240575955521181,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708995682289984 --mojo-platform-channel-handle=4552 /prefetch:9"
+          },
+          {
+            "processId": 12832,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 84.6,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=76 --launch-time-ticks=361912363927 --metrics-shmem-handle=6852,i,1346145018636027310,9039328465600230198,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709057527052018 --mojo-platform-channel-handle=8008 /prefetch:1"
+          },
+          {
+            "processId": 13244,
+            "name": "backgroundTaskHost.exe",
+            "sessionId": 1,
+            "workingSetMB": 82.2,
+            "commandLine": "\"C:\\WINDOWS\\system32\\backgroundTaskHost.exe\" -ServerName:App.AppXe9cvj1thv1hmcw0cs98xm3r97tyzy2xs.mca"
+          },
+          {
+            "processId": 5576,
+            "name": "ShellExperienceHost.exe",
+            "sessionId": 1,
+            "workingSetMB": 82.2,
+            "commandLine": "\"C:\\WINDOWS\\SystemApps\\ShellExperienceHost_cw5n1h2txyewy\\ShellExperienceHost.exe\" -ServerName:App.AppXtk181tbxbce2qsex02s8tw7hfxa9xb3t.mca"
+          },
+          {
+            "processId": 584,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 82.1,
+            "commandLine": null
+          },
+          {
+            "processId": 12736,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 80,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" \"C:\\Program Files\\WorkBuddy\\resources\\app.asar\\main\\sidecar-entry.js\" --token 615fd198-0a42-485e-94ba-2f208fed35f5 --control-pipe-uuid c2608118"
+          },
+          {
+            "processId": 3096,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 77.9,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s winmgmt"
+          },
+          {
+            "processId": 4548,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 74.4,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k netsvcs -p"
+          },
+          {
+            "processId": 8736,
+            "name": "EcoengineNetHelper.exe",
+            "sessionId": 1,
+            "workingSetMB": 72.7,
+            "commandLine": "\"C:\\Program Files\\ecoengine\\EcoengineNetHelper.exe\""
+          },
+          {
+            "processId": 11872,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 67,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=97 --launch-time-ticks=362546638646 --metrics-shmem-handle=4000,i,16298537463186074976,8756991030495187193,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709077204930847 --mojo-platform-channel-handle=11776 /prefetch:1"
+          },
+          {
+            "processId": 5660,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 64.9,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --extension-process --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=6 --launch-time-ticks=360580857457 --metrics-shmem-handle=3492,i,6090066244495830764,9889810616063887887,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708991934122588 --mojo-platform-channel-handle=3516 /prefetch:9"
+          },
+          {
+            "processId": 8496,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 64.4,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=gpu-process --disable-gpu-rasterization --disable-breakpad --no-pre-read-main-dll --gpu-preferences=WAAAAAAAAADgAAAMAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --metrics-shmem-handle=1840,i,295542201507866494,10081074628521984763,262144 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1932 /prefetch:2"
+          },
+          {
+            "processId": 10564,
+            "name": "TabTip.exe",
+            "sessionId": 1,
+            "workingSetMB": 62.9,
+            "commandLine": "/QuitInfo:000000000000035C;0000000000000378;  "
+          },
+          {
+            "processId": 14192,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 62.7,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --no-sandbox --user-data-dir=\"C:\\Users\\User\\.workbuddy\\app\" --standard-schemes=wb-cover,local-file,vscode-file,wb-extension --secure-schemes=wb-cover,local-file,vscode-file,wb-extension --cors-schemes=vscode-file,wb-extension --fetch-schemes=wb-cover,local-file,vscode-file,wb-extension --streaming-schemes=local-file --field-trial-handle=2148,i,6940032148771681219,738012605039298609,262144 --enable-features=EnableTransparentHwndEnlargement,PdfUseShowSaveFilePicker --disable-features=ScreenAIOCREnabled,SpareRendererForSitePerProcess,WinDelaySpellcheckServiceInit --variations-seed-version --mojo-platform-channel-handle=2224 /prefetch:11"
+          },
+          {
+            "processId": 7912,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 59.7,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --top-chrome-webui --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=17 --launch-time-ticks=360580965069 --metrics-shmem-handle=6184,i,8621028312817933281,17571036075743325011,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709002241582927 --mojo-platform-channel-handle=6228 /prefetch:1"
+          },
+          {
+            "processId": 5480,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 58.9,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=27 --launch-time-ticks=360581145290 --metrics-shmem-handle=6568,i,11157129419727325844,8743413053763704392,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709011612001417 --mojo-platform-channel-handle=6548 /prefetch:1"
+          },
+          {
+            "processId": 2936,
+            "name": "editor_sdk.exe",
+            "sessionId": 1,
+            "workingSetMB": 58.7,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\resources\\app.asar.unpacked\\node_modules\\@tencent\\tencent-docs-ai-engine\\bin\\win32-x64\\editor_sdk.exe\" --port 39099 --log_dir C:\\Users\\User\\.workbuddy\\logs\\editor_sdk --tmp_dir=C:\\Users\\User\\AppData\\Local\\Temp\\workbuddy-editor-sdk-sandbox\\tmp"
+          },
+          {
+            "processId": 8776,
+            "name": "ctfmon.exe",
+            "sessionId": 1,
+            "workingSetMB": 58.4,
+            "commandLine": "/QuitInfo:0000000000000318;0000000000000300; "
+          },
+          {
+            "processId": 4872,
+            "name": "tailscaled.exe",
+            "sessionId": 0,
+            "workingSetMB": 57.2,
+            "commandLine": "\"C:\\Program Files\\Tailscale\\tailscaled.exe\" /subproc 6bf2a2238cc050e25fad1204a0f99d79261403046e2487340bf04a06a4c4e4a9"
+          },
+          {
+            "processId": 14604,
+            "name": "node.exe",
+            "sessionId": 1,
+            "workingSetMB": 56.1,
+            "commandLine": "\"C:\\Users\\User\\.workbuddy\\binaries\\node\\versions\\22.22.2-3\\node.exe\"  \"C:\\Users\\User\\.workbuddy\\plugins\\cache\\workbuddy-builtin\\weixinpay\\1.6.110/dist/mcp-server.mjs\""
+          },
+          {
+            "processId": 2800,
+            "name": "sihost.exe",
+            "sessionId": 1,
+            "workingSetMB": 55.4,
+            "commandLine": "sihost.exe"
+          },
+          {
+            "processId": 2352,
+            "name": "tailscale-ipn.exe",
+            "sessionId": 1,
+            "workingSetMB": 54.8,
+            "commandLine": "\"C:\\Program Files\\Tailscale\\tailscale-ipn.exe\" "
+          },
+          {
+            "processId": 4844,
+            "name": "MicrosoftStartFeedProvider.exe",
+            "sessionId": 1,
+            "workingSetMB": 53,
+            "commandLine": "\"C:\\Program Files\\WindowsApps\\Microsoft.StartExperiencesApp_1.380.2.0_arm64__8wekyb3d8bbwe\\MicrosoftStartFeedProvider\\MicrosoftStartFeedProvider.exe\" -Embedding"
+          },
+          {
+            "processId": 484,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 52.4,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k DcomLaunch -p"
+          },
+          {
+            "processId": 10812,
+            "name": "SystemSettings.exe",
+            "sessionId": 1,
+            "workingSetMB": 52.2,
+            "commandLine": "\"C:\\Windows\\ImmersiveControlPanel\\SystemSettings.exe\" -ServerName:microsoft.windows.immersivecontrolpanel"
+          },
+          {
+            "processId": 11640,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 50.9,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --no-pre-read-main-dll --metrics-shmem-handle=2076,i,5142424712451740632,12012299023042460385,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2244 /prefetch:11"
+          },
+          {
+            "processId": 5520,
+            "name": "ApplicationFrameHost.exe",
+            "sessionId": 1,
+            "workingSetMB": 50.6,
+            "commandLine": "C:\\WINDOWS\\system32\\ApplicationFrameHost.exe -Embedding"
+          },
+          {
+            "processId": 14564,
+            "name": "node.exe",
+            "sessionId": 1,
+            "workingSetMB": 49.7,
+            "commandLine": "node C:\\Users\\User\\.workbuddy\\plugins\\cache\\workbuddy-builtin\\sheetagent\\5.6.2-wb.39298511.g37a65c0b.he233403f909a/mcp/start.mjs"
+          },
+          {
+            "processId": 2104,
+            "name": "AppActions.exe",
+            "sessionId": 1,
+            "workingSetMB": 47.4,
+            "commandLine": "\"C:\\WINDOWS\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\AppActions.exe\" -Embedding"
+          },
+          {
+            "processId": 14908,
+            "name": "winget.exe",
+            "sessionId": 1,
+            "workingSetMB": 46.7,
+            "commandLine": "\"C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\winget.exe\" install --exact --id Tencent.WeCom --accept-package-agreements --accept-source-agreements --disable-interactivity"
+          },
+          {
+            "processId": 6676,
+            "name": "svchost.exe",
+            "sessionId": 1,
+            "workingSetMB": 45.8,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k UnistackSvcGroup -s WpnUserService"
+          },
+          {
+            "processId": 7288,
+            "name": "msedge.exe",
+            "sessionId": 1,
+            "workingSetMB": 44.7,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --startup-read-main-dll --metrics-shmem-handle=2316,i,2950170676751313620,10206103772051978545,524288 --field-trial-handle=2064,i,17500701497335168289,12163297699990572454,262144 --enable-features=ParallelDownloading --variations-seed-version --pseudonymization-salt-handle=2208,i,12991639702949362336,710178013708230021,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2480 /prefetch:11"
+          },
+          {
+            "processId": 13140,
+            "name": "node.exe",
+            "sessionId": 1,
+            "workingSetMB": 43.5,
+            "commandLine": "\"C:\\Users\\User\\AppData\\Local\\Author Software\\nvm\\installs\\v24.21.0\\node.exe\" \"C:\\WinVMBridge\\packages\\vm-service\\dist\\cli.js\" --host 127.0.0.1 --port 18443 --config \"C:\\WinVMBridge\\delivery\\.generated\\vm-service.runtime.json\" "
+          },
+          {
+            "processId": 3452,
+            "name": "tailscaled.exe",
+            "sessionId": 0,
+            "workingSetMB": 43.1,
+            "commandLine": "\"C:\\Program Files\\Tailscale\\tailscaled.exe\""
+          },
+          {
+            "processId": 9800,
+            "name": "msedgewebview2.exe",
+            "sessionId": 1,
+            "workingSetMB": 42.7,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe\" --type=utility --utility-sub-type=network.mojom.NetworkService --lang=zh-CN --service-sandbox-type=none --noerrdialogs --user-agent=\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\" --user-data-dir=\"C:\\Users\\User\\AppData\\Local\\Packages\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\LocalState\\EBWebView\" --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --embedded-browser-webview=1 --always-read-main-dll --metrics-shmem-handle=1984,i,6431789612409878164,10626896915204925740,524288 --field-trial-handle=2000,i,4006701544644464230,8863301774286685587,262144 --enable-features=msEdgeFluentOverlayScrollbar --disable-features=msSmartScreenProtection --variations-seed-version --pseudonymization-salt-handle=2004,i,5109095284685560073,6964372885394267088,4 --trace-process-track-uuid=3190708989122997041 --mojo-platform-channel-handle=2256 /prefetch:11 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7"
+          },
+          {
+            "processId": 9768,
+            "name": "msedgewebview2.exe",
+            "sessionId": 1,
+            "workingSetMB": 42.1,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe\" --type=gpu-process --noerrdialogs --user-agent=\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\" --user-data-dir=\"C:\\Users\\User\\AppData\\Local\\Packages\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\LocalState\\EBWebView\" --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --embedded-browser-webview=1 --gpu-preferences=WAAAAAAAAADgAAAEAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --always-read-main-dll --metrics-shmem-handle=1760,i,11023788224001468305,8127352467813091372,262144 --field-trial-handle=2000,i,4006701544644464230,8863301774286685587,262144 --enable-features=msEdgeFluentOverlayScrollbar --disable-features=msSmartScreenProtection --variations-seed-version --pseudonymization-salt-handle=2004,i,5109095284685560073,6964372885394267088,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=1996 /prefetch:2 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7"
+          },
+          {
+            "processId": 12172,
+            "name": "WindowsPackageManagerServer.exe",
+            "sessionId": 1,
+            "workingSetMB": 40.6,
+            "commandLine": "\"C:\\Program Files\\WindowsApps\\Microsoft.DesktopAppInstaller_1.29.379.0_arm64__8wekyb3d8bbwe\\WindowsPackageManagerServer.exe\" -Embedding"
+          },
+          {
+            "processId": 7128,
+            "name": "ShellHost.exe",
+            "sessionId": 1,
+            "workingSetMB": 40.5,
+            "commandLine": "\"C:\\Windows\\System32\\ShellHost.exe\""
+          },
+          {
+            "processId": 6040,
+            "name": "WeCom_5.0.11.6018.exe",
+            "sessionId": 1,
+            "workingSetMB": 39.7,
+            "commandLine": "\"C:\\Users\\User\\AppData\\Local\\Temp\\WinGet\\Tencent.WeCom.5.0.11.6018\\WeCom_5.0.11.6018.exe\" /S"
+          },
+          {
+            "processId": 3708,
+            "name": "agent_service.exe",
+            "sessionId": 0,
+            "workingSetMB": 38.8,
+            "commandLine": "C:\\ProgramData\\VMAgent\\agent_service.exe"
+          },
+          {
+            "processId": 12876,
+            "name": "WorkBuddy.exe",
+            "sessionId": 1,
+            "workingSetMB": 38.5,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\WorkBuddy.exe\" --type=crashpad-handler --user-data-dir=C:\\Users\\User\\.workbuddy\\app /prefetch:4 --no-rate-limit --no-upload-gzip --monitor-self-annotation=ptype=crashpad-handler --database=C:\\Users\\User\\.workbuddy\\app\\Crashpad \"--url=https://galileotelemetry.tencent.com/crashReport?aegis={\\\"topic\\\":\\\"SDK-768de26ec97715a3bbab\\\",\\\"bean\\\":{\\\"uid\\\":\\\"8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8\\\",\\\"version\\\":\\\"5.6.2\\\",\\\"aid\\\":\\\"21a30464-a89a-41c1-a89e-3a933f0c1f4d\\\",\\\"env\\\":\\\"production\\\",\\\"platform\\\":\\\"windows_x64\\\"},\\\"ext\\\":{\\\"node\\\":\\\"22.21.1\\\",\\\"electron\\\":\\\"37.10.3\\\",\\\"chrome\\\":\\\"138.0.7204.251\\\",\\\"browser\\\":\\\"Chrome\\\",\\\"process\\\":\\\"browser\\\",\\\"os\\\":\\\"windows 10.0.26200\\\",\\\"appName\\\":\\\"WorkBuddy\\\",\\\"appVersion\\\":\\\"5.6.2\\\",\\\"appStartAt\\\":1790576382223,\\\"device\\\":\\\"Desktop\\\",\\\"bootTime\\\":1790217052702,\\\"cpu\\\":\\\"StratoVirt\\\",\\\"arch\\\":\\\"x64\\\",\\\"cpuCore\\\":6,\\\"cpuFreq\\\":3000,\\\"memorySize\\\":\\\"8 GB\\\",\\\"online\\\":true,\\\"uuidDuration\\\":382,\\\"type\\\":\\\"crash\\\",\\\"level\\\":\\\"error\\\",\\\"plugin\\\":\\\"crash\\\",\\\"crashReporterStartAt\\\":1790576399671},\\\"scheme\\\":\\\"v2\\\",\\\"d2\\\":[],\\\"v\\\":\\\"2.6.13\\\"}&waitUploadFilesMap={}\" --annotation=_productName=WorkBuddy --annotation=_version=5.6.2 --annotation=plat=Win64 --annotation=prod=Electron --annotation=ver=37.10.3 --initial-client-data=0x164c,0x1668,0x1674,0x163c,0x1394,0x7ff72da360c4,0x7ff72da360d0,0x7ff72da360e0"
+          },
+          {
+            "processId": 14860,
+            "name": "hdc.exe",
+            "sessionId": 1,
+            "workingSetMB": 38.2,
+            "commandLine": "dummy -l 3 -s ::ffff:127.0.0.1:8710 -m"
+          },
+          {
+            "processId": 1936,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 38.1,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p -s PcaSvc"
+          },
+          {
+            "processId": 3596,
+            "name": "RuntimeBroker.exe",
+            "sessionId": 1,
+            "workingSetMB": 37.3,
+            "commandLine": "C:\\Windows\\System32\\RuntimeBroker.exe -Embedding"
+          },
+          {
+            "processId": 148,
+            "name": "Registry",
+            "sessionId": 0,
+            "workingSetMB": 37,
+            "commandLine": null
+          },
+          {
+            "processId": 13880,
+            "name": "RuntimeBroker.exe",
+            "sessionId": 1,
+            "workingSetMB": 36.9,
+            "commandLine": "C:\\Windows\\System32\\RuntimeBroker.exe -Embedding"
+          },
+          {
+            "processId": 11976,
+            "name": "SearchIndexer.exe",
+            "sessionId": 0,
+            "workingSetMB": 36.7,
+            "commandLine": "C:\\WINDOWS\\system32\\SearchIndexer.exe /Embedding"
+          },
+          {
+            "processId": 14704,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 36.1,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=utility --utility-sub-type=video_capture.mojom.VideoCaptureService --lang=zh-CN --service-sandbox-type=none --video-capture-use-gpu-memory-buffer --no-pre-read-main-dll --metrics-shmem-handle=9944,i,4543347491974291697,17145726886905320857,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709023793545454 --mojo-platform-channel-handle=9948 /prefetch:14"
+          },
+          {
+            "processId": 8792,
+            "name": "WidgetBoard.exe",
+            "sessionId": 1,
+            "workingSetMB": 35.5,
+            "commandLine": "\"C:\\Program Files\\WindowsApps\\MicrosoftWindows.Client.WebExperience_526.21100.40.0_arm64__cw5n1h2txyewy\\WidgetBoard.exe\" -RegisterProcessAsComServer -ServerName:Microsoft.Windows.WidgetBoardServer"
+          },
+          {
+            "processId": 3080,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 34.6,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k appmodel -p -s StateRepository"
+          },
+          {
+            "processId": 7448,
+            "name": "CrossDeviceResume.exe",
+            "sessionId": 1,
+            "workingSetMB": 34.6,
+            "commandLine": "\"C:\\WINDOWS\\SystemApps\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\CrossDeviceResume.exe\" /tileid MicrosoftWindows.Client.CBS_cw5n1h2txyewy!CrossDeviceResumeApp"
+          },
+          {
+            "processId": 3752,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 34.6,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s WpnService"
+          },
+          {
+            "processId": 7932,
+            "name": "svchost.exe",
+            "sessionId": 1,
+            "workingSetMB": 32.6,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k ClipboardSvcGroup -p -s cbdhsvc"
+          },
+          {
+            "processId": 3548,
+            "name": "EcoengineServer.exe",
+            "sessionId": 0,
+            "workingSetMB": 32.4,
+            "commandLine": "\"C:\\Program Files\\ecoengine\\EcoengineServer.exe\""
+          },
+          {
+            "processId": 3556,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 31.9,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNoNetwork -p -s DPS"
+          },
+          {
+            "processId": 8360,
+            "name": "DataReporter.exe",
+            "sessionId": 1,
+            "workingSetMB": 31.7,
+            "commandLine": "\"C:\\Program Files\\ecoengine\\DataReporter.exe\""
+          },
+          {
+            "processId": 7992,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 31,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer --no-pre-read-main-dll --video-capture-use-gpu-memory-buffer --lang=zh-CN --device-scale-factor=1.25 --num-raster-threads=3 --enable-main-frame-before-activation --renderer-client-id=102 --launch-time-ticks=362609614838 --metrics-shmem-handle=3936,i,4887169540616796481,826868205017538392,1572864 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709081890140092 --mojo-platform-channel-handle=7340 /prefetch:1"
+          },
+          {
+            "processId": 3652,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 30.9,
+            "commandLine": null
+          },
+          {
+            "processId": 4556,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 30.8,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p"
+          },
+          {
+            "processId": 940,
+            "name": "lsass.exe",
+            "sessionId": 0,
+            "workingSetMB": 30.6,
+            "commandLine": null
+          },
+          {
+            "processId": 1272,
+            "name": "msedge.exe",
+            "sessionId": 1,
+            "workingSetMB": 30.4,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --type=gpu-process --gpu-recent-crash-count=0 --disable-gpu-rasterization --disable-breakpad --gpu-preferences=WAAAAAAAAADgAAAMAAAAAAAAAAAAAGAAQAAAAAAAAAADAAAAAAAAADgAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAKAAAAAAAAAAoAAAAAAAAAAgAAAAAAAAAEAAAAAIAAAABAAAAAAAAAAgAAAAAAAAACAAAAAAAAAA= --startup-read-main-dll --metrics-shmem-handle=2084,i,1145135684812118646,11932433497258035002,262144 --field-trial-handle=2064,i,17500701497335168289,12163297699990572454,262144 --enable-features=ParallelDownloading --variations-seed-version --pseudonymization-salt-handle=2208,i,12991639702949362336,710178013708230021,4 --trace-process-track-uuid=3190708988185955192 --mojo-platform-channel-handle=2216 /prefetch:2"
+          },
+          {
+            "processId": 3644,
+            "name": "MpDefenderCoreService.exe",
+            "sessionId": 0,
+            "workingSetMB": 29.8,
+            "commandLine": null
+          },
+          {
+            "processId": 9272,
+            "name": "NotifyHelper.exe",
+            "sessionId": 1,
+            "workingSetMB": 29.2,
+            "commandLine": "\"C:\\Program Files\\ecoengine\\\\tray\\NotifyHelper.exe\""
+          },
+          {
+            "processId": 8856,
+            "name": "svchost.exe",
+            "sessionId": 1,
+            "workingSetMB": 27.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k UdkSvcGroup -s UdkUserSvc"
+          },
+          {
+            "processId": 4608,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 27.3,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalService -p -s LicenseManager"
+          },
+          {
+            "processId": 14964,
+            "name": "Un.exe",
+            "sessionId": 0,
+            "workingSetMB": 27.2,
+            "commandLine": "\"C:\\Users\\User\\AppData\\Local\\Temp\\~nsu2.tmp\\Un.exe\"   _?=C:\\Program Files (x86)\\WXWork\\"
+          },
+          {
+            "processId": 3240,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 26.7,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNoNetworkFirewall -p"
+          },
+          {
+            "processId": 8464,
+            "name": "WidgetService.exe",
+            "sessionId": 1,
+            "workingSetMB": 26.3,
+            "commandLine": "\"C:\\Program Files\\WindowsApps\\Microsoft.WidgetsPlatformRuntime_1.6.19.0_arm64__8wekyb3d8bbwe\\WidgetService\\WidgetService.exe\" -RegisterProcessAsComServer -Embedding"
+          },
+          {
+            "processId": 12460,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 26.2,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s wlidsvc"
+          },
+          {
+            "processId": 6340,
+            "name": "svchost.exe",
+            "sessionId": 1,
+            "workingSetMB": 26,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k UnistackSvcGroup -s CDPUserSvc"
+          },
+          {
+            "processId": 7412,
+            "name": "SecurityHealthService.exe",
+            "sessionId": 0,
+            "workingSetMB": 25.7,
+            "commandLine": null
+          },
+          {
+            "processId": 2380,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 25.4,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s UserManager"
+          },
+          {
+            "processId": 1276,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 25.2,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k NetworkService -p"
+          },
+          {
+            "processId": 3000,
+            "name": "sandbox-center.exe",
+            "sessionId": 1,
+            "workingSetMB": 24.9,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\vendor\\sandbox\\5.6.10\\sandbox-center.exe\" --config \"{\\\"appHome\\\":\\\"C:\\\\Users\\\\User\\\\.workbuddy\\\",\\\"ipcAddress\\\":\\\"\\\\\\\\.\\\\pipe\\\\WorkBuddy_SandboxCenter_627878d416d97cec_1256\\\",\\\"cipher\\\":{\\\"detectionEnabled\\\":true,\\\"detectMaxFileSizeBytes\\\":1048576},\\\"approval\\\":{\\\"callbackAddress\\\":\\\"\\\\\\\\.\\\\pipe\\\\WorkBuddy_SensitiveApproval_45b545703f02eb8a\\\"}}\" --app_home C:\\Users\\User\\.workbuddy"
+          },
+          {
+            "processId": 7968,
+            "name": "spoolsv.exe",
+            "sessionId": 0,
+            "workingSetMB": 23.5,
+            "commandLine": "C:\\WINDOWS\\System32\\spoolsv.exe"
+          },
+          {
+            "processId": 13692,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 22.9,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k whesvc -p -s whesvc"
+          },
+          {
+            "processId": 6828,
+            "name": "taskhostw.exe",
+            "sessionId": 1,
+            "workingSetMB": 22.3,
+            "commandLine": "taskhostw.exe {222A245B-E637-4AE9-A93F-A59CA119A75E}"
+          },
+          {
+            "processId": 1700,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 21.6,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k netprofm -p -s netprofm"
+          },
+          {
+            "processId": 7228,
+            "name": "msedge.exe",
+            "sessionId": 1,
+            "workingSetMB": 21,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --startup-read-main-dll --metrics-shmem-handle=2784,i,4326937393650789795,8825612764324115924,524288 --field-trial-handle=2064,i,17500701497335168289,12163297699990572454,262144 --enable-features=ParallelDownloading --variations-seed-version --pseudonymization-salt-handle=2208,i,12991639702949362336,710178013708230021,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2804 /prefetch:13"
+          },
+          {
+            "processId": 2108,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 20.8,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p -s SysMain"
+          },
+          {
+            "processId": 5088,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 20.7,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k osprivacy -p -s camsvc"
+          },
+          {
+            "processId": 1996,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 20.7,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p -s EventLog"
+          },
+          {
+            "processId": 12540,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 20.7,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=utility --utility-sub-type=on_device_model.mojom.OnDeviceModelService --lang=zh-CN --service-sandbox-type=on_device_model_execution --video-capture-use-gpu-memory-buffer --no-pre-read-main-dll --metrics-shmem-handle=6264,i,6061354849044312626,17584317099084628879,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709037849173189 --mojo-platform-channel-handle=7716 /prefetch:14"
+          },
+          {
+            "processId": 6484,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 20.6,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p -s CDPSvc"
+          },
+          {
+            "processId": 14696,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 20.4,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=utility --utility-sub-type=audio.mojom.AudioService --lang=zh-CN --service-sandbox-type=audio --video-capture-use-gpu-memory-buffer --no-pre-read-main-dll --metrics-shmem-handle=9932,i,16024339561893585631,18399741319953425041,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190709022856503605 --mojo-platform-channel-handle=8652 /prefetch:12"
+          },
+          {
+            "processId": 2904,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 20.4,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p"
+          },
+          {
+            "processId": 11044,
+            "name": "WmiPrvSE.exe",
+            "sessionId": 0,
+            "workingSetMB": 20.1,
+            "commandLine": "C:\\WINDOWS\\system32\\wbem\\wmiprvse.exe"
+          },
+          {
+            "processId": 11172,
+            "name": "svchost.exe",
+            "sessionId": 1,
+            "workingSetMB": 19.8,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p -s NPSMSvc"
+          },
+          {
+            "processId": 5484,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 19.7,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --no-pre-read-main-dll --metrics-shmem-handle=2732,i,3318217815805605608,15502262282100383697,524288 --field-trial-handle=2052,i,14798701490473744440,2555064214241468062,262144 --enable-features=ParallelDownloading --variations-seed-version=20260924-090044.894000-production --pseudonymization-salt-handle=2056,i,8633225457154663762,12375854412176584965,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2752 /prefetch:13"
+          },
+          {
+            "processId": 14128,
+            "name": "powershell.exe",
+            "sessionId": 1,
+            "workingSetMB": 19.7,
+            "commandLine": "\"powershell.exe\" -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"C:\\WinVMBridge\\delivery\\.generated\\start-hidden.ps1\""
+          },
+          {
+            "processId": 10284,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 19.6,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+          },
+          {
+            "processId": 4040,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 19.3,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 5540,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 18.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s Appinfo"
+          },
+          {
+            "processId": 1056,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 18.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k RPCSS -p"
+          },
+          {
+            "processId": 9936,
+            "name": "msedgewebview2.exe",
+            "sessionId": 1,
+            "workingSetMB": 18.5,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe\" --type=utility --utility-sub-type=storage.mojom.StorageService --lang=zh-CN --service-sandbox-type=service --noerrdialogs --user-agent=\"Mozilla/5.0 (Windows NT 10.0; Cortana 1.18.9.23723; 10.0.0.0.26200.9457) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.102 Safari/537.36 Edge/18.26200 IsWebView2/True (WebView2Version 153.0.4234.48)\" --user-data-dir=\"C:\\Users\\User\\AppData\\Local\\Packages\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\LocalState\\EBWebView\" --webview-exe-name=SearchHost.exe --webview-exe-version=2607.28006.200.0 --embedded-browser-webview=1 --always-read-main-dll --metrics-shmem-handle=2496,i,14218774864097602041,17048062347013554187,524288 --field-trial-handle=2000,i,4006701544644464230,8863301774286685587,262144 --enable-features=msEdgeFluentOverlayScrollbar --disable-features=msSmartScreenProtection --variations-seed-version --pseudonymization-salt-handle=2004,i,5109095284685560073,6964372885394267088,4 --trace-process-track-uuid=3190708990060038890 --mojo-platform-channel-handle=2508 /prefetch:13 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7"
+          },
+          {
+            "processId": 844,
+            "name": "winlogon.exe",
+            "sessionId": 1,
+            "workingSetMB": 18.3,
+            "commandLine": "winlogon.exe"
+          },
+          {
+            "processId": 1140,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 17.9,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k netsvcs"
+          },
+          {
+            "processId": 3156,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 17.7,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k netsvcs -p -s ShellHWDetection"
+          },
+          {
+            "processId": 13476,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 17.7,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s UsoSvc"
+          },
+          {
+            "processId": 10780,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 17.4,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcsRedirectionGuard -p -s lfsvc"
+          },
+          {
+            "processId": 1460,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 17,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNetworkRestricted -p -s TimeBrokerSvc"
+          },
+          {
+            "processId": 2532,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 16.9,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s Schedule"
+          },
+          {
+            "processId": 13788,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 15.5,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k NetworkService -p -s WinRM"
+          },
+          {
+            "processId": 3612,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 15.5,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k NetSvcs -p -s iphlpsvc"
+          },
+          {
+            "processId": 7560,
+            "name": "smartscreen.exe",
+            "sessionId": 1,
+            "workingSetMB": 15.4,
+            "commandLine": "C:\\Windows\\System32\\smartscreen.exe -Embedding"
+          },
+          {
+            "processId": 5420,
+            "name": "NisSrv.exe",
+            "sessionId": 0,
+            "workingSetMB": 15,
+            "commandLine": null
+          },
+          {
+            "processId": 6848,
+            "name": "msedge.exe",
+            "sessionId": 1,
+            "workingSetMB": 14.9,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --type=crashpad-handler \"--user-data-dir=C:\\Users\\User\\AppData\\Local\\Microsoft\\Edge\\User Data\" /prefetch:4 --monitor-self-annotation=ptype=crashpad-handler \"--database=C:\\Users\\User\\AppData\\Local\\Microsoft\\Edge\\User Data\\Crashpad\" --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=154.0.8037.58 \"--annotation=exe=C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\" --annotation=prod=Edge --annotation=ver=154.0.4258.37 --initial-client-data=0x274,0x278,0x27c,0x270,0x284,0x7ff833b295e0,0x7ff833b295f0,0x7ff833b29600"
+          },
+          {
+            "processId": 13872,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 14.7,
+            "commandLine": null
+          },
+          {
+            "processId": 8964,
+            "name": "SecurityHealthSystray.exe",
+            "sessionId": 1,
+            "workingSetMB": 13.9,
+            "commandLine": "\"C:\\Windows\\System32\\SecurityHealthSystray.exe\" "
+          },
+          {
+            "processId": 6620,
+            "name": "sandbox-cli-gc.exe",
+            "sessionId": 1,
+            "workingSetMB": 13.8,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\vendor\\sandbox\\5.6.10\\sandbox-cli-gc.exe\" --workspace C:\\Users\\User\\.workbuddy\\workspace --parent-pid 3000"
+          },
+          {
+            "processId": 2412,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 13.7,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p -s DsSvc"
+          },
+          {
+            "processId": 2076,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 13.7,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k UserProfileService -p -s ProfSvc"
+          },
+          {
+            "processId": 1452,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 13.7,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p -s NcbService"
+          },
+          {
+            "processId": 14916,
+            "name": "sandbox-cli.exe",
+            "sessionId": 1,
+            "workingSetMB": 13.5,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\vendor\\sandbox\\5.6.10\\sandbox-cli.exe\" --config \"{\\\"ipcAddress\\\":\\\"EditorSdk_eb99aba76e19\\\",\\\"extraPath\\\":[],\\\"enableGlobalProjection\\\":false}\" --rule_decision center --uid 8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8 --app_home C:\\Users\\User\\.workbuddy"
+          },
+          {
+            "processId": 252,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 13.2,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k InvSvcGroup -p -s InventorySvc"
+          },
+          {
+            "processId": 5552,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 13.1,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k IsolationSession -p"
+          },
+          {
+            "processId": 13628,
+            "name": "sshd.exe",
+            "sessionId": 0,
+            "workingSetMB": 13,
+            "commandLine": "\"C:\\WINDOWS\\System32\\OpenSSH\\sshd.exe\" -R"
+          },
+          {
+            "processId": 2652,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 13,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p -s FontCache"
+          },
+          {
+            "processId": 12596,
+            "name": "sshd.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.8,
+            "commandLine": "\"C:\\WINDOWS\\System32\\OpenSSH\\sshd.exe\" -z"
+          },
+          {
+            "processId": 2364,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.8,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p -s DusmSvc"
+          },
+          {
+            "processId": 1384,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.7,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNetworkRestricted -p -s Wcmsvc"
+          },
+          {
+            "processId": 1468,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.7,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k NetworkService -p"
+          },
+          {
+            "processId": 7648,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.7,
+            "commandLine": null
+          },
+          {
+            "processId": 4612,
+            "name": "unsecapp.exe",
+            "sessionId": 1,
+            "workingSetMB": 12.7,
+            "commandLine": "C:\\WINDOWS\\system32\\wbem\\unsecapp.exe -Embedding"
+          },
+          {
+            "processId": 2688,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.5,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNoNetwork -p -s NcdAutoSetup"
+          },
+          {
+            "processId": 5960,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p -s DisplayEnhancementService"
+          },
+          {
+            "processId": 6388,
+            "name": "sshd.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.2,
+            "commandLine": "\"C:\\WINDOWS\\System32\\OpenSSH\\sshd.exe\" -R"
+          },
+          {
+            "processId": 1128,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 12.1,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k GPSvcGroup"
+          },
+          {
+            "processId": 3628,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 12,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s LanmanServer"
+          },
+          {
+            "processId": 916,
+            "name": "services.exe",
+            "sessionId": 0,
+            "workingSetMB": 12,
+            "commandLine": null
+          },
+          {
+            "processId": 5264,
+            "name": "sshd.exe",
+            "sessionId": 0,
+            "workingSetMB": 11.8,
+            "commandLine": "\"C:\\WINDOWS\\System32\\OpenSSH\\sshd.exe\" -z"
+          },
+          {
+            "processId": 9420,
+            "name": "msedgewebview2.exe",
+            "sessionId": 1,
+            "workingSetMB": 11.8,
+            "commandLine": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe\" --type=crashpad-handler --user-data-dir=C:\\Users\\User\\AppData\\Local\\Packages\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\LocalState\\EBWebView /prefetch:4 /pfhostedapp:ac4e660df40bc14709926fc65263f3df853a2ab7 --monitor-self-annotation=ptype=crashpad-handler --database=C:\\Users\\User\\AppData\\Local\\Packages\\MicrosoftWindows.Client.CBS_cw5n1h2txyewy\\LocalState\\EBWebView\\Crashpad --annotation=IsOfficialBuild=1 --annotation=channel= --annotation=chromium-version=153.0.8010.53 \"--annotation=exe=C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\153.0.4234.48\\msedgewebview2.exe\" \"--annotation=prod=Edge WebView2\" --annotation=ver=153.0.4234.48 --initial-client-data=0x16c,0x170,0x174,0x148,0x17c,0x7ff83efe5550,0x7ff83efe5560,0x7ff83efe5570"
+          },
+          {
+            "processId": 2948,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 11.6,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceAndNoImpersonation -p -s FDResPub"
+          },
+          {
+            "processId": 3232,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 11.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p -s SensorService"
+          },
+          {
+            "processId": 1784,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 11.4,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceHttp -p"
+          },
+          {
+            "processId": 13204,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 11.3,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p -s WdiSystemHost"
+          },
+          {
+            "processId": 13384,
+            "name": "sandbox-cli.exe",
+            "sessionId": 1,
+            "workingSetMB": 11.3,
+            "commandLine": "\"C:\\Program Files\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\vendor\\sandbox\\5.6.10\\sandbox-cli.exe\" --config \"{\\\"extraPath\\\":[\\\"C:\\\\Program Files\\\\WorkBuddy\\\\resources\\\\app.asar.unpacked\\\\cli\\\\bin\\\\runtime\\\\git\\\\bin\\\",\\\"C:\\\\Users\\\\User\\\\.workbuddy\\\\binaries\\\\PortableGit\\\\versions\\\\1.2.0\\\\bin\\\"],\\\"enableGlobalProjection\\\":false,\\\"ipcAddress\\\":\\\"WorkBuddy_86790cd1e690f0b4\\\"}\" --rule_decision center --uid 8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8 --app_home C:\\Users\\User\\.workbuddy"
+          },
+          {
+            "processId": 6224,
+            "name": "audio_session.exe",
+            "sessionId": 1,
+            "workingSetMB": 11.2,
+            "commandLine": "C:\\ProgramData\\VMAgent\\AudioSession\\audio_session.exe"
+          },
+          {
+            "processId": 2468,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 11,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcsRedirectionGuard -p -s SENS"
+          },
+          {
+            "processId": 11120,
+            "name": "ChsIME.exe",
+            "sessionId": 1,
+            "workingSetMB": 10.9,
+            "commandLine": "C:\\Windows\\System32\\InputMethod\\CHS\\ChsIME.exe -Embedding"
+          },
+          {
+            "processId": 1108,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 10.6,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k DcomLaunch -p -s LSM"
+          },
+          {
+            "processId": 3344,
+            "name": "chrome.exe",
+            "sessionId": 1,
+            "workingSetMB": 10.5,
+            "commandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=crashpad-handler \"--user-data-dir=C:\\Users\\User\\AppData\\Local\\Google\\Chrome\\User Data\" /prefetch:4 --monitor-self-annotation=ptype=crashpad-handler \"--database=C:\\Users\\User\\AppData\\Local\\Google\\Chrome\\User Data\\Crashpad\" \"--metrics-dir=C:\\Users\\User\\AppData\\Local\\Google\\Chrome\\User Data\" --url=https://clients2.google.com/cr/report --annotation=channel= --annotation=prod=Chrome --annotation=ver=153.0.8010.54 --initial-client-data=0x11c,0x120,0x124,0xf8,0x128,0x7fffdc8109f0,0x7fffdc810a00,0x7fffdc810a10"
+          },
+          {
+            "processId": 2624,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 10.5,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p -s AudioEndpointBuilder"
+          },
+          {
+            "processId": 1808,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 10.3,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p -s TextInputManagementService"
+          },
+          {
+            "processId": 1556,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 10.1,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNetworkRestricted -p -s Dhcp"
+          },
+          {
+            "processId": 2088,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 10.1,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceRedirectionGuard -p -s EventSystem"
+          },
+          {
+            "processId": 12808,
+            "name": "FilterAgent.exe",
+            "sessionId": 1,
+            "workingSetMB": 10.1,
+            "commandLine": "\"C:\\ProgramData\\AppFilter\\FilterAgent.exe\""
+          },
+          {
+            "processId": 4468,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 10.1,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -s RmSvc"
+          },
+          {
+            "processId": 6156,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 10.1,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 13584,
+            "name": "cmd.exe",
+            "sessionId": 1,
+            "workingSetMB": 10,
+            "commandLine": "C:\\WINDOWS\\system32\\cmd.exe /d /s /c \"C:\\Users\\User\\.workbuddy\\plugins\\cache\\workbuddy-builtin\\weixinpay\\1.6.110\\bin\\run-node ^\"C:\\Users\\User\\.workbuddy\\plugins\\cache\\workbuddy-builtin\\weixinpay\\1.6.110/dist/mcp-server.mjs^\"\""
+          },
+          {
+            "processId": 764,
+            "name": "fontdrvhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 10,
+            "commandLine": "\"fontdrvhost.exe\""
+          },
+          {
+            "processId": 2828,
+            "name": "vmgtsharemgr.exe",
+            "sessionId": 1,
+            "workingSetMB": 10,
+            "commandLine": "vmgtsharemgr.exe 1"
+          },
+          {
+            "processId": 3540,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 9.8,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s IKEEXT"
+          },
+          {
+            "processId": 3636,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 9.8,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k NetworkServiceNetworkRestricted -p -s PolicyAgent"
+          },
+          {
+            "processId": 4768,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 9.7,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceAndNoImpersonationRedirectionGuard -p -s SSDPSRV"
+          },
+          {
+            "processId": 13616,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 9.6,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p -s SstpSvc"
+          },
+          {
+            "processId": 768,
+            "name": "wininit.exe",
+            "sessionId": 0,
+            "workingSetMB": 9.6,
+            "commandLine": null
+          },
+          {
+            "processId": 9100,
+            "name": "AutoRunningTask.exe",
+            "sessionId": 1,
+            "workingSetMB": 9.5,
+            "commandLine": "\"C:\\Program Files\\ecoengine\\AutoRunningTask.exe\" -bootend"
+          },
+          {
+            "processId": 7060,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 9.3,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 3308,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 9.3,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k NetworkService -p -s LanmanWorkstation"
+          },
+          {
+            "processId": 1564,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 9.1,
+            "commandLine": null
+          },
+          {
+            "processId": 5208,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 9,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k WSAIFabricSvcGroup -p -s WSAIFabricSvc"
+          },
+          {
+            "processId": 7664,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 9,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 6408,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 8.9,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 1312,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 8.9,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p -s nsi"
+          },
+          {
+            "processId": 6028,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 8.8,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 13456,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 8.8,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 7632,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 8.8,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 6268,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 8.7,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 3700,
+            "name": "sshd.exe",
+            "sessionId": 0,
+            "workingSetMB": 8.7,
+            "commandLine": "C:\\WINDOWS\\System32\\OpenSSH\\sshd.exe"
+          },
+          {
+            "processId": 12564,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 8.6,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 12160,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 8.5,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 2244,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 8.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p -s DispBrokerDesktopSvc"
+          },
+          {
+            "processId": 2740,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 8.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p -s fdPHost"
+          },
+          {
+            "processId": 3860,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 8.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p -s DeviceAssociationService"
+          },
+          {
+            "processId": 2024,
+            "name": "XtaCache.exe",
+            "sessionId": 0,
+            "workingSetMB": 8.4,
+            "commandLine": null
+          },
+          {
+            "processId": 6984,
+            "name": "display.exe",
+            "sessionId": 1,
+            "workingSetMB": 7.8,
+            "commandLine": "C:\\ProgramData\\display\\display.exe startUp"
+          },
+          {
+            "processId": 5048,
+            "name": "win_evt_monitor.exe",
+            "sessionId": 1,
+            "workingSetMB": 7.5,
+            "commandLine": "C:\\ProgramData\\WinEvtMonitor\\win_evt_monitor.exe"
+          },
+          {
+            "processId": 776,
+            "name": "csrss.exe",
+            "sessionId": 1,
+            "workingSetMB": 7.2,
+            "commandLine": null
+          },
+          {
+            "processId": 4328,
+            "name": "dasHost.exe",
+            "sessionId": 0,
+            "workingSetMB": 7.2,
+            "commandLine": "dashost.exe {2e2f3c18-1d97-423d-b74e18314287dce1}"
+          },
+          {
+            "processId": 1684,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 7.1,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalServiceNoNetwork -p"
+          },
+          {
+            "processId": 1732,
+            "name": "DefenderAiPlatformHost.exe",
+            "sessionId": 0,
+            "workingSetMB": 6.9,
+            "commandLine": null
+          },
+          {
+            "processId": 2148,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 6.7,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k netsvcs -p -s Themes"
+          },
+          {
+            "processId": 696,
+            "name": "csrss.exe",
+            "sessionId": 0,
+            "workingSetMB": 6.7,
+            "commandLine": null
+          },
+          {
+            "processId": 3716,
+            "name": "vmgtsrv.exe",
+            "sessionId": 0,
+            "workingSetMB": 6.5,
+            "commandLine": "\"C:\\ProgramData\\VMAgent\\driver1\\viogpu\\vmgtsrv.exe\""
+          },
+          {
+            "processId": 6412,
+            "name": "svchost.exe",
+            "sessionId": 1,
+            "workingSetMB": 6.5,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k LocalSystemNetworkRestricted -p -s webthreatdefusersvc"
+          },
+          {
+            "processId": 6444,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 6.3,
+            "commandLine": "C:\\WINDOWS\\system32\\svchost.exe -k netsvcs -p -s seclogon"
+          },
+          {
+            "processId": 3668,
+            "name": "ssh-agent.exe",
+            "sessionId": 0,
+            "workingSetMB": 6.1,
+            "commandLine": "C:\\WINDOWS\\System32\\OpenSSH\\ssh-agent.exe"
+          },
+          {
+            "processId": 2696,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 6,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 1320,
+            "name": "svchost.exe",
+            "sessionId": 0,
+            "workingSetMB": 6,
+            "commandLine": "C:\\WINDOWS\\System32\\svchost.exe -k LocalServiceNetworkRestricted -p -s lmhosts"
+          },
+          {
+            "processId": 13844,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 5.9,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 5804,
+            "name": "DefenderSessionHelper.exe",
+            "sessionId": 1,
+            "workingSetMB": 5.8,
+            "commandLine": "\"C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.26080.4-0\\DefenderSessionHelper.exe\""
+          },
+          {
+            "processId": 15628,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 5.2,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 692,
+            "name": "fontdrvhost.exe",
+            "sessionId": 0,
+            "workingSetMB": 4.7,
+            "commandLine": "\"fontdrvhost.exe\""
+          },
+          {
+            "processId": 15320,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 2.6,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 11932,
+            "name": "cua-driver.exe",
+            "sessionId": 1,
+            "workingSetMB": 1.8,
+            "commandLine": "\"C:\\Users\\User\\AppData\\Local\\Programs\\Cua\\cua-driver\\bin\\cua-driver.exe\" serve "
+          },
+          {
+            "processId": 508,
+            "name": "smss.exe",
+            "sessionId": 0,
+            "workingSetMB": 1.4,
+            "commandLine": null
+          },
+          {
+            "processId": 704,
+            "name": "conhost.exe",
+            "sessionId": 1,
+            "workingSetMB": 1.1,
+            "commandLine": "\\??\\C:\\WINDOWS\\system32\\conhost.exe 0x4"
+          },
+          {
+            "processId": 4,
+            "name": "System",
+            "sessionId": 0,
+            "workingSetMB": 0.2,
+            "commandLine": null
+          },
+          {
+            "processId": 0,
+            "name": "System Idle Process",
+            "sessionId": 0,
+            "workingSetMB": 0,
+            "commandLine": null
+          }
+        ],
+        "durationMs": 994,
+        "auditRef": "aud_20ddee823a7b464db625"
+      },
+      "isError": false
+    }
+  }
+}

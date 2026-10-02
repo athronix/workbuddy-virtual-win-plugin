@@ -1,0 +1,25 @@
+{
+  "task": "app.winget.uninstall id=QA.Nonexistent.Package.99998 (dryRun=false, 真实调用)",
+  "capabilityId": "app.winget.uninstall",
+  "riskLevel": "L2",
+  "traceId": "tr_munxkjms_20",
+  "status": "WAITING_FOR_APPROVAL",
+  "blockedByApprovalGate": true,
+  "approval": {
+    "approvalId": "apr_1550b79f6ad34014900e",
+    "risk": "L2",
+    "capabilityId": "app.winget.uninstall",
+    "destructive": true,
+    "params": { "id": "QA.Nonexistent.Package.99998", "dryRun": false }
+  },
+  "note": "能力被人工审批闸拦截，尚未真正执行卸载。exitCode/success/verified/residualEvidence 等执行结果字段此时不存在，待宿主人工审批并通过 MCP 直调通道确认后，由能力实际执行才产生。VM 内 Agent 不得自行携带 __approvalId 续跑。",
+  "rawReceipt": {
+    "ok": false,
+    "error": { "code": "APPROVAL_REQUIRED", "message": "风险等级 L2 需人工审批后执行" },
+    "approval": {
+      "approvalId": "apr_1550b79f6ad34014900e",
+      "risk": "L2",
+      "capabilityId": "app.winget.uninstall"
+    }
+  }
+}

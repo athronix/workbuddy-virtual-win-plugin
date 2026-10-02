@@ -1,0 +1,9 @@
+{
+  "tool": "storage.search.query",
+  "arguments": {
+    "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\logs",
+    "pattern": "*",
+    "maxResults": 20
+  },
+  "startedAt": "2026-09-30T10:21:33.152Z"
+}

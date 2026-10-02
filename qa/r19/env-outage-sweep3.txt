@@ -1,0 +1,7 @@
+# R19 sweep3 2026-09-30T17:44:43+08:00
+== node TCP22 ==
+TCP22_OPEN
+== tunnel.log tail ==
+[winvm-tunnel] 2026-09-30T09:30:19.316Z ERROR 隧道启动失败：connect EHOSTUNREACH 172.16.100.2:22
+[winvm-tunnel] 2026-09-30T09:30:40.355Z ERROR 隧道启动失败：connect EHOSTUNREACH 172.16.100.2:22
+[winvm-tunnel] 2026-09-30T09:31:01.394Z ERROR 隧道启动失败：connect EHOSTUNREACH 172.16.100.2:22

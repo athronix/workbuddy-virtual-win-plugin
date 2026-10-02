@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 415403,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munya71a_23\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [],\n  \"durationMs\": 1759,\n  \"auditRef\": \"aud_76230890a8314fc797d9\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munya71a_23",
+        "ok": true,
+        "risk": "L0",
+        "data": [],
+        "durationMs": 1759,
+        "auditRef": "aud_76230890a8314fc797d9"
+      },
+      "isError": false
+    }
+  }
+}

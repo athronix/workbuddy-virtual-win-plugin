@@ -1,0 +1,7 @@
+{
+  "tool": "app.winget.search",
+  "arguments": {
+    "query": "QA.R19B.Nonexistent.99997"
+  },
+  "startedAt": "2026-10-02T02:30:48.985Z"
+}

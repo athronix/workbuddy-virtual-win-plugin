@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 358749,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muq4cdrb_166\",\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"POLICY_DENIED\",\n    \"message\": \"路径不在白名单内，已拒绝：M:\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}\",\n    \"details\": {\n      \"path\": \"M:\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}\"\n    },\n    \"retryable\": false\n  },\n  \"risk\": \"L0\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muq4cdrb_166",
+        "ok": false,
+        "error": {
+          "code": "POLICY_DENIED",
+          "message": "路径不在白名单内，已拒绝：M:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}",
+          "details": {
+            "path": "M:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}"
+          },
+          "retryable": false
+        },
+        "risk": "L0"
+      },
+      "isError": true
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "tool": "app.winget.install",
+  "arguments": {
+    "id": "Tencent.WeCom"
+  },
+  "startedAt": "2026-09-30T10:33:04.094Z"
+}

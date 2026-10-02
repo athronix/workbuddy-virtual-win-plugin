@@ -1,0 +1,10 @@
+{
+  "tool": "storage.search.query",
+  "arguments": {
+    "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge",
+    "pattern": "*audit*",
+    "maxResults": 30,
+    "recurse": true
+  },
+  "startedAt": "2026-09-30T10:18:49.832Z"
+}

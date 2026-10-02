@@ -1,0 +1,9 @@
+{
+  "tool": "file.read",
+  "startedAt": "2026-10-02T02:25:32.907Z",
+  "finishedAt": "2026-10-02T02:25:32.984Z",
+  "elapsedMs": 76,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": true
+}

@@ -1,0 +1,9 @@
+{
+  "tool": "storage.search.query",
+  "arguments": {
+    "path": "C:\\Program Files (x86)",
+    "pattern": "WXWork*",
+    "maxResults": 5
+  },
+  "startedAt": "2026-09-30T10:24:33.064Z"
+}

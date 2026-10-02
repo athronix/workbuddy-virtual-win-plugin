@@ -1,0 +1,9 @@
+{
+  "tool": "app.winget.uninstall",
+  "startedAt": "2026-09-30T11:11:55.264Z",
+  "finishedAt": "2026-09-30T11:11:56.644Z",
+  "elapsedMs": 1379,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": false
+}

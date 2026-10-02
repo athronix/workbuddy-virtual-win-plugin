@@ -1,0 +1,44 @@
+{
+  "mode": "get",
+  "arg": {
+    "taskId": "9a0fedfe-c228-4778-ad83-5ced12dd2730"
+  },
+  "t0": "2026-09-30T10:58:02.783Z",
+  "result": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "kind": "task",
+      "id": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+      "contextId": "29536f49-dda2-44c0-84fa-8c48419085a8",
+      "status": {
+        "state": "working",
+        "timestamp": "2026-09-30T10:54:26.920Z",
+        "message": "调起 LLM 运行时：codebuddy"
+      },
+      "artifacts": [],
+      "history": [
+        {
+          "kind": "message",
+          "role": "user",
+          "messageId": "msg_r19_1790765606247",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。"
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "traceId": "tr_r19_munzlt2f",
+        "maxRisk": "L2",
+        "timeoutMs": 600000,
+        "allowedCapabilities": [
+          "app.winget.uninstall"
+        ]
+      }
+    }
+  },
+  "endElapsedMs": 461
+}

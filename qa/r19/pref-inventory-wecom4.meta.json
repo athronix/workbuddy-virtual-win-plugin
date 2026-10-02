@@ -1,0 +1,9 @@
+{
+  "tool": "app.inventory.list",
+  "startedAt": "2026-09-30T09:45:12.004Z",
+  "finishedAt": "2026-09-30T09:45:12.683Z",
+  "elapsedMs": 678,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": false
+}

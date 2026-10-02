@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 719134,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muqcg6r2_174\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\logs\\\\winvm-service-2026-10-02.log\",\n      \"name\": \"winvm-service-2026-10-02.log\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1072,\n      \"modified\": \"2026-10-02T10:22:48.4926803+08:00\"\n    }\n  ],\n  \"durationMs\": 39,\n  \"auditRef\": \"aud_95ebfde93bb741528a41\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muqcg6r2_174",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\logs\\winvm-service-2026-10-02.log",
+            "name": "winvm-service-2026-10-02.log",
+            "isDirectory": false,
+            "sizeBytes": 1072,
+            "modified": "2026-10-02T10:22:48.4926803+08:00"
+          }
+        ],
+        "durationMs": 39,
+        "auditRef": "aud_95ebfde93bb741528a41"
+      },
+      "isError": false
+    }
+  }
+}

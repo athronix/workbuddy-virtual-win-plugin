@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 677893,
+    "error": {
+      "code": -32602,
+      "message": "未知工具：tools_list"
+    }
+  }
+}

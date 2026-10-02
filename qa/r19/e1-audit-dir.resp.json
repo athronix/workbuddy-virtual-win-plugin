@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 218556,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munycjdh_24\",\n  \"ok\": false,\n  \"risk\": \"L1\",\n  \"durationMs\": 11,\n  \"error\": {\n    \"code\": \"INVALID_PARAMS\",\n    \"message\": \"参数校验失败：不支持的参数 action。该能力可用参数：path。\",\n    \"reason\": \"INVALID_ARGUMENT\",\n    \"details\": {\n      \"unknown\": [\n        \"action\"\n      ],\n      \"missing\": [],\n      \"allowed\": [\n        \"path\"\n      ],\n      \"invalid\": []\n    },\n    \"retryable\": false\n  }\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munycjdh_24",
+        "ok": false,
+        "risk": "L1",
+        "durationMs": 11,
+        "error": {
+          "code": "INVALID_PARAMS",
+          "message": "参数校验失败：不支持的参数 action。该能力可用参数：path。",
+          "reason": "INVALID_ARGUMENT",
+          "details": {
+            "unknown": [
+              "action"
+            ],
+            "missing": [],
+            "allowed": [
+              "path"
+            ],
+            "invalid": []
+          },
+          "retryable": false
+        }
+      },
+      "isError": true
+    }
+  }
+}

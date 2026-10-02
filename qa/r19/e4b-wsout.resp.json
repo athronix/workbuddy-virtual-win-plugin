@@ -1,0 +1,306 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 721994,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muqcjvmd_179\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\01_locate_wecom.json\",\n      \"name\": \"01_locate_wecom.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 284,\n      \"modified\": \"2026-09-29T18:41:17.2456016+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\03_result.json\",\n      \"name\": \"03_result.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1898,\n      \"modified\": \"2026-09-29T18:44:11.8831241+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\body_init.txt\",\n      \"name\": \"body_init.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 418,\n      \"modified\": \"2026-09-30T17:55:23.7892546+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\body_list.txt\",\n      \"name\": \"body_list.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 27035,\n      \"modified\": \"2026-09-30T17:55:25.2221771+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\body_uninstall.txt\",\n      \"name\": \"body_uninstall.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 2125,\n      \"modified\": \"2026-09-30T17:56:28.1451440+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\check_wecom.py\",\n      \"name\": \"check_wecom.py\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 2617,\n      \"modified\": \"2026-09-29T18:52:12.1392852+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\check_wecom_deep.py\",\n      \"name\": \"check_wecom_deep.py\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 2606,\n      \"modified\": \"2026-09-29T18:43:37.6542247+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\e1-approval.json\",\n      \"name\": \"e1-approval.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1034,\n      \"modified\": \"2026-09-30T19:01:35.6443420+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\e1-receipt.json\",\n      \"name\": \"e1-receipt.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1197,\n      \"modified\": \"2026-09-30T18:56:14.8288557+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\gen_report.py\",\n      \"name\": \"gen_report.py\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 3669,\n      \"modified\": \"2026-09-20T16:46:31.3691998+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\hdr_init.txt\",\n      \"name\": \"hdr_init.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 171,\n      \"modified\": \"2026-09-30T17:55:23.7867696+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\hdr_list.txt\",\n      \"name\": \"hdr_list.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 173,\n      \"modified\": \"2026-09-30T17:55:25.2136398+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\hdr_uninstall.txt\",\n      \"name\": \"hdr_uninstall.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 172,\n      \"modified\": \"2026-09-30T17:56:28.1422390+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\mcp_call.sh\",\n      \"name\": \"mcp_call.sh\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 570,\n      \"modified\": \"2026-09-20T16:41:28.9877420+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\mcp_invoke.py\",\n      \"name\": \"mcp_invoke.py\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1340,\n      \"modified\": \"2026-09-29T11:11:35.6627146+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\meta-health-raw.json\",\n      \"name\": \"meta-health-raw.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1524,\n      \"modified\": \"2026-09-20T16:43:16.7262737+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\network-config-raw.json\",\n      \"name\": \"network-config-raw.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 627,\n      \"modified\": \"2026-09-20T16:43:25.8992190+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\network-config-retry.json\",\n      \"name\": \"network-config-retry.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1524,\n      \"modified\": \"2026-09-20T16:44:59.6280354+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\probe_args.json\",\n      \"name\": \"probe_args.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 84,\n      \"modified\": \"2026-09-21T11:53:16.2289764+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\process-list.json\",\n      \"name\": \"process-list.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 99764,\n      \"modified\": \"2026-09-18T18:02:27.9129689+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\qa-b-s3-proof.txt\",\n      \"name\": \"qa-b-s3-proof.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 20,\n      \"modified\": \"2026-09-21T11:55:59.2860021+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\qa-uninstall-receipt.json\",\n      \"name\": \"qa-uninstall-receipt.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1067,\n      \"modified\": \"2026-09-30T17:56:38.8927621+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\r2-proof.txt\",\n      \"name\": \"r2-proof.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 19,\n      \"modified\": \"2026-09-21T12:16:36.4730567+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\screen_20260917_210013_927.png\",\n      \"name\": \"screen_20260917_210013_927.png\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 573430,\n      \"modified\": \"2026-09-17T21:00:13.9514917+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\screen_20260918_171207_471.png\",\n      \"name\": \"screen_20260918_171207_471.png\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 584787,\n      \"modified\": \"2026-09-18T17:12:07.6260843+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\screen_20260918_202426_729.png\",\n      \"name\": \"screen_20260918_202426_729.png\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 183089,\n      \"modified\": \"2026-09-18T20:24:26.7538949+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\screen_20260923_122950_256.png\",\n      \"name\": \"screen_20260923_122950_256.png\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 499857,\n      \"modified\": \"2026-09-23T12:29:50.2742659+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\sfw_args.json\",\n      \"name\": \"sfw_args.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 75,\n      \"modified\": \"2026-09-21T11:54:29.9351589+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\step2_args.json\",\n      \"name\": \"step2_args.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 80,\n      \"modified\": \"2026-09-21T11:51:11.4979387+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\step2_custom_args.json\",\n      \"name\": \"step2_custom_args.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 95,\n      \"modified\": \"2026-09-21T11:55:46.5995373+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\step2_whitelisted_args.json\",\n      \"name\": \"step2_whitelisted_args.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 116,\n      \"modified\": \"2026-09-21T11:55:50.4645993+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\step3_args.json\",\n      \"name\": \"step3_args.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 45,\n      \"modified\": \"2026-09-21T11:56:24.8243964+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\step3_readback_args.json\",\n      \"name\": \"step3_readback_args.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 66,\n      \"modified\": \"2026-09-21T11:56:48.8044170+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\system-info-raw.json\",\n      \"name\": \"system-info-raw.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1399,\n      \"modified\": \"2026-09-20T16:42:15.5674068+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\system-info-report.md\",\n      \"name\": \"system-info-report.md\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 3133,\n      \"modified\": \"2026-09-18T18:04:36.7184557+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\system_info_report.md\",\n      \"name\": \"system_info_report.md\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1690,\n      \"modified\": \"2026-09-20T16:46:44.6627606+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\uninstall-wecom-pending-approval.json\",\n      \"name\": \"uninstall-wecom-pending-approval.json\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1359,\n      \"modified\": \"2026-09-29T11:13:10.6866226+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\wecom-status-report.txt\",\n      \"name\": \"wecom-status-report.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 985,\n      \"modified\": \"2026-09-29T18:52:28.8291097+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\wecom-uninstall-verification.txt\",\n      \"name\": \"wecom-uninstall-verification.txt\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 632,\n      \"modified\": \"2026-09-29T18:47:02.5468983+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\WinVMWorkspace\\\\out\\\\_extract_schema.py\",\n      \"name\": \"_extract_schema.py\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 526,\n      \"modified\": \"2026-09-30T17:56:11.2532221+08:00\"\n    }\n  ],\n  \"durationMs\": 838,\n  \"auditRef\": \"aud_cf555d92c9854a839348\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muqcjvmd_179",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\01_locate_wecom.json",
+            "name": "01_locate_wecom.json",
+            "isDirectory": false,
+            "sizeBytes": 284,
+            "modified": "2026-09-29T18:41:17.2456016+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\03_result.json",
+            "name": "03_result.json",
+            "isDirectory": false,
+            "sizeBytes": 1898,
+            "modified": "2026-09-29T18:44:11.8831241+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\body_init.txt",
+            "name": "body_init.txt",
+            "isDirectory": false,
+            "sizeBytes": 418,
+            "modified": "2026-09-30T17:55:23.7892546+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\body_list.txt",
+            "name": "body_list.txt",
+            "isDirectory": false,
+            "sizeBytes": 27035,
+            "modified": "2026-09-30T17:55:25.2221771+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\body_uninstall.txt",
+            "name": "body_uninstall.txt",
+            "isDirectory": false,
+            "sizeBytes": 2125,
+            "modified": "2026-09-30T17:56:28.1451440+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\check_wecom.py",
+            "name": "check_wecom.py",
+            "isDirectory": false,
+            "sizeBytes": 2617,
+            "modified": "2026-09-29T18:52:12.1392852+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\check_wecom_deep.py",
+            "name": "check_wecom_deep.py",
+            "isDirectory": false,
+            "sizeBytes": 2606,
+            "modified": "2026-09-29T18:43:37.6542247+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\e1-approval.json",
+            "name": "e1-approval.json",
+            "isDirectory": false,
+            "sizeBytes": 1034,
+            "modified": "2026-09-30T19:01:35.6443420+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\e1-receipt.json",
+            "name": "e1-receipt.json",
+            "isDirectory": false,
+            "sizeBytes": 1197,
+            "modified": "2026-09-30T18:56:14.8288557+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\gen_report.py",
+            "name": "gen_report.py",
+            "isDirectory": false,
+            "sizeBytes": 3669,
+            "modified": "2026-09-20T16:46:31.3691998+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\hdr_init.txt",
+            "name": "hdr_init.txt",
+            "isDirectory": false,
+            "sizeBytes": 171,
+            "modified": "2026-09-30T17:55:23.7867696+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\hdr_list.txt",
+            "name": "hdr_list.txt",
+            "isDirectory": false,
+            "sizeBytes": 173,
+            "modified": "2026-09-30T17:55:25.2136398+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\hdr_uninstall.txt",
+            "name": "hdr_uninstall.txt",
+            "isDirectory": false,
+            "sizeBytes": 172,
+            "modified": "2026-09-30T17:56:28.1422390+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\mcp_call.sh",
+            "name": "mcp_call.sh",
+            "isDirectory": false,
+            "sizeBytes": 570,
+            "modified": "2026-09-20T16:41:28.9877420+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\mcp_invoke.py",
+            "name": "mcp_invoke.py",
+            "isDirectory": false,
+            "sizeBytes": 1340,
+            "modified": "2026-09-29T11:11:35.6627146+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\meta-health-raw.json",
+            "name": "meta-health-raw.json",
+            "isDirectory": false,
+            "sizeBytes": 1524,
+            "modified": "2026-09-20T16:43:16.7262737+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\network-config-raw.json",
+            "name": "network-config-raw.json",
+            "isDirectory": false,
+            "sizeBytes": 627,
+            "modified": "2026-09-20T16:43:25.8992190+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\network-config-retry.json",
+            "name": "network-config-retry.json",
+            "isDirectory": false,
+            "sizeBytes": 1524,
+            "modified": "2026-09-20T16:44:59.6280354+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\probe_args.json",
+            "name": "probe_args.json",
+            "isDirectory": false,
+            "sizeBytes": 84,
+            "modified": "2026-09-21T11:53:16.2289764+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\process-list.json",
+            "name": "process-list.json",
+            "isDirectory": false,
+            "sizeBytes": 99764,
+            "modified": "2026-09-18T18:02:27.9129689+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\qa-b-s3-proof.txt",
+            "name": "qa-b-s3-proof.txt",
+            "isDirectory": false,
+            "sizeBytes": 20,
+            "modified": "2026-09-21T11:55:59.2860021+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\qa-uninstall-receipt.json",
+            "name": "qa-uninstall-receipt.json",
+            "isDirectory": false,
+            "sizeBytes": 1067,
+            "modified": "2026-09-30T17:56:38.8927621+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\r2-proof.txt",
+            "name": "r2-proof.txt",
+            "isDirectory": false,
+            "sizeBytes": 19,
+            "modified": "2026-09-21T12:16:36.4730567+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\screen_20260917_210013_927.png",
+            "name": "screen_20260917_210013_927.png",
+            "isDirectory": false,
+            "sizeBytes": 573430,
+            "modified": "2026-09-17T21:00:13.9514917+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\screen_20260918_171207_471.png",
+            "name": "screen_20260918_171207_471.png",
+            "isDirectory": false,
+            "sizeBytes": 584787,
+            "modified": "2026-09-18T17:12:07.6260843+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\screen_20260918_202426_729.png",
+            "name": "screen_20260918_202426_729.png",
+            "isDirectory": false,
+            "sizeBytes": 183089,
+            "modified": "2026-09-18T20:24:26.7538949+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\screen_20260923_122950_256.png",
+            "name": "screen_20260923_122950_256.png",
+            "isDirectory": false,
+            "sizeBytes": 499857,
+            "modified": "2026-09-23T12:29:50.2742659+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\sfw_args.json",
+            "name": "sfw_args.json",
+            "isDirectory": false,
+            "sizeBytes": 75,
+            "modified": "2026-09-21T11:54:29.9351589+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\step2_args.json",
+            "name": "step2_args.json",
+            "isDirectory": false,
+            "sizeBytes": 80,
+            "modified": "2026-09-21T11:51:11.4979387+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\step2_custom_args.json",
+            "name": "step2_custom_args.json",
+            "isDirectory": false,
+            "sizeBytes": 95,
+            "modified": "2026-09-21T11:55:46.5995373+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\step2_whitelisted_args.json",
+            "name": "step2_whitelisted_args.json",
+            "isDirectory": false,
+            "sizeBytes": 116,
+            "modified": "2026-09-21T11:55:50.4645993+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\step3_args.json",
+            "name": "step3_args.json",
+            "isDirectory": false,
+            "sizeBytes": 45,
+            "modified": "2026-09-21T11:56:24.8243964+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\step3_readback_args.json",
+            "name": "step3_readback_args.json",
+            "isDirectory": false,
+            "sizeBytes": 66,
+            "modified": "2026-09-21T11:56:48.8044170+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\system-info-raw.json",
+            "name": "system-info-raw.json",
+            "isDirectory": false,
+            "sizeBytes": 1399,
+            "modified": "2026-09-20T16:42:15.5674068+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\system-info-report.md",
+            "name": "system-info-report.md",
+            "isDirectory": false,
+            "sizeBytes": 3133,
+            "modified": "2026-09-18T18:04:36.7184557+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\system_info_report.md",
+            "name": "system_info_report.md",
+            "isDirectory": false,
+            "sizeBytes": 1690,
+            "modified": "2026-09-20T16:46:44.6627606+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\uninstall-wecom-pending-approval.json",
+            "name": "uninstall-wecom-pending-approval.json",
+            "isDirectory": false,
+            "sizeBytes": 1359,
+            "modified": "2026-09-29T11:13:10.6866226+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\wecom-status-report.txt",
+            "name": "wecom-status-report.txt",
+            "isDirectory": false,
+            "sizeBytes": 985,
+            "modified": "2026-09-29T18:52:28.8291097+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\wecom-uninstall-verification.txt",
+            "name": "wecom-uninstall-verification.txt",
+            "isDirectory": false,
+            "sizeBytes": 632,
+            "modified": "2026-09-29T18:47:02.5468983+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\WinVMWorkspace\\out\\_extract_schema.py",
+            "name": "_extract_schema.py",
+            "isDirectory": false,
+            "sizeBytes": 526,
+            "modified": "2026-09-30T17:56:11.2532221+08:00"
+          }
+        ],
+        "durationMs": 838,
+        "auditRef": "aud_cf555d92c9854a839348"
+      },
+      "isError": false
+    }
+  }
+}

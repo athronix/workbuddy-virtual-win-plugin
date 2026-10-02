@@ -1,0 +1,8 @@
+{
+  "tool": "app.winget.uninstall",
+  "arguments": {
+    "id": "GitHub.cli",
+    "dryRun": true
+  },
+  "startedAt": "2026-09-30T11:11:55.264Z"
+}

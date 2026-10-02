@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 101530,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munycxm6_25\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [],\n  \"durationMs\": 281,\n  \"auditRef\": \"aud_1ab19e1cf7b649fa95ab\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munycxm6_25",
+        "ok": true,
+        "risk": "L0",
+        "data": [],
+        "durationMs": 281,
+        "auditRef": "aud_1ab19e1cf7b649fa95ab"
+      },
+      "isError": false
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "tool": "storage.search.query",
+  "arguments": {
+    "path": "C:\\Users\\User\\WinVMWorkspace\\out",
+    "pattern": "*",
+    "maxResults": 60
+  },
+  "startedAt": "2026-10-02T02:31:23.567Z"
+}

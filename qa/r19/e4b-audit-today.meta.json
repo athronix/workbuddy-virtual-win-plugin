@@ -1,0 +1,9 @@
+{
+  "tool": "storage.search.query",
+  "startedAt": "2026-10-02T02:24:35.070Z",
+  "finishedAt": "2026-10-02T02:24:35.173Z",
+  "elapsedMs": 102,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": false
+}

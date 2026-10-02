@@ -1,0 +1,7 @@
+{
+  "tool": "system.registry.read",
+  "arguments": {
+    "path": "HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\WXWork"
+  },
+  "startedAt": "2026-09-30T10:24:55.343Z"
+}

@@ -1,0 +1,9 @@
+{
+  "tool": "storage.file.read",
+  "startedAt": "2026-10-02T02:27:33.949Z",
+  "finishedAt": "2026-10-02T02:27:34.118Z",
+  "elapsedMs": 168,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": false
+}

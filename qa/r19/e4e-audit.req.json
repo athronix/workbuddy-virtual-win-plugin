@@ -1,0 +1,8 @@
+{
+  "tool": "storage.file.read",
+  "arguments": {
+    "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260930.jsonl",
+    "maxBytes": 250000
+  },
+  "startedAt": "2026-10-02T02:46:50.825Z"
+}

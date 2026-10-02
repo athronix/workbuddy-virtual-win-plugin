@@ -1,0 +1,39 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 556486,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munxa4hy_15\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"name\": \"企业微信\",\n      \"version\": \"5.0.11.6018\",\n      \"publisher\": \"腾讯科技(深圳)有限公司\",\n      \"installDate\": null,\n      \"installPath\": null,\n      \"uninstallCmd\": \"C:\\\\Program Files (x86)\\\\WXWork\\\\Uninstall.exe\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x86\"\n      ]\n    }\n  ],\n  \"durationMs\": 2353,\n  \"auditRef\": \"aud_99a1d124876445728638\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munxa4hy_15",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "name": "企业微信",
+            "version": "5.0.11.6018",
+            "publisher": "腾讯科技(深圳)有限公司",
+            "installDate": null,
+            "installPath": null,
+            "uninstallCmd": "C:\\Program Files (x86)\\WXWork\\Uninstall.exe",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x86"
+            ]
+          }
+        ],
+        "durationMs": 2353,
+        "auditRef": "aud_99a1d124876445728638"
+      },
+      "isError": false
+    }
+  }
+}

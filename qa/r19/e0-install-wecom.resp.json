@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 638394,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munx68od_8\",\n  \"ok\": true,\n  \"risk\": \"L1\",\n  \"data\": {\n    \"id\": \"Tencent.WeCom\",\n    \"version\": \"\",\n    \"dryRun\": false,\n    \"exitCode\": -2147024864,\n    \"success\": false,\n    \"output\": [\n      \"Found 企业微信 [Tencent.WeCom] Version 5.0.11.6018\",\n      \"This application is licensed to you by its owner.\",\n      \"Microsoft is not responsible for, nor does it grant any licenses to, third-party packages.\",\n      \"An unexpected error occurred while executing the command: \",\n      \"0x80070020 : The process cannot access the file because it is being used by another process.\"\n    ]\n  },\n  \"durationMs\": 9472,\n  \"auditRef\": \"aud_93bb9d7fa9d74cb88177\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munx68od_8",
+        "ok": true,
+        "risk": "L1",
+        "data": {
+          "id": "Tencent.WeCom",
+          "version": "",
+          "dryRun": false,
+          "exitCode": -2147024864,
+          "success": false,
+          "output": [
+            "Found 企业微信 [Tencent.WeCom] Version 5.0.11.6018",
+            "This application is licensed to you by its owner.",
+            "Microsoft is not responsible for, nor does it grant any licenses to, third-party packages.",
+            "An unexpected error occurred while executing the command: ",
+            "0x80070020 : The process cannot access the file because it is being used by another process."
+          ]
+        },
+        "durationMs": 9472,
+        "auditRef": "aud_93bb9d7fa9d74cb88177"
+      },
+      "isError": false
+    }
+  }
+}

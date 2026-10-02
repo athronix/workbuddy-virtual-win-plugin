@@ -1,0 +1,353 @@
+{
+  "mode": "delegate",
+  "arg": {
+    "goal": "调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。",
+    "allowedCapabilities": [
+      "app.winget.uninstall"
+    ],
+    "maxRisk": "L2",
+    "blocking": false,
+    "timeoutMs": 600000,
+    "autoReply": true,
+    "pollMaxMs": 620000
+  },
+  "t0": "2026-09-30T10:53:26.245Z",
+  "sendElapsedMs": 406,
+  "send": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "kind": "task",
+      "id": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+      "contextId": "29536f49-dda2-44c0-84fa-8c48419085a8",
+      "status": {
+        "state": "working",
+        "timestamp": "2026-09-30T10:53:26.598Z",
+        "message": "WinVM WorkBuddy LLM Agent 接管目标：调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。"
+      },
+      "artifacts": [],
+      "history": [
+        {
+          "kind": "message",
+          "role": "user",
+          "messageId": "msg_r19_1790765606247",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。"
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "traceId": "tr_r19_munzlt2f",
+        "maxRisk": "L2",
+        "timeoutMs": 600000,
+        "allowedCapabilities": [
+          "app.winget.uninstall"
+        ]
+      }
+    }
+  },
+  "terminalSeen": {
+    "state": "working",
+    "atMs": 623288
+  },
+  "pending": {
+    "kind": "task",
+    "id": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+    "contextId": "29536f49-dda2-44c0-84fa-8c48419085a8",
+    "status": {
+      "state": "input-required",
+      "timestamp": "2026-09-30T11:01:52.637Z",
+      "message": {
+        "kind": "message",
+        "role": "agent",
+        "messageId": "573d7f1c-9664-4211-8b6d-ca79a2cbe204",
+        "taskId": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "需要人工审批（风险 L2）后才能继续。\n操作：appops.workflow.run\n真实目标：能力 app.winget.uninstall · 参数 id=Tencent.WeCom · dryRun=false\n说明：调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_ff3b4e10a67949b3a1c3\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+          },
+          {
+            "kind": "data",
+            "data": {
+              "type": "approval-request",
+              "approvalId": "apr_ff3b4e10a67949b3a1c3",
+              "capabilityId": "appops.workflow.run",
+              "risk": "L2",
+              "preview": {
+                "capabilityId": "app.winget.uninstall",
+                "risk": "L2",
+                "destructive": true,
+                "requiresSession": false,
+                "params": {
+                  "id": "Tencent.WeCom",
+                  "dryRun": false
+                },
+                "dryRun": {
+                  "supported": true,
+                  "requested": false,
+                  "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+                  "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+                },
+                "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+              },
+              "impact": [
+                "id=Tencent.WeCom",
+                "dryRun=false"
+              ],
+              "expiresAtMs": 1790767912637,
+              "underlying": {
+                "capabilityId": "app.winget.uninstall",
+                "paramsSummary": "id=Tencent.WeCom · dryRun=false"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "artifacts": [
+      {
+        "artifactId": "f9483e78-6a9d-49cf-ac24-f2be9fac3fef",
+        "name": "e1-approval.json",
+        "description": "file",
+        "parts": [
+          {
+            "kind": "file",
+            "file": {
+              "name": "e1-approval.json",
+              "mimeType": "application/json",
+              "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpzMDVnXzExMiIsCiAgIm9rIjogZmFsc2UsCiAgImVycm9yIjogewogICAgImNvZGUiOiAiQVBQUk9WQUxfUkVRVUlSRUQiLAogICAgIm1lc3NhZ2UiOiAi6aOO6Zmp562J57qnIEwyIOmcgOS6uuW3peWuoeaJueWQjuaJp+ihjCIKICB9LAogICJhcHByb3ZhbCI6IHsKICAgICJhcHByb3ZhbElkIjogImFwcl9mZjNiNGUxMGE2Nzk0OWIzYTFjMyIsCiAgICAicmlzayI6ICJMMiIsCiAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICJwcmV2aWV3IjogewogICAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICAgInJpc2siOiAiTDIiLAogICAgICAiZGVzdHJ1Y3RpdmUiOiB0cnVlLAogICAgICAicmVxdWlyZXNTZXNzaW9uIjogZmFsc2UsCiAgICAgICJwYXJhbXMiOiB7CiAgICAgICAgImlkIjogIlRlbmNlbnQuV2VDb20iLAogICAgICAgICJkcnlSdW4iOiBmYWxzZQogICAgICB9LAogICAgICAiZHJ5UnVuIjogewogICAgICAgICJzdXBwb3J0ZWQiOiB0cnVlLAogICAgICAgICJyZXF1ZXN0ZWQiOiBmYWxzZSwKICAgICAgICAicGxhbiI6ICLlj6/kvKAgZHJ5UnVuOnRydWUg5YWN5a6h5om56aKE6KeIIGFwcC53aW5nZXQudW5pbnN0YWxsIOeahOW9seWTjeWQjuWGjeWGs+WumuaYr+WQpuecn+WunuaJp+ihjCIsCiAgICAgICAgImhpbnQiOiAicGFyYW1zLmRyeVJ1biA9PT0gdHJ1ZSDml7blhY3lrqHmibnnm7TmjqXmlL7ooYzvvIhkcnktcnVuIOS4jeaUueWPmOezu+e7n+eKtuaAge+8iSIKICAgICAgfSwKICAgICAgIm5vdGUiOiAiTDIg56C05Z2P5oCn5pON5L2c77ya5bCG5pS55Y+Y57O757uf54q25oCB77yM6K+356Gu6K6k5b2x5ZON6IyD5Zu0IgogICAgfSwKICAgICJpbXBhY3QiOiBbCiAgICAgICJpZD1UZW5jZW50LldlQ29tIiwKICAgICAgImRyeVJ1bj1mYWxzZSIKICAgIF0sCiAgICAicmVzdW1lSGludCI6ICLnoa7orqTlkI7ku6UgX19hcHByb3ZhbElkIOmHjeWPkeWQjOS4gOivt+axgiIKICB9Cn0="
+            }
+          }
+        ]
+      },
+      {
+        "artifactId": "2257765b-7d50-4c48-91e1-ccea68080c6c",
+        "name": "e1-receipt.json",
+        "description": "file",
+        "parts": [
+          {
+            "kind": "file",
+            "file": {
+              "name": "e1-receipt.json",
+              "mimeType": "application/json",
+              "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpvcnZwXzg5IiwKICAib2siOiBmYWxzZSwKICAiZXJyb3IiOiB7CiAgICAiY29kZSI6ICJBUFBST1ZBTF9SRVFVSVJFRCIsCiAgICAibWVzc2FnZSI6ICLpo47pmannrYnnuqcgTDIg6ZyA5Lq65bel5a6h5om55ZCO5omn6KGMIgogIH0sCiAgImFwcHJvdmFsIjogewogICAgImFwcHJvdmFsSWQiOiAiYXByX2ZhOTYxNTU0ZjZjNDRjNTViNDU2IiwKICAgICJyaXNrIjogIkwyIiwKICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgInByZXZpZXciOiB7CiAgICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgICAicmlzayI6ICJMMiIsCiAgICAgICJkZXN0cnVjdGl2ZSI6IHRydWUsCiAgICAgICJyZXF1aXJlc1Nlc3Npb24iOiBmYWxzZSwKICAgICAgInBhcmFtcyI6IHsKICAgICAgICAiaWQiOiAiVGVuY2VudC5XZUNvbSIsCiAgICAgICAgImRyeVJ1biI6IGZhbHNlCiAgICAgIH0sCiAgICAgICJkcnlSdW4iOiB7CiAgICAgICAgInN1cHBvcnRlZCI6IHRydWUsCiAgICAgICAgInJlcXVlc3RlZCI6IGZhbHNlLAogICAgICAgICJwbGFuIjogIuWPr+S8oCBkcnlSdW46dHJ1ZSDlhY3lrqHmibnpooTop4ggYXBwLndpbmdldC51bmluc3RhbGwg55qE5b2x5ZON5ZCO5YaN5Yaz5a6a5piv5ZCm55yf5a6e5omn6KGMIiwKICAgICAgICAiaGludCI6ICJwYXJhbXMuZHJ5UnVuID09PSB0cnVlIOaXtuWFjeWuoeaJueebtOaOpeaUvuihjO+8iGRyeS1ydW4g5LiN5pS55Y+Y57O757uf54q25oCB77yJIgogICAgICB9LAogICAgICAibm90ZSI6ICJMMiDnoLTlnY/mgKfmk43kvZzvvJrlsIbmlLnlj5jns7vnu5/nirbmgIHvvIzor7fnoa7orqTlvbHlk43ojIPlm7QiCiAgICB9LAogICAgImltcGFjdCI6IFsKICAgICAgImlkPVRlbmNlbnQuV2VDb20iLAogICAgICAiZHJ5UnVuPWZhbHNlIgogICAgXSwKICAgICJyZXN1bWVIaW50IjogIuehruiupOWQjuS7pSBfX2FwcHJvdmFsSWQg6YeN5Y+R5ZCM5LiA6K+35rGCIgogIH0sCiAgIl9ub3RlIjogIui/meaYr+WuoeaJuemXuOaLpuaIquWbnuaJp++8jOmdnuaJp+ihjOWbnuaJp+OAguiDveWKm+acquaJp+ihjO+8jOaVheS4jeWQqyBleGl0Q29kZSAvIHN1Y2Nlc3MgLyB2ZXJpZmllZCAvIGZhbGxiYWNrVXNlZCAvIHJlc2lkdWFsRXZpZGVuY2Ug5a2X5q6144CCIgp9"
+            }
+          }
+        ]
+      }
+    ],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_r19_1790765606247",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_r19_munzlt2f",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "approvalData": {
+    "type": "approval-request",
+    "approvalId": "apr_ff3b4e10a67949b3a1c3",
+    "capabilityId": "appops.workflow.run",
+    "risk": "L2",
+    "preview": {
+      "capabilityId": "app.winget.uninstall",
+      "risk": "L2",
+      "destructive": true,
+      "requiresSession": false,
+      "params": {
+        "id": "Tencent.WeCom",
+        "dryRun": false
+      },
+      "dryRun": {
+        "supported": true,
+        "requested": false,
+        "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+        "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+      },
+      "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+    },
+    "impact": [
+      "id=Tencent.WeCom",
+      "dryRun=false"
+    ],
+    "expiresAtMs": 1790767912637,
+    "underlying": {
+      "capabilityId": "app.winget.uninstall",
+      "paramsSummary": "id=Tencent.WeCom · dryRun=false"
+    }
+  },
+  "reply": {
+    "kind": "task",
+    "id": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+    "contextId": "29536f49-dda2-44c0-84fa-8c48419085a8",
+    "status": {
+      "state": "working",
+      "timestamp": "2026-09-30T11:02:03.149Z"
+    },
+    "artifacts": [
+      {
+        "artifactId": "f9483e78-6a9d-49cf-ac24-f2be9fac3fef",
+        "name": "e1-approval.json",
+        "description": "file",
+        "parts": [
+          {
+            "kind": "file",
+            "file": {
+              "name": "e1-approval.json",
+              "mimeType": "application/json",
+              "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpzMDVnXzExMiIsCiAgIm9rIjogZmFsc2UsCiAgImVycm9yIjogewogICAgImNvZGUiOiAiQVBQUk9WQUxfUkVRVUlSRUQiLAogICAgIm1lc3NhZ2UiOiAi6aOO6Zmp562J57qnIEwyIOmcgOS6uuW3peWuoeaJueWQjuaJp+ihjCIKICB9LAogICJhcHByb3ZhbCI6IHsKICAgICJhcHByb3ZhbElkIjogImFwcl9mZjNiNGUxMGE2Nzk0OWIzYTFjMyIsCiAgICAicmlzayI6ICJMMiIsCiAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICJwcmV2aWV3IjogewogICAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICAgInJpc2siOiAiTDIiLAogICAgICAiZGVzdHJ1Y3RpdmUiOiB0cnVlLAogICAgICAicmVxdWlyZXNTZXNzaW9uIjogZmFsc2UsCiAgICAgICJwYXJhbXMiOiB7CiAgICAgICAgImlkIjogIlRlbmNlbnQuV2VDb20iLAogICAgICAgICJkcnlSdW4iOiBmYWxzZQogICAgICB9LAogICAgICAiZHJ5UnVuIjogewogICAgICAgICJzdXBwb3J0ZWQiOiB0cnVlLAogICAgICAgICJyZXF1ZXN0ZWQiOiBmYWxzZSwKICAgICAgICAicGxhbiI6ICLlj6/kvKAgZHJ5UnVuOnRydWUg5YWN5a6h5om56aKE6KeIIGFwcC53aW5nZXQudW5pbnN0YWxsIOeahOW9seWTjeWQjuWGjeWGs+WumuaYr+WQpuecn+WunuaJp+ihjCIsCiAgICAgICAgImhpbnQiOiAicGFyYW1zLmRyeVJ1biA9PT0gdHJ1ZSDml7blhY3lrqHmibnnm7TmjqXmlL7ooYzvvIhkcnktcnVuIOS4jeaUueWPmOezu+e7n+eKtuaAge+8iSIKICAgICAgfSwKICAgICAgIm5vdGUiOiAiTDIg56C05Z2P5oCn5pON5L2c77ya5bCG5pS55Y+Y57O757uf54q25oCB77yM6K+356Gu6K6k5b2x5ZON6IyD5Zu0IgogICAgfSwKICAgICJpbXBhY3QiOiBbCiAgICAgICJpZD1UZW5jZW50LldlQ29tIiwKICAgICAgImRyeVJ1bj1mYWxzZSIKICAgIF0sCiAgICAicmVzdW1lSGludCI6ICLnoa7orqTlkI7ku6UgX19hcHByb3ZhbElkIOmHjeWPkeWQjOS4gOivt+axgiIKICB9Cn0="
+            }
+          }
+        ]
+      },
+      {
+        "artifactId": "2257765b-7d50-4c48-91e1-ccea68080c6c",
+        "name": "e1-receipt.json",
+        "description": "file",
+        "parts": [
+          {
+            "kind": "file",
+            "file": {
+              "name": "e1-receipt.json",
+              "mimeType": "application/json",
+              "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpvcnZwXzg5IiwKICAib2siOiBmYWxzZSwKICAiZXJyb3IiOiB7CiAgICAiY29kZSI6ICJBUFBST1ZBTF9SRVFVSVJFRCIsCiAgICAibWVzc2FnZSI6ICLpo47pmannrYnnuqcgTDIg6ZyA5Lq65bel5a6h5om55ZCO5omn6KGMIgogIH0sCiAgImFwcHJvdmFsIjogewogICAgImFwcHJvdmFsSWQiOiAiYXByX2ZhOTYxNTU0ZjZjNDRjNTViNDU2IiwKICAgICJyaXNrIjogIkwyIiwKICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgInByZXZpZXciOiB7CiAgICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgICAicmlzayI6ICJMMiIsCiAgICAgICJkZXN0cnVjdGl2ZSI6IHRydWUsCiAgICAgICJyZXF1aXJlc1Nlc3Npb24iOiBmYWxzZSwKICAgICAgInBhcmFtcyI6IHsKICAgICAgICAiaWQiOiAiVGVuY2VudC5XZUNvbSIsCiAgICAgICAgImRyeVJ1biI6IGZhbHNlCiAgICAgIH0sCiAgICAgICJkcnlSdW4iOiB7CiAgICAgICAgInN1cHBvcnRlZCI6IHRydWUsCiAgICAgICAgInJlcXVlc3RlZCI6IGZhbHNlLAogICAgICAgICJwbGFuIjogIuWPr+S8oCBkcnlSdW46dHJ1ZSDlhY3lrqHmibnpooTop4ggYXBwLndpbmdldC51bmluc3RhbGwg55qE5b2x5ZON5ZCO5YaN5Yaz5a6a5piv5ZCm55yf5a6e5omn6KGMIiwKICAgICAgICAiaGludCI6ICJwYXJhbXMuZHJ5UnVuID09PSB0cnVlIOaXtuWFjeWuoeaJueebtOaOpeaUvuihjO+8iGRyeS1ydW4g5LiN5pS55Y+Y57O757uf54q25oCB77yJIgogICAgICB9LAogICAgICAibm90ZSI6ICJMMiDnoLTlnY/mgKfmk43kvZzvvJrlsIbmlLnlj5jns7vnu5/nirbmgIHvvIzor7fnoa7orqTlvbHlk43ojIPlm7QiCiAgICB9LAogICAgImltcGFjdCI6IFsKICAgICAgImlkPVRlbmNlbnQuV2VDb20iLAogICAgICAiZHJ5UnVuPWZhbHNlIgogICAgXSwKICAgICJyZXN1bWVIaW50IjogIuehruiupOWQjuS7pSBfX2FwcHJvdmFsSWQg6YeN5Y+R5ZCM5LiA6K+35rGCIgogIH0sCiAgIl9ub3RlIjogIui/meaYr+WuoeaJuemXuOaLpuaIquWbnuaJp++8jOmdnuaJp+ihjOWbnuaJp+OAguiDveWKm+acquaJp+ihjO+8jOaVheS4jeWQqyBleGl0Q29kZSAvIHN1Y2Nlc3MgLyB2ZXJpZmllZCAvIGZhbGxiYWNrVXNlZCAvIHJlc2lkdWFsRXZpZGVuY2Ug5a2X5q6144CCIgp9"
+            }
+          }
+        ]
+      }
+    ],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_r19_1790765606247",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。"
+          }
+        ]
+      },
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "apr_1790766123054",
+        "taskId": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+        "parts": [
+          {
+            "kind": "data",
+            "data": {
+              "approvalId": "apr_ff3b4e10a67949b3a1c3",
+              "approved": true
+            }
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_r19_munzlt2f",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "final": {
+    "kind": "task",
+    "id": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+    "contextId": "29536f49-dda2-44c0-84fa-8c48419085a8",
+    "status": {
+      "state": "working",
+      "timestamp": "2026-09-30T11:02:44.029Z",
+      "message": "调起 LLM 运行时：codebuddy"
+    },
+    "artifacts": [
+      {
+        "artifactId": "f9483e78-6a9d-49cf-ac24-f2be9fac3fef",
+        "name": "e1-approval.json",
+        "description": "file",
+        "parts": [
+          {
+            "kind": "file",
+            "file": {
+              "name": "e1-approval.json",
+              "mimeType": "application/json",
+              "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpzMDVnXzExMiIsCiAgIm9rIjogZmFsc2UsCiAgImVycm9yIjogewogICAgImNvZGUiOiAiQVBQUk9WQUxfUkVRVUlSRUQiLAogICAgIm1lc3NhZ2UiOiAi6aOO6Zmp562J57qnIEwyIOmcgOS6uuW3peWuoeaJueWQjuaJp+ihjCIKICB9LAogICJhcHByb3ZhbCI6IHsKICAgICJhcHByb3ZhbElkIjogImFwcl9mZjNiNGUxMGE2Nzk0OWIzYTFjMyIsCiAgICAicmlzayI6ICJMMiIsCiAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICJwcmV2aWV3IjogewogICAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICAgInJpc2siOiAiTDIiLAogICAgICAiZGVzdHJ1Y3RpdmUiOiB0cnVlLAogICAgICAicmVxdWlyZXNTZXNzaW9uIjogZmFsc2UsCiAgICAgICJwYXJhbXMiOiB7CiAgICAgICAgImlkIjogIlRlbmNlbnQuV2VDb20iLAogICAgICAgICJkcnlSdW4iOiBmYWxzZQogICAgICB9LAogICAgICAiZHJ5UnVuIjogewogICAgICAgICJzdXBwb3J0ZWQiOiB0cnVlLAogICAgICAgICJyZXF1ZXN0ZWQiOiBmYWxzZSwKICAgICAgICAicGxhbiI6ICLlj6/kvKAgZHJ5UnVuOnRydWUg5YWN5a6h5om56aKE6KeIIGFwcC53aW5nZXQudW5pbnN0YWxsIOeahOW9seWTjeWQjuWGjeWGs+WumuaYr+WQpuecn+WunuaJp+ihjCIsCiAgICAgICAgImhpbnQiOiAicGFyYW1zLmRyeVJ1biA9PT0gdHJ1ZSDml7blhY3lrqHmibnnm7TmjqXmlL7ooYzvvIhkcnktcnVuIOS4jeaUueWPmOezu+e7n+eKtuaAge+8iSIKICAgICAgfSwKICAgICAgIm5vdGUiOiAiTDIg56C05Z2P5oCn5pON5L2c77ya5bCG5pS55Y+Y57O757uf54q25oCB77yM6K+356Gu6K6k5b2x5ZON6IyD5Zu0IgogICAgfSwKICAgICJpbXBhY3QiOiBbCiAgICAgICJpZD1UZW5jZW50LldlQ29tIiwKICAgICAgImRyeVJ1bj1mYWxzZSIKICAgIF0sCiAgICAicmVzdW1lSGludCI6ICLnoa7orqTlkI7ku6UgX19hcHByb3ZhbElkIOmHjeWPkeWQjOS4gOivt+axgiIKICB9Cn0="
+            }
+          }
+        ]
+      },
+      {
+        "artifactId": "2257765b-7d50-4c48-91e1-ccea68080c6c",
+        "name": "e1-receipt.json",
+        "description": "file",
+        "parts": [
+          {
+            "kind": "file",
+            "file": {
+              "name": "e1-receipt.json",
+              "mimeType": "application/json",
+              "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpvcnZwXzg5IiwKICAib2siOiBmYWxzZSwKICAiZXJyb3IiOiB7CiAgICAiY29kZSI6ICJBUFBST1ZBTF9SRVFVSVJFRCIsCiAgICAibWVzc2FnZSI6ICLpo47pmannrYnnuqcgTDIg6ZyA5Lq65bel5a6h5om55ZCO5omn6KGMIgogIH0sCiAgImFwcHJvdmFsIjogewogICAgImFwcHJvdmFsSWQiOiAiYXByX2ZhOTYxNTU0ZjZjNDRjNTViNDU2IiwKICAgICJyaXNrIjogIkwyIiwKICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgInByZXZpZXciOiB7CiAgICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgICAicmlzayI6ICJMMiIsCiAgICAgICJkZXN0cnVjdGl2ZSI6IHRydWUsCiAgICAgICJyZXF1aXJlc1Nlc3Npb24iOiBmYWxzZSwKICAgICAgInBhcmFtcyI6IHsKICAgICAgICAiaWQiOiAiVGVuY2VudC5XZUNvbSIsCiAgICAgICAgImRyeVJ1biI6IGZhbHNlCiAgICAgIH0sCiAgICAgICJkcnlSdW4iOiB7CiAgICAgICAgInN1cHBvcnRlZCI6IHRydWUsCiAgICAgICAgInJlcXVlc3RlZCI6IGZhbHNlLAogICAgICAgICJwbGFuIjogIuWPr+S8oCBkcnlSdW46dHJ1ZSDlhY3lrqHmibnpooTop4ggYXBwLndpbmdldC51bmluc3RhbGwg55qE5b2x5ZON5ZCO5YaN5Yaz5a6a5piv5ZCm55yf5a6e5omn6KGMIiwKICAgICAgICAiaGludCI6ICJwYXJhbXMuZHJ5UnVuID09PSB0cnVlIOaXtuWFjeWuoeaJueebtOaOpeaUvuihjO+8iGRyeS1ydW4g5LiN5pS55Y+Y57O757uf54q25oCB77yJIgogICAgICB9LAogICAgICAibm90ZSI6ICJMMiDnoLTlnY/mgKfmk43kvZzvvJrlsIbmlLnlj5jns7vnu5/nirbmgIHvvIzor7fnoa7orqTlvbHlk43ojIPlm7QiCiAgICB9LAogICAgImltcGFjdCI6IFsKICAgICAgImlkPVRlbmNlbnQuV2VDb20iLAogICAgICAiZHJ5UnVuPWZhbHNlIgogICAgXSwKICAgICJyZXN1bWVIaW50IjogIuehruiupOWQjuS7pSBfX2FwcHJvdmFsSWQg6YeN5Y+R5ZCM5LiA6K+35rGCIgogIH0sCiAgIl9ub3RlIjogIui/meaYr+WuoeaJuemXuOaLpuaIquWbnuaJp++8jOmdnuaJp+ihjOWbnuaJp+OAguiDveWKm+acquaJp+ihjO+8jOaVheS4jeWQqyBleGl0Q29kZSAvIHN1Y2Nlc3MgLyB2ZXJpZmllZCAvIGZhbGxiYWNrVXNlZCAvIHJlc2lkdWFsRXZpZGVuY2Ug5a2X5q6144CCIgp9"
+            }
+          }
+        ]
+      }
+    ],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_r19_1790765606247",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。"
+          }
+        ]
+      },
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "apr_1790766123054",
+        "taskId": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+        "parts": [
+          {
+            "kind": "data",
+            "data": {
+              "approvalId": "apr_ff3b4e10a67949b3a1c3",
+              "approved": true
+            }
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_r19_munzlt2f",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "endElapsedMs": 623291
+}

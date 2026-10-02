@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 869012,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munx61yo_6\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [],\n  \"durationMs\": 578,\n  \"auditRef\": \"aud_7495b0eca376486f8552\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munx61yo_6",
+        "ok": true,
+        "risk": "L0",
+        "data": [],
+        "durationMs": 578,
+        "auditRef": "aud_7495b0eca376486f8552"
+      },
+      "isError": false
+    }
+  }
+}

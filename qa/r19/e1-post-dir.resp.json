@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 682785,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munyknsf_31\",\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"POLICY_DENIED\",\n    \"message\": \"路径命中黑名单，已拒绝：C:\\\\Program Files (x86)\",\n    \"details\": {\n      \"path\": \"C:\\\\Program Files (x86)\",\n      \"rule\": \"^C:\\\\\\\\Program Files \\\\(x86\\\\)\\\\\\\\.*$\"\n    },\n    \"retryable\": false\n  },\n  \"risk\": \"L0\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munyknsf_31",
+        "ok": false,
+        "error": {
+          "code": "POLICY_DENIED",
+          "message": "路径命中黑名单，已拒绝：C:\\Program Files (x86)",
+          "details": {
+            "path": "C:\\Program Files (x86)",
+            "rule": "^C:\\\\Program Files \\(x86\\)\\\\.*$"
+          },
+          "retryable": false
+        },
+        "risk": "L0"
+      },
+      "isError": true
+    }
+  }
+}

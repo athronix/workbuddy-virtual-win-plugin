@@ -1,0 +1,8 @@
+{
+  "tool": "storage.dir.manage",
+  "arguments": {
+    "action": "list",
+    "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit"
+  },
+  "startedAt": "2026-10-02T02:22:47.957Z"
+}

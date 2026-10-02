@@ -1,0 +1,106 @@
+{
+  "kind": "task",
+  "id": "4a7573ab-bee5-4eb7-a80d-6163a24325f4",
+  "contextId": "83515261-ecb4-4041-821e-13bb3622ccec",
+  "status": {
+    "state": "failed",
+    "timestamp": "2026-09-30T10:14:35.191Z",
+    "message": {
+      "kind": "message",
+      "role": "agent",
+      "messageId": "e032183a-813a-4453-bf2c-a74c358938ab",
+      "taskId": "4a7573ab-bee5-4eb7-a80d-6163a24325f4",
+      "parts": [
+        {
+          "kind": "text",
+          "text": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时完成目标：必须立即调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom 的包，参数 dryRun=false（这是 QA 真机验证用例 E1，企业微信是测试安装的可卸载包）。调用如返回 APPROVAL_REQUIRED 属正常，如实等待。拿到执行回执后，把回执中的 exitCode、success、verified（完整对象，含 installerType/registryGone/exeGone/dirGone/installLocation）、fallbackUsed、residualEvidence 逐字段原样写进你的完成报告，不得省略不得改写。禁止使用 dryRun。」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑"
+        },
+        {
+          "kind": "data",
+          "data": {
+            "ok": false,
+            "stepCount": 1,
+            "steps": [
+              {
+                "index": 0,
+                "capabilityId": "appops.workflow.run",
+                "risk": "L1",
+                "ok": false,
+                "durationMs": 527998,
+                "summary": "等待审批（未执行完成）"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "artifacts": [
+    {
+      "artifactId": "8362e3cd-07bf-41fd-b49d-c91f9f486f15",
+      "name": "execution-steps",
+      "parts": [
+        {
+          "kind": "data",
+          "data": {
+            "ok": false,
+            "summary": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时完成目标：必须立即调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom 的包，参数 dryRun=false（这是 QA 真机验证用例 E1，企业微信是测试安装的可卸载包）。调用如返回 APPROVAL_REQUIRED 属正常，如实等待。拿到执行回执后，把回执中的 exitCode、success、verified（完整对象，含 installerType/registryGone/exeGone/dirGone/installLocation）、fallbackUsed、residualEvidence 逐字段原样写进你的完成报告，不得省略不得改写。禁止使用 dryRun。」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑",
+            "steps": [
+              {
+                "index": 0,
+                "capabilityId": "appops.workflow.run",
+                "params": {
+                  "goal": "必须立即调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom 的包，参数 dryRun=false（这是 QA 真机验证用例 E1，企业微信是测试安装的可卸载包）。调用如返回 APPROVAL_REQUIRED 属正常，如实等待。拿到执行回执后，把回执中的 exitCode、success、verified（完整对象，含 installerType/registryGone/exeGone/dirGone/installLocation）、fallbackUsed、residualEvidence 逐字段原样写进你的完成报告，不得省略不得改写。禁止使用 dryRun。",
+                  "runtime": "codebuddy"
+                },
+                "risk": "L1",
+                "ok": false,
+                "durationMs": 527998,
+                "traceId": "tr_r19_munxwinm",
+                "summary": "等待审批（未执行完成）"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "history": [
+    {
+      "kind": "message",
+      "role": "user",
+      "messageId": "msg_r19_1790762746738",
+      "parts": [
+        {
+          "kind": "text",
+          "text": "必须立即调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom 的包，参数 dryRun=false（这是 QA 真机验证用例 E1，企业微信是测试安装的可卸载包）。调用如返回 APPROVAL_REQUIRED 属正常，如实等待。拿到执行回执后，把回执中的 exitCode、success、verified（完整对象，含 installerType/registryGone/exeGone/dirGone/installLocation）、fallbackUsed、residualEvidence 逐字段原样写进你的完成报告，不得省略不得改写。禁止使用 dryRun。"
+        }
+      ]
+    },
+    {
+      "kind": "message",
+      "role": "user",
+      "messageId": "apr_1790763031601",
+      "taskId": "4a7573ab-bee5-4eb7-a80d-6163a24325f4",
+      "parts": [
+        {
+          "kind": "data",
+          "data": {
+            "approvalId": "apr_90ba0bce923b446c9682",
+            "approved": true
+          }
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "traceId": "tr_r19_munxwinm",
+    "maxRisk": "L2",
+    "timeoutMs": 600000,
+    "allowedCapabilities": [
+      "app.winget.uninstall"
+    ],
+    "goalSummary": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时完成目标：必须立即调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom 的包，参数 dryRun=false（这是 QA 真机验证用例 E1，企业微信是测试安装的可卸载包）。调用如返回 APPROVAL_REQUIRED 属正常，如实等待。拿到执行回执后，把回执中的 exitCode、success、verified（完整对象，含 installerType/registryGone/exeGone/dirGone/installLocation）、fallbackUsed、residualEvidence 逐字段原样写进你的完成报告，不得省略不得改写。禁止使用 dryRun。」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑",
+    "stepCount": 1
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 800914,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munvtirk_1\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [],\n  \"durationMs\": 733,\n  \"auditRef\": \"aud_5556284cdeaa4d6fb6cc\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munvtirk_1",
+        "ok": true,
+        "risk": "L0",
+        "data": [],
+        "durationMs": 733,
+        "auditRef": "aud_5556284cdeaa4d6fb6cc"
+      },
+      "isError": false
+    }
+  }
+}

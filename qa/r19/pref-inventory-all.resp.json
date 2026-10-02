@@ -1,0 +1,304 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 183735,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munvtu5t_2\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"name\": \"Coreutils for Windows 2026.9.3\",\n      \"version\": \"2026.9.3\",\n      \"publisher\": \"Microsoft Corporation\",\n      \"installDate\": \"20260916\",\n      \"installPath\": \"C:\\\\Program Files\\\\coreutils\\\\\",\n      \"uninstallCmd\": \"\\\"C:\\\\Program Files\\\\coreutils\\\\unins000.exe\\\"\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"FFmpeg\",\n      \"version\": \"9.0.1\",\n      \"publisher\": \"Gyan\",\n      \"installDate\": \"20260921\",\n      \"installPath\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Microsoft\\\\WinGet\\\\Packages\\\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\",\n      \"uninstallCmd\": \"winget uninstall --product-code Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1\n    },\n    {\n      \"name\": \"Git (All users)\",\n      \"version\": \"2.47.1.2\",\n      \"publisher\": \"The Git Development Community\",\n      \"installDate\": \"20260911\",\n      \"installPath\": \"C:\\\\Program Files\\\\Git\\\\\",\n      \"uninstallCmd\": \"\\\"C:\\\\Program Files\\\\Git\\\\unins000.exe\\\"\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"GitHub CLI\",\n      \"version\": \"2.101.0\",\n      \"publisher\": \"GitHub, Inc.\",\n      \"installDate\": \"20260922\",\n      \"installPath\": \"\",\n      \"uninstallCmd\": \"MsiExec.exe /X{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"Google Chrome\",\n      \"version\": \"154.0.8037.58\",\n      \"publisher\": \"Google LLC\",\n      \"installDate\": \"20260929\",\n      \"installPath\": \"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\",\n      \"uninstallCmd\": \"\\\"C:\\\\Program Files\\\\Google\\\\Chrome\\\\Application\\\\154.0.8037.58\\\\Installer\\\\setup.exe\\\" --uninstall --channel=stable --system-level --verbose-logging\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x86\"\n      ]\n    },\n    {\n      \"name\": \"HOSPrinter\",\n      \"version\": \"1.2.5\",\n      \"publisher\": \"sanway.tech\",\n      \"installDate\": \"20260907\",\n      \"installPath\": \"\",\n      \"uninstallCmd\": \"MsiExec.exe /I{BD2D36A1-A550-478F-A6DF-F27541DB1C0A}\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"Microsoft Edge WebView2 Runtime\",\n      \"version\": \"154.0.4258.37\",\n      \"publisher\": \"Microsoft Corporation\",\n      \"installDate\": \"20260929\",\n      \"installPath\": \"C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\",\n      \"uninstallCmd\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\EdgeWebView\\\\Application\\\\154.0.4258.37\\\\Installer\\\\setup.exe\\\" --uninstall --msedgewebview --system-level --verbose-logging\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x86\"\n      ]\n    },\n    {\n      \"name\": \"Microsoft Edge\",\n      \"version\": \"154.0.4258.37\",\n      \"publisher\": \"Microsoft Corporation\",\n      \"installDate\": \"20260926\",\n      \"installPath\": \"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\",\n      \"uninstallCmd\": \"\\\"C:\\\\Program Files (x86)\\\\Microsoft\\\\Edge\\\\Application\\\\154.0.4258.37\\\\Installer\\\\setup.exe\\\" --uninstall --msedge --channel=stable --system-level --verbose-logging\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x86\"\n      ]\n    },\n    {\n      \"name\": \"Microsoft Visual C++ 2022 Arm64 Runtime - 14.42.34438\",\n      \"version\": \"14.42.34438\",\n      \"publisher\": \"Microsoft Corporation\",\n      \"installDate\": \"20260907\",\n      \"installPath\": \"\",\n      \"uninstallCmd\": \"MsiExec.exe /I{1E7D98FD-97A9-4EE3-B08E-F53E96DF3491}\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"Microsoft Visual C++ 2022 Redistributable (Arm64) - 14.42.34438\",\n      \"version\": \"14.42.34438.0\",\n      \"publisher\": \"Microsoft Corporation\",\n      \"installDate\": null,\n      \"installPath\": null,\n      \"uninstallCmd\": \"\\\"C:\\\\ProgramData\\\\Package Cache\\\\{f4fca927-ceb7-4549-8782-5835bd91078c}\\\\VC_redist.arm64.exe\\\"  /uninstall\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x86\"\n      ]\n    },\n    {\n      \"name\": \"Node.js Krypton via nvm-windows\",\n      \"version\": \"24.21.0\",\n      \"publisher\": \"OpenJS Foundation\",\n      \"installDate\": null,\n      \"installPath\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Author Software\\\\nvm\\\\installs\\\\v24.21.0\",\n      \"uninstallCmd\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Author Software\\\\nvm\\\\nvm.exe\\\" uninstall 24.21.0 --from-apps\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1\n    },\n    {\n      \"name\": \"NVM for Windows\",\n      \"version\": \"2.0.0\",\n      \"publisher\": \"Author Software Inc.\",\n      \"installDate\": \"20260911\",\n      \"installPath\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Author Software\\\\nvm\\\\\",\n      \"uninstallCmd\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Author Software\\\\nvm\\\\unins000.exe\\\"\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1\n    },\n    {\n      \"name\": \"PowerShell 7-arm64\",\n      \"version\": \"7.6.6.0\",\n      \"publisher\": \"Microsoft Corporation\",\n      \"installDate\": \"20260916\",\n      \"installPath\": \"\",\n      \"uninstallCmd\": \"MsiExec.exe /X{8FADDD2A-62B7-4A60-B133-79A595459ED5}\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"Python 3.14.7\",\n      \"version\": \"3.14-64\",\n      \"publisher\": \"Python Software Foundation\",\n      \"installDate\": \"20260916\",\n      \"installPath\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Python\\\\pythoncore-3.14-64\",\n      \"uninstallCmd\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsApps\\\\PythonSoftwareFoundation.PythonManager_qbz5n2kfra8p0\\\\pymanager.exe\\\" uninstall --yes --by-id \\\"pythoncore-3.14-64\\\"\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1\n    },\n    {\n      \"name\": \"RipGrep MSVC\",\n      \"version\": \"15.2.0\",\n      \"publisher\": \"BurntSushi\",\n      \"installDate\": \"20260921\",\n      \"installPath\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Microsoft\\\\WinGet\\\\Packages\\\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe\",\n      \"uninstallCmd\": \"winget uninstall --product-code BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1\n    },\n    {\n      \"name\": \"rustdesk-1.4.6-x86_64\",\n      \"version\": \"1.4.6\",\n      \"publisher\": null,\n      \"installDate\": null,\n      \"installPath\": \"c:\\\\program files\\\\rustdesk-1.4.6-x86_64\",\n      \"uninstallCmd\": \"c:\\\\program files\\\\rustdesk-1.4.6-x86_64\\\\uninstall.bat\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"RustDesk\",\n      \"version\": \"1.4.9.29722258\",\n      \"publisher\": \"Purslane Tech Pte. Ltd.\",\n      \"installDate\": \"20260706\",\n      \"installPath\": \"C:\\\\Program Files\\\\RustDesk\\\\\",\n      \"uninstallCmd\": \"MsiExec.exe /X {F2EEE79E-5E5F-4E3F-890F-6DD8DAC30FE0}\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 2,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"Sublime Text\",\n      \"version\": null,\n      \"publisher\": \"Sublime HQ Pty Ltd\",\n      \"installDate\": \"20260911\",\n      \"installPath\": \"C:\\\\Program Files\\\\Sublime Text\\\\\",\n      \"uninstallCmd\": \"\\\"C:\\\\Program Files\\\\Sublime Text\\\\unins000.exe\\\"\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"Tailscale\",\n      \"version\": \"1.102.4\",\n      \"publisher\": \"Tailscale Inc.\",\n      \"installDate\": \"20260911\",\n      \"installPath\": \"\",\n      \"uninstallCmd\": \"MsiExec.exe /X{C4E5F88E-2FDF-5C71-AD51-3E19B58CDFCA}\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"ToDesk\",\n      \"version\": \"4.8.9.0\",\n      \"publisher\": \"Hainan YouQu Technology Co., Ltd\",\n      \"installDate\": null,\n      \"installPath\": null,\n      \"uninstallCmd\": \"C:\\\\Program Files\\\\ToDesk\\\\uninst.exe\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x86\"\n      ]\n    },\n    {\n      \"name\": \"Typora\",\n      \"version\": \"1.10.8\",\n      \"publisher\": \"typora.io\",\n      \"installDate\": \"20260920\",\n      \"installPath\": \"C:\\\\Program Files\\\\Typora\\\\\",\n      \"uninstallCmd\": \"\\\"C:\\\\Program Files\\\\Typora\\\\unins000.exe\\\"\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1\n    },\n    {\n      \"name\": \"WorkBuddy 5.6.2\",\n      \"version\": \"5.6.2\",\n      \"publisher\": \"Tencent Technology (Shenzhen) Company Limited\",\n      \"installDate\": null,\n      \"installPath\": null,\n      \"uninstallCmd\": \"\\\"C:\\\\Program Files\\\\WorkBuddy\\\\Uninstall WorkBuddy.exe\\\" /allusers\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1,\n      \"architectures\": [\n        \"x64\"\n      ]\n    },\n    {\n      \"name\": \"豆包\",\n      \"version\": \"2.29.12\",\n      \"publisher\": \"Beijing Chuntian Zhiyun Technology Co., Ltd.\",\n      \"installDate\": null,\n      \"installPath\": null,\n      \"uninstallCmd\": \"\\\"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Doubao\\\\Application\\\\uninstall.exe\\\"\",\n      \"source\": \"registry\",\n      \"registryKeyCount\": 1\n    }\n  ],\n  \"durationMs\": 443,\n  \"auditRef\": \"aud_2bffb0a3f31b4bc99166\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munvtu5t_2",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "name": "Coreutils for Windows 2026.9.3",
+            "version": "2026.9.3",
+            "publisher": "Microsoft Corporation",
+            "installDate": "20260916",
+            "installPath": "C:\\Program Files\\coreutils\\",
+            "uninstallCmd": "\"C:\\Program Files\\coreutils\\unins000.exe\"",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "FFmpeg",
+            "version": "9.0.1",
+            "publisher": "Gyan",
+            "installDate": "20260921",
+            "installPath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe",
+            "uninstallCmd": "winget uninstall --product-code Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe",
+            "source": "registry",
+            "registryKeyCount": 1
+          },
+          {
+            "name": "Git (All users)",
+            "version": "2.47.1.2",
+            "publisher": "The Git Development Community",
+            "installDate": "20260911",
+            "installPath": "C:\\Program Files\\Git\\",
+            "uninstallCmd": "\"C:\\Program Files\\Git\\unins000.exe\"",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "GitHub CLI",
+            "version": "2.101.0",
+            "publisher": "GitHub, Inc.",
+            "installDate": "20260922",
+            "installPath": "",
+            "uninstallCmd": "MsiExec.exe /X{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "Google Chrome",
+            "version": "154.0.8037.58",
+            "publisher": "Google LLC",
+            "installDate": "20260929",
+            "installPath": "C:\\Program Files\\Google\\Chrome\\Application",
+            "uninstallCmd": "\"C:\\Program Files\\Google\\Chrome\\Application\\154.0.8037.58\\Installer\\setup.exe\" --uninstall --channel=stable --system-level --verbose-logging",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x86"
+            ]
+          },
+          {
+            "name": "HOSPrinter",
+            "version": "1.2.5",
+            "publisher": "sanway.tech",
+            "installDate": "20260907",
+            "installPath": "",
+            "uninstallCmd": "MsiExec.exe /I{BD2D36A1-A550-478F-A6DF-F27541DB1C0A}",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "Microsoft Edge WebView2 Runtime",
+            "version": "154.0.4258.37",
+            "publisher": "Microsoft Corporation",
+            "installDate": "20260929",
+            "installPath": "C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application",
+            "uninstallCmd": "\"C:\\Program Files (x86)\\Microsoft\\EdgeWebView\\Application\\154.0.4258.37\\Installer\\setup.exe\" --uninstall --msedgewebview --system-level --verbose-logging",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x86"
+            ]
+          },
+          {
+            "name": "Microsoft Edge",
+            "version": "154.0.4258.37",
+            "publisher": "Microsoft Corporation",
+            "installDate": "20260926",
+            "installPath": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application",
+            "uninstallCmd": "\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\154.0.4258.37\\Installer\\setup.exe\" --uninstall --msedge --channel=stable --system-level --verbose-logging",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x86"
+            ]
+          },
+          {
+            "name": "Microsoft Visual C++ 2022 Arm64 Runtime - 14.42.34438",
+            "version": "14.42.34438",
+            "publisher": "Microsoft Corporation",
+            "installDate": "20260907",
+            "installPath": "",
+            "uninstallCmd": "MsiExec.exe /I{1E7D98FD-97A9-4EE3-B08E-F53E96DF3491}",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "Microsoft Visual C++ 2022 Redistributable (Arm64) - 14.42.34438",
+            "version": "14.42.34438.0",
+            "publisher": "Microsoft Corporation",
+            "installDate": null,
+            "installPath": null,
+            "uninstallCmd": "\"C:\\ProgramData\\Package Cache\\{f4fca927-ceb7-4549-8782-5835bd91078c}\\VC_redist.arm64.exe\"  /uninstall",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x86"
+            ]
+          },
+          {
+            "name": "Node.js Krypton via nvm-windows",
+            "version": "24.21.0",
+            "publisher": "OpenJS Foundation",
+            "installDate": null,
+            "installPath": "C:\\Users\\User\\AppData\\Local\\Author Software\\nvm\\installs\\v24.21.0",
+            "uninstallCmd": "\"C:\\Users\\User\\AppData\\Local\\Author Software\\nvm\\nvm.exe\" uninstall 24.21.0 --from-apps",
+            "source": "registry",
+            "registryKeyCount": 1
+          },
+          {
+            "name": "NVM for Windows",
+            "version": "2.0.0",
+            "publisher": "Author Software Inc.",
+            "installDate": "20260911",
+            "installPath": "C:\\Users\\User\\AppData\\Local\\Author Software\\nvm\\",
+            "uninstallCmd": "\"C:\\Users\\User\\AppData\\Local\\Author Software\\nvm\\unins000.exe\"",
+            "source": "registry",
+            "registryKeyCount": 1
+          },
+          {
+            "name": "PowerShell 7-arm64",
+            "version": "7.6.6.0",
+            "publisher": "Microsoft Corporation",
+            "installDate": "20260916",
+            "installPath": "",
+            "uninstallCmd": "MsiExec.exe /X{8FADDD2A-62B7-4A60-B133-79A595459ED5}",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "Python 3.14.7",
+            "version": "3.14-64",
+            "publisher": "Python Software Foundation",
+            "installDate": "20260916",
+            "installPath": "C:\\Users\\User\\AppData\\Local\\Python\\pythoncore-3.14-64",
+            "uninstallCmd": "\"C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.PythonManager_qbz5n2kfra8p0\\pymanager.exe\" uninstall --yes --by-id \"pythoncore-3.14-64\"",
+            "source": "registry",
+            "registryKeyCount": 1
+          },
+          {
+            "name": "RipGrep MSVC",
+            "version": "15.2.0",
+            "publisher": "BurntSushi",
+            "installDate": "20260921",
+            "installPath": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe",
+            "uninstallCmd": "winget uninstall --product-code BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe",
+            "source": "registry",
+            "registryKeyCount": 1
+          },
+          {
+            "name": "rustdesk-1.4.6-x86_64",
+            "version": "1.4.6",
+            "publisher": null,
+            "installDate": null,
+            "installPath": "c:\\program files\\rustdesk-1.4.6-x86_64",
+            "uninstallCmd": "c:\\program files\\rustdesk-1.4.6-x86_64\\uninstall.bat",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "RustDesk",
+            "version": "1.4.9.29722258",
+            "publisher": "Purslane Tech Pte. Ltd.",
+            "installDate": "20260706",
+            "installPath": "C:\\Program Files\\RustDesk\\",
+            "uninstallCmd": "MsiExec.exe /X {F2EEE79E-5E5F-4E3F-890F-6DD8DAC30FE0}",
+            "source": "registry",
+            "registryKeyCount": 2,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "Sublime Text",
+            "version": null,
+            "publisher": "Sublime HQ Pty Ltd",
+            "installDate": "20260911",
+            "installPath": "C:\\Program Files\\Sublime Text\\",
+            "uninstallCmd": "\"C:\\Program Files\\Sublime Text\\unins000.exe\"",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "Tailscale",
+            "version": "1.102.4",
+            "publisher": "Tailscale Inc.",
+            "installDate": "20260911",
+            "installPath": "",
+            "uninstallCmd": "MsiExec.exe /X{C4E5F88E-2FDF-5C71-AD51-3E19B58CDFCA}",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "ToDesk",
+            "version": "4.8.9.0",
+            "publisher": "Hainan YouQu Technology Co., Ltd",
+            "installDate": null,
+            "installPath": null,
+            "uninstallCmd": "C:\\Program Files\\ToDesk\\uninst.exe",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x86"
+            ]
+          },
+          {
+            "name": "Typora",
+            "version": "1.10.8",
+            "publisher": "typora.io",
+            "installDate": "20260920",
+            "installPath": "C:\\Program Files\\Typora\\",
+            "uninstallCmd": "\"C:\\Program Files\\Typora\\unins000.exe\"",
+            "source": "registry",
+            "registryKeyCount": 1
+          },
+          {
+            "name": "WorkBuddy 5.6.2",
+            "version": "5.6.2",
+            "publisher": "Tencent Technology (Shenzhen) Company Limited",
+            "installDate": null,
+            "installPath": null,
+            "uninstallCmd": "\"C:\\Program Files\\WorkBuddy\\Uninstall WorkBuddy.exe\" /allusers",
+            "source": "registry",
+            "registryKeyCount": 1,
+            "architectures": [
+              "x64"
+            ]
+          },
+          {
+            "name": "豆包",
+            "version": "2.29.12",
+            "publisher": "Beijing Chuntian Zhiyun Technology Co., Ltd.",
+            "installDate": null,
+            "installPath": null,
+            "uninstallCmd": "\"C:\\Users\\User\\AppData\\Local\\Doubao\\Application\\uninstall.exe\"",
+            "source": "registry",
+            "registryKeyCount": 1
+          }
+        ],
+        "durationMs": 443,
+        "auditRef": "aud_2bffb0a3f31b4bc99166"
+      },
+      "isError": false
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "tool": "storage.dir.manage",
+  "startedAt": "2026-10-02T02:22:47.957Z",
+  "finishedAt": "2026-10-02T02:22:48.058Z",
+  "elapsedMs": 101,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": true
+}

@@ -1,0 +1,35 @@
+{
+  "traceId": "tr_munzs05g_112",
+  "ok": false,
+  "error": {
+    "code": "APPROVAL_REQUIRED",
+    "message": "风险等级 L2 需人工审批后执行"
+  },
+  "approval": {
+    "approvalId": "apr_ff3b4e10a67949b3a1c3",
+    "risk": "L2",
+    "capabilityId": "app.winget.uninstall",
+    "preview": {
+      "capabilityId": "app.winget.uninstall",
+      "risk": "L2",
+      "destructive": true,
+      "requiresSession": false,
+      "params": {
+        "id": "Tencent.WeCom",
+        "dryRun": false
+      },
+      "dryRun": {
+        "supported": true,
+        "requested": false,
+        "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+        "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+      },
+      "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+    },
+    "impact": [
+      "id=Tencent.WeCom",
+      "dryRun=false"
+    ],
+    "resumeHint": "确认后以 __approvalId 重发同一请求"
+  }
+}

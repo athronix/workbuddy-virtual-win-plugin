@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 221508,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munyl652_34\",\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"POLICY_DENIED\",\n    \"message\": \"路径命中黑名单，已拒绝：C:\\\\Program Files (x86)\\\\WXWork\",\n    \"details\": {\n      \"path\": \"C:\\\\Program Files (x86)\\\\WXWork\",\n      \"rule\": \"^C:\\\\\\\\Program Files \\\\(x86\\\\)\\\\\\\\.*$\"\n    },\n    \"retryable\": false\n  },\n  \"risk\": \"L1\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munyl652_34",
+        "ok": false,
+        "error": {
+          "code": "POLICY_DENIED",
+          "message": "路径命中黑名单，已拒绝：C:\\Program Files (x86)\\WXWork",
+          "details": {
+            "path": "C:\\Program Files (x86)\\WXWork",
+            "rule": "^C:\\\\Program Files \\(x86\\)\\\\.*$"
+          },
+          "retryable": false
+        },
+        "risk": "L1"
+      },
+      "isError": true
+    }
+  }
+}

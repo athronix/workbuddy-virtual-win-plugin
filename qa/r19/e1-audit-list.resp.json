@@ -1,0 +1,236 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 789497,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munydazf_26\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\",\n      \"name\": \"audit\",\n      \"isDirectory\": true,\n      \"sizeBytes\": null,\n      \"modified\": \"2026-09-30T17:00:19.7779140+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260916.jsonl\",\n      \"name\": \"audit-20260916.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1080,\n      \"modified\": \"2026-09-16T19:17:32.8925533+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260917.jsonl\",\n      \"name\": \"audit-20260917.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 263808,\n      \"modified\": \"2026-09-17T21:19:34.5726262+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260918-1.jsonl\",\n      \"name\": \"audit-20260918-1.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 32817,\n      \"modified\": \"2026-09-20T10:09:18.4265601+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260918.jsonl\",\n      \"name\": \"audit-20260918.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 327263,\n      \"modified\": \"2026-09-18T19:17:53.6285904+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-1.jsonl\",\n      \"name\": \"audit-20260920-1.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-20T13:31:49.5629790+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-10.jsonl\",\n      \"name\": \"audit-20260920-10.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1022,\n      \"modified\": \"2026-09-20T20:09:48.5841656+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-11.jsonl\",\n      \"name\": \"audit-20260920-11.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-20T20:11:55.3256206+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-12.jsonl\",\n      \"name\": \"audit-20260920-12.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-20T20:13:06.3137676+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-2.jsonl\",\n      \"name\": \"audit-20260920-2.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-20T13:45:06.5083289+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-3.jsonl\",\n      \"name\": \"audit-20260920-3.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 22080,\n      \"modified\": \"2026-09-20T14:13:49.9861675+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-4.jsonl\",\n      \"name\": \"audit-20260920-4.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 5045,\n      \"modified\": \"2026-09-20T16:46:12.5229504+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-5.jsonl\",\n      \"name\": \"audit-20260920-5.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 2699,\n      \"modified\": \"2026-09-20T18:26:51.8908584+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-6.jsonl\",\n      \"name\": \"audit-20260920-6.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-20T19:03:52.9681111+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-7.jsonl\",\n      \"name\": \"audit-20260920-7.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 3239,\n      \"modified\": \"2026-09-20T19:05:17.5805506+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-8.jsonl\",\n      \"name\": \"audit-20260920-8.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 12736,\n      \"modified\": \"2026-09-20T19:48:06.2041074+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920-9.jsonl\",\n      \"name\": \"audit-20260920-9.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 8159,\n      \"modified\": \"2026-09-20T20:05:15.8229234+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260920.jsonl\",\n      \"name\": \"audit-20260920.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-20T13:01:36.6741717+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921-1.jsonl\",\n      \"name\": \"audit-20260921-1.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 5382,\n      \"modified\": \"2026-09-21T12:32:46.6522967+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921-2.jsonl\",\n      \"name\": \"audit-20260921-2.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 476,\n      \"modified\": \"2026-09-21T12:37:20.9031887+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921-3.jsonl\",\n      \"name\": \"audit-20260921-3.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 477,\n      \"modified\": \"2026-09-21T12:38:17.8445632+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921-4.jsonl\",\n      \"name\": \"audit-20260921-4.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-21T12:48:12.6428907+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921-5.jsonl\",\n      \"name\": \"audit-20260921-5.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1027,\n      \"modified\": \"2026-09-21T12:52:29.0923993+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921-6.jsonl\",\n      \"name\": \"audit-20260921-6.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-21T16:21:56.7451243+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921-7.jsonl\",\n      \"name\": \"audit-20260921-7.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 0,\n      \"modified\": \"2026-09-21T16:41:52.0470108+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921-8.jsonl\",\n      \"name\": \"audit-20260921-8.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1077,\n      \"modified\": \"2026-09-22T09:47:31.0194542+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260921.jsonl\",\n      \"name\": \"audit-20260921.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 2450,\n      \"modified\": \"2026-09-21T11:56:55.9865318+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260922-1.jsonl\",\n      \"name\": \"audit-20260922-1.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 35712,\n      \"modified\": \"2026-09-23T12:15:17.0443294+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260922.jsonl\",\n      \"name\": \"audit-20260922.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 1637,\n      \"modified\": \"2026-09-22T10:28:47.4246723+08:00\"\n    },\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260923-1.jsonl\",\n      \"name\": \"audit-20260923-1.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 2599,\n      \"modified\": \"2026-09-23T12:20:09.5584203+08:00\"\n    }\n  ],\n  \"durationMs\": 570,\n  \"auditRef\": \"aud_3015f77c067e47b2b028\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munydazf_26",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit",
+            "name": "audit",
+            "isDirectory": true,
+            "sizeBytes": null,
+            "modified": "2026-09-30T17:00:19.7779140+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260916.jsonl",
+            "name": "audit-20260916.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 1080,
+            "modified": "2026-09-16T19:17:32.8925533+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260917.jsonl",
+            "name": "audit-20260917.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 263808,
+            "modified": "2026-09-17T21:19:34.5726262+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260918-1.jsonl",
+            "name": "audit-20260918-1.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 32817,
+            "modified": "2026-09-20T10:09:18.4265601+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260918.jsonl",
+            "name": "audit-20260918.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 327263,
+            "modified": "2026-09-18T19:17:53.6285904+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-1.jsonl",
+            "name": "audit-20260920-1.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-20T13:31:49.5629790+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-10.jsonl",
+            "name": "audit-20260920-10.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 1022,
+            "modified": "2026-09-20T20:09:48.5841656+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-11.jsonl",
+            "name": "audit-20260920-11.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-20T20:11:55.3256206+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-12.jsonl",
+            "name": "audit-20260920-12.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-20T20:13:06.3137676+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-2.jsonl",
+            "name": "audit-20260920-2.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-20T13:45:06.5083289+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-3.jsonl",
+            "name": "audit-20260920-3.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 22080,
+            "modified": "2026-09-20T14:13:49.9861675+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-4.jsonl",
+            "name": "audit-20260920-4.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 5045,
+            "modified": "2026-09-20T16:46:12.5229504+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-5.jsonl",
+            "name": "audit-20260920-5.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 2699,
+            "modified": "2026-09-20T18:26:51.8908584+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-6.jsonl",
+            "name": "audit-20260920-6.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-20T19:03:52.9681111+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-7.jsonl",
+            "name": "audit-20260920-7.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 3239,
+            "modified": "2026-09-20T19:05:17.5805506+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-8.jsonl",
+            "name": "audit-20260920-8.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 12736,
+            "modified": "2026-09-20T19:48:06.2041074+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920-9.jsonl",
+            "name": "audit-20260920-9.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 8159,
+            "modified": "2026-09-20T20:05:15.8229234+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260920.jsonl",
+            "name": "audit-20260920.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-20T13:01:36.6741717+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921-1.jsonl",
+            "name": "audit-20260921-1.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 5382,
+            "modified": "2026-09-21T12:32:46.6522967+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921-2.jsonl",
+            "name": "audit-20260921-2.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 476,
+            "modified": "2026-09-21T12:37:20.9031887+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921-3.jsonl",
+            "name": "audit-20260921-3.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 477,
+            "modified": "2026-09-21T12:38:17.8445632+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921-4.jsonl",
+            "name": "audit-20260921-4.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-21T12:48:12.6428907+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921-5.jsonl",
+            "name": "audit-20260921-5.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 1027,
+            "modified": "2026-09-21T12:52:29.0923993+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921-6.jsonl",
+            "name": "audit-20260921-6.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-21T16:21:56.7451243+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921-7.jsonl",
+            "name": "audit-20260921-7.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 0,
+            "modified": "2026-09-21T16:41:52.0470108+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921-8.jsonl",
+            "name": "audit-20260921-8.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 1077,
+            "modified": "2026-09-22T09:47:31.0194542+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260921.jsonl",
+            "name": "audit-20260921.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 2450,
+            "modified": "2026-09-21T11:56:55.9865318+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260922-1.jsonl",
+            "name": "audit-20260922-1.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 35712,
+            "modified": "2026-09-23T12:15:17.0443294+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260922.jsonl",
+            "name": "audit-20260922.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 1637,
+            "modified": "2026-09-22T10:28:47.4246723+08:00"
+          },
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260923-1.jsonl",
+            "name": "audit-20260923-1.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 2599,
+            "modified": "2026-09-23T12:20:09.5584203+08:00"
+          }
+        ],
+        "durationMs": 570,
+        "auditRef": "aud_3015f77c067e47b2b028"
+      },
+      "isError": false
+    }
+  }
+}

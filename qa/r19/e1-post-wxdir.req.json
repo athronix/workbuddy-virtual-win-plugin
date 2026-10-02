@@ -1,0 +1,9 @@
+{
+  "tool": "storage.search.query",
+  "arguments": {
+    "path": "C:\\Users\\User\\AppData\\Local",
+    "pattern": "WXWork*",
+    "maxResults": 5
+  },
+  "startedAt": "2026-09-30T10:24:35.133Z"
+}

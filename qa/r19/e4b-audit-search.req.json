@@ -1,0 +1,9 @@
+{
+  "tool": "storage.search.query",
+  "arguments": {
+    "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit",
+    "pattern": "audit-*.jsonl",
+    "maxResults": 30
+  },
+  "startedAt": "2026-10-02T02:23:34.337Z"
+}

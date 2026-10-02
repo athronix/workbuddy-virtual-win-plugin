@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 780380,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munyvm2z_35\",\n  \"ok\": false,\n  \"risk\": \"L1\",\n  \"durationMs\": 42467,\n  \"error\": {\n    \"code\": \"EXECUTION_FAILED\",\n    \"message\": \"ps-bridge 超过 45000ms 未心跳且探测失败（ping 超时或失败），正在重启\",\n    \"reason\": \"PSBRIDGE_HEARTBEAT_TIMEOUT\",\n    \"retryable\": false\n  }\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munyvm2z_35",
+        "ok": false,
+        "risk": "L1",
+        "durationMs": 42467,
+        "error": {
+          "code": "EXECUTION_FAILED",
+          "message": "ps-bridge 超过 45000ms 未心跳且探测失败（ping 超时或失败），正在重启",
+          "reason": "PSBRIDGE_HEARTBEAT_TIMEOUT",
+          "retryable": false
+        }
+      },
+      "isError": true
+    }
+  }
+}

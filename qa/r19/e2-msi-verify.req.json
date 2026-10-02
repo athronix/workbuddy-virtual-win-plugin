@@ -1,0 +1,7 @@
+{
+  "tool": "system.registry.read",
+  "arguments": {
+    "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}"
+  },
+  "startedAt": "2026-10-01T22:41:37.152Z"
+}

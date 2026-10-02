@@ -1,0 +1,8 @@
+{
+  "tool": "storage.file.read",
+  "arguments": {
+    "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\logs\\winvm-service-2026-10-02.log",
+    "maxBytes": 400000
+  },
+  "startedAt": "2026-10-02T02:28:46.234Z"
+}

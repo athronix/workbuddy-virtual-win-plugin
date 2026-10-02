@@ -1,0 +1,9 @@
+{
+  "tool": "system.registry.read",
+  "startedAt": "2026-09-30T10:54:22.198Z",
+  "finishedAt": "2026-09-30T10:54:24.486Z",
+  "elapsedMs": 2284,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": false
+}

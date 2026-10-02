@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 10151,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munyl4yf_33\",\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"POLICY_DENIED\",\n    \"message\": \"路径不在白名单内，已拒绝：M:\\\\SOFTWARE\\\\WOW6432Node\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\WXWork\",\n    \"details\": {\n      \"path\": \"M:\\\\SOFTWARE\\\\WOW6432Node\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\WXWork\"\n    },\n    \"retryable\": false\n  },\n  \"risk\": \"L0\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munyl4yf_33",
+        "ok": false,
+        "error": {
+          "code": "POLICY_DENIED",
+          "message": "路径不在白名单内，已拒绝：M:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\WXWork",
+          "details": {
+            "path": "M:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\WXWork"
+          },
+          "retryable": false
+        },
+        "risk": "L0"
+      },
+      "isError": true
+    }
+  }
+}

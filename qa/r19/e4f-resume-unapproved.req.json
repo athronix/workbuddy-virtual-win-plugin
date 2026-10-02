@@ -1,0 +1,9 @@
+{
+  "tool": "app.winget.uninstall",
+  "arguments": {
+    "id": "QA.R19B.Nonexistent.99997",
+    "dryRun": false,
+    "__approvalId": "apr_feab41a3814a46bc9b12"
+  },
+  "startedAt": "2026-10-02T02:54:30.762Z"
+}

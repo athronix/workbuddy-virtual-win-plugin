@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 978823,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muqcj4y5_178\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"id\": \"input\",\n      \"name\": \"No package found matching\",\n      \"version\": \"criteria.\"\n    }\n  ],\n  \"durationMs\": 7930,\n  \"auditRef\": \"aud_d595445a72c84c118e97\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muqcj4y5_178",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "id": "input",
+            "name": "No package found matching",
+            "version": "criteria."
+          }
+        ],
+        "durationMs": 7930,
+        "auditRef": "aud_d595445a72c84c118e97"
+      },
+      "isError": false
+    }
+  }
+}

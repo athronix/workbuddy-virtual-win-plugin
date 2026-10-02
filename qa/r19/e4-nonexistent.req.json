@@ -1,0 +1,7 @@
+{
+  "tool": "app.winget.uninstall",
+  "arguments": {
+    "id": "QA.Nonexistent.Package.99999"
+  },
+  "startedAt": "2026-09-30T09:50:01.134Z"
+}

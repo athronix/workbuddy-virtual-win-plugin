@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 595686,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muo0610f_155\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [],\n  \"durationMs\": 3370,\n  \"auditRef\": \"aud_49554559906b4f139c5a\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muo0610f_155",
+        "ok": true,
+        "risk": "L0",
+        "data": [],
+        "durationMs": 3370,
+        "auditRef": "aud_49554559906b4f139c5a"
+      },
+      "isError": false
+    }
+  }
+}

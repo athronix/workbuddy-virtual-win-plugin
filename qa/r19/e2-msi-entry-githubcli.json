@@ -1,0 +1,53 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 451145,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munzn0ad_79\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": {\n    \"path\": \"HKLM:\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall\\\\{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}\",\n    \"values\": {\n      \"AuthorizedCDFPrefix\": \"\",\n      \"Comments\": \"\",\n      \"Contact\": \"\",\n      \"DisplayVersion\": \"2.101.0\",\n      \"HelpLink\": \"\",\n      \"HelpTelephone\": \"\",\n      \"InstallDate\": \"20260922\",\n      \"InstallLocation\": \"\",\n      \"InstallSource\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\Temp\\\\WinGet\\\\GitHub.cli.2.101.0\\\\\",\n      \"ModifyPath\": \"MsiExec.exe /X{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}\",\n      \"NoModify\": 1,\n      \"Publisher\": \"GitHub, Inc.\",\n      \"Readme\": \"\",\n      \"Size\": \"\",\n      \"EstimatedSize\": 38325,\n      \"UninstallString\": \"MsiExec.exe /X{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}\",\n      \"URLInfoAbout\": \"\",\n      \"URLUpdateInfo\": \"\",\n      \"VersionMajor\": 2,\n      \"VersionMinor\": 101,\n      \"WindowsInstaller\": 1,\n      \"Version\": 40173568,\n      \"Language\": 1033,\n      \"DisplayName\": \"GitHub CLI\"\n    }\n  },\n  \"durationMs\": 2060,\n  \"auditRef\": \"aud_3b2ae3f0f1c343649914\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munzn0ad_79",
+        "ok": true,
+        "risk": "L0",
+        "data": {
+          "path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}",
+          "values": {
+            "AuthorizedCDFPrefix": "",
+            "Comments": "",
+            "Contact": "",
+            "DisplayVersion": "2.101.0",
+            "HelpLink": "",
+            "HelpTelephone": "",
+            "InstallDate": "20260922",
+            "InstallLocation": "",
+            "InstallSource": "C:\\Users\\User\\AppData\\Local\\Temp\\WinGet\\GitHub.cli.2.101.0\\",
+            "ModifyPath": "MsiExec.exe /X{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}",
+            "NoModify": 1,
+            "Publisher": "GitHub, Inc.",
+            "Readme": "",
+            "Size": "",
+            "EstimatedSize": 38325,
+            "UninstallString": "MsiExec.exe /X{94DF76B2-B5BE-4F59-9D1D-F76DC0F29ABF}",
+            "URLInfoAbout": "",
+            "URLUpdateInfo": "",
+            "VersionMajor": 2,
+            "VersionMinor": 101,
+            "WindowsInstaller": 1,
+            "Version": 40173568,
+            "Language": 1033,
+            "DisplayName": "GitHub CLI"
+          }
+        },
+        "durationMs": 2060,
+        "auditRef": "aud_3b2ae3f0f1c343649914"
+      },
+      "isError": false
+    }
+  }
+}

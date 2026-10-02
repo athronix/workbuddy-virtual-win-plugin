@@ -1,0 +1,59 @@
+▶ R17-T01 · definitions.ts：app.winget.uninstall 回执契约（K6）
+  ✔ output 声明 verified：object|null，且子字段类型正确 (8.0725ms)
+  ✔ output 声明 fallbackUsed: boolean 与可选 residualEvidence: string (4.8875ms)
+  ✔ success 语义改为「以最终核验为准」；描述含 600s 预算与回退纪律 (1.847813ms)
+✔ R17-T01 · definitions.ts：app.winget.uninstall 回执契约（K6） (20.717187ms)
+▶ R17-T01 · CAPABILITY-MODEL.md：回执语义同步
+  ✔ app 域表引用 §3.2.1，且该节存在并覆盖四要素 (0.632344ms)
+  ✔ §3.2.1 写明 dryRun 语义、核验失败转呈纪律、非 NSIS 永不回退 (0.726875ms)
+✔ R17-T01 · CAPABILITY-MODEL.md：回执语义同步 (1.714531ms)
+▶ R-1 · installerType 判定
+  ✔ 取不到卸载键 → unknown (0.7875ms)
+  ✔ UninstallString 指向 Uninstall.exe 且无 QuietUninstallString → nsis (1.433437ms)
+  ✔ 存在 QuietUninstallString → 不判 nsis（不回退，避免误伤可静默的包） (0.361563ms)
+  ✔ 含 msiexec → msi（无论 Uninstall 还是 Quiet 形态） (0.475ms)
+  ✔ 其它卸载器（如自身带 quiet 的 Inno/burn）→ other (0.4925ms)
+✔ R-1 · installerType 判定 (4.177187ms)
+▶ R-2 / R-2b · InstallLocation 派生
+  ✔ 注册表 InstallLocation 非空优先，并去尾分隔符 (1.165781ms)
+  ✔ 缺失时按 UninstallString 去引号/去参数取所在目录反推 (0.541406ms)
+  ✔ msi 型不得用 msiexec 路径反推（否则会误得 system32） (0.312188ms)
+  ✔ 仍派生不出 → null（dirGone=null，只做注册表核验） (0.696093ms)
+✔ R-2 / R-2b · InstallLocation 派生 (3.116719ms)
+▶ R-3/R-4/R-5 · 核验与判定
+  ✔ 磁盘全消失 + 键消失 → 核验通过 (0.917187ms)
+  ✔ DisplayIcon 提供时 exeGone 独立于 dirGone（主程序已删但目录残壳 → 仍判失败） (0.773125ms)
+  ✔ 仅注册表核验（dirGone=null）时，registryGone 为唯一闸门 (0.394532ms)
+  ✔ verified 载荷与契约 required 对齐（installLocation 可选） (0.699688ms)
+✔ R-3/R-4/R-5 · 核验与判定 (3.148437ms)
+▶ R-6/R-7/R-8 · 状态机三态回执
+  ✔ 态①：winget 真成功（核验全过）→ success=true，不触发回退 (0.759063ms)
+  ✔ 态②：假成功（exit 0 但磁盘/键未变）→ NSIS 回退后核验通过 → success=true + fallbackUsed=true (0.356094ms)
+  ✔ 态③：回退后仍残留 → success=false + fallbackUsed=true + residualEvidence 指出残留项 (0.486407ms)
+  ✔ 非 NSIS（MSI）核验失败 → 永不回退（fallbackUsed=false），success=false (0.356093ms)
+  ✔ winget 非零退出 → success=false 且绝不回退（回退只纠正假成功） (0.256094ms)
+  ✔ 取不到卸载键（unknown）：不回退，只做注册表侧判定 (0.319063ms)
+  ✔ dryRun 语义不变：不核验不回退，verified=null & fallbackUsed=false (0.326719ms)
+  ✔ 全局不变式：非 dryRun 时 success=true ⇒ 最终核验必过；success=false ⇒ 必带可转呈证据或明确核验失败字段 (0.610157ms)
+✔ R-6/R-7/R-8 · 状态机三态回执 (3.972969ms)
+▶ R17-T02 · app.ps1 K6 状态机（静态守卫）
+  ✔ 规则合同要求的函数族齐备，且函数头标注 R 编号（可追溯性） (5.011094ms)
+  ✔ R-1：msiexec 先判 msi；有 QuietUninstallString 不得判 nsis；叶名不区分大小写 (0.568125ms)
+  ✔ R-2 / R-2b：InstallLocation 优先 → UninstallString 反推 → msi 禁止反推 → 仍无则空串 (0.35625ms)
+  ✔ R-3：DisplayIcon 剥离 `,0`；不递归扫描；dirGone 三态；探针异常 fail-closed (1.009688ms)
+  ✔ R-4：预捕获必须先于 winget 卸载（否则真卸载后取不到核验目标） (2.083593ms)
+  ✔ R-5：dirGone=$null 不阻断通过；三态先判 $null 再判布尔 (0.40875ms)
+  ✔ R-6/R-7：分支次序、dryRun 短路、非 NSIS 永不回退、success 以核验为准 (1.661719ms)
+  ✔ R-8 + 契约对齐：每条回执恒含 verified/fallbackUsed 与四必填子字段；成功不携残留证据 (3.620156ms)
+✔ R17-T02 · app.ps1 K6 状态机（静态守卫） (15.103125ms)
+▶ R17-T02b · A2A 路径超时以注册表为权威（静态守卫）
+  ✔ bridge.call 超时须为「注册表优先 → req 回落 → 30s 兜底」，且不得残留裸 req.timeoutMs 写法 (1.17ms)
+✔ R17-T02b · A2A 路径超时以注册表为权威（静态守卫） (1.37ms)
+ℹ tests 35
+ℹ suites 8
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 429.458281

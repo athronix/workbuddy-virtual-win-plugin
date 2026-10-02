@@ -1,0 +1,9 @@
+{
+  "tool": "app.winget.search",
+  "startedAt": "2026-10-02T02:30:48.985Z",
+  "finishedAt": "2026-10-02T02:30:56.982Z",
+  "elapsedMs": 7995,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": false
+}

@@ -1,0 +1,462 @@
+[
+  {
+    "name": "app.appx.manage",
+    "props": [
+      "name",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "app.inventory.list",
+    "props": [
+      "name",
+      "includeUwp",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "app.process.launch",
+    "props": [
+      "target",
+      "arguments",
+      "workingDirectory",
+      "wait",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "app.shortcut.manage",
+    "props": [
+      "path",
+      "targetPath",
+      "arguments",
+      "workingDirectory",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "app.winget.install",
+    "props": [
+      "id",
+      "version",
+      "dryRun",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "app.winget.search",
+    "props": [
+      "query",
+      "limit",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "app.winget.uninstall",
+    "props": [
+      "id",
+      "dryRun",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "app.winget.upgrade",
+    "props": [
+      "id",
+      "all",
+      "dryRun",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "appops.cli.invoke",
+    "props": [
+      "app",
+      "command",
+      "arguments",
+      "workingDirectory",
+      "outputDirectory",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "appops.com.automate",
+    "props": [
+      "progId",
+      "script",
+      "documentPath",
+      "outputPath",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "appops.gui.produce",
+    "props": [
+      "app",
+      "openTarget",
+      "steps",
+      "outputPath",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "appops.state.query",
+    "props": [
+      "appName",
+      "includeDocuments",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "appops.workflow.run",
+    "props": [
+      "workflow",
+      "params",
+      "inputPath",
+      "outputDirectory",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.clipboard.manage",
+    "props": [
+      "text",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.input.keyboard",
+    "props": [
+      "text",
+      "keys",
+      "delayMs",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.input.mouse",
+    "props": [
+      "action",
+      "x",
+      "y",
+      "toX",
+      "toY",
+      "wheelDelta",
+      "delayMs",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.screen.analyze",
+    "props": [
+      "threshold",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.screen.capture",
+    "props": [
+      "x",
+      "y",
+      "width",
+      "height",
+      "windowTitle",
+      "asBase64",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.session.status",
+    "props": [
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.uia.invoke",
+    "props": [
+      "windowTitle",
+      "automationId",
+      "name",
+      "controlType",
+      "action",
+      "value",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.uia.tree",
+    "props": [
+      "windowTitle",
+      "maxDepth",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.wait.condition",
+    "props": [
+      "condition",
+      "windowTitle",
+      "processId",
+      "timeoutMs",
+      "pollIntervalMs",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.window.control",
+    "props": [
+      "title",
+      "state",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "gui.window.list",
+    "props": [
+      "title",
+      "visibleOnly",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "meta.capability.list",
+    "props": [
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "meta.health.check",
+    "props": [
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "meta.session.status",
+    "props": [
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.archive.manage",
+    "props": [
+      "path",
+      "destination",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.cleanup.analyze",
+    "props": [
+      "topLargeFiles",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.dir.manage",
+    "props": [
+      "path",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.disk.list",
+    "props": [
+      "includeVolumes",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.file.copy",
+    "props": [
+      "path",
+      "destination",
+      "recurse",
+      "force",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.file.delete",
+    "props": [
+      "path",
+      "permanent",
+      "dryRun",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.file.move",
+    "props": [
+      "path",
+      "destination",
+      "force",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.file.read",
+    "props": [
+      "path",
+      "maxBytes",
+      "asBase64",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.file.write",
+    "props": [
+      "path",
+      "content",
+      "append",
+      "createDirectory",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.link.manage",
+    "props": [
+      "path",
+      "target",
+      "type",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.recycle.manage",
+    "props": [
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.search.query",
+    "props": [
+      "path",
+      "pattern",
+      "contentPattern",
+      "maxResults",
+      "recurse",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "storage.space.analyze",
+    "props": [
+      "path",
+      "depth",
+      "top",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.env.manage",
+    "props": [
+      "name",
+      "target",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.eventlog.query",
+    "props": [
+      "logName",
+      "maxEvents",
+      "level",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.info.get",
+    "props": [
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.network.config",
+    "props": [
+      "includeRoutes",
+      "refresh",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.power.control",
+    "props": [
+      "action",
+      "delaySeconds",
+      "dryRun",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.process.list",
+    "props": [
+      "name",
+      "top",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.process.terminate",
+    "props": [
+      "processId",
+      "force",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.registry.read",
+    "props": [
+      "path",
+      "name",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.registry.write",
+    "props": [
+      "path",
+      "name",
+      "value",
+      "type",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.service.configure",
+    "props": [
+      "name",
+      "startType",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.service.control",
+    "props": [
+      "name",
+      "action",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.service.list",
+    "props": [
+      "name",
+      "status",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.task.scheduled",
+    "props": [
+      "name",
+      "__approvalId"
+    ]
+  },
+  {
+    "name": "system.user.manage",
+    "props": [
+      "name",
+      "__approvalId"
+    ]
+  }
+]

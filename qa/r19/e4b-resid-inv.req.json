@@ -1,0 +1,7 @@
+{
+  "tool": "app.inventory.list",
+  "arguments": {
+    "name": "Nonexistent"
+  },
+  "startedAt": "2026-10-02T02:30:46.951Z"
+}

@@ -1,0 +1,9 @@
+{
+  "tool": "app.winget.install",
+  "startedAt": "2026-09-30T09:45:20.711Z",
+  "finishedAt": "2026-09-30T09:45:30.280Z",
+  "elapsedMs": 9568,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": false
+}

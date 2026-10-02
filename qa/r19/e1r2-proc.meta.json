@@ -1,0 +1,9 @@
+{
+  "tool": "system.process.list",
+  "startedAt": "2026-09-30T10:57:59.492Z",
+  "finishedAt": "2026-09-30T10:58:01.772Z",
+  "elapsedMs": 2278,
+  "ok": true,
+  "httpStatus": 200,
+  "isError": false
+}

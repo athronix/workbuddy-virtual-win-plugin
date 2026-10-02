@@ -1,0 +1,33 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 933357,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munydve6_27\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"path\": \"C:\\\\Users\\\\User\\\\AppData\\\\Local\\\\WinVMBridge\\\\audit\\\\audit-20260930.jsonl\",\n      \"name\": \"audit-20260930.jsonl\",\n      \"isDirectory\": false,\n      \"sizeBytes\": 17321,\n      \"modified\": \"2026-09-30T18:18:50.5240626+08:00\"\n    }\n  ],\n  \"durationMs\": 48,\n  \"auditRef\": \"aud_bc0372be56ab4883b4c2\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munydve6_27",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "path": "C:\\Users\\User\\AppData\\Local\\WinVMBridge\\audit\\audit-20260930.jsonl",
+            "name": "audit-20260930.jsonl",
+            "isDirectory": false,
+            "sizeBytes": 17321,
+            "modified": "2026-09-30T18:18:50.5240626+08:00"
+          }
+        ],
+        "durationMs": 48,
+        "auditRef": "aud_bc0372be56ab4883b4c2"
+      },
+      "isError": false
+    }
+  }
+}

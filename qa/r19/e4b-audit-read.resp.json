@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 805537,
+    "error": {
+      "code": -32602,
+      "message": "未知工具：file.read"
+    }
+  }
+}

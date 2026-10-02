@@ -1,0 +1,50 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 396988,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muo09k1p_156\",\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"APPROVAL_REQUIRED\",\n    \"message\": \"风险等级 L2 需人工审批后执行\"\n  },\n  \"approval\": {\n    \"approvalId\": \"apr_f0841ee5552445b189fd\",\n    \"risk\": \"L2\",\n    \"capabilityId\": \"app.winget.uninstall\",\n    \"preview\": {\n      \"capabilityId\": \"app.winget.uninstall\",\n      \"risk\": \"L2\",\n      \"destructive\": true,\n      \"requiresSession\": false,\n      \"params\": {\n        \"id\": \"GitHub.cli\"\n      },\n      \"dryRun\": {\n        \"supported\": true,\n        \"requested\": false,\n        \"plan\": \"可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行\",\n        \"hint\": \"params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）\"\n      },\n      \"note\": \"L2 破坏性操作：将改变系统状态，请确认影响范围\"\n    },\n    \"impact\": [\n      \"id=GitHub.cli\"\n    ],\n    \"resumeHint\": \"确认后以 __approvalId 重发同一请求\"\n  }\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muo09k1p_156",
+        "ok": false,
+        "error": {
+          "code": "APPROVAL_REQUIRED",
+          "message": "风险等级 L2 需人工审批后执行"
+        },
+        "approval": {
+          "approvalId": "apr_f0841ee5552445b189fd",
+          "risk": "L2",
+          "capabilityId": "app.winget.uninstall",
+          "preview": {
+            "capabilityId": "app.winget.uninstall",
+            "risk": "L2",
+            "destructive": true,
+            "requiresSession": false,
+            "params": {
+              "id": "GitHub.cli"
+            },
+            "dryRun": {
+              "supported": true,
+              "requested": false,
+              "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+              "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+            },
+            "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+          },
+          "impact": [
+            "id=GitHub.cli"
+          ],
+          "resumeHint": "确认后以 __approvalId 重发同一请求"
+        }
+      },
+      "isError": false
+    }
+  }
+}

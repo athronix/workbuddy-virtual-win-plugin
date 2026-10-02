@@ -1,0 +1,208 @@
+{
+  "mode": "get",
+  "arg": {
+    "taskId": "9a0fedfe-c228-4778-ad83-5ced12dd2730"
+  },
+  "t0": "2026-09-30T11:07:35.259Z",
+  "result": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "kind": "task",
+      "id": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+      "contextId": "29536f49-dda2-44c0-84fa-8c48419085a8",
+      "status": {
+        "state": "completed",
+        "timestamp": "2026-09-30T11:07:27.532Z",
+        "message": {
+          "kind": "message",
+          "role": "agent",
+          "messageId": "831b2b1a-2e66-4592-af9f-2b5e14589582",
+          "taskId": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "服务端执行回执（app.winget.uninstall）：app.winget.uninstall 执行成功（常驻会话不可用：常驻会话在 60000ms 内未收到 system/init（首条用户消息已写出），已降级为单次 -p 路径）"
+            },
+            {
+              "kind": "data",
+              "data": {
+                "ok": true,
+                "stepCount": 1,
+                "steps": [
+                  {
+                    "index": 0,
+                    "capabilityId": "appops.workflow.run",
+                    "risk": "L1",
+                    "ok": true,
+                    "durationMs": 840858,
+                    "summary": "app.winget.uninstall 执行成功"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "artifacts": [
+        {
+          "artifactId": "f9483e78-6a9d-49cf-ac24-f2be9fac3fef",
+          "name": "e1-approval.json",
+          "description": "file",
+          "parts": [
+            {
+              "kind": "file",
+              "file": {
+                "name": "e1-approval.json",
+                "mimeType": "application/json",
+                "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpzMDVnXzExMiIsCiAgIm9rIjogZmFsc2UsCiAgImVycm9yIjogewogICAgImNvZGUiOiAiQVBQUk9WQUxfUkVRVUlSRUQiLAogICAgIm1lc3NhZ2UiOiAi6aOO6Zmp562J57qnIEwyIOmcgOS6uuW3peWuoeaJueWQjuaJp+ihjCIKICB9LAogICJhcHByb3ZhbCI6IHsKICAgICJhcHByb3ZhbElkIjogImFwcl9mZjNiNGUxMGE2Nzk0OWIzYTFjMyIsCiAgICAicmlzayI6ICJMMiIsCiAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICJwcmV2aWV3IjogewogICAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICAgInJpc2siOiAiTDIiLAogICAgICAiZGVzdHJ1Y3RpdmUiOiB0cnVlLAogICAgICAicmVxdWlyZXNTZXNzaW9uIjogZmFsc2UsCiAgICAgICJwYXJhbXMiOiB7CiAgICAgICAgImlkIjogIlRlbmNlbnQuV2VDb20iLAogICAgICAgICJkcnlSdW4iOiBmYWxzZQogICAgICB9LAogICAgICAiZHJ5UnVuIjogewogICAgICAgICJzdXBwb3J0ZWQiOiB0cnVlLAogICAgICAgICJyZXF1ZXN0ZWQiOiBmYWxzZSwKICAgICAgICAicGxhbiI6ICLlj6/kvKAgZHJ5UnVuOnRydWUg5YWN5a6h5om56aKE6KeIIGFwcC53aW5nZXQudW5pbnN0YWxsIOeahOW9seWTjeWQjuWGjeWGs+WumuaYr+WQpuecn+WunuaJp+ihjCIsCiAgICAgICAgImhpbnQiOiAicGFyYW1zLmRyeVJ1biA9PT0gdHJ1ZSDml7blhY3lrqHmibnnm7TmjqXmlL7ooYzvvIhkcnktcnVuIOS4jeaUueWPmOezu+e7n+eKtuaAge+8iSIKICAgICAgfSwKICAgICAgIm5vdGUiOiAiTDIg56C05Z2P5oCn5pON5L2c77ya5bCG5pS55Y+Y57O757uf54q25oCB77yM6K+356Gu6K6k5b2x5ZON6IyD5Zu0IgogICAgfSwKICAgICJpbXBhY3QiOiBbCiAgICAgICJpZD1UZW5jZW50LldlQ29tIiwKICAgICAgImRyeVJ1bj1mYWxzZSIKICAgIF0sCiAgICAicmVzdW1lSGludCI6ICLnoa7orqTlkI7ku6UgX19hcHByb3ZhbElkIOmHjeWPkeWQjOS4gOivt+axgiIKICB9Cn0="
+              }
+            }
+          ]
+        },
+        {
+          "artifactId": "2257765b-7d50-4c48-91e1-ccea68080c6c",
+          "name": "e1-receipt.json",
+          "description": "file",
+          "parts": [
+            {
+              "kind": "file",
+              "file": {
+                "name": "e1-receipt.json",
+                "mimeType": "application/json",
+                "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpvcnZwXzg5IiwKICAib2siOiBmYWxzZSwKICAiZXJyb3IiOiB7CiAgICAiY29kZSI6ICJBUFBST1ZBTF9SRVFVSVJFRCIsCiAgICAibWVzc2FnZSI6ICLpo47pmannrYnnuqcgTDIg6ZyA5Lq65bel5a6h5om55ZCO5omn6KGMIgogIH0sCiAgImFwcHJvdmFsIjogewogICAgImFwcHJvdmFsSWQiOiAiYXByX2ZhOTYxNTU0ZjZjNDRjNTViNDU2IiwKICAgICJyaXNrIjogIkwyIiwKICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgInByZXZpZXciOiB7CiAgICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgICAicmlzayI6ICJMMiIsCiAgICAgICJkZXN0cnVjdGl2ZSI6IHRydWUsCiAgICAgICJyZXF1aXJlc1Nlc3Npb24iOiBmYWxzZSwKICAgICAgInBhcmFtcyI6IHsKICAgICAgICAiaWQiOiAiVGVuY2VudC5XZUNvbSIsCiAgICAgICAgImRyeVJ1biI6IGZhbHNlCiAgICAgIH0sCiAgICAgICJkcnlSdW4iOiB7CiAgICAgICAgInN1cHBvcnRlZCI6IHRydWUsCiAgICAgICAgInJlcXVlc3RlZCI6IGZhbHNlLAogICAgICAgICJwbGFuIjogIuWPr+S8oCBkcnlSdW46dHJ1ZSDlhY3lrqHmibnpooTop4ggYXBwLndpbmdldC51bmluc3RhbGwg55qE5b2x5ZON5ZCO5YaN5Yaz5a6a5piv5ZCm55yf5a6e5omn6KGMIiwKICAgICAgICAiaGludCI6ICJwYXJhbXMuZHJ5UnVuID09PSB0cnVlIOaXtuWFjeWuoeaJueebtOaOpeaUvuihjO+8iGRyeS1ydW4g5LiN5pS55Y+Y57O757uf54q25oCB77yJIgogICAgICB9LAogICAgICAibm90ZSI6ICJMMiDnoLTlnY/mgKfmk43kvZzvvJrlsIbmlLnlj5jns7vnu5/nirbmgIHvvIzor7fnoa7orqTlvbHlk43ojIPlm7QiCiAgICB9LAogICAgImltcGFjdCI6IFsKICAgICAgImlkPVRlbmNlbnQuV2VDb20iLAogICAgICAiZHJ5UnVuPWZhbHNlIgogICAgXSwKICAgICJyZXN1bWVIaW50IjogIuehruiupOWQjuS7pSBfX2FwcHJvdmFsSWQg6YeN5Y+R5ZCM5LiA6K+35rGCIgogIH0sCiAgIl9ub3RlIjogIui/meaYr+WuoeaJuemXuOaLpuaIquWbnuaJp++8jOmdnuaJp+ihjOWbnuaJp+OAguiDveWKm+acquaJp+ihjO+8jOaVheS4jeWQqyBleGl0Q29kZSAvIHN1Y2Nlc3MgLyB2ZXJpZmllZCAvIGZhbGxiYWNrVXNlZCAvIHJlc2lkdWFsRXZpZGVuY2Ug5a2X5q6144CCIgp9"
+              }
+            }
+          ]
+        },
+        {
+          "artifactId": "ce477304-c9ae-4cb5-bfc7-4ec166991405",
+          "name": "e1-approval.json",
+          "description": "file",
+          "parts": [
+            {
+              "kind": "file",
+              "file": {
+                "name": "e1-approval.json",
+                "mimeType": "application/json",
+                "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpzMDVnXzExMiIsCiAgIm9rIjogZmFsc2UsCiAgImVycm9yIjogewogICAgImNvZGUiOiAiQVBQUk9WQUxfUkVRVUlSRUQiLAogICAgIm1lc3NhZ2UiOiAi6aOO6Zmp562J57qnIEwyIOmcgOS6uuW3peWuoeaJueWQjuaJp+ihjCIKICB9LAogICJhcHByb3ZhbCI6IHsKICAgICJhcHByb3ZhbElkIjogImFwcl9mZjNiNGUxMGE2Nzk0OWIzYTFjMyIsCiAgICAicmlzayI6ICJMMiIsCiAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICJwcmV2aWV3IjogewogICAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICAgInJpc2siOiAiTDIiLAogICAgICAiZGVzdHJ1Y3RpdmUiOiB0cnVlLAogICAgICAicmVxdWlyZXNTZXNzaW9uIjogZmFsc2UsCiAgICAgICJwYXJhbXMiOiB7CiAgICAgICAgImlkIjogIlRlbmNlbnQuV2VDb20iLAogICAgICAgICJkcnlSdW4iOiBmYWxzZQogICAgICB9LAogICAgICAiZHJ5UnVuIjogewogICAgICAgICJzdXBwb3J0ZWQiOiB0cnVlLAogICAgICAgICJyZXF1ZXN0ZWQiOiBmYWxzZSwKICAgICAgICAicGxhbiI6ICLlj6/kvKAgZHJ5UnVuOnRydWUg5YWN5a6h5om56aKE6KeIIGFwcC53aW5nZXQudW5pbnN0YWxsIOeahOW9seWTjeWQjuWGjeWGs+WumuaYr+WQpuecn+WunuaJp+ihjCIsCiAgICAgICAgImhpbnQiOiAicGFyYW1zLmRyeVJ1biA9PT0gdHJ1ZSDml7blhY3lrqHmibnnm7TmjqXmlL7ooYzvvIhkcnktcnVuIOS4jeaUueWPmOezu+e7n+eKtuaAge+8iSIKICAgICAgfSwKICAgICAgIm5vdGUiOiAiTDIg56C05Z2P5oCn5pON5L2c77ya5bCG5pS55Y+Y57O757uf54q25oCB77yM6K+356Gu6K6k5b2x5ZON6IyD5Zu0IgogICAgfSwKICAgICJpbXBhY3QiOiBbCiAgICAgICJpZD1UZW5jZW50LldlQ29tIiwKICAgICAgImRyeVJ1bj1mYWxzZSIKICAgIF0sCiAgICAicmVzdW1lSGludCI6ICLnoa7orqTlkI7ku6UgX19hcHByb3ZhbElkIOmHjeWPkeWQjOS4gOivt+axgiIKICB9Cn0="
+              }
+            }
+          ]
+        },
+        {
+          "artifactId": "da93a9bc-961e-446f-bedc-5a1f59cd9453",
+          "name": "e1-receipt.json",
+          "description": "file",
+          "parts": [
+            {
+              "kind": "file",
+              "file": {
+                "name": "e1-receipt.json",
+                "mimeType": "application/json",
+                "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpvcnZwXzg5IiwKICAib2siOiBmYWxzZSwKICAiZXJyb3IiOiB7CiAgICAiY29kZSI6ICJBUFBST1ZBTF9SRVFVSVJFRCIsCiAgICAibWVzc2FnZSI6ICLpo47pmannrYnnuqcgTDIg6ZyA5Lq65bel5a6h5om55ZCO5omn6KGMIgogIH0sCiAgImFwcHJvdmFsIjogewogICAgImFwcHJvdmFsSWQiOiAiYXByX2ZhOTYxNTU0ZjZjNDRjNTViNDU2IiwKICAgICJyaXNrIjogIkwyIiwKICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgInByZXZpZXciOiB7CiAgICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgICAicmlzayI6ICJMMiIsCiAgICAgICJkZXN0cnVjdGl2ZSI6IHRydWUsCiAgICAgICJyZXF1aXJlc1Nlc3Npb24iOiBmYWxzZSwKICAgICAgInBhcmFtcyI6IHsKICAgICAgICAiaWQiOiAiVGVuY2VudC5XZUNvbSIsCiAgICAgICAgImRyeVJ1biI6IGZhbHNlCiAgICAgIH0sCiAgICAgICJkcnlSdW4iOiB7CiAgICAgICAgInN1cHBvcnRlZCI6IHRydWUsCiAgICAgICAgInJlcXVlc3RlZCI6IGZhbHNlLAogICAgICAgICJwbGFuIjogIuWPr+S8oCBkcnlSdW46dHJ1ZSDlhY3lrqHmibnpooTop4ggYXBwLndpbmdldC51bmluc3RhbGwg55qE5b2x5ZON5ZCO5YaN5Yaz5a6a5piv5ZCm55yf5a6e5omn6KGMIiwKICAgICAgICAiaGludCI6ICJwYXJhbXMuZHJ5UnVuID09PSB0cnVlIOaXtuWFjeWuoeaJueebtOaOpeaUvuihjO+8iGRyeS1ydW4g5LiN5pS55Y+Y57O757uf54q25oCB77yJIgogICAgICB9LAogICAgICAibm90ZSI6ICJMMiDnoLTlnY/mgKfmk43kvZzvvJrlsIbmlLnlj5jns7vnu5/nirbmgIHvvIzor7fnoa7orqTlvbHlk43ojIPlm7QiCiAgICB9LAogICAgImltcGFjdCI6IFsKICAgICAgImlkPVRlbmNlbnQuV2VDb20iLAogICAgICAiZHJ5UnVuPWZhbHNlIgogICAgXSwKICAgICJyZXN1bWVIaW50IjogIuehruiupOWQjuS7pSBfX2FwcHJvdmFsSWQg6YeN5Y+R5ZCM5LiA6K+35rGCIgogIH0sCiAgIl9ub3RlIjogIui/meaYr+WuoeaJuemXuOaLpuaIquWbnuaJp++8jOmdnuaJp+ihjOWbnuaJp+OAguiDveWKm+acquaJp+ihjO+8jOaVheS4jeWQqyBleGl0Q29kZSAvIHN1Y2Nlc3MgLyB2ZXJpZmllZCAvIGZhbGxiYWNrVXNlZCAvIHJlc2lkdWFsRXZpZGVuY2Ug5a2X5q6144CCIgp9"
+              }
+            }
+          ]
+        },
+        {
+          "artifactId": "742296dc-de26-4162-b065-e0938c801281",
+          "name": "e1-approval.json",
+          "description": "file",
+          "parts": [
+            {
+              "kind": "file",
+              "file": {
+                "name": "e1-approval.json",
+                "mimeType": "application/json",
+                "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpzMDVnXzExMiIsCiAgIm9rIjogZmFsc2UsCiAgImVycm9yIjogewogICAgImNvZGUiOiAiQVBQUk9WQUxfUkVRVUlSRUQiLAogICAgIm1lc3NhZ2UiOiAi6aOO6Zmp562J57qnIEwyIOmcgOS6uuW3peWuoeaJueWQjuaJp+ihjCIKICB9LAogICJhcHByb3ZhbCI6IHsKICAgICJhcHByb3ZhbElkIjogImFwcl9mZjNiNGUxMGE2Nzk0OWIzYTFjMyIsCiAgICAicmlzayI6ICJMMiIsCiAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICJwcmV2aWV3IjogewogICAgICAiY2FwYWJpbGl0eUlkIjogImFwcC53aW5nZXQudW5pbnN0YWxsIiwKICAgICAgInJpc2siOiAiTDIiLAogICAgICAiZGVzdHJ1Y3RpdmUiOiB0cnVlLAogICAgICAicmVxdWlyZXNTZXNzaW9uIjogZmFsc2UsCiAgICAgICJwYXJhbXMiOiB7CiAgICAgICAgImlkIjogIlRlbmNlbnQuV2VDb20iLAogICAgICAgICJkcnlSdW4iOiBmYWxzZQogICAgICB9LAogICAgICAiZHJ5UnVuIjogewogICAgICAgICJzdXBwb3J0ZWQiOiB0cnVlLAogICAgICAgICJyZXF1ZXN0ZWQiOiBmYWxzZSwKICAgICAgICAicGxhbiI6ICLlj6/kvKAgZHJ5UnVuOnRydWUg5YWN5a6h5om56aKE6KeIIGFwcC53aW5nZXQudW5pbnN0YWxsIOeahOW9seWTjeWQjuWGjeWGs+WumuaYr+WQpuecn+WunuaJp+ihjCIsCiAgICAgICAgImhpbnQiOiAicGFyYW1zLmRyeVJ1biA9PT0gdHJ1ZSDml7blhY3lrqHmibnnm7TmjqXmlL7ooYzvvIhkcnktcnVuIOS4jeaUueWPmOezu+e7n+eKtuaAge+8iSIKICAgICAgfSwKICAgICAgIm5vdGUiOiAiTDIg56C05Z2P5oCn5pON5L2c77ya5bCG5pS55Y+Y57O757uf54q25oCB77yM6K+356Gu6K6k5b2x5ZON6IyD5Zu0IgogICAgfSwKICAgICJpbXBhY3QiOiBbCiAgICAgICJpZD1UZW5jZW50LldlQ29tIiwKICAgICAgImRyeVJ1bj1mYWxzZSIKICAgIF0sCiAgICAicmVzdW1lSGludCI6ICLnoa7orqTlkI7ku6UgX19hcHByb3ZhbElkIOmHjeWPkeWQjOS4gOivt+axgiIKICB9Cn0="
+              }
+            }
+          ]
+        },
+        {
+          "artifactId": "56c25465-3310-427b-9e4d-2d1d4ac60dc6",
+          "name": "e1-receipt.json",
+          "description": "file",
+          "parts": [
+            {
+              "kind": "file",
+              "file": {
+                "name": "e1-receipt.json",
+                "mimeType": "application/json",
+                "bytes": "ewogICJ0cmFjZUlkIjogInRyX211bnpvcnZwXzg5IiwKICAib2siOiBmYWxzZSwKICAiZXJyb3IiOiB7CiAgICAiY29kZSI6ICJBUFBST1ZBTF9SRVFVSVJFRCIsCiAgICAibWVzc2FnZSI6ICLpo47pmannrYnnuqcgTDIg6ZyA5Lq65bel5a6h5om55ZCO5omn6KGMIgogIH0sCiAgImFwcHJvdmFsIjogewogICAgImFwcHJvdmFsSWQiOiAiYXByX2ZhOTYxNTU0ZjZjNDRjNTViNDU2IiwKICAgICJyaXNrIjogIkwyIiwKICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgInByZXZpZXciOiB7CiAgICAgICJjYXBhYmlsaXR5SWQiOiAiYXBwLndpbmdldC51bmluc3RhbGwiLAogICAgICAicmlzayI6ICJMMiIsCiAgICAgICJkZXN0cnVjdGl2ZSI6IHRydWUsCiAgICAgICJyZXF1aXJlc1Nlc3Npb24iOiBmYWxzZSwKICAgICAgInBhcmFtcyI6IHsKICAgICAgICAiaWQiOiAiVGVuY2VudC5XZUNvbSIsCiAgICAgICAgImRyeVJ1biI6IGZhbHNlCiAgICAgIH0sCiAgICAgICJkcnlSdW4iOiB7CiAgICAgICAgInN1cHBvcnRlZCI6IHRydWUsCiAgICAgICAgInJlcXVlc3RlZCI6IGZhbHNlLAogICAgICAgICJwbGFuIjogIuWPr+S8oCBkcnlSdW46dHJ1ZSDlhY3lrqHmibnpooTop4ggYXBwLndpbmdldC51bmluc3RhbGwg55qE5b2x5ZON5ZCO5YaN5Yaz5a6a5piv5ZCm55yf5a6e5omn6KGMIiwKICAgICAgICAiaGludCI6ICJwYXJhbXMuZHJ5UnVuID09PSB0cnVlIOaXtuWFjeWuoeaJueebtOaOpeaUvuihjO+8iGRyeS1ydW4g5LiN5pS55Y+Y57O757uf54q25oCB77yJIgogICAgICB9LAogICAgICAibm90ZSI6ICJMMiDnoLTlnY/mgKfmk43kvZzvvJrlsIbmlLnlj5jns7vnu5/nirbmgIHvvIzor7fnoa7orqTlvbHlk43ojIPlm7QiCiAgICB9LAogICAgImltcGFjdCI6IFsKICAgICAgImlkPVRlbmNlbnQuV2VDb20iLAogICAgICAiZHJ5UnVuPWZhbHNlIgogICAgXSwKICAgICJyZXN1bWVIaW50IjogIuehruiupOWQjuS7pSBfX2FwcHJvdmFsSWQg6YeN5Y+R5ZCM5LiA6K+35rGCIgogIH0sCiAgIl9ub3RlIjogIui/meaYr+WuoeaJuemXuOaLpuaIquWbnuaJp++8jOmdnuaJp+ihjOWbnuaJp+OAguiDveWKm+acquaJp+ihjO+8jOaVheS4jeWQqyBleGl0Q29kZSAvIHN1Y2Nlc3MgLyB2ZXJpZmllZCAvIGZhbGxiYWNrVXNlZCAvIHJlc2lkdWFsRXZpZGVuY2Ug5a2X5q6144CCIgp9"
+              }
+            }
+          ]
+        },
+        {
+          "artifactId": "7fcc0ea7-ef01-4bb9-88e3-1c687f1fdcfd",
+          "name": "execution-steps",
+          "parts": [
+            {
+              "kind": "data",
+              "data": {
+                "ok": true,
+                "summary": "服务端执行回执（app.winget.uninstall）：app.winget.uninstall 执行成功（常驻会话不可用：常驻会话在 60000ms 内未收到 system/init（首条用户消息已写出），已降级为单次 -p 路径）",
+                "steps": [
+                  {
+                    "index": 0,
+                    "capabilityId": "appops.workflow.run",
+                    "params": {
+                      "goal": "调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。",
+                      "runtime": "codebuddy"
+                    },
+                    "risk": "L1",
+                    "ok": true,
+                    "durationMs": 840858,
+                    "traceId": "tr_r19_munzlt2f",
+                    "summary": "app.winget.uninstall 执行成功"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "history": [
+        {
+          "kind": "message",
+          "role": "user",
+          "messageId": "msg_r19_1790765606247",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "调用能力 app.winget.uninstall 卸载 id=Tencent.WeCom（企业微信，dryRun=false）。获得执行回执后，把回执全部字段（exitCode、success、verified 完整对象、fallbackUsed、residualEvidence）逐字原样写入输出目录文件 e1-receipt.json，并向用户如实转告回执内容。不要臆造任何字段。"
+            }
+          ]
+        },
+        {
+          "kind": "message",
+          "role": "user",
+          "messageId": "apr_1790766123054",
+          "taskId": "9a0fedfe-c228-4778-ad83-5ced12dd2730",
+          "parts": [
+            {
+              "kind": "data",
+              "data": {
+                "approvalId": "apr_ff3b4e10a67949b3a1c3",
+                "approved": true
+              }
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "traceId": "tr_r19_munzlt2f",
+        "maxRisk": "L2",
+        "timeoutMs": 600000,
+        "allowedCapabilities": [
+          "app.winget.uninstall"
+        ],
+        "goalSummary": "服务端执行回执（app.winget.uninstall）：app.winget.uninstall 执行成功（常驻会话不可用：常驻会话在 60000ms 内未收到 system/init（首条用户消息已写出），已降级为单次 -p 路径）",
+        "stepCount": 1
+      }
+    }
+  },
+  "endElapsedMs": 371
+}

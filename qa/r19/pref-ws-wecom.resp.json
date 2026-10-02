@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 989137,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_munvzhsr_3\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [\n    {\n      \"name\": \"企业微信\",\n      \"id\": \"Tencent.WeCom\",\n      \"version\": \"5.0.11.6018\"\n    }\n  ],\n  \"durationMs\": 8160,\n  \"auditRef\": \"aud_2fff3d51afc849cb9c7e\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_munvzhsr_3",
+        "ok": true,
+        "risk": "L0",
+        "data": [
+          {
+            "name": "企业微信",
+            "id": "Tencent.WeCom",
+            "version": "5.0.11.6018"
+          }
+        ],
+        "durationMs": 8160,
+        "auditRef": "aud_2fff3d51afc849cb9c7e"
+      },
+      "isError": false
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "httpStatus": 200,
+  "payload": {
+    "jsonrpc": "2.0",
+    "id": 256327,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"traceId\": \"tr_muqcb4f7_170\",\n  \"ok\": true,\n  \"risk\": \"L0\",\n  \"data\": [],\n  \"durationMs\": 37,\n  \"auditRef\": \"aud_85dc0dda60c745b3aa89\"\n}"
+        }
+      ],
+      "structuredContent": {
+        "traceId": "tr_muqcb4f7_170",
+        "ok": true,
+        "risk": "L0",
+        "data": [],
+        "durationMs": 37,
+        "auditRef": "aud_85dc0dda60c745b3aa89"
+      },
+      "isError": false
+    }
+  }
+}
