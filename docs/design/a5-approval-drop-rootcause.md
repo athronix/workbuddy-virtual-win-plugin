@@ -98,3 +98,74 @@ STATUS: PARTIAL
 ### 2.4 遗留风险（须写入 spec，但不属本次因果）
 
 `APPROVAL_WAIT_PATTERN` 是**纯文本启发式**：只要 LLM 最终文本里既不出现 `APPROVAL_REQUIRED` 也不出现「等待审批」（例如 LLM 把拦截信息改写、或只回显 `approvalId` 而不带错误码），`reconcileApprovalWait` 就返回 `base`（ok=true）⇒ `blocked=false` ⇒ **不挂起、不 raise，任务直接 `completed`**。这是比 A5 更危险的一条静默失效路径（挂起丢失 + 假成功）。根治方向（K3 遗留条目原意）：桥改为直读 MCP 结构化工具结果（拦截时服务端已落的 `APPROVAL_REQUIRED` 记录 / `pendingApprovals` token），而非匹配 LLM 措辞。
+
+---
+
+## 3. P1 / P2 / P3 判定
+
+### 3.1 P1 —— 服务级单例 `activeTaskId` 被上一次委派的收尾清掉：**成立（根因）**
+
+**机制链（逐行已复核）**
+
+1. `packages/vm-service/src/server.ts` `VmApprovalCoordinator` 字段声明段：`private activeTaskId: string | undefined;` —— **服务级单例**，全进程唯一。
+2. 同文件 `beginTask(taskId)` / `endTask()` 段：`beginTask` 无条件 `this.activeTaskId = taskId;`，`endTask` 无条件 `this.activeTaskId = undefined;` —— **后者不接受 taskId**，无法归属。
+3. 同文件 `raise()` 首行：`if (!this.activeTaskId || !this.tasks) return { approved:false, reason:'no-active-task' };` —— 命中即**跳过** `this.tasks.waitApproval(...)`。
+4. `packages/adapter-agent-workbuddy-llm/src/bridge.ts` `runGoal`：`this.coordinator?.beginTask(input.taskId ?? '');` … `try { return await this.runGoalInner(...) } finally { this.coordinator?.endTask(); }` —— **每一次**委派收尾都无条件清空单例。
+5. 单例来源：`vm-service/src/server.ts` 只 `new VmApprovalCoordinator()` 一次（`createService`「桥接上下文」段注释「须先于 bridgeCtx 创建」处），经 `bridgeCtx.approvalCoordinator` 注入唯一 provider；`packages/core/src/bridge/loader.ts` `loadProvider` 内 `await provider.init(ctx)` 一次；`packages/adapter-agent-workbuddy-llm/src/index.ts` `init()` 内 `if (ctx.approvalCoordinator) this.bridge.setApprovalCoordinator?.(ctx.approvalCoordinator);`；`bridge.ts` `setApprovalCoordinator` 存到 `this.coordinator`。**全链单实例**。
+
+**为什么 A4 的收尾一定落在 A5 的窗口内（本次事件的关键，QA 此前未闭合）**
+
+`packages/adapter-agent-workbuddy-llm/src/persistent-session.ts` 「轮次（串行）」段：`private enqueue<T>(fn)` 用 `this.chain.then(fn, fn)` 把**所有轮次串成一条链**，`runTurn` 整体包在 `this.enqueue(async () => …)` 内。
+又：`bridge.ts` `ensureSession(outputDir, …)` 以 `this.persistent && this.persistentDir === outputDir` 复用 —— 所有委派 `outputDir` 同源 ⇒ **共用一个串行会话**。
+
+于是（时间均为 2026-10-02，取自 §0.1）：
+
+```
+07.089  A4 send        → A4 beginTask(48a90a2f…) ，A4 turn 入链并开始
+09.765  A4 cancel      → state=canceled；turn 不受影响（见 P3-c）
+20.870  A5 send        → A5 beginTask(51229514…)；A5 turn 入链（排在 A4 turn 之后）
+T       A4 turn 结束   → A4 的 runGoal 继续：pump.flush → collectArtifacts → maybeResume
+                         （A4 只读 L1，!blocked 立即 return base）→ reconcileDelegationTruth
+                         → finally  endTask()   ◀── 清空单例
+T+δ     A4 endTask 生效（δ = A4 收尾耗时，量级 0.05~2s）
+20.872+Δ A5 turn 开始（Δ = A5 排队等 A4 turn 的时间 ≥ 0）
+        A5 turn 跑 12.454s（实测 durationMs=12454）
+        A5 raise()  ◀── 此刻读 activeTaskId，已被 A4 清成 undefined
+37.915  A5 终态 failed
+```
+
+由 `37.915 − 20.872 = 17.043 = Δ + 12.454 + (A5 收尾开销)` 得 **Δ ≤ 4.589s**；又 `A4turnEnd = A5turnStart = 20.872 + Δ` ⇒
+
+> **可证伪的定量预测**：A4 那一轮 LLM turn 的结束时刻落在 **≈ 16:03:20.87 ~ 16:03:25.46**（即 turn 耗时 ≈ 13.8 ~ 18.4s）。
+> 验证方式（最小）：VM 服务日志 `[llm-session]` 的「轮次耗时」行（CL-018 C1 已把轮次生命周期事件提到 info 级）中 task `48a90a2f…` 对应轮次的 durationMs；若落在上述区间，P1 时序完全闭合；若明显 <13.8s（A4 turn 在 A5 beginTask 前就已结束并收尾），则需回到 §1.2 复查出口 #1/#3。
+> 注：即便该预测不成立，§1.2 的排空表 + §1.3 的反证已独立锁定 #4；本条只用于把「哪一次交叠」坐实到 A4。
+
+另注：X1（`16:02:19.128` completed）与 X4 对照任务 `0867d060…`（`16:02:53.930` completed）均在 A5 之前收尾，**唯一可能的交叠方就是 A4（`48a90a2f…`）**。
+
+### 3.2 P2 —— `this.coordinator` 未注入：**排除**
+
+- 注入链无条件：`vm-service/src/server.ts` `createService`「桥接上下文」段 `const approvalCoordinator = new VmApprovalCoordinator();` → 同段 `bridgeCtx` 对象字面量含 `approvalCoordinator`（注释「K4：审批协调器（须先于 bridgeCtx 创建，以便注入 provider）」）→ `await loadProvider(cfg.agent, bridgeCtx)`（`packages/core/src/bridge/loader.ts`）→ `await provider.init(ctx)` → `packages/adapter-agent-workbuddy-llm/src/index.ts` `init()` `if (ctx.approvalCoordinator) this.bridge.setApprovalCoordinator?.(ctx.approvalCoordinator);` → `bridge.ts` `setApprovalCoordinator`。**没有任何分支可使其缺席**（除非 provider 加载失败进入 degraded，但那样 A5 根本跑不出 LLM 结果）。
+- 反证更强：若 `coordinator` 为 undefined，`maybeResume` 在首门就 `return base`，`base` 仍是 `reconcileApprovalWait` 产物 —— **与 P1 的终态完全同形**，故单看终态无法区分；但契约上 `packages/contracts/src/bridge.ts` `BridgeContext` 段 `readonly approvalCoordinator?: ApprovalCoordinator;` 的可选性只影响「非 vm-service 宿主/单测」，vm-service 恒注入。
+- 结论：**P2 不成立**。判级为「结构性排除」，不需要真机实验。
+
+### 3.3 P3 —— 新发现的第三条（类）路径：**存在，且必须一并修**
+
+**P3-a｜`endTask()` 无参数 ⇒ 归属信息在契约层就丢掉了**（本次未触发，是 P1 的放大器）
+`packages/contracts/src/bridge.ts` `ApprovalCoordinator` 接口：`beginTask(taskId: string): void;`（`:313`）与 **`endTask(): void;`（`:315`，`raise` 在 `:322`）** —— `endTask` 不接收 taskId，实现方**无从判断**该清谁的。同时 `bridge.ts` `runGoal` 用 `this.coordinator?.beginTask(input.taskId ?? '')`，`taskId` 缺席时会写入空串（falsy）⇒ `raise` 同样静默 `no-active-task`。
+> 修正团队 lead 给的行号：`contracts/src/bridge.ts` 中 beginTask=**313**、endTask=**315**、raise=**322**（不是 313/322 两个 begin/end）。
+
+**P3-b｜桥上另有 3 处「per-delegation 状态」挂在共享单例上，交叠时同样静默错判（真正的第二路径）**
+`packages/adapter-agent-workbuddy-llm/src/bridge.ts` 字段段：`private readonly taskReceipts = new Map<string, ExecutedResult>();`、`private readonly raisedApprovals = new Set<string>();`、`private k5ReplayActive = false;` —— 三者都在 `runGoal` 入口被 `.clear()` / `= false`。两个委派交叠时：
+- B 的入口清空 A 已登记的回执 ⇒ A 后续 `applyReceipt(approvalId, base)` 取不到回执 ⇒ `return base`（保持「等待审批」/失败态）⇒ **A 被静默改判**；
+- B 的入口清空 A 的 `raisedApprovals` ⇒ A 续跑轮再次 raise 同一 approvalId 时去重失效 ⇒ **二次挂起**（K4 旧 token 复用缺陷复发）；
+- `k5ReplayActive` 跨任务残留/被清 ⇒ 回执反查错误介入或错误退场。
+症状与 P1 同类（静默、只在并发下出现、无日志）。**只修 `activeTaskId` 而不修这三项，等于把同一个缺陷留下三条支路。**
+
+**P3-c｜`cancelRequested` 只写不读 ⇒ cancel 不中断 turn（P1 的使能条件，非独立根因）**
+`packages/a2a-framework/src/task-store.ts`：字段声明 `cancelRequested: boolean;`（`InternalTask`）、初始化 `cancelRequested: false;`（`create`）、赋值 `rec.cancelRequested = true;`（`requestCancel`）——**全仓无读取点**。故 `tasks/cancel` 只改了任务状态，**LLM turn 继续跑完**，`runGoal` 的 `finally → endTask()` 仍在数秒后触发，制造交叠窗口。
+判级：**使能条件**。修它可显著收窄窗口（且 `tasks/cancel` 语义才真正成立），但不修它、只修 P1 也能消除「不挂起」症状。
+
+### 3.4 与 E1r2 的差分（解释为何成功样本看不出来）
+
+E1r2 成功样本满足两个条件：① 委派路径为 **oneshot**（终态 step `params` 无 `session` 键）；② 当时**无并发委派**。A5 为 **persistent**（`params.session="persistent"`，与 `bridge.ts` `runPersistent` 构造的 step 逐字一致）且紧随「已 cancel 但仍跑」的 A4。
+**注意**：oneshot/persistent 本身**不是**判据（两条路径都在 `maybeResume` 处汇合，且都调用 `reconcileApprovalWait`）；真正的差分是 **②（无并发）**。这也解释了为什么「A5 走 persistent」这个观察容易被误当成根因 —— 它只是相关量。
