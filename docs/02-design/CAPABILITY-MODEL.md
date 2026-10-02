@@ -3,9 +3,9 @@
 | 项 | 值 |
 |---|---|
 | 文档 ID | CAPABILITY-MODEL-winvm-bridge-v1 |
-| 版本 | v1.1（R17-T01：`app.winget.uninstall` 回执语义增补 §3.2.1） |
+| 版本 | v1.2（K-N2：§3.2.1 `app.winget.uninstall` 的 dryRun 改为宿主侧纯查询预览 + 新增 `plan` 字段；R17-T01：`app.winget.uninstall` 回执语义增补 §3.2.1） |
 | 层 | L0 规范层（`packages/contracts`） |
-| 日期 | 2026-08-28 |
+| 日期 | 2026-10-02（v1.2）；2026-08-28（v1.0） |
 
 ---
 
@@ -77,7 +77,7 @@
 > `docs/design/r17-design.md` §A1.3/§A5；契约字段以 `packages/vm-capabilities/src/registry/definitions.ts`
 > 的 output schema 为唯一权威，判定规则基线见 `tests/unit/r3-uninstall-verify.test.js`。
 
-回执结构：`{ id, dryRun, exitCode, success, verified, fallbackUsed, residualEvidence?, output }`
+回执结构：`{ id, dryRun, exitCode, success, verified, fallbackUsed, residualEvidence?, plan?, output }`
 
 | 字段 | 语义 |
 |---|---|
@@ -85,10 +85,18 @@
 | `verified` | 事后核验证据对象：`{ exeGone:boolean, dirGone:boolean\|null, registryGone:boolean, installLocation?:string, installerType:'nsis'\|'msi'\|'other'\|'unknown' }`。核验目标派生：优先注册表 `InstallLocation`；缺失时按 `UninstallString` 去引号/参数取所在目录反推；仍派生不出 → `dirGone=null`（只做注册表核验，如实标注）。**不在 PS 内全盘扫描** |
 | `fallbackUsed` | 是否触发 NSIS 静默回退（`Uninstall.exe /S`）。回退仅在卸载键判定为 NSIS 型（`UninstallString` 指向 `Uninstall.exe` 且无 `QuietUninstallString`）时触发；**MSI（`msiexec`）及其它类型永不回退** |
 | `residualEvidence` | 核验失败（`success=false`）时的残留证据（残留 exe/目录/注册表键清单）。**宿主/调用方必须如实向用户转呈，不得改写为成功** |
-| `exitCode` | 仅为 winget 原始退出码，保留供诊断，**不得**单独作为成功依据 |
+| `plan` | **仅 `dryRun`**（K-N2）：宿主侧纯查询预览载荷 `{ packageId:string, displayName:string, version:string, installerType:'nsis'\|'msi'\|'other'\|'unknown', installed:boolean, registryKey:string, hive:string, installRoot:string, expectedAction:'uninstall-via-winget'\|'winget-uninstall-expected-nonzero-exit', actions:string[], systemImpact:string }`（权威字段表见 `docs/design/r19b-s1-kn2-contract.md` §4.3，三方一致：本表 / `definitions.ts` output schema / `app.ps1` `Get-UninstallDryRunPlan`）。取不到卸载键时 `installed=false`、`installerType='unknown'`、`expectedAction='winget-uninstall-expected-nonzero-exit'`，字符串字段一律为空串（不得缺字段）。**`installed` 是包存在性的唯一事实** —— `success=true` 只代表「预览构造成功」，不代表「包已安装」。已废弃、不得复活的字段：`id`/`name`/`key`（改名）、`uninstallCommand`/`quietUninstallCommand`（可执行命令串不入免审批回执）、`wingetInvoked`（零调用由 `exitCode` 恒 0 + 参数错误码缺席 + 源码静态守卫保证，不靠运行期自宣） |
+| `exitCode` | 仅为 winget 原始退出码，保留供诊断，**不得**单独作为成功依据；`dryRun` 预览不发起 winget ⇒ **恒为 0** |
 
 特殊语义：
-- **dryRun**：不核验、不回退，`verified=null` 且 `fallbackUsed=false`（免审批语义保持，`success` 退化为 `exitCode=0`）。
+- **dryRun**（K-N2 起为**宿主侧纯查询预览**）：**零 winget 调用、零子进程**（连 `winget list` 这类只读调用也不发起 —— 预览走 `allow:dry-run-bypass` 免审批通道，任何子进程都等于在无人批准的路径上执行；真机 R19 §2 OBS-B 记录过同族命令 `dur=38307/42467ms` 打到 ps-bridge 45s 心跳阈值），只读注册表卸载键后输出 `plan`；
+  回执 `success=true`、`exitCode=0`、`verified=null`、`fallbackUsed=false`（零系统变更 ⇒ 免审批语义保持）。
+  ⚠ **严禁**给 `winget uninstall` 追加 `--dry-run` 或 `--what-if`：`Windows Package Manager v1.29.380` 的 uninstall 子命令
+  只有 `--install-mode`，预览开关会在参数解析阶段即失败（`exitCode=-1978335230`＝`0x8A150002`
+  `Argument name was not recognized`）；真机 R19 `seq157`/`seq165` 跨天逐字段复现（`qa/r19/e2-dryrun.resp.json`、
+  `qa/r19/e3-dryrun.resp.json`），故该路径必须由宿主侧预览承担。`app.winget.install` / `app.winget.upgrade`
+  侧的 `--dry-run` 不受影响（install/upgrade 子命令支持）。
+  运维事实：修改 `psmod/app.ps1` 后**必须重启 VM 服务**才生效（ps-bridge 常驻进程按启动时快照加载 psmod）。
 - **超时预算**：维持能力级 600s 总预算（严禁突破），内部软分配 winget ≤300s / NSIS 回退 ≤240s / 核验 ≤30s。
 - **winget 非零退出**：不触发回退（`fallbackUsed=false`），`success=false`，`verified` 为核验前证据。
 

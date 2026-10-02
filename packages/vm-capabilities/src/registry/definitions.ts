@@ -164,7 +164,13 @@ const APP: CapabilityDefinition[] = [
       '自动以 `Uninstall.exe /S` 静默回退并再核验，是否回退见 `fallbackUsed`；MSI 及其它类型**永不回退**。' +
       '核验失败时 `success=false` 并附 `residualEvidence` 残留证据，宿主必须如实转呈，不得改写为成功。' +
       '时间预算：能力级 600s 总预算（严禁突破），内部软分配 winget ≤300s / NSIS 回退 ≤240s / 核验 ≤30s。' +
-      'dryRun 路径语义不变：不核验、不回退，回执 `verified=null`、`fallbackUsed=false`（免审批语义保持）。',
+      'dryRun（K-N2 起）：**宿主侧纯查询预览** —— 零 winget 调用、零子进程（连 `winget list` 都不发起）、' +
+      '零系统变更，只读注册表卸载键后输出结构化 `plan`（packageId/displayName/version/installerType/' +
+      'installed/registryKey/hive/installRoot/expectedAction/actions/systemImpact），供「先预览再审批」。' +
+      '回执 `success=true`、`exitCode=0`、`verified=null`、`fallbackUsed=false`（免审批语义保持）；' +
+      '`success=true` 仅表示**预览构造成功 ≠ 包已安装**，存在性由 `plan.installed` 单独表达。' +
+      '⚠ 严禁给 `winget uninstall` 追加 `--dry-run`/`--what-if`：v1.29.380 的 uninstall 子命令无此参数，' +
+      '会在参数解析阶段即失败（`-1978335230`＝`0x8A150002` Argument name was not recognized）。',
     risk: 'L2',
     module: 'app',
     fn: 'Uninstall-WingetPackage',
@@ -176,10 +182,13 @@ const APP: CapabilityDefinition[] = [
       {
         id: { type: 'string' },
         dryRun: { type: 'boolean' },
-        exitCode: { type: 'integer', description: 'winget uninstall 退出码（单独为 0 不再代表卸载成功）' },
+        exitCode: {
+          type: 'integer',
+          description: 'winget uninstall 退出码（单独为 0 不再代表卸载成功）；dryRun 预览不发起 winget，恒为 0',
+        },
         success: {
           type: 'boolean',
-          description: '以最终核验为准：非 dryRun 时 = exitCode=0 且（首次核验通过 或 NSIS 回退后核验通过）；dryRun 时 = exitCode=0',
+          description: '以最终核验为准：非 dryRun 时 = exitCode=0 且（首次核验通过 或 NSIS 回退后核验通过）；dryRun 预览成功完成即 true',
         },
         verified: {
           type: ['object', 'null'],
@@ -211,7 +220,49 @@ const APP: CapabilityDefinition[] = [
           type: 'string',
           description: '可选：success=false 时的残留证据（残留 exe / 目录 / 注册表键清单，人类可读文本）',
         },
-        output: { type: 'array', items: { type: 'string' }, description: 'winget 原始输出行（触发回退时含回退阶段输出）' },
+        // K-N2 · 契约 §4.3（docs/design/r19b-s1-kn2-contract.md）：dryRun 预览载荷。
+        // 仅 dryRun 分支出现 ⇒ 非 dryRun 回执不带该字段，故 plan 自身不入 output required。
+        // 字段名与 app.ps1 `Get-UninstallDryRunPlan` / CAPABILITY-MODEL.md §3.2.1 三方逐字一致（交叉核对 A1）。
+        // 契约明确废弃的字段不得回归：`id`/`name`/`key`（已改名）、`uninstallCommand`/`quietUninstallCommand`
+        // （可执行命令串不得出现在**免审批**回执里并持久化到审计/日志）、`wingetInvoked`
+        // （零调用由 exitCode 恒 0 + 参数错误码缺席 + 源码静态守卫三层保证，不靠运行期自宣）。
+        plan: {
+          type: 'object',
+          description: '仅 dryRun：宿主侧纯查询预览计划（零 winget 调用、零子进程、零系统变更），供「先预览再审批」',
+          properties: {
+            packageId: { type: 'string', description: '请求卸载的包 Id（入参原样）' },
+            displayName: { type: 'string', description: '注册表 DisplayName（预览不查 winget 目录；取不到为空串）' },
+            version: { type: 'string', description: '注册表 DisplayVersion（取不到为空串）' },
+            installerType: {
+              type: 'string',
+              enum: ['nsis', 'msi', 'other', 'unknown'],
+              description: '安装器类型判定（与 verified.installerType 同源；无卸载键时为 unknown）',
+            },
+            installed: {
+              type: 'boolean',
+              description: '包在 VM 内是否存在的**唯一事实**：注册表卸载键是否命中（`success=true` 不代表已安装）',
+            },
+            registryKey: { type: 'string', description: '命中的卸载注册表键名（未命中为空串）' },
+            hive: { type: 'string', description: '命中的注册表 hive 路径（HKLM:\\SOFTWARE\\… 形态；未命中为空串）' },
+            installRoot: { type: 'string', description: '安装根（派生不出为空串，执行时 verified.dirGone 将为 null）' },
+            expectedAction: {
+              type: 'string',
+              enum: ['uninstall-via-winget', 'winget-uninstall-expected-nonzero-exit'],
+              description: '真实执行的预期动作：命中卸载键走 winget uninstall；未命中则以非零码退出（不谎称可成功）',
+            },
+            actions: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '预计执行动作的人类可读清单（含回退预期与核验退化说明）',
+            },
+            systemImpact: {
+              type: 'string',
+              description: '「本预览自身零变更」+「真实执行影响面」，审批卡可直接转呈',
+            },
+          },
+          required: ['packageId', 'displayName', 'installerType', 'expectedAction'],
+        },
+        output: { type: 'array', items: { type: 'string' }, description: 'winget 原始输出行（触发回退时含回退阶段输出；dryRun 时仅预览说明行）' },
       },
       ['id', 'dryRun', 'exitCode', 'success', 'verified', 'fallbackUsed'],
     ),

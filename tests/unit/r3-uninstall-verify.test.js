@@ -22,8 +22,11 @@
  *   R-4 registryGone = 卸载键不再匹配
  *   R-5 核验通过 = registryGone && exeGone && dirGone !== false
  *   R-6 回退触发：仅 exitCode=0 且 R-5 未过且 installerType='nsis'（非 NSIS 永不回退；dryRun 不核验不回退）
- *   R-7 success：dryRun → exitCode=0；否则 exitCode=0 && 最终核验通过
+ *   R-7 success：dryRun → 预览成功完成即 true（KN2：不发起 winget，exitCode 恒 0）；否则 exitCode=0 && 最终核验通过
  *   R-8 residualEvidence：非 dryRun 且 success=false 时给出残留清单；success=true 时省略
+ *   KN2 dryRun = **宿主侧纯查询预览**：零 winget 调用（严禁追加 `--dry-run`/`--what-if`，
+ *         v1.29.380 的 uninstall 无此参数 → 0x8A150002 参数错误）、零系统变更，
+ *         回执 `success=true`/`exitCode=0`/`verified=null`/`fallbackUsed=false` + `plan` 预览载荷
  *
  * 依据：docs/design/r17-design.md §A1.3 / §A3.2 / §A5；docs/prd/r17-prd.md R3-1…R3-5。
  */
@@ -176,11 +179,66 @@ function buildResidualEvidence(v) {
 }
 
 /**
+ * KN2 · dryRun 预览载荷（`Get-UninstallDryRunPlan` 的等价参考实现）。
+ * 权威字段契约：docs/design/r19b-s1-kn2-contract.md §4.3（与 app.ps1 实现、
+ * definitions.ts 的 output schema、CAPABILITY-MODEL.md §3.2.1 **三方逐字一致**，交叉核对 A1）。
+ * PS 侧实现只做**只读注册表取值**：零 winget 调用、零子进程（连 `winget list` 都不发起，
+ * 契约 §4.2①）、不触碰 uninstall；本函数同样只从 entry 投影字段，不含任何执行副作用。
+ *
+ * 契约明确废弃、不得复活的字段：
+ *   `id`/`name`/`key` → 已改名 packageId/displayName/registryKey（与 verified 命名域对齐）；
+ *   `uninstallCommand`/`quietUninstallCommand` → 可执行命令串不得出现在**免审批**回执里；
+ *   `wingetInvoked` → 零调用由 exitCode 恒 0 + 参数错误码缺席 + 源码静态守卫三层保证，
+ *                     不靠运行期自宣（自宣者正是被约束对象）。
+ *
+ * @param {string} id
+ * @param {{keyName?:string,hive?:string,DisplayName?:string,DisplayVersion?:string,
+ *   InstallLocation?:string,UninstallString?:string,QuietUninstallString?:string}|null} entry
+ * @returns {{packageId:string,displayName:string,version:string,installerType:string,
+ *   installed:boolean,registryKey:string,hive:string,installRoot:string,
+ *   expectedAction:string,actions:string[],systemImpact:string}}
+ */
+function buildDryRunPlan(id, entry) {
+  const type = classifyInstaller(entry);
+  const root = deriveInstallLocation(entry) ?? '';
+  const actions = [
+    `winget uninstall --exact --id ${id}（≤300s 软预算；本预览不执行）`,
+    entry
+      ? type === 'nsis'
+        ? '核验未过时预期回退：Uninstall.exe /S（仅 nsis 型允许，R3-5）'
+        : `installerType=${type} —— 非 NSIS 永不回退，核验未过即 success=false`
+      : '注册表卸载键未命中（installed=false）：可能未安装，也可能仅键名与 Id 不匹配 —— 预览不猜，以真实执行核验为准',
+  ];
+  if (entry && !root) actions.push('安装根派生不出 → 执行时 verified.dirGone=null（只做注册表核验）');
+  if (!entry) actions.push('无卸载键 ⇒ 执行时 verified.installerType=unknown、dirGone=null（核验退化为注册表判定）');
+  const shown = entry?.DisplayName || id;
+  return {
+    packageId: id,
+    // 显示名唯一来源＝注册表 DisplayName（预览不查 winget 目录 ⇒ 不存在「目录名优先」这层）
+    displayName: String(entry?.DisplayName ?? ''),
+    version: String(entry?.DisplayVersion ?? ''),
+    installerType: type,
+    // 存在性的**唯一事实**：注册表卸载键是否命中（`success=true` 不代表包存在）
+    installed: Boolean(entry),
+    registryKey: String(entry?.keyName ?? ''),
+    hive: String(entry?.hive ?? ''),
+    installRoot: root,
+    expectedAction: entry ? 'uninstall-via-winget' : 'winget-uninstall-expected-nonzero-exit',
+    actions,
+    systemImpact: entry
+      ? `dry-run 自身：零系统变更（未发起任何子进程）；真实执行将移除 ${shown} 的程序文件与卸载注册表键` +
+        (root ? `（安装根 ${root}）` : '（安装根派生不出，目录侧不核验）')
+      : 'dry-run 自身：零系统变更（未发起任何子进程）；真实执行预期无变更（winget 以非零码报包未安装/未匹配）',
+  };
+}
+
+/**
  * K6 状态机（Uninstall-WingetPackage 的等价参考实现：卸载→核验→(NSIS)回退→再核验→回执）。
  * 输入为「模拟探针」，不含任何真实 IO；输出即能力回执对象。
  *
  * @param {{
  *   id: string, dryRun?: boolean, wingetExitCode?: number, entry?: object|null,
+ *   wingetName?: string,
  *   afterWinget?: { registryKeyExists: boolean, dirExists: boolean, exeExists: boolean },
  *   afterFallback?: { registryKeyExists: boolean, dirExists: boolean, exeExists: boolean },
  *   output?: string[],
@@ -195,9 +253,20 @@ function runK6StateMachine(o) {
   const afterFallback = o.afterFallback ?? { registryKeyExists: false, dirExists: false, exeExists: false };
   const output = o.output ?? [];
 
-  // dryRun：不核验、不回退，verified=null、fallbackUsed=false（免审批语义保持）
+  // KN2：dryRun = 宿主侧**纯查询预览** —— 不发起 winget（连 winget list 也不起，契约 §4.2①；
+  // exitCode 恒 0、success 恒 true）、不核验、不回退，verified=null、fallbackUsed=false；
+  // 预览载荷落在 plan（字段契约见 buildDryRunPlan 头与契约 §4.3）。
   if (dryRun) {
-    return { id, dryRun: true, exitCode, success: exitCode === 0, verified: null, fallbackUsed: false, output };
+    return {
+      id,
+      dryRun: true,
+      exitCode: 0,
+      success: true,
+      verified: null,
+      fallbackUsed: false,
+      plan: buildDryRunPlan(id, entry),
+      output,
+    };
   }
 
   // winget 非零退出：直接失败，绝不回退（回退只用于纠正「假成功」）
@@ -412,6 +481,39 @@ describe('R17-T01 · definitions.ts：app.winget.uninstall 回执契约（K6）'
     }
   });
 
+  test('KN2：output 声明 plan 预览载荷（可选字段，十字段齐备且废弃字段不得回归）', () => {
+    const props = topLevelProps(UN);
+    const plan = propLiteral(UN, 'plan');
+    assert.ok(plan, 'KN2：应新增 plan 字段（dryRun 预览载荷）');
+    assert.ok(/(^|[\s,{])plan:\s*\{[\s\S]*?type:\s*'object'/.test(props), 'plan 必须是 object');
+    // 契约 §4.3 的十字段（交叉核对 A1：与 app.ps1 实现、本文参考实现三方一致）
+    for (const f of ['packageId', 'displayName', 'version', 'installerType', 'installed', 'registryKey', 'hive', 'installRoot', 'expectedAction', 'actions', 'systemImpact']) {
+      assert.ok(new RegExp(`(^|[\\s,{])${f}:\\s*\\{`).test(plan), `plan 应声明子字段 ${f}`);
+    }
+    // 已废弃字段绝不得回归 definitions（命令串不入免审批回执；wingetInvoked 不靠运行期自宣）
+    for (const dead of ['uninstallCommand', 'quietUninstallCommand', 'wingetInvoked']) {
+      assert.ok(!new RegExp(`(^|[\\s,{])${dead}:\\s*\\{`).test(plan), `plan 不得声明已废弃字段 ${dead}（契约 §4.2③/§4.3）`);
+    }
+    assert.ok(/installed:\s*\{[\s\S]*?type:\s*'boolean'/.test(plan), 'installed: boolean（存在性的唯一事实：注册表卸载键命中）');
+    assert.ok(/actions:\s*\{[\s\S]*?type:\s*'array'/.test(plan), 'actions 必须是数组（预计动作清单）');
+    assert.ok(
+      /enum:\s*\[\s*'nsis',\s*'msi',\s*'other',\s*'unknown'\s*\]/.test(plan),
+      'plan.installerType 枚举必须与 verified 同源',
+    );
+    assert.ok(
+      /expectedAction:\s*\{[\s\S]*?enum:\s*\[\s*'uninstall-via-winget',\s*'winget-uninstall-expected-nonzero-exit'\s*\]/.test(plan),
+      'expectedAction 枚举须覆盖命中/未命中两态（未命中不得谎称可成功卸载）',
+    );
+    // plan 必填子集存在且不含 plan 自身；plan 不得进顶层 required（仅 dryRun 出现）
+    const inner = requiredArrays(UN).find((r) => r.includes('packageId') && r.includes('expectedAction'));
+    assert.ok(inner, 'plan 应声明其 required 子字段');
+    for (const f of ['packageId', 'displayName', 'installerType', 'expectedAction']) {
+      assert.ok(inner.includes(f), `plan 必填子字段应含 ${f}`);
+    }
+    const top = topLevelRequired(UN);
+    assert.ok(!top.includes('plan'), 'plan 仅 dryRun 分支出现，不得列入顶层 required');
+  });
+
   test('success 语义改为「以最终核验为准」；描述含 600s 预算与回退纪律', () => {
     assert.ok(
       /success[^]{0,400}?以最终核验为准/.test(UN),
@@ -425,6 +527,11 @@ describe('R17-T01 · definitions.ts：app.winget.uninstall 回执契约（K6）'
     assert.ok(/不得改写为成功/.test(UN), '描述必须写明残留证据须如实转呈');
     assert.ok(/verified=null|verified`=\s*null/.test(UN), '描述必须写明 dryRun 时 verified=null');
     assert.ok(/fallbackUsed=false/.test(UN), '描述必须写明 dryRun 时 fallbackUsed=false');
+    // KN2：描述必须写明 dryRun 为宿主侧纯查询预览，并锁死「不得传 winget 预览开关」这条运维纪律
+    assert.ok(/纯查询预览/.test(UN), 'KN2：描述必须写明 dryRun = 宿主侧纯查询预览');
+    assert.ok(/严禁给 `winget uninstall` 追加 `--dry-run`\/`--what-if`/.test(UN), 'KN2：描述必须写明禁止给 uninstall 传预览开关');
+    assert.ok(/-1978335230/.test(UN), 'KN2：描述必须带上真机错误码便于检索（0x8A150002）');
+    assert.ok(/零系统变更/.test(UN), 'KN2：描述必须写明零系统变更（免审批的安全前提）');
     // 回归守卫：能力级总预算与风险面不得漂移
     assert.ok(UN.includes('timeoutMs: 600_000'), '能力级 timeout 维持 600_000ms（不新增分段参数）');
     assert.ok(UN.includes("risk: 'L2'"), '风险等级维持 L2');
@@ -460,7 +567,48 @@ describe('R17-T01 · CAPABILITY-MODEL.md：回执语义同步', () => {
     assert.ok(/不得改写为成功/.test(body), 'success=false 时必须如实转呈残留证据');
     assert.ok(/永不回退/.test(body), 'MSI 及其它类型永不回退');
     assert.ok(/不在 PS 内全盘扫描|不做全盘扫描/.test(body), '应写明派生不出安装根时不做全盘扫描');
+
+    // KN2：§3.2.1 必须写明 dryRun 为宿主侧纯查询预览（并解释为何不能用 winget 预览开关）
+    assert.ok(/纯查询预览/.test(body), 'KN2：dryRun 须写明宿主侧纯查询预览');
+    assert.ok(/不发起任何 winget 卸载调用|零 winget 调用/.test(body), 'KN2：须写明零 winget 调用');
+    assert.ok(/严禁/.test(body) && /--what-if/.test(body), 'KN2：须写明禁止 uninstall 传 --dry-run/--what-if');
+    assert.ok(/-1978335230/.test(body), 'KN2：须写明真机错误码 0x8A150002');
+    assert.ok(/`plan`|plan\?/.test(body), 'KN2：回执结构与 plan 字段须写入文档');
+    assert.ok(/必须重启 VM 服务/.test(body), 'KN2：须标注 ps1 改动生效需重启 VM 服务（运维事实）');
+
     assert.ok(/600s/.test(body) && /≤300s/.test(body) && /≤240s/.test(body) && /≤30s/.test(body), '预算分配应写入文档');
+  });
+
+  test('交叉核对 A1 · plan 字段三方一致（CAPABILITY-MODEL / definitions.ts / app.ps1）', () => {
+    const sec = CAP_MODEL.slice(CAP_MODEL.indexOf('#### 3.2.1'));
+    const body = sec.slice(0, sec.indexOf('### 3.3') > 0 ? sec.indexOf('### 3.3') : sec.length);
+    const FIELDS = ['packageId', 'displayName', 'version', 'installerType', 'installed', 'registryKey', 'hive', 'installRoot', 'expectedAction', 'actions', 'systemImpact'];
+    // ① 文档：plan 行的字段集合内联声明
+    const docPlanRow = /\| `plan` \|([\s\S]*?)\| *\n/.exec(body);
+    assert.ok(docPlanRow, '§3.2.1 须有 plan 字段行');
+    for (const f of FIELDS) {
+      assert.ok(docPlanRow[1].includes(`${f}:`) || docPlanRow[1].includes(`${f}[]`) || docPlanRow[1].includes(`${f}\b`), `文档 plan 行须声明 ${f}`);
+    }
+    for (const dead of ['wingetInvoked', 'uninstallCommand', 'quietUninstallCommand']) {
+      // 文档只能以「已废弃」语境提到这些名字，不得作为字段声明（`x:` 形态）
+      assert.ok(!new RegExp(`${dead}:`).test(docPlanRow[1]), `文档 plan 行不得把 ${dead} 当作字段`);
+    }
+    // ② definitions.ts schema
+    const planProps = propLiteral(UN, 'plan');
+    assert.ok(planProps, 'definitions.ts 须声明 plan');
+    for (const f of FIELDS) {
+      assert.ok(new RegExp(`(^|[\\s,{])${f}:\\s*\\{`).test(planProps), `definitions.ts plan 须声明 ${f}`);
+    }
+    // ③ app.ps1 构造
+    const planFn = psFnCode('Get-UninstallDryRunPlan');
+    assert.ok(planFn, 'app.ps1 须有 Get-UninstallDryRunPlan');
+    for (const f of FIELDS) {
+      assert.ok(new RegExp(`${f}\\s+=`).test(planFn), `app.ps1 plan 须产出 ${f}`);
+    }
+    // 权威契约文档侧的同一核对（§4.3 字段表存在性、契约锚点可 grep）落在 S-1 测试文件
+    // （契约文档与它同属一个 commit，避免跨 commit 依赖）：
+    //   tests/unit/r19b-s1-registry-forms.test.js → '交叉核对 A1' 用例。
+    assert.ok(!/wingetInvoked/.test(planProps), 'definitions.ts 不得残留 wingetInvoked（契约 §4.2③ 已移除）');
   });
 });
 
@@ -723,8 +871,12 @@ describe('R-6/R-7/R-8 · 状态机三态回执', () => {
     assert.equal(r.success, true, '无键可反推 → 磁盘无从核验，按注册表消失判定成功（并如实 dirGone=null）');
   });
 
-  test('dryRun 语义不变：不核验不回退，verified=null & fallbackUsed=false', () => {
-    for (const exit of [0, 1, -1978335189]) {
+  test('KN2 dryRun 预览语义：零 winget 调用 ⇒ success=true/exitCode=0，且不核验不回退', () => {
+    // 真机回归（R19 seq157/seq165）：旧实现在 uninstall 上追加 `--dry-run`，
+    // winget v1.29.380 参数解析阶段即失败并回 `exitCode=-1978335230`。预览路径现在
+    // **根本不发起 winget** ⇒ 无论探针传入什么退出码，回执都必须是成功 + 0。
+    const PARAM_ERR = -1978335230; // 0x8A150002 Argument name was not recognized
+    for (const exit of [0, 1, -1978335189, PARAM_ERR]) {
       const r = runK6StateMachine({
         id: 'Tencent.WeChatWork',
         dryRun: true,
@@ -735,9 +887,66 @@ describe('R-6/R-7/R-8 · 状态机三态回执', () => {
       assert.equal(r.dryRun, true);
       assert.equal(r.verified, null, `dryRun 时 verified 必须为 null（exit=${exit}）`);
       assert.equal(r.fallbackUsed, false, 'dryRun 绝不回退');
-      assert.equal(r.success, exit === 0, 'dryRun 的 success 退化为 exitCode===0（免审批预览语义保持）');
+      assert.equal(r.exitCode, 0, `dryRun 不得带任何 winget 退出码（探针注入 exit=${exit} 也应被忽略）`);
+      assert.equal(r.success, true, 'dryRun 预览成功完成即 success=true（免审批预览语义真正可用）');
       assert.ok(!('residualEvidence' in r) || r.residualEvidence === undefined, 'dryRun 不产残留证据');
+      // K-N2 硬断言：dry-run 回执**不得**带 winget 参数错误码
+      assert.notEqual(r.exitCode, PARAM_ERR, 'K-N2 复发：回执里出现了 winget 参数错误码 0x8A150002');
+      assert.ok(
+        !/Argument name was not recognized|--dry-run|--what-if/.test((r.output ?? []).join('\n')),
+        'dry-run 回执 output 不得含 winget 参数错误原文或预览开关',
+      );
+      assert.ok(r.plan && typeof r.plan === 'object', 'dryRun 必须给出结构化预览载荷 plan');
+      assert.ok(!('wingetInvoked' in r.plan), '契约 §4.2③：wingetInvoked 已废弃，不得作为哨兵字段回归');
     }
+  });
+
+  test('KN2 plan 载荷字段齐备：包名/版本/installerType/安装根/预计动作（三种键形态）', () => {
+    const nsis = runK6StateMachine({ id: 'Tencent.WeChatWork', dryRun: true, entry: NSIS_ENTRY_NO_INSTALLLOC });
+    const p = nsis.plan;
+    for (const f of ['packageId', 'displayName', 'version', 'installerType', 'installed', 'registryKey', 'hive', 'installRoot', 'expectedAction', 'actions', 'systemImpact']) {
+      assert.ok(f in p, `plan 必须含字段 ${f}（契约 §4.3 十字段齐备）`);
+    }
+    // 废弃字段不得回归（契约 §4.2③ / §4.3 末：命令串不入免审批回执）
+    for (const dead of ['id', 'name', 'key', 'uninstallCommand', 'quietUninstallCommand', 'wingetInvoked']) {
+      assert.ok(!(dead in p), `plan 不得含已废弃字段 ${dead}`);
+    }
+    assert.equal(p.packageId, 'Tencent.WeChatWork');
+    assert.equal(p.installerType, 'nsis', '安装器类型须与 R-1 同源判定');
+    assert.equal(p.installed, true, '注册表命中 ⇒ installed=true（存在性的唯一事实）');
+    assert.equal(p.displayName, '企业微信', 'displayName 取注册表 DisplayName（预览不查 winget 目录）');
+    assert.equal(p.expectedAction, 'uninstall-via-winget', '命中卸载键 ⇒ 真实执行走 winget uninstall');
+    assert.match(p.systemImpact, /零系统变更/, 'systemImpact 须先说明预览自身零变更');
+    assert.match(p.systemImpact, /真实执行将移除/, 'systemImpact 须给出真实执行影响面（审批卡可直接转呈）');
+    assert.ok(Array.isArray(p.actions) && p.actions.length >= 2, 'actions 须给出预计动作清单');
+    assert.ok(p.actions.some((a) => /不执行/.test(a)), 'actions 须明确「本预览不执行」');
+    assert.ok(p.actions.some((a) => a.includes('Uninstall.exe /S')), 'nsis 型须预告回退动作');
+    assert.equal(nsis.verified, null, 'plan 出现不改变 verified=null');
+    // 安装根派生与 R-2 同源：引号 UninstallString 反推出目录；msi 型禁止反推（R-2b）→ 空串
+    assert.equal(p.installRoot, 'C:\\Program Files (x86)\\Tencent\\WXWork', 'nsis 型须按 UninstallString 反推安装根');
+    assert.ok(!p.actions.some((a) => /安装根派生不出/.test(a)), '能派生安装根时不得出现退化提示');
+
+    const msi = runK6StateMachine({
+      id: 'GitHub.cli',
+      dryRun: true,
+      entry: { ...NSIS_ENTRY_NO_INSTALLLOC, UninstallString: 'MsiExec.exe /X{94DF}', DisplayName: 'GitHub CLI', DisplayVersion: '2.62.0', keyName: '{94DF}', hive: 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall' },
+    });
+    assert.equal(msi.plan.installerType, 'msi', 'msi 型：installerType 如实投影');
+    assert.equal(msi.plan.version, '2.62.0', 'version 取 DisplayVersion');
+    assert.equal(msi.plan.registryKey, '{94DF}');
+    assert.equal(msi.plan.installRoot, '', 'R-2b：msi 型禁止反推安装根 → 如实空串（执行时 dirGone=null）');
+    assert.ok(msi.plan.actions.some((a) => /永不回退/.test(a)), '非 nsis 型须写明永不回退（与 R3-5 一致）');
+    assert.ok(!msi.plan.actions.some((a) => /Uninstall\.exe \/S/.test(a)), '非 nsis 型不得预告 /S 回退');
+
+    const missing = runK6StateMachine({ id: 'QA.Nonexistent.Package.99999', dryRun: true, entry: null });
+    assert.equal(missing.success, true, '包不存在也属正常预览结果（零变更，不是失败）');
+    assert.equal(missing.plan.installed, false, '注册表未命中 ⇒ installed=false（success=true 不代表已安装）');
+    assert.equal(missing.plan.installerType, 'unknown');
+    assert.equal(missing.plan.displayName, '', '无键则无显示名（不得凭空补名）');
+    assert.equal(missing.plan.expectedAction, 'winget-uninstall-expected-nonzero-exit', '未命中须如实预告非零退出');
+    assert.ok(missing.plan.actions.some((a) => /未命中/.test(a)), '未命中须在 actions 里如实说明（预览不猜成因）');
+    assert.match(missing.plan.systemImpact, /非零码/, '未命中时影响面须写明 winget 以非零码报包未安装/未匹配');
+    assert.match(missing.plan.systemImpact, /预期无变更/, '未命中时影响面须如实说明「预期无变更」');
   });
 
   test('全局不变式：非 dryRun 时 success=true ⇒ 最终核验必过；success=false ⇒ 必带可转呈证据或明确核验失败字段', () => {
@@ -920,11 +1129,33 @@ describe('R17-T02 · app.ps1 K6 状态机（静态守卫）', () => {
 
   test('R-4：预捕获必须先于 winget 卸载（否则真卸载后取不到核验目标）', () => {
     const u = psFnCode('Uninstall-WingetPackage');
-    const idxPrecap = u.indexOf('Get-PackageUninstallEntry -Id $Id -DisplayName $installedName');
-    // 真卸载是**最后一次** `& winget @wingetArgs`（第一次位于 dryRun 块内，带 --dry-run）
+    // KN2/S-2 同源重构：预捕获抽成 Get-UninstallPrecapture（dry-run 预览与真卸载共用）
+    const pc = psFn('Get-UninstallPrecapture');
+    const pcCode = psFnCode('Get-UninstallPrecapture');
+    assert.ok(pc, 'KN2：应抽出 Get-UninstallPrecapture（单一预捕获实现，杜绝两份代码漂移）');
+    assert.ok(
+      pcCode.includes('Get-PackageUninstallEntry -Id $Id -DisplayName $wingetName'),
+      'R-0：预捕获实现须按 winget 显示名匹配卸载键（共用后统一由 $wingetName 传入）',
+    );
+    const idxPrecap = u.indexOf('Get-UninstallPrecapture -Id $Id -UseWingetName');
+    // KN2 后 `& winget @wingetArgs` 只剩真卸载这一处（dryRun 分支不再发起卸载调用）
     const idxRun = u.lastIndexOf('& winget @wingetArgs 2>&1');
-    assert.ok(idxPrecap > 0, '应预捕获卸载键');
+    assert.equal(
+      u.split('& winget @wingetArgs 2>&1').length - 1,
+      1,
+      'KN2：Uninstall-WingetPackage 内 `& winget @wingetArgs` 必须恰为 1 处（dry-run 预览不得发起卸载调用）',
+    );
+    assert.ok(idxPrecap > 0, '卸载路径须调用 Get-UninstallPrecapture -UseWingetName（已审批才允许起子进程）');
     assert.ok(idxPrecap < idxRun, 'R-0：预捕获须先于 `winget uninstall`（真卸载成功后键即消失）');
+    for (const key of ['wingetName', 'entry', 'installerType', 'installRoot']) {
+      assert.ok(
+        new RegExp(`${key}\\s+=`).test(pcCode),
+        `Get-UninstallPrecapture 返回载荷须含 ${key}（预览与卸载共用同一形态）`,
+      );
+    }
+    // 注释里合法引用 `& winget`（说明为何预览不起子进程）⇒ 命令级断言必须剥注释后再判
+    assert.ok(!/& winget\b|Start-Process\b|uninstall --/i.test(pcCode), '预捕获本身不得发起卸载调用（只读）');
+    assert.ok(/if \(\$UseWingetName\) \{ \$wingetName = Get-WingetInstalledName -Id \$Id \}/.test(pcCode), '唯一开关：只有传 -UseWingetName 时才解析 winget 目录名');
     const e = psFn('Get-PackageUninstallEntry');
     assert.ok(/-ieq \$Id/.test(e), '匹配须含键名精确层级');
     assert.ok(/Get-NormalizedPackageName/.test(e), '匹配须走归一化比较（不手写中文字面量）');
@@ -938,18 +1169,69 @@ describe('R17-T02 · app.ps1 K6 状态机（静态守卫）', () => {
     assert.ok(!/if\s*\(\s*-not\s+\$V\['dirGone'\]\s*\)/.test(f), '不得写 `-not $V[dirGone]`（会把 $null 误判为残留）');
   });
 
-  test('R-6/R-7：分支次序、dryRun 短路、非 NSIS 永不回退、success 以核验为准', () => {
+  /**
+   * KN2 核心回归锁：`winget uninstall` 侧的预览开关一律不得出现。
+   * 真机证据：`qa/r19/e2-dryrun.resp.json`（seq157）、`qa/r19/e3-dryrun.resp.json`（seq165）
+   * 跨天逐字段一致 `exitCode=-1978335230`（0x8A150002）+ winget 原文
+   * `Argument name was not recognized for the current command: '--dry-run'`。
+   * install/upgrade 侧的 `--dry-run`（app.ps1:249 / :863）不在本锁范围（v1.29.380 支持）。
+   */
+  test('KN2：uninstall 侧不得再拼接 winget 预览开关，dry-run 走宿主侧纯查询 plan 路径', () => {
     const u = psFnCode('Uninstall-WingetPackage');
-    const idxArgs = u.indexOf("$wingetArgs += '--dry-run'");
-    const idxDry = u.indexOf('if ($DryRun) {', idxArgs);
-    const idxPrecap = u.indexOf('Get-PackageUninstallEntry -Id $Id -DisplayName $installedName');
-    const idxRun = u.indexOf('& winget @wingetArgs 2>&1', idxPrecap);
-    assert.ok(idxDry > 0 && idxDry < idxPrecap && idxPrecap < idxRun, '顺序：dryRun 短路 → 预捕获 → 卸载');
+    for (const flag of ["'--dry-run'", '"--dry-run"', "'--what-if'", '"--what-if"']) {
+      assert.ok(
+        !u.includes(`$wingetArgs += ${flag}`),
+        `K-N2 复发：$wingetArgs 又拼了预览开关 ${flag} —— v1.29.380 的 uninstall 无此参数，参数解析即失败`,
+      );
+    }
+    assert.ok(!/--dry-run|--what-if/.test(u), 'KN2：Uninstall-WingetPackage 纯代码内不得出现任何 winget 预览开关');
+
+    const idxDry = u.indexOf('if ($DryRun) {');
+    // KN2 后卸载路径的预捕获锚点（Get-PackageUninstallEntry 已移入 Get-UninstallPrecapture）
+    const idxPrecap = u.indexOf('Get-UninstallPrecapture -Id $Id -UseWingetName');
+    assert.ok(idxDry > 0 && idxDry < idxPrecap, '顺序：dryRun 预览短路 → 预捕获 → 卸载');
     const dryBlock = u.slice(idxDry, idxPrecap);
-    assert.ok(/verified\s+=\s+\$null/.test(dryBlock), 'dryRun 回执 verified=$null');
-    assert.ok(/fallbackUsed = \$false/.test(dryBlock), 'dryRun 回执 fallbackUsed=$false');
-    assert.ok(/success      = \(\[int\]\$exit -eq 0\)/.test(dryBlock), 'dryRun success 退化为 exitCode===0');
+
+    // 预览必须是纯查询：只调 Get-UninstallDryRunPlan；既不发起卸载、也不起任何子进程
+    assert.ok(dryBlock.includes('Get-UninstallDryRunPlan -Id $Id'), '预览须走 plan 构造函数（R-0 同源取卸载键）');
+    assert.ok(!dryBlock.includes('& winget @wingetArgs'), 'K-N2：预览路径不得发起 winget 卸载调用');
+    assert.ok(!dryBlock.includes('Test-UninstallState'), 'dryRun 仍不核验（verified=null 语义不变）');
     assert.ok(!dryBlock.includes('Invoke-NsisSilentFallback'), 'dryRun 绝不回退');
+
+    // 回执形态：success=true / exitCode=0 / verified=null / fallbackUsed=false + plan
+    assert.ok(/plan\s+=\s+\$plan/.test(dryBlock), 'dryRun 回执必须带结构化 plan');
+    assert.ok(/exitCode\s+=\s+0/.test(dryBlock), 'dryRun 回执 exitCode 恒 0（无 winget 退出码可报）');
+    assert.ok(/success\s+=\s+\$true/.test(dryBlock), 'dryRun 预览成功完成即 success=true');
+    assert.ok(/verified\s+=\s+\$null/.test(dryBlock), 'dryRun 回执 verified=$null');
+    assert.ok(/fallbackUsed\s+=\s+\$false/.test(dryBlock), 'dryRun 回执 fallbackUsed=$false');
+    assert.ok(/installed/.test(dryBlock), '回执说明行须把存在性交给 plan.installed（success=true ≠ 已安装）');
+
+    // plan 构造函数本体：纯注册表只读 + 契约 §4.3 字段 + 零子进程（连 winget list 都不起）
+    const planFn = psFnCode('Get-UninstallDryRunPlan');
+    assert.ok(planFn, 'KN2：应抽出 Get-UninstallDryRunPlan（预览载荷与回执构造分离）');
+    assert.ok(planFn.includes('Get-UninstallPrecapture -Id $Id'), 'plan 须复用同源预捕获（不传 -UseWingetName）');
+    assert.ok(!/-UseWingetName/.test(planFn), '契约 §4.2①：预览不得请求 winget 目录名（那会起 winget list 子进程）');
+    assert.ok(!/Get-WingetInstalledName|& winget\b|Start-Process\b/i.test(planFn), 'plan 构造函数内零子进程调用（免审批路径不得执行任何外部进程）');
+    assert.ok(!/--dry-run|--what-if/.test(planFn), 'plan 构造函数不得引用任何 winget 预览开关');
+    for (const f of ['packageId', 'displayName', 'version', 'installerType', 'installed', 'registryKey', 'hive', 'installRoot', 'expectedAction', 'actions', 'systemImpact']) {
+      assert.ok(new RegExp(`${f}\\s+=`).test(planFn), `plan 须含字段 ${f}（契约 §4.3，与 definitions/CAPABILITY-MODEL 三方一致）`);
+    }
+    for (const dead of ['wingetInvoked', 'uninstallCommand', 'quietUninstallCommand']) {
+      assert.ok(!new RegExp(`${dead}\\s+=`).test(planFn), `plan 不得含已废弃字段 ${dead}（契约 §4.2③ / §4.3 末）`);
+    }
+    assert.ok(/'uninstall-via-winget'/.test(planFn) && /'winget-uninstall-expected-nonzero-exit'/.test(planFn), 'expectedAction 须覆盖命中/未命中两态');
+    assert.ok(!/entry\['UninstallString'\]|entry\['QuietUninstallString'\]/.test(planFn), '命令串不得从 entry 投影进免审批回执');
+
+    // 运维事实：psmod 生效需重启 VM 服务（本轮只落 git，不做真机验证）
+    const dryComment = psFn('Uninstall-WingetPackage');
+    assert.ok(/重启 VM 服务/.test(dryComment), '注释须写明生效需重启 VM 服务（ps-bridge 按启动快照加载 psmod）');
+  });
+
+  test('R-6/R-7：分支次序、非 NSIS 永不回退、success 以核验为准', () => {
+    const u = psFnCode('Uninstall-WingetPackage');
+    const idxPrecap = u.indexOf('Get-UninstallPrecapture -Id $Id -UseWingetName');
+    const idxRun = u.indexOf('& winget @wingetArgs 2>&1', idxPrecap);
+    assert.ok(idxPrecap > 0 && idxRun > idxPrecap, '顺序：预捕获 → 卸载');
 
     const idxExit = u.indexOf('if ($exit -ne 0) {', idxRun);
     const idxNonNsis = u.indexOf("if ($fbType -ne 'nsis') {", idxRun);

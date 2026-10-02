@@ -648,6 +648,111 @@ function Invoke-NsisSilentFallback {
     return [int]$code
 }
 
+# KN2/S-2 同源 · R-0 预捕获（真卸载路径与 dry-run 预览**共用同一实现**，杜绝两份代码漂移；
+# S-2 卸载回执的 precapture 段亦取本函数结果，不得另行推导）。
+# 返回 [ordered]@{ wingetName; entry; installerType; installRoot }
+#   wingetName    — `winget list` 的显示名（-UseWingetName 关闭时为空串）
+#   entry         — 注册表卸载键快照（取不到为 $null）
+#   installerType — R-1 判定（entry 为 $null 时即 'unknown'）
+#   installRoot   — R-2 派生安装根（派生不出为空串）
+#
+# ⚠ `-UseWingetName` 是**唯一**差异开关，且只控制「要不要起 winget 子进程」：
+#   · 真卸载路径传 `-UseWingetName`（已审批，用 winget 目录名提升注册表匹配命中率，R-0 既有能力）；
+#   · dry-run 预览**不传**（走 allow:dry-run-bypass 免审批通道 ⇒ 连 `winget list` 这类只读子进程
+#     都不该起：真机 R19 报告 §2 OBS-B 记录过 `app.winget.install` 两次 dur=38307/42467ms 打到
+#     ps-bridge 45s 心跳阈值，同一命令族在免审批预览里挂住即是风险 + 慢回执）。
+#   注册表匹配算法（Get-PackageUninstallEntry）两侧**完全同源**，不存在「预览一套、卸载另一套」。
+function Get-UninstallPrecapture {
+    param(
+        [Parameter(Mandatory)][string]$Id,
+        [switch]$UseWingetName
+    )
+
+    $wingetName = ''
+    if ($UseWingetName) { $wingetName = Get-WingetInstalledName -Id $Id }
+    $entry = Get-PackageUninstallEntry -Id $Id -DisplayName $wingetName
+    return [ordered]@{
+        wingetName    = $wingetName
+        entry         = $entry
+        installerType = Get-UninstallInstallerType -Entry $entry
+        installRoot   = [string](Get-PackageInstallRoot -Entry $entry)
+    }
+}
+
+# KN2 · dry-run 预览载荷构造（纯注册表只读，零子进程、零系统变更）。
+# 权威口径：docs/design/r19b-s1-kn2-contract.md §4（定稿契约，交叉核对 A1 要求
+# 本函数字段与 definitions.ts 的 output.plan / CAPABILITY-MODEL.md §3.2.1 三方逐字一致）；
+# 缺陷来源为 docs/test/reports/real-test-2026-09-30-r19.md §5「K-N2」与 §7 L3 路由。
+# 字段集：packageId / displayName / version / installerType / installed / registryKey /
+#        hive / installRoot / expectedAction / actions / systemImpact
+# （契约 §4.2③ 明确废弃 wingetInvoked；§4.3 末明确 UninstallString/QuietUninstallString
+#   不得进入免审批回执，故本函数只投影「将发生什么」，不投影「用哪条命令去发生」。）
+#
+# ⚠ `success=true` 的含义是**「预览构造成功」，不等于「包已安装」**；
+#   包是否存在由 `plan.installed`（注册表卸载键是否命中）单独表达。
+function Get-UninstallDryRunPlan {
+    param([Parameter(Mandatory)][string]$Id)
+
+    $precap = Get-UninstallPrecapture -Id $Id
+    $entry = $precap['entry']
+    $type = [string]$precap['installerType']
+    $root = [string]$precap['installRoot']
+
+    # 逐字段安全取值（StrictMode：$entry 可能为 $null，不得直接索引不存在的键）
+    $pName = ''
+    $pVersion = ''
+    $pKey = ''
+    $pHive = ''
+    if ($null -ne $entry) {
+        $pName = [string]$entry['DisplayName']
+        $pVersion = [string]$entry['DisplayVersion']
+        $pKey = [string]$entry['keyName']
+        $pHive = [string]$entry['hive']
+    }
+
+    $actions = New-Object System.Collections.ArrayList
+    [void]$actions.Add('winget uninstall --exact --id ' + $Id + '（≤300s 软预算；本预览不执行）')
+    if ($null -ne $entry) {
+        if ($type -eq 'nsis') {
+            [void]$actions.Add('核验未过时预期回退：Uninstall.exe /S（仅 nsis 型允许，R3-5）')
+        } else {
+            [void]$actions.Add('installerType=' + $type + ' —— 非 NSIS 永不回退，核验未过即 success=false')
+        }
+        if (-not $root) {
+            [void]$actions.Add('安装根派生不出 → 执行时 verified.dirGone=null（只做注册表核验）')
+        }
+    } else {
+        [void]$actions.Add('注册表卸载键未命中（installed=false）：可能未安装，也可能仅键名与 Id 不匹配 —— 预览不猜，以真实执行核验为准')
+        [void]$actions.Add('无卸载键 ⇒ 执行时 verified.installerType=unknown、dirGone=null（核验退化为注册表判定）')
+    }
+
+    return [ordered]@{
+        packageId     = $Id
+        displayName   = $pName
+        version       = $pVersion
+        installerType = $type
+        # 唯一存在性事实：注册表卸载键是否命中（`success=true` 不代表包存在，见函数头）
+        installed     = ($null -ne $entry)
+        registryKey   = $pKey
+        hive          = $pHive
+        # 安装根派生不出时如实留空（语义与 verified.installLocation 的可选性一致）
+        installRoot   = $root
+        # 命中卸载键 ⇒ 真实执行走 winget uninstall；未命中 ⇒ 真实执行将以非零码退出（不谎称可成功）
+        expectedAction = $(if ($null -ne $entry) { 'uninstall-via-winget' } else { 'winget-uninstall-expected-nonzero-exit' })
+        actions       = @($actions.ToArray() | ForEach-Object { "$_" })
+        # 本预览自身零变更 + 真实执行的影响面（审批卡可直接转呈）
+        systemImpact = $(
+            if ($null -ne $entry) {
+                'dry-run 自身：零系统变更（未发起任何子进程）；真实执行将移除 ' +
+                    $(if ($pName) { $pName } else { $Id }) + ' 的程序文件与卸载注册表键' +
+                    $(if ($root) { '（安装根 ' + $root + '）' } else { '（安装根派生不出，目录侧不核验）' })
+            } else {
+                'dry-run 自身：零系统变更（未发起任何子进程）；真实执行预期无变更（winget 以非零码报包未安装/未匹配）'
+            }
+        )
+    }
+}
+
 function Uninstall-WingetPackage {
     param([Parameter(Mandatory)][string]$Id, [switch]$DryRun)
 
@@ -669,35 +774,56 @@ function Uninstall-WingetPackage {
     $evidence = ''
 
     $wingetArgs = @('uninstall', '--exact', '--id', $Id, '--accept-source-agreements', '--disable-interactivity')
-    if ($DryRun) { $wingetArgs += '--dry-run' }
 
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         throw 'WINGET_NOT_FOUND: 未找到 winget，请先安装「应用安装程序」'
     }
 
-    # R-7：dryRun 不核验、不回退（免审批语义保持）→ verified=$null、fallbackUsed=$false
+    # KN2 · dryRun 预览**不得**给 winget 传预览参数 —— `Windows Package Manager v1.29.380`
+    # 的 `uninstall` 子命令只认 `--install-mode`，既无 `--dry-run` 也无 `--what-if`。旧代码在此
+    # 追加 `--dry-run` 后命令在参数解析阶段即失败（`exitCode=-1978335230` 即 0x8A150002
+    # "Argument name was not recognized"，真机 R19 seq157 / seq165 跨天逐字段复现），
+    # dry-run 的「预览影响」语义事实上从未成立。现改为**宿主侧纯注册表只读预览**
+    # （零子进程、零 winget 调用、零系统变更），预览载荷即 `plan`。
+    #
+    # ⚠ 预览**连 `winget list` 都不起**：dry-run 走 `allow:dry-run-bypass` 免审批通道，
+    #   任何子进程都在免审批路径上执行（既有环境实测 winget 偶发挂 30s+）；
+    #   `exitCode=0 / success=true` 仅表示**「预览构造成功」≠「包已安装」**，
+    #   存在性由 `plan.installed`（注册表卸载键是否命中）单独表达。
+    #   真实执行与预览共用匹配算法（Get-UninstallPrecapture，仅 -UseWingetName 开关有差）。
+    #
+    # 运维事实（R19 交付纪律：单向流，本轮只落 git）：本文件生效**必须重启 VM 服务**
+    # （ps-bridge 常驻进程按启动时快照加载 psmod，不热更新）。
     if ($DryRun) {
-        $raw = & winget @wingetArgs 2>&1
-        $exit = $LASTEXITCODE
-        foreach ($l in @($raw | ForEach-Object { "$_" })) { [void]$lines.Add($l) }
-        [void]$lines.Add('[k6] dry-run: 不核验、不回退（verified=null & fallbackUsed=false）')
+        # 既不核验、不回退，也不发起卸载（R-7 免审批语义保持：verified=null / fallbackUsed=false）
+        $plan = Get-UninstallDryRunPlan -Id $Id
+
+        [void]$lines.Add('[k6] dry-run: 宿主侧纯注册表只读预览（零子进程、零 winget 调用、零系统变更；verified=null & fallbackUsed=false）')
+        [void]$lines.Add('[k6] dry-run: success=true 仅表示预览构造成功，**不代表包已安装**；installed=' + [bool]$plan['installed'])
+        [void]$lines.Add('[k6] dry-run: registryKey=' + $(if ($plan['registryKey']) { [string]$plan['registryKey'] } else { '<none>' }) +
+            ' installerType=' + [string]$plan['installerType'] +
+            ' installRoot=' + $(if ($plan['installRoot']) { [string]$plan['installRoot'] } else { '<undetermined>' }) +
+            ' expectedAction=' + [string]$plan['expectedAction'])
         $sw.Stop()
         return [ordered]@{
             id           = $Id
             dryRun       = $true
-            exitCode     = [int]$exit
-            success      = ([int]$exit -eq 0)
+            # 预览未发起 winget 卸载 ⇒ 无真实退出码；恒 0，**严禁**再让参数错误码出现在回执里
+            exitCode     = 0
+            success      = $true
             verified     = $null
             fallbackUsed = $false
+            plan         = $plan
             output       = @($lines.ToArray() | ForEach-Object { "$_" })
         }
     }
 
-    # —— R-0 预捕获（须在跑 winget 之前）——
-    $installedName = Get-WingetInstalledName -Id $Id
-    $entry = Get-PackageUninstallEntry -Id $Id -DisplayName $installedName
-    $preType = Get-UninstallInstallerType -Entry $entry
-    $preRoot = [string](Get-PackageInstallRoot -Entry $entry)
+    # —— R-0 预捕获（须在跑 winget 之前；与 dry-run 预览同源，见 Get-UninstallPrecapture）——
+    $precap = Get-UninstallPrecapture -Id $Id -UseWingetName
+    $installedName = [string]$precap['wingetName']
+    $entry = $precap['entry']
+    $preType = [string]$precap['installerType']
+    $preRoot = [string]$precap['installRoot']
     if ($installedName) {
         [void]$lines.Add('[k6] precapture: wingetName=' + $installedName)
     } else {
