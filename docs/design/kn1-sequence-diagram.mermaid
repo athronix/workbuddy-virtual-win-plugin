@@ -1,0 +1,34 @@
+%% K-N1 修复后的委派生命周期（详见 kn1-delegation-audit-contract.md §7）
+sequenceDiagram
+    participant H as 宿主(host-a2a-bridge)
+    participant A as A2AServer(a2a-framework)
+    participant S as vm-service(server.ts)
+    participant P as WorkbuddyLlmProvider
+    participant B as CliLlmBridge
+    participant C as VM内codebuddy(回连/mcp)
+    participant K as HashChainAuditSink
+
+    H->>A: message/send (delegate)
+    A->>S: onGoalAccepted(goal)  [observer]
+    S->>K: append delegation.start (channel=a2a, ext)
+    S->>S: 注册委派账本窗口
+    A->>P: handler.runGoal(goal)
+    alt llmSession.disabled 且 persistent=true
+        P-->>A: failed(LLM_SESSION_DISABLED)  ★§4 显式拒绝
+        A->>S: onGoalTerminal
+        S->>K: append delegation.complete(rejected, zeroInnerCalls:true)
+    else 正常/降级
+        P->>B: runGoal(input, sink)
+        B->>C: 常驻轮次 或 单次 -p（mcp-config url=…?dtid=…）
+        C->>S: tools/call（内层能力）
+        S->>K: append executed (channel=a2a via dtid, ext.delegationId)
+        K-->>S: record(seq) → 账本登记 + 回执缓存
+        B-->>P: LlmGoalResult(ok:true, steps[0]=壳自宣)
+        P->>P: reconcileDelegationTruth(res, lastFinalText, probe)  ★§3 先行反查
+        Note over P: 账本 total==0 且完成声称 → failed(NO_EXECUTION_RECEIPT)
+        P->>P: reconcileExecutionTruth(res, …)（既有，透传）
+        P-->>A: GoalResult
+        A->>S: onGoalTerminal(taskId, snapshot)
+        S->>K: append delegation.complete(终态, ext.zeroInnerCalls, underlying[])
+    end
+    A-->>H: Task{state: completed|failed}（无静默 completed）

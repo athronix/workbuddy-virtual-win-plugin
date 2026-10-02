@@ -1,0 +1,67 @@
+%% K-N1 委派层审计真实性契约 —— 类图（详见 kn1-delegation-audit-contract.md §7）
+classDiagram
+    direction LR
+    class AuditRecord {
+        +seq: number
+        +ts: string
+        +traceId: string
+        +capabilityId: string
+        +result: {ok, errorCode?, summary?}
+        +ext?: AuditExt   <<新增可选>>
+        +prevHash: string
+        +hash: string
+    }
+    class AuditExt {
+        +kind?: 'delegation-start'|'delegation-complete'|'inner-call'
+        +delegationId?: string
+        +taskId?: string
+        +zeroInnerCalls?: boolean
+        +underlying?: DelegationActivity[]
+        +blockedCount?: number
+        +downgraded?: boolean
+        +downgradeReason?: string
+        +terminalState?: string
+        +stepsSummary?: {capabilityId, ok, summary?}[]
+    }
+    class DelegationActivity {
+        +capabilityId: string
+        +ok: boolean
+        +count: number
+        +approvalId?: string
+        +auditSeqs: number[]
+    }
+    class DelegationLedger {
+        +delegationTraceId: string
+        +startedAtMs: number
+        +executed: DelegationActivity[]
+        +blocked: {approvalId, capabilityId, seq}[]
+        +wild: {seq, capabilityId}[]
+        +recordExecuted(rec, capId): void
+        +recordBlocked(seq, approvalId, capId): void
+        +snapshot(): DelegationActivitySummary
+    }
+    class DelegationTruthProbe {
+        <<interface>>
+        +delegationActivity(delegationTraceId): Promise~ActivityCount~
+    }
+    class HashChainAuditSink {
+        +append(input): Promise~AuditRecord~
+        +query(filter): Promise~AuditRecord~[]
+    }
+    class CliLlmBridge {
+        -taskReceipts: Map
+        -raisedApprovals: Set
+        -probe?: DelegationTruthProbe  <<新增注入>>
+        +runGoal(input, sink): Promise~LlmGoalResult~
+    }
+    class PersistentCliSession {
+        +restartFresh(): LlmSessionHealth  <<新增>>
+        +snapshot(): LlmSessionHealth
+    }
+    AuditRecord "1" --> "0..1" AuditExt
+    AuditExt "1" --> "0..*" DelegationActivity
+    DelegationLedger --> DelegationActivity : 聚合
+    DelegationLedger ..> HashChainAuditSink : append 返回 seq 登记
+    CliLlmBridge ..> DelegationTruthProbe : 反查（provider 实现）
+    DelegationTruthProbe <|.. DelegationLedger : 服务端实现
+    note for AuditRecord "ext 全可选：哈希自动覆盖新字段，历史记录校验不受影响（chain.ts:299,331）"
