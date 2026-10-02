@@ -506,3 +506,126 @@ try { … } finally { this.inflight.delete(key); … }
 
 ---
 
+## 3. 有序任务列表（工程师可直接照写）
+
+> 5 个任务，按依赖顺序执行。T01 是底座（契约 + 可观测性），T02/T03/T04 是三个可独立验证的改动面，T05 是门禁收口。
+> **每个 CL 单独 commit**（便于回滚）；T04 与 T02/T03 无代码冲突，可并行，但建议 T02 先合（T03 的红档基线依赖它）。
+
+### T01 —— 契约与告警底座（P0，无依赖）
+
+**目标**：把 §1 的 C-1 / C-2 / C-6 三处契约侧增补一次落齐，**不改任何行为**（此时所有测试应保持现状：A5 红档仍红、C5 仍绿）。
+
+**源文件清单**
+| 文件 | 动作 |
+| --- | --- |
+| `packages/contracts/src/bridge.ts` | `:315` → `endTask(taskId?: string): void;`（C-1）；`:186` 后追加 `readonly taskId?: string;`（C-2） |
+| `packages/vm-service/src/server.ts` | 类内新增 `private logger` + `setLogger()`（C-6，`noteTimeout` 之后、`beginTask` 之前）；文件内补 `export interface ApprovalWarnSink`（`ReplayFn` `:241` 附近）；`:341` 后加一行 `approvalCoordinator.setLogger(logger);` |
+
+**实现顺序**：契约 → 实现侧 logger → 注入点。
+
+**验收判据**
+1. `tsc -b` 全量 0 error（含 `endTask()` 零参调用点仍合法）。
+2. `git grep -n "endTask(" -- packages` 输出仍为 3 处（契约声明 / 实现 / `:741` 消费点），无新增。
+3. 跑 `tests/unit/r19c-a5-approval-coordinator.test.js` ⇒ **测试结果与改前完全一致**（14/11/3），C5 仍 PASS（因为 `endTask` 实现体尚未改，但 `.length` 已变 1 ⇒ **⚠ 见下**）。
+   > ⚠ **注意**：C-1 一旦落地（签名带可选参数），`endTask.length` 立即变 `1` ⇒ C5 断言当场翻红，与实现体是否改无关。**故 C5 的改写必须与 T01 在同一 commit 内完成**（§5-Q1），否则 T01 就会引入一条非预期红档。
+
+**可回滚性**：纯增补，revert 无副作用。
+
+---
+
+### T02 —— Fix-1A + Fix-1B + `no-active-task` 告警（P0，依赖 T01）
+
+**目标**：消除根因，让 A5 类交叠场景**必挂起** `input-required`，并让失败路径**有日志**。
+
+**源文件清单**
+| 文件 | 落点 | 动作 |
+| --- | --- | --- |
+| `packages/vm-service/src/server.ts` | `:171` | `endTask` 归属实现（§2.1 原文） |
+| `packages/vm-service/src/server.ts` | `:175` / `:177` / `:191` / `:199` | `raise` 取 `const taskId = req.taskId ?? this.activeTaskId;`；守卫改用 `taskId`；`no-active-task` 分支加 `logger?.warn`（§4 SK-3 格式）；`waitApproval(taskId, enriched)`；`tryGet(taskId)` |
+| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `:741` | `this.coordinator?.endTask(input.taskId ?? '');` |
+| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `:950` | `req` 补 `...(input.taskId ? { taskId: input.taskId } : {}),` |
+| （可选，建议）`packages/contracts/src/bridge.ts` | `:312`–`:315` | 给 `beginTask` / `endTask` 加 `@deprecated` 注释（**不删除**） |
+
+**实现顺序**：`endTask` 实现 → `raise` 归属 + warn → 桥侧两个调用点。
+
+**验收判据**（逐条对应 QA 的红档）
+1. `tests/unit/r19c-a5-approval-coordinator.test.js` **B 组 3 条红档全部转绿**：
+   - B1：交叠下 `raise` 不再返回 `no-active-task`，且 `waitApproval` **被调用 1 次**、`calls[0].id === 'task-A5'`；
+   - B2：任务状态为 `input-required`（不再恒 `submitted`）；
+   - B3：宿主回复 `approved:false` ⇒ 终态 `rejected`（`a2a-framework/src/server.ts:306` **首次可达**）。
+2. 同文件 **D 组**：`calls.some(c => c.id === 'tB')` 为真，`resB` 挂起。
+3. 新增两条边界用例（§2.2 验收 2/3）通过。
+4. `k4-approval.test.js` / `k4-p3.test.js` / `k5-replay.test.js`（41 例）**全绿**。
+5. **`tsc -b` 后 `git diff` 中不得出现 `a2a-framework/src/**`**（D-4 守门）。
+
+**回归风险**：低。**可回滚性**：revert 即回到原缺陷状态，无数据迁移。
+
+---
+
+### T03 —— Fix-2：per-delegation 三态搬离单例（P0，依赖 T02）
+
+**目标**：消除 `taskReceipts` / `raisedApprovals` / `k5ReplayActive` 的并发互清（team-lead 拍板 ②）。
+
+**源文件清单**：仅 `packages/adapter-agent-workbuddy-llm/src/bridge.ts`（13 处落点，逐条见 §2.3 表格）。
+
+**实现顺序**（严格按此序，便于二分定位）
+1. `RunContext`（`:639`）加三字段；
+2. `:764` ctx 构造补初值；
+3. 删三个实例字段（`:691` / `:693` / `:702`）与入口清零（`:733`–`:735`）；
+4. 改 `maybeResume`（`:946` / `:947` / `:959` / `:978` / `:980`）；
+5. 改 `reconcileExecutionTruth`（`:1003` 签名 / **`:1008`+`:1009` 红线门** / `:1013` / `:1026`）与 `applyReceipt`（`:1037` / `:1038`）；
+6. 改调用点 `:780`。
+
+**验收判据**
+1. 新增交叠红档（QA 前置钉的）：A 先登记回执、B 交叠进入 ⇒ A 的 `applyReceipt` **仍取到回执**。
+2. `tests/unit/k5-replay.test.js` **41 例全绿**（尤其 `:689`「连续两次 runGoal → 按任务清零」—— 由「每次 runGoal 新建 ctx」自动满足）。
+3. **D-1 红线可核**：`:1008` / `:1009` 仍是两个相邻独立的 `if (…) return base;`，**语义、顺序、短路条件、注释一字未改**，仅取值来源由 `this.` 变 `ctx.`。建议在 PR description 里贴出这两行的 before/after diff 供评审。
+4. `tsc -b` 0 error。
+
+**回归风险**：中。**可回滚性**：纯内部重构、零契约变更 ⇒ revert 安全。
+**若排期不足**：启用 §2.3 的 Fix-2′ 降级方案，并把 Fix-2 登记为下迭代必做（需 team-lead 拍板，§5-Q3）。
+
+---
+
+### T04 —— Fix-4a / 4b：风险展示真实化（P1，依赖 T01；可与 T02/T03 并行）
+
+**目标**：审批卡 risk 取服务端权威值；`execution-steps` 步骤 risk 不再恒 `'L1'`。
+
+**源文件清单**
+| 文件 | 落点 | 动作 |
+| --- | --- | --- |
+| `packages/vm-service/src/server.ts` | `:182`（`enriched`） | 补 `risk: token.risk ?? req.risk,`（§2.4 原文） |
+| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `:47`（`LlmGoalInput` 末尾） | 追加 `readonly maxRisk?: RiskLevel;`（C-5） |
+| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `:1176`（常驻路径）/ `:1360`（单次路径） | `risk: 'L1',` → `risk: input.maxRisk ?? 'L2',` |
+| `packages/adapter-agent-workbuddy-llm/src/index.ts` | `:337`–`:352` | 透传 `...(goal.maxRisk ? { maxRisk: goal.maxRisk } : {}),` |
+
+**实现顺序**：4a（服务端，独立）→ 4b 的 `LlmGoalInput` → `index.ts` 透传 → 两处 step risk。
+
+**验收判据**
+1. 新增：token `risk='L3'` + LLM 文本 `risk":"L1` ⇒ 审批卡 `data.risk === 'L3'`（经真实 `TaskStore.waitApproval`）。
+2. 新增：`maxRisk='L3'` ⇒ `steps[0].risk === 'L3'`；缺省 ⇒ `'L2'`。
+3. `host-a2a-bridge.test.js`（`:137`）/ `k5-replay.test.js` / `r19c-kn1-a-pure.test.js` / `llm-provider.test.js` **全绿**（§6 已逐条核实：无断言依赖桥 step risk）。
+
+**回归风险**：低。**可回滚性**：revert 安全。
+
+---
+
+### T05 —— 类型门禁与回归收口（P0，依赖 T02/T03/T04）
+
+**目标**：把「改完能跑」变成「改完有证据」。
+
+**动作清单**
+1. `tsc -b` 全量类型检查 0 error（**并重建 dist** —— 见 §4 SK-5，否则单测测的是旧产物）。
+2. 跑全量受影响单测：`k4-approval.test.js`、`k4-p3.test.js`、`k5-replay.test.js`、`r19c-a5-approval-coordinator.test.js`、`r19c-kn1-a-pure.test.js`、`r19c-kn1-b-bridge.test.js`、`host-a2a-bridge.test.js`、`llm-provider.test.js`。
+3. 记录 before/after 测试计数（当前基线：`r19c-a5-approval-coordinator.test.js` = **tests 14 / pass 11 / fail 3**；`k5-replay.test.js` = **41 例全绿**）。
+4. 更新 `docs/test/reports/a2a-coverage-2026-10-03.md` 的 §A6（由 QA 执行；本文不代笔）。
+
+**验收判据（本迭代整体「通过」的定义）**
+- ✅ `r19c-a5-approval-coordinator.test.js` **fail 3 → 0**（B 组全绿，且 C5 改写后仍绿）。
+- ✅ `k5-replay.test.js` **41/41 绿**（D-1 红线未被削弱）。
+- ✅ `tsc -b` 0 error；`git diff --stat` 中 **`packages/a2a-framework/src/**` 为空**（D-4 守门）。
+- ✅ 源码可核：`a2a-framework/src/server.ts:306` 仍是 `rejected` 的**唯一**置位点（D-5）。
+- ⏳ 真机（VM 恢复后，非本迭代门禁）：静默窗口单跑 A5 必挂起；A4+A5 交叠跑 A5 仍必挂起；宿主 `approved:false` ⇒ 终态 `rejected`。
+
+---
+
