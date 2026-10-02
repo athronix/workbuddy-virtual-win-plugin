@@ -17,6 +17,31 @@ export {
   toExecutedResult,
 } from './approval-replay.js';
 export type { BlockedAuditInput, SegmentResultLike } from './approval-replay.js';
+/** K-N1：委派层审计真实性的服务端纯逻辑件（账本 / 壳双态条目 / 回执缓存 / sink 装饰器；可脱离 HTTP 服务与 ps-bridge 单测） */
+export {
+  buildDelegationAuditEntry,
+  buildReceiptResponse,
+  clipReceipt,
+  DelegationLedger,
+  DELEGATION_CAPABILITY_ID,
+  LedgerRegistry,
+  MAX_GOAL_CHARS,
+  MAX_RECEIPT_DATA_CHARS,
+  MAX_RECEIPT_ENTRIES,
+  MAX_STEPS_SUMMARY,
+  MAX_SUMMARY_CHARS,
+  MAX_UNDERLYING_ITEMS,
+  ReceiptCache,
+  SHELL_CAPABILITY_ID,
+  wrapAuditSink,
+} from './delegation-audit.js';
+export type {
+  BlockedEntry,
+  DelegationAuditEntryInput,
+  DelegationStepLike,
+  ReceiptEntry,
+  WildEntry,
+} from './delegation-audit.js';
 export {
   providerHealthTimeoutSnapshot,
   raceHealthSubProbes,

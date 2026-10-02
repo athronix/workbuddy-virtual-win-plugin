@@ -275,8 +275,20 @@ export class HashChainAuditSink implements AuditSink {
   private async doAppend(input: AppendAuditInput): Promise<AuditRecord> {
     await this.ensureLoaded();
     const seq = this.seq + 1;
+    /*
+     * K-N1：`ext`（委派审计扩展）与 `params` 同纪律递归脱敏，并做**键归一**——
+     * 显式 `ext: undefined` 必须整键删除。原因：`canonicalJson` 把 undefined 序列化为 `null`
+     * 参与哈希，而 `JSON.stringify` 落盘时**丢键** → 重算哈希与链上 hash 不符（假断链）。
+     * 同理 `null` 值：`canonicalJson` 与 `JSON.stringify` 都输出 `null`，键保留一致，无需处理。
+     */
+    const base: Record<string, unknown> = { ...input };
+    if (base['ext'] === undefined) {
+      delete base['ext'];
+    } else if (this.doRedact) {
+      base['ext'] = redact(base['ext']);
+    }
     const partial: Omit<AuditRecord, 'hash'> = {
-      ...input,
+      ...(base as unknown as Omit<AuditRecord, 'hash' | 'seq' | 'prevHash'>),
       seq,
       prevHash: this.lastHash,
       ...(this.doRedact ? { params: redact(input.params) as Record<string, unknown> } : {}),

@@ -9,7 +9,7 @@
 import type { BridgeError } from './errors.js';
 import type { CapabilityId, CapabilityPolicy } from './capability.js';
 import type { RiskLevel } from './risk.js';
-import type { AuditRecord } from './audit.js';
+import type { AuditPrincipal, AuditRecord } from './audit.js';
 
 /** A2A v1.0 任务状态 */
 export type TaskState =
@@ -222,6 +222,17 @@ export interface CapabilityRequest {
   readonly approved: boolean;
   readonly approvalId?: string;
   readonly timeoutMs: number;
+  /**
+   * K-N1（**纯附加可选**）：调用通道。provider 审计落 `principal.channel` 时按
+   * `req.channel ?? 'mcp'` 取值 —— 委派内层回连调用经 `/mcp?dtid=` 注入后真实记 `a2a`，
+   * 纯宿主直调仍为 `mcp`（修掉「181/181 恒 mcp」的观测缺陷）。缺席即旧行为。
+   */
+  readonly channel?: AuditPrincipal['channel'];
+  /**
+   * K-N1（**纯附加可选**）：所属委派的 traceId（设计 §2.3 通道 2 精确归因）。
+   * 存在时 provider 审计条目写 `ext: { kind:'inner-call', delegationId, channel }`。
+   */
+  readonly delegationId?: string;
 }
 
 export interface CapabilityResult {
@@ -435,4 +446,43 @@ export interface AgentServiceProvider {
    * 非 LLM provider（确定性执行器 / hermes 等）**无须实现**：缺席即旧行为。
    */
   llmSessionHealth?(): LlmSessionHealth | undefined;
+
+  /**
+   * L1（**纯附加可选成员**）：把常驻会话从 `disabled` 永久态复位 —— 杀子进程、
+   * `spawnAttempts` 归零（累计制计数由此解开）、state 回 `stopped`、**保留** `lastError/lastErrorAt`
+   * （D11 两信号分离纪律）。由 `POST /admin/llm-session/reset` 调用。
+   *
+   * 非 LLM provider / 未启用常驻 → 返回 undefined（视为「无可复位对象」，端点如实返回）。
+   */
+  llmSessionReset?(): LlmSessionHealth | undefined;
+
+  /**
+   * L1（**纯附加可选成员**）：注入 / 清除「每次 spawn 立即失败」故障钩子，供 K-N1 确定性回归。
+   * 仅管理端点在 `WINVM_ADMIN_ENDPOINT=1` 且 `?faultInjection=1` 时调用；生产路径永不触达。
+   */
+  llmSessionInjectFault?(on: boolean): boolean;
+}
+
+/* ==================== K-N1 增量：委派真实性探针（纯附加） ==================== */
+
+/** 委派回合的服务端活动计数（账本口径：executed + blocked + wild）。 */
+export interface DelegationActivityCount {
+  /** 三通道合计（判定「零活动」的唯一依据） */
+  readonly total: number;
+  readonly executed: number;
+  readonly blocked: number;
+  readonly wild: number;
+}
+
+/**
+ * K-N1：委派真实性探针 —— 桥在收口处反查「本委派回合服务端是否真的有过活动」的**唯一**接口。
+ *
+ * 为什么是注入的 interface 而非直接依赖 vm-service：依赖方向必须保持
+ * `vm-service → adapter`（provider/桥**不认识**服务端实现，实现在 server.ts 侧经 cast 注入）。
+ * 桥侧对本探针 **fail-open**：抛错即透传 base + warn，绝不因取证故障挂死委派
+ * （对齐 approval-replay「写失败不影响拦截结果」纪律）。
+ */
+export interface DelegationTruthProbe {
+  /** 查询该委派回合的真实活动证据（按委派 traceId） */
+  delegationActivity(delegationTraceId: string): Promise<DelegationActivityCount>;
 }
