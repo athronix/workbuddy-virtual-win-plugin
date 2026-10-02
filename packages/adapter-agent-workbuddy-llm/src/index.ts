@@ -269,6 +269,22 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
     return this.bridge.sessionHealth?.();
   }
 
+  /**
+   * L1 §6.1（SPI 实现，薄转发）：常驻会话复位 —— 由 `POST /admin/llm-session/reset` 调用。
+   * 无会话对象 / 桥未实现（Mock）→ undefined，端点如实报告。
+   */
+  llmSessionReset(): LlmSessionHealth | undefined {
+    return this.bridge.sessionReset?.();
+  }
+
+  /**
+   * L1 §6.2（SPI 实现，薄转发）：注入/清除 spawn 故障钩子（测试确定性回归专用，
+   * 同一 admin env 门控；生产路径永不触达）。
+   */
+  llmSessionInjectFault(on: boolean): boolean {
+    return this.bridge.sessionInjectFault?.(on) ?? false;
+  }
+
   async runGoal(goal: GoalRequest, sink: ProgressSink): Promise<GoalResult> {
     if (!this.ctx) throw new Error('provider 尚未 init');
 

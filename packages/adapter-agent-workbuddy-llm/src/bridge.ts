@@ -309,6 +309,16 @@ export interface LlmBridge {
    */
   warmup?(prompt: string): Promise<boolean>;
   /**
+   * L1（**纯附加可选**）：常驻会话复位（disabled → stopped，计数归零，保留 lastError）。
+   * 由 provider 的 `llmSessionReset()` SPI 经管理端点调用；无会话对象返回 undefined。
+   */
+  sessionReset?(): LlmSessionHealth | undefined;
+  /**
+   * L1（**纯附加可选**）：注入/清除「每次 spawn 立即错误退出」故障钩子（测试确定性回归用，
+   * §6.2）。返回是否注入成功（无会话对象 / 非常驻 → false，如实报告）。
+   */
+  sessionInjectFault?(on: boolean): boolean;
+  /**
    * K-N1 §4.1（**纯附加**）：常驻启用配置面（`persistentEnabled`）的只读访问，
    * provider 入口的 disabled 拒绝判定用（「disabled=故障」与「单次 -p=设计」的区分前提）。
    */
@@ -663,6 +673,12 @@ export class CliLlmBridge implements LlmBridge {
   /** C1：lazy 单例常驻会话（与其产物目录绑定，目录变化即重建） */
   private persistent: PersistentCliSession | undefined;
   private persistentDir: string | undefined;
+  /**
+   * L1 §6.2：故障注入的**延迟生效位** —— 管理端点可能在会话对象存在之前就被调用
+   * （服务刚启动、尚无委派）。置 true 后在下一个 `ensureSession` 建会话时补注入；
+   * 置 undefined（清除）同时清现存会话的注入位。
+   */
+  private pendingSpawnFault: true | undefined;
   /** K2：预热使用的产物目录（须与真实 runGoal 的 outputDir 一致） */
   private readonly outputDir: string;
   /** K4：A2A 审批协调器（VM 服务注入；缺席即非 A2A 旧行为） */
@@ -786,6 +802,25 @@ export class CliLlmBridge implements LlmBridge {
   /** 常驻会话健康快照（供 `/health.llmSession`） */
   sessionHealth(): LlmSessionHealth | undefined {
     return this.persistent?.snapshot();
+  }
+
+  /**
+   * L1 §6.1：常驻会话复位（管理端点 → provider.llmSessionReset → 本方法 → session.restartFresh）。
+   * 尚无会话对象（从未委派过 / 常驻未启用）→ undefined，端点如实返回「无可复位对象」。
+   */
+  sessionReset(): LlmSessionHealth | undefined {
+    return this.persistent?.restartFresh();
+  }
+
+  /**
+   * L1 §6.2：注入/清除 spawn 故障钩子（测试专用，同一 admin 门控）。
+   * 无会话对象时**延迟生效**：记下待注入位，下次 `ensureSession` 建会话时补上 ——
+   * 使「服务刚启动、还没跑过任何委派」也能注入（K-N1 回归的现场时序正是这个）。
+   */
+  sessionInjectFault(on: boolean): boolean {
+    this.pendingSpawnFault = on === true ? true : undefined;
+    if (this.persistent) return this.persistent.setSpawnFault(on);
+    return on === true;
   }
 
   /** K-N1 §4.1：常驻启用配置面只读（provider 的 disabled 拒绝判定前提） */
@@ -1042,6 +1077,8 @@ export class CliLlmBridge implements LlmBridge {
       maxRestarts: cfg.maxRestarts,
       maxWsBytes: cfg.maxWsBytes,
       spawnFn: (args) => launchCliProcess(cli, args, process.env),
+      // L1 §6.2：延迟生效的故障注入位（管理端点在无会话时置位，建会话时补上）
+      ...(this.pendingSpawnFault ? { spawnFault: true } : {}),
       ...(this.onSessionLog ? { log: this.onSessionLog } : {}),
     });
     this.persistentDir = outputDir;

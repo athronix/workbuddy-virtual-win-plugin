@@ -97,6 +97,12 @@ export interface PersistentCliSessionOptions {
    */
   readonly treeKillFn?: (pid: number) => void;
   readonly log?: SessionLog;
+  /**
+   * L1 §6.2（**纯附加可选**）：初始即注入「每次 spawn 立即错误退出」故障（默认 false=零影响）。
+   * 仅管理端点（`WINVM_ADMIN_ENDPOINT=1` + `?faultInjection=1`）经桥转发置位，供 K-N1
+   * 确定性回归；生产路径永不触达。运行期可经 `setSpawnFault()` 注入/清除。
+   */
+  readonly spawnFault?: boolean;
 }
 
 /**
@@ -219,6 +225,12 @@ export class PersistentCliSession {
   private activeAbort: ((reason: string) => void) | undefined;
   /** K2：预热进行中（单飞；避免 fire-and-forget 重入重复 spawn / 重复写消息） */
   private warmupInFlight: Promise<boolean> | undefined;
+  /**
+   * L1 §6.2：故障注入位 —— true 时每次 `spawnOnce` 成功后**立即模拟错误退出**
+   * （onError + killChild），使状态机沿**既有**路径推进：degraded → 下次 ensureReady
+   * 计数递增 → 达 `maxRestarts` 后 `disabled`。默认 false（构造缺席）→ 行为与 HEAD 逐字一致。
+   */
+  private spawnFaultOn: boolean;
 
   /** 串行链：新一轮必须等上一轮 `result` 之后才投喂（避免消息交错） */
   private chain: Promise<unknown> = Promise.resolve();
@@ -233,6 +245,7 @@ export class PersistentCliSession {
     this.opts = opts;
     this.now = opts.now ?? (() => Date.now());
     this.treeKill = opts.treeKillFn ?? defaultTreeKill;
+    this.spawnFaultOn = opts.spawnFault === true;
     // 空闲回收定时器：1s 级探测（不轮询子进程，空闲期近零 CPU 占用）
     const interval = Math.max(1000, Math.min(Math.floor(opts.idleTtlMs / 2), 30_000));
     this.idleTimer = setInterval(() => this.tick(), interval);
@@ -395,6 +408,14 @@ export class PersistentCliSession {
     this.pid = child.pid;
     // 生命周期日志（info 级，由 index.ts 接线；不含用户消息内容/凭据，脱敏纪律不变）
     this.log('LLM 常驻会话已启动', { pid: child.pid ?? null, attempt: this.spawnAttempts, sessionId: this.opts.sessionId });
+
+    // L1 §6.2：故障注入 —— spawn 后立即模拟「进程错误退出」，沿**既有** onError/killChild →
+    // degraded → ensureReady 计数 → maxRestarts → disabled 路径推进（不新增状态语义）。
+    // 排在事件挂载之前：注入路径不经事件监听器（child 事件仍照常挂，真实事件后到也被门卫比对拦截）。
+    if (this.spawnFaultOn) {
+      this.faultExit(child);
+      return Promise.resolve(false);
+    }
 
     // —— 事件门卫（QA Round 2）：四个事件源全部按 child 实例比对，仅接受**当前** child 的事件。
     // child 引用被 killChild/重建替换后，旧 child（孤儿）的任何 stdout/stderr/exit/error 都不得
@@ -858,6 +879,96 @@ export class PersistentCliSession {
   }
 
   /** 软释放：杀死子进程并回到 `stopped`（可再次 `ensureReady()` 重建） */
+  /* ------------------------------ 生命周期（L1 运维） ------------------------------ */
+
+  /**
+   * L1 §6.1：运维复位（`POST /admin/llm-session/reset` 的唯一动作）。
+   *
+   * 语义（严格按设计）：杀现存子进程（若有，复用 `killChild` 的树杀 + 事件门卫路径）→
+   * `spawnAttempts = 0`（**累计制计数归零**，`restarts` getter 自动回 0，disabled 的
+   * 「计数 ≥ maxRestarts」前提由此解开）→ 清故障注入位 → `state → 'stopped'`
+   * （**即使当前是 disabled** —— 这正是本方法存在的意义；`dispose()` 从 disabled
+   * 不复位，所以这里不能复用它做状态流转）→ **保留 `lastError`/`lastErrorAt`**
+   * （D11 两信号分离纪律：复位解除的是「当前不可用」，抹不掉「历史上失败过」）。
+   *
+   * 幂等：非 disabled 态调用同样复位计数、不报错（端点语义 §6.1）。
+   * 返回复位后的快照（端点 `before/after` 对照）。
+   */
+  restartFresh(): LlmSessionHealth {
+    this.killChild();
+    this.spawnAttempts = 0;
+    this.spawnFaultOn = false;
+    this.disposed = false;
+    this.buffer = '';
+    this.initSeen = false;
+    this.initWaitTimedOut = false;
+    // killChild 只在 degraded 时置 stopped；disabled 态必须在此显式复位 ——
+    // 但 lastError / lastErrorAt **绝不触碰**（D11：历史信号保留，运维据此判断复位前状态）。
+    this.state = 'stopped';
+    // shutdown 曾清除空闲定时器；复位后若不重新挂起，会话将永不因空闲回收
+    if (!this.idleTimer && !this.disposed) {
+      const interval = Math.max(1000, Math.min(Math.floor(this.opts.idleTtlMs / 2), 30_000));
+      this.idleTimer = setInterval(() => this.tick(), interval);
+      this.idleTimer.unref?.();
+    }
+    this.log('LLM 常驻会话已复位（L1 admin reset）', {
+      lastError: this.lastError ?? '',
+      lastErrorRetained: this.lastError !== undefined,
+    });
+    return this.snapshot();
+  }
+
+  /**
+   * L1 §6.2：注入/清除「每次 spawn 立即错误退出」故障钩子（测试专用，同一 admin 门控）。
+   * 注入后：后续 1 + maxRestarts 次 `ensureReady` 即**确定性**进入 disabled
+   * （走既有计数路径，不依赖真实 LLM 会话劣化）。返回注入后的状态位。
+   */
+  setSpawnFault(on: boolean): boolean {
+    this.spawnFaultOn = on === true;
+    this.log('LLM 常驻会话故障注入位变更', { spawnFault: this.spawnFaultOn });
+    return this.spawnFaultOn;
+  }
+
+  /** 当前是否处于故障注入态（观测/断言用） */
+  get spawnFaultInjected(): boolean {
+    return this.spawnFaultOn;
+  }
+
+  /**
+   * 故障注入的退出模拟：先清 child 引用（事件门卫使真实迟到事件全被拦截），
+   * 再沿 **既有** `onError` → `killChild` 路径推进状态机 —— 零新增状态语义。
+   */
+  private faultExit(ch: CliChild): void {
+    const msg = 'spawnFault 注入：常驻 CLI 启动后立即错误退出（测试注入）';
+    this.child = undefined;
+    this.pid = undefined;
+    this.state = 'degraded';
+    this.setLastError(msg);
+    this.log('LLM 常驻会话故障注入生效', { attempt: this.spawnAttempts });
+    this.readyWaiter?.(false);
+    this.activeAbort?.(msg);
+    // 真实子进程同样终结（spawnFn 可能已拉起 cmd 包装进程 —— 不留孤儿）
+    try {
+      ch.stdin?.end?.();
+    } catch {
+      /* ignore */
+    }
+    try {
+      ch.kill();
+    } catch {
+      /* ignore */
+    }
+    const pid = ch.pid;
+    if (typeof pid === 'number' && pid > 0) {
+      try {
+        this.treeKill(pid);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  /* ------------------------------ 关闭 ------------------------------ */
   async dispose(): Promise<void> {
     this.killChild();
     if (this.state !== 'disabled') this.state = 'stopped';
