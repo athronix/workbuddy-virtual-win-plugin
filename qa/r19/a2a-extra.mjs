@@ -371,7 +371,8 @@ async function runReject() {
     // 真发一次拒绝回复** —— 用服务端应答把「该任务上根本没有待处理审批」从推断升级为协议级
     // 证据（预期：continueTask 报「任务上没有待处理的审批 <id>」）。
     const blob = JSON.stringify(out.lastTask ?? {});
-    const m = blob.match(/apr_[0-9a-f]+/);
+    // 收紧为 ≥8 位十六进制：避免把 messageId（已改 msg_ 前缀）或其它短串误当 token
+    const m = blob.match(/apr_[0-9a-f]{8,}/);
     out.approvalIdFromText = m ? m[0] : null;
     out.error = '未进入 input-required，未拿到挂起态 approvalId；改用终态文本回捞 token 试发拒绝以取证';
     stamp('TEXT_TOKEN', String(out.approvalIdFromText));
@@ -386,7 +387,7 @@ async function runReject() {
   const reply = {
     kind: 'message',
     role: 'user',
-    messageId: 'apr_' + Date.now().toString(36),
+    messageId: 'msg_' + Date.now().toString(36),
     taskId,
     parts: [{ kind: 'data', data: { approvalId: approval.approvalId, approved: false } }],
   };
