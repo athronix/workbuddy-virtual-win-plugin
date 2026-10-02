@@ -33,6 +33,9 @@ export { CorePolicyEngine, globToRegex, collectStringValues, looksLikePath, look
 // R19-B · S-1（契约 docs/design/r19b-s1-kn2-contract.md）：归一/匹配/形态提示为策略层唯一权威，
 // 导出供 vm-capabilities 侧复用与单测断言（不得在 psmod / 其他层再实现第二份归一）。
 export { canonicalRegistryPath, matchRegistryAllowlist, describeRegistryForms, extractPathTokens } from './policy/engine.js';
+// R19-B · S-5（docs/design/s5-registry-write-allowlist-pairing.md §③(a)/§④-1）：写动词判定
+// 是 4b 选读表/写表的唯一依据，导出供单测逐能力比对与静态守卫（不得在别处再实现一份）。
+export { isWriteCapability } from './policy/engine.js';
 export type { EvaluateInput, PolicyEngineOptions, StringValue } from './policy/engine.js';
 export { DEFAULT_POLICY, mergePolicy } from './policy/defaults.js';
 export type { PolicyConfig } from './policy/defaults.js';

@@ -174,7 +174,8 @@ export function normalizePath(p: string): string {
  *  3. **`HKCR`（`HKEY_CLASSES_ROOT`）/ `HKCC`（`HKEY_CURRENT_CONFIG`）绝不收录**：
  *     `HKCR` 是 `HKLM\SOFTWARE\Classes` 与 `HKCU\SOFTWARE\Classes` 的**合并视图**，
  *     一旦参与归一，`HKCR:\…\Shell\Open\Command` 之类就能以「另一个根键」的名义
- *     绕向 `Run` 键自启动面（`HKCU:\Software\…\Run` 已在 registryWriteAllowlist，`defaults.ts:100`）。
+ *     绕向 `Run` 键自启动面（`HKCU:\Software\…\Run` 已在 `defaults.ts` 的
+ *     `registryWriteAllowlist` 段 —— 引用用**段标签**而非行号，行号随并行改动漂移）。
  *     这三类（HKU/HKCR/HKCC）形态**仍会被 `REG_RE` 识别为注册表路径**，
  *     因此不会退回文件系统域撞 `pathAllowlist:miss`（那正是 S-1 的错误归属：真机报的
  *     是「路径不在白名单内」而非「注册表不在允许范围」），而是在 4b 以
@@ -307,10 +308,48 @@ export function describeRegistryForms(path: string): string {
     `可用形态（**等价互认**，判定前统一归一为权威形态 \`${shown}:\\${body ? body.toLowerCase() : '…'}\`）：` +
     `\`${shown}:\\…\`（PowerShell 驱动器形态）、\`${shown}\\…\`（无冒号 Windows 形态）、` +
     `\`HKEY_LOCAL_MACHINE\\…\` / \`HKEY_CURRENT_USER\\…\`（长全称）；大小写与正斜杠均不影响判定。` +
-    `读取范围：\`HKCU:\\**\` 与 \`HKLM:\\SOFTWARE\\**\`；写入范围：\`HKCU:\\**\`。` +
+    `读取范围：${scopeHint(DEFAULT_POLICY.registryReadAllowlist)}；` +
+    `写入范围：${scopeHint(DEFAULT_POLICY.registryWriteAllowlist)}。` +
     outOfScope +
     `本例可写成 \`${shown}:${suffix}\``
   );
+}
+
+/**
+ * S-5 · §③(a)：**写动词能力判定**（`evaluate()` 4b 选择读表/写表的唯一依据）。
+ *
+ * 缺陷（docs/design/s5-registry-write-allowlist-pairing.md §0）：HEAD 判据
+ * `/\.(write|set|create|delete|remove)\./i` 要求动词**两侧都有点**，而真实能力 ID
+ * `system.registry.write` 的动词位于**末段且无尾点** ⇒ 判定恒 false ⇒ 写请求一直按
+ * **读**白名单判定（铁证：写 `HKLM:\SYSTEM\…` 报出 `registryReadAllowlist:miss`），
+ * `registryWriteAllowlist` 实为不可达的死配置，读写边界静默失效。
+ *
+ * 定稿取「**任一分段等于写动词**」：契约 §③(a) 给的两个写法（末段锚定正则 /
+ * `split('.').pop()` 比集合）在本仓与它**逐能力等价**（全仓 54 个能力 ID 均为三段式，
+ * 且 grep 证实不存在中段动词 ID —— 该等价性由 `tests/unit/r19b-s5-*.test.js` 钉死）；
+ * 对**未来**可能出现的 `x.y.write.z` 形态，本判据是两者的**保守超集**：
+ * 偏差方向安全 —— 宁可多判为写（改走更严的写表），绝不漏判为读（漏判即边界再度失效，
+ * 正是 S-5 的病灶）。登记为契约偏差待追认（见单测 `契约 §③(a) 判据等价性` 用例）。
+ */
+const WRITE_VERB_SEGMENTS: ReadonlySet<string> = new Set(['write', 'set', 'create', 'delete', 'remove']);
+
+export function isWriteCapability(capabilityId: string): boolean {
+  return String(capabilityId ?? '')
+    .split('.')
+    .some((seg) => WRITE_VERB_SEGMENTS.has(seg.toLowerCase()));
+}
+
+/**
+ * S-5 · 契约 §④-4「文档-代码一致性断言」的配套：白名单范围的**显示投影**。
+ *
+ * 为什么需要：`describeRegistryForms` 过去把「写入范围：`HKCU:\**`」**写死成字面量**，
+ * 与 `DEFAULT_POLICY.registryWriteAllowlist` 无编译/运行期关联 —— 表一旦改（本项 (b) 正是改表），
+ * 提示立刻变成假信息（把用户往「HKLM 不可写」的错误结论上引）。现由表本身投影：
+ * 两侧先归一到权威形态再去重（长短名折叠为同一条），使提示**不可能与配置漂移**。
+ */
+function scopeHint(patterns: readonly string[]): string {
+  const uniq = Array.from(new Set(patterns.map((p) => canonicalRegistryPath(p))));
+  return uniq.map((p) => `\`${p}\``).join(' 与 ');
 }
 
 /** 取某个参数值需要接受**文件系统**路径策略检查的候选路径列表 */
@@ -473,7 +512,16 @@ export class CorePolicyEngine implements PolicyEngine {
     // D9 的「写法不影响成败」由此真正落到同一结论。
     const regValues = values.filter((v) => looksLikeRegistryPath(v.value));
     if (regValues.length > 0) {
-      const isWrite = /\.(write|set|create|delete|remove)\./i.test(req.capabilityId);
+      // S-5（docs/design/s5-registry-write-allowlist-pairing.md §③(a)）：写动词判定必须覆盖
+      // **末段**形态。真实能力 ID `system.registry.write` 的动词位于末段且**无尾点**，
+      // 而 HEAD 正则 `/\.(write|set|create|delete|remove)\./i` 要求动词**两侧都有点** ⇒ 恒 false
+      // ⇒ 写请求一直撞**读**白名单（铁证：写 `HKLM:\SYSTEM\…` 报出
+      // `matchedRule=registryReadAllowlist:miss`），`registryWriteAllowlist` 实为死配置，
+      // 读写边界失效 —— 运维「只放宽读」在配置层面静默等于授予写权限（本文 §② 末段实证）。
+      // 判据取「任一分段等于写动词」：这是 §③(a) 两个等价写法（末段锚定 / `split('.').pop()`
+      // 比集合）的**保守超集** —— 对现有 54 个三段式 ID 逐字等价（全仓 grep 无中段动词 ID），
+      // 且偏差方向安全：宁可多判为写（改走写表，判定更严），绝不漏判为读（漏判即边界再度失效）。
+      const isWrite = isWriteCapability(req.capabilityId);
       const allowList = isWrite
         ? (req.capabilityPolicy?.registryWriteAllowlist ?? this.cfg.registryWriteAllowlist)
         : this.cfg.registryReadAllowlist;

@@ -122,8 +122,10 @@ relatedSkills:
   若误写成 `HKLM\SOFTWARE\X`（无冒号），策略层会**自动归一化为 `HKLM:\SOFTWARE\X`**；但**仍建议显式写冒号**，以免歧义。
   **可读根键白名单**：`HKCU:\**`（含 `HKEY_CURRENT_USER\**`）、`HKLM:\SOFTWARE\**`（含 `HKEY_LOCAL_MACHINE\SOFTWARE\**`）；
   其它根键（`HKLM:\SYSTEM`、`HKLM:\SAM`、`HKLM:\SECURITY`）**读/写一律拒绝**。
-- **HKLM 写入**：默认只允许 `HKCU` 写入；`HKLM:\SOFTWARE` 需 L2 审批，
-  `HKLM:\SYSTEM` 等被策略禁止
+- **HKLM 写入**：写白名单为 `HKCU:\**` 与 `HKLM:\SOFTWARE\**`（其中 `HKLM:\SOFTWARE` **需 L2 审批**：
+  S-5 修复后 `registryWriteAllowlist` 才真正生效，而 `system.registry.write` 风险为 L2 ⇒
+  两表内路径的写入未批 → `approval-required`，批准后放行），`HKLM:\SYSTEM` 等其它根键写入被策略**硬拒**
+  （`registryWriteAllowlist:miss`，白名单 miss 在审批闸之前 ⇒ 不转「需批准」）
 - **事件日志 `level`**：推荐**英文枚举** `Critical` / `Error` / `Warning` / `Information` / `Verbose`
   （同时接受中文别名「严重 / 错误 / 警告 / 信息 / 详细」，但**推荐英文**）；内部映射为数字 `Level` 过滤。
   `level` 传了未识别的值不会报错，但**会返回空结果** —— 查不到日志时先核对枚举拼写。
