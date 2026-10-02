@@ -20,17 +20,20 @@ import {
   type BridgeContext,
   type CapabilityRequest,
   type CapabilityResult,
+  type DelegationTruthProbe,
   type GoalRequest,
   type GoalResult,
   type HealthStatus,
   type LlmSessionHealth,
   type ProgressSink,
+  makeError,
 } from '@winvm/contracts';
 import type { LlmSessionConfig } from '@winvm/core';
 import type { PsBridgeOptions } from '@winvm/vm-capabilities';
 import { DeterministicAgentProvider } from '@winvm/adapter-agent-workbuddy';
 
 import { CliLlmBridge, type LlmBridge, type LlmGoalResult, type LlmSkillDoc } from './bridge.js';
+import { evaluateDisabledRejection } from './delegation-truth.js';
 import type { SessionLog } from './persistent-session.js';
 
 export const PROVIDER_ID = 'workbuddy';
@@ -132,6 +135,13 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
   readonly kind = 'llm-agent' as const;
 
   private ctx: BridgeContext | undefined;
+  /**
+   * K-N1（设计 §3.2）：服务端委派账本探针（`init()` 里经 BridgeContext **cast** 读取，
+   * 同 `reportNetCfg` 惯例 —— 不扩 BridgeContext 契约接口），`runGoal` 逐调用下传给桥，
+   * 由桥收口处的 `reconcileDelegationTruth` 反查零活动。缺席（非 vm-service 宿主/单测）
+   * → undefined → 桥门 4 透传，旧行为逐字节不变。
+   */
+  private probe: DelegationTruthProbe | undefined;
   private readonly executor: AgentServiceProvider;
   private readonly bridge: LlmBridge;
   private readonly cliPath: string;
@@ -188,6 +198,9 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
     if (ctx.approvalCoordinator) {
       this.bridge.setApprovalCoordinator?.(ctx.approvalCoordinator);
     }
+    // K-N1：读取服务端注入的委派账本探针（cast 模式，同 reportNetCfg 惯例：
+    // vm-service 在 bridgeCtx 里塞 `delegationProbe`，契约接口不扩）。缺席 → 桥透传旧行为。
+    this.probe = (ctx as unknown as { delegationProbe?: DelegationTruthProbe }).delegationProbe;
     await this.executor.init(ctx);
   }
 
@@ -258,6 +271,44 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
 
   async runGoal(goal: GoalRequest, sink: ProgressSink): Promise<GoalResult> {
     if (!this.ctx) throw new Error('provider 尚未 init');
+
+    /* ---- K-N1 §4.1：disabled 入口显式拒绝（先于任何桥调用） ----
+     * 三态判定（纯函数 `evaluateDisabledRejection`，12 例真值表见 §9-A-3）：
+     *   仅 (A2A 委派 taskId) && (persistent=true 部署态) && (会话 state='disabled') → 拒绝。
+     * 拒绝**不进 bridge.runGoal**、也**不进 shouldDegrade 分支**（§4.3：确定性模板不因此
+     * 失去委派入口）；A2A 框架据 result.ok=false 收口 `failed`，宿主在 message/send 响应
+     * 直接拿到原因码 —— 零静默。delegation.complete 由服务端 observer 统一收口
+     * （terminalState=failed, errorCode=LLM_SESSION_DISABLED, zeroInnerCalls:true）——
+     * 设计 §4.1 写「rejected」，但框架 `result.ok=false → failed` 是唯一收口路径（拍板点：
+     * 走 failed 收口），终态口径差异登记为偏差。
+     */
+    const session = this.bridge.sessionHealth?.();
+    const persistent = this.bridge.isPersistentEnabled?.() ?? false;
+    const rejection = evaluateDisabledRejection({
+      hasTaskId: goal.taskId !== undefined,
+      persistent,
+      ...(session ? { sessionState: session.state } : {}),
+    });
+    if (rejection.reject) {
+      const detail = session?.lastError ? `（最近错误：${session.lastError}）` : '';
+      this.ctx.logger.warn('K-N1：disabled 委派显式拒绝（LLM_SESSION_DISABLED）', {
+        taskId: goal.taskId,
+        traceId: goal.traceId,
+        restarts: session?.restarts ?? 0,
+        lastErrorAt: session?.lastErrorAt ?? '',
+      });
+      return {
+        ok: false,
+        summary: `委派通道不可用：LLM 常驻会话已停用${detail}`,
+        artifacts: [],
+        steps: [],
+        error: makeError('PROVIDER_UNAVAILABLE', 'LLM 常驻会话 disabled，拒绝降级委派', {
+          reason: 'LLM_SESSION_DISABLED',
+          details: { restarts: session?.restarts ?? 0, ...(session?.lastErrorAt ? { lastErrorAt: session.lastErrorAt } : {}) },
+        }),
+      };
+    }
+
     const catalog = this.ctx.capabilities.list();
     sink.onStatus('working', `WinVM WorkBuddy LLM Agent 接管目标：${goal.goal}`);
 
@@ -278,6 +329,9 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
         timeoutMs: goal.timeoutMs || 300_000,
         // K4：把 A2A 任务 id 透传给桥接层，使其能经审批协调器把 input-required 挂到正确任务。
         ...(goal.taskId ? { taskId: goal.taskId } : {}),
+        // K-N1：逐调用下传账本探针（缺席即桥门 4 透传，零回归）与服务 logger 告警出口
+        ...(this.probe ? { probe: this.probe } : {}),
+        warn: (msg: string, meta?: Record<string, unknown>): void => this.ctx?.logger.warn(msg, meta ?? {}),
         ...(skills.length > 0 ? { skills } : {}),
       },
       sink,
@@ -287,7 +341,12 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
       // D4.4 降级：LLM 运行时不可用（ENOENT / 非零退出且无产物）时，回落到确定性执行器的
       // 内置模板（runGoal），而不是直接失败 —— 让「委派」在有确定性模板可覆盖时仍能完成任务。
       // 仅当确定性执行器也报 UNSUPPORTED_GOAL（无匹配模板）时才算真正失败。
-      if (this.shouldDegrade(res)) {
+      //
+      // K-N1 边界（必须排除，否则把「假完成」洗白成「降级重试成功」）：
+      //  1) 委派账本反查改判（reason=NO_EXECUTION_RECEIPT）不降级 —— 改判本身**就是终态**；
+      //  2) disabled 拒绝（reason=LLM_SESSION_DISABLED）同理不进此分支（已提前 return）。
+      // K5 的 REPLAY_FAILED 等既有 reason 行为不变（保持 D4.4 原语义）。
+      if (this.shouldDegrade(res) && res.error?.reason !== 'NO_EXECUTION_RECEIPT') {
         sink.onStatus(
           'working',
           `LLM 运行时不可用（${res.error?.code ?? 'UNKNOWN'}），降级为确定性执行器`,
@@ -303,9 +362,23 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
           ...(fallback.error ? { error: fallback.error } : {}),
         };
       }
-      return { ok: false, summary: res.summary, artifacts: res.artifacts, steps: res.steps, error: res.error };
+      return {
+        ok: false,
+        summary: res.summary,
+        artifacts: res.artifacts,
+        steps: res.steps,
+        error: res.error,
+        ...(res.degraded ? { degraded: res.degraded } : {}),
+      };
     }
-    return { ok: true, summary: res.summary, artifacts: res.artifacts, steps: res.steps };
+    return {
+      ok: true,
+      summary: res.summary,
+      artifacts: res.artifacts,
+      steps: res.steps,
+      // K-N1 §4.4：降级事实透传到 GoalResult（服务端 observer 落 ext.downgraded 的唯一来源）
+      ...(res.degraded ? { degraded: res.degraded } : {}),
+    };
   }
 
   /**
@@ -330,6 +403,7 @@ export function createProvider(options?: WorkbuddyLlmProviderOptions): Workbuddy
 export {
   CliLlmBridge,
   DEFAULT_CLI_ARG_TEMPLATE,
+  appendDtid,
   buildMcpConfig,
   buildSystemPrompt,
   escapeWinArg,
@@ -339,6 +413,16 @@ export {
   resolveCliPath,
   writeSkillPack,
 } from './bridge.js';
+// K-N1（设计 §8-T01/§9）：委派真实性判据与完成声称模式（单一来源）对外暴露，
+// 供 `tests/unit` 直接断言判定表与 dtid 拼接形态（纯逻辑，无需起服务）。
+export {
+  COMPLETION_CLAIM_PATTERN,
+  evaluateDisabledRejection,
+  reconcileDelegationTruth,
+  type DelegationTruthDeps,
+  type DisabledRejectionInput,
+  type DisabledRejectionVerdict,
+} from './delegation-truth.js';
 export type {
   CliResolveResult,
   LlmBridge,

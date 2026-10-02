@@ -17,6 +17,7 @@ import type {
   Artifact,
   BridgeError,
   CapabilityId,
+  DelegationTruthProbe,
   ExecutedResult,
   GoalStep,
   LlmSessionHealth,
@@ -33,6 +34,7 @@ import {
   type SessionLog,
   type TurnResult,
 } from './persistent-session.js';
+import { COMPLETION_CLAIM_PATTERN, reconcileDelegationTruth } from './delegation-truth.js';
 
 /** 下发给 VM 内 Agent 的技能规范（供其按规范拆解步骤 / 编写脚本 / 调用工具） */
 export interface LlmSkillDoc {
@@ -60,6 +62,17 @@ export interface LlmGoalInput {
   readonly skillsDir?: string;
   /** K4：A2A 委派任务 id（由 provider 从 GoalRequest.taskId 透传，供审批协调器挂接 input-required） */
   readonly taskId?: string;
+  /**
+   * K-N1（**纯附加可选**）：服务端委派账本探针（vm-service 经 BridgeContext cast 注入，
+   * provider 逐调用下传）。收口处 `reconcileDelegationTruth` 用它反查「本委派回合服务端
+   * 是否真有过活动」；缺席即旧行为（透传不改判）。
+   */
+  readonly probe?: DelegationTruthProbe;
+  /**
+   * K-N1（**纯附加**）：告警出口（provider 注入 `ctx.logger.warn`；缺席回退桥内会话日志出口）。
+   * 收口反查 fail-open 时记「恰一条」warn（设计 §9-B-3）—— 取证故障可观测，但绝不影响委派。
+   */
+  readonly warn?: (msg: string, meta?: Record<string, unknown>) => void;
 }
 
 /**
@@ -94,12 +107,31 @@ export const DEFAULT_CLI_ARG_TEMPLATE: readonly string[] = [
   '{mcpConfig}',
 ];
 
-/** 构造 MCP 配置串（真机 `--mcp-config` 接受 JSON 文本，而非 URL） */
-export function buildMcpConfig(endpoint: string | undefined): string {
+/**
+ * 给端点 URL 追加 `?dtid=<委派traceId>`（K-N1 通道 2，设计 §2.3）。独立导出便于
+ * `tests/unit` 直接断言拼接形态（§9-B-5）：
+ *  - 已有 query → `&` 追加；无 query → `?`；
+ *  - endpoint 非字符串 / dtid 缺席 → **逐字节返回原值**（旧行为回归护栏）；
+ *  - dtid 经 `encodeURIComponent`（traceId 实际只含 `[A-Za-z0-9_-]`，编码是无害保险）。
+ */
+export function appendDtid(endpoint: string | undefined, dtid: string | undefined): string | undefined {
+  if (!endpoint || !dtid) return endpoint;
+  return `${endpoint}${endpoint.includes('?') ? '&' : '?'}dtid=${encodeURIComponent(dtid)}`;
+}
+
+/**
+ * 构造 MCP 配置串（真机 `--mcp-config` 接受 JSON 文本，而非 URL）。
+ *
+ * K-N1（**纯附加可选**第 2 参 `delegationId`）：存在时端点拼 `?dtid=<委派traceId>` ——
+ * VM 内 CLI 的 streamableHttp 客户端原样使用该 URL 回连 `/mcp`，服务端解析 dtid 注入
+ * ToolContext → provider 审计落 `channel:'a2a'` + `ext.delegationId`（精确归因）。
+ * 缺席时输出与旧实现**逐字节一致**（设计 §9-B-5 回归护栏）。
+ */
+export function buildMcpConfig(endpoint: string | undefined, delegationId?: string): string {
   if (!endpoint) return JSON.stringify({ mcpServers: {} });
   return JSON.stringify({
     mcpServers: {
-      winvm: { type: 'streamableHttp', url: endpoint },
+      winvm: { type: 'streamableHttp', url: appendDtid(endpoint, delegationId) },
     },
   });
 }
@@ -244,6 +276,12 @@ export interface LlmGoalResult {
   readonly artifacts: readonly Artifact[];
   readonly steps: readonly GoalStep[];
   readonly error?: BridgeError;
+  /**
+   * K-N1 §4.4（**纯附加**）：本次走了「常驻会话不可用 → 单次 -p」降级的**结构化事实**
+   * （summary 文案保留供宿主读，但取证/判定不再依赖字符串匹配）。
+   * provider 映射到 `GoalResult.degraded`，服务端 observer 落 `delegation.complete.ext.downgraded`。
+   */
+  readonly degraded?: { readonly reason: string };
 }
 
 export interface LlmBridge {
@@ -270,6 +308,11 @@ export interface LlmBridge {
    * 返回 true 表示预热达成 ready（或已就绪），false 表示未能在窗口内就绪（不阻断服务）。
    */
   warmup?(prompt: string): Promise<boolean>;
+  /**
+   * K-N1 §4.1（**纯附加**）：常驻启用配置面（`persistentEnabled`）的只读访问，
+   * provider 入口的 disabled 拒绝判定用（「disabled=故障」与「单次 -p=设计」的区分前提）。
+   */
+  isPersistentEnabled?(): boolean;
 }
 
 /** 构造喂给 LLM 的系统提示：能力目录 + 输出约束 + 安全边界 */
@@ -539,14 +582,12 @@ function parseApprovalBlock(text: string): { approvalId?: string; capabilityId?:
 /* ============================ K5：完成声称识别（回执反查用） ============================ */
 
 /**
- * LLM 文本中的「目标已完成」声称特征（K5 回执反查的触发面）。
+ * LLM 文本中的「目标已完成」声称特征（K5 回执反查与 K-N1 账本反查**共用**的触发面）。
  *
- * 真机实证（K5 根因）：宿主批准后 LLM 没有重发工具调用，却直接文本自宣完成
- * （「已卸载」「已完成」）→ A2A 任务 completed 而服务端零执行记录（假成功）。
- * K5 纪律：**服务端结构化回执是唯一完成证据**；声称完成但无 ok=true 回执 → 改判 failed。
+ * K-N1：定义已迁至 `delegation-truth.ts`（单一来源，杜绝两条判据的模式漂移），
+ * 此处 re-export 保持既有引用面（本文件 :916 与任何外部 import）逐字可用。
  */
-const COMPLETION_CLAIM_PATTERN =
-  /(已完成|已卸载|已删除|已移除|已安装|卸载成功|删除成功|安装成功|执行成功|任务完成|目标完成|uninstalled?|deleted?|removed?|completed successfully)/i;
+export { COMPLETION_CLAIM_PATTERN } from './delegation-truth.js';
 
 /**
  * 对「轮次/进程正常结束」的结果做如实性修正（runPersistent 与 runOneShot 共用）。
@@ -707,9 +748,20 @@ export class CliLlmBridge implements LlmBridge {
     const ctx: RunContext = { prompt, outputDir, skillsDir, started, cli, lastFinalText: '' };
 
     const res = await this.runGoalCore(input, sink, ctx);
+    // K-N1 §3.3：**委派账本反查先行、无条件**（只受 taskId/delegationTraceId/probe 门控，
+    // 不受 replayEnabled / k5ReplayActive 审批灰度门控 —— 账本参照物与审批灰度无关）。
+    // 改判产物 ok:false → 下面既有 reconcileExecutionTruth 的 `!base.ok` 透传分支自然生效，
+    // 两判据互斥、不可能产生矛盾终态（设计 §9-B-4）。**D-1：:913-914 两道既有门一字不动。**
+    const truthed = await reconcileDelegationTruth(res, ctx.lastFinalText, {
+      delegationTraceId: input.traceId,
+      ...(input.taskId ? { taskId: input.taskId } : {}),
+      ...(input.probe ? { probe: input.probe } : {}),
+      // fail-open 告警出口：provider 注入的服务 logger.warn 优先，缺席回退会话日志出口
+      warn: input.warn ?? this.onSessionLog ?? undefined,
+    });
     // K5 回执反查：对**最终一轮** LLM 文本做「完成声称 vs 服务端回执」核对
     // （放在最外层，保证续跑轮的文本才是被核对的那一份）。
-    return this.reconcileExecutionTruth(res, ctx.lastFinalText);
+    return this.reconcileExecutionTruth(truthed, ctx.lastFinalText);
   }
 
   /** runGoalInner 的执行主体（常驻优先 → 单次兜底），K5 反查在其返回后由 runGoalInner 施加。 */
@@ -722,6 +774,9 @@ export class CliLlmBridge implements LlmBridge {
       return {
         ...oneShot,
         summary: `${oneShot.summary}（常驻会话不可用：${out.unavailable}，已降级为单次 -p 路径）`,
+        // K-N1 §4.4：降级事实**结构化**承载（summary 文案保留供宿主读；取证/判定不再字符串匹配）。
+        // provider 透传到 `GoalResult.degraded` → 服务端 observer 落 `ext.downgraded/downgradeReason`。
+        degraded: { reason: out.unavailable },
       };
     }
 
@@ -731,6 +786,11 @@ export class CliLlmBridge implements LlmBridge {
   /** 常驻会话健康快照（供 `/health.llmSession`） */
   sessionHealth(): LlmSessionHealth | undefined {
     return this.persistent?.snapshot();
+  }
+
+  /** K-N1 §4.1：常驻启用配置面只读（provider 的 disabled 拒绝判定前提） */
+  isPersistentEnabled(): boolean {
+    return this.persistentEnabled;
   }
 
   /**
@@ -991,9 +1051,15 @@ export class CliLlmBridge implements LlmBridge {
   /**
    * 把 MCP 配置落盘为文件并返回**路径**（D4：经 cmd.exe 传内联 JSON 会被内层双引号破坏）。
    * 落盘失败返回 undefined，由调用方决定回退策略。
+   *
+   * K-N1（**纯附加可选**第 2 参）：`delegationId` 存在时端点拼 `?dtid=`（通道 2 精确归因）。
+   * 纪律：**只在单次 -p 路径传入** —— 常驻会话的 `mcp.json` 是**会话级共享文件**
+   * （按 outputDir 复用同一 CLI 进程），把逐次委派 dtid 写进去只在该进程**下次 spawn** 时才生效，
+   * 归因时点错位、且会把上一委派的 dtid 留在文件里；常驻路径的内层归因由**通道 1（时间窗 wild）**
+   * 兜底，判定同样成立（零活动 = 窗口内一条非壳记录都没有）。登记为设计偏差（§10-5 同类）。
    */
-  private async prepareMcpConfig(outputDir: string): Promise<string | undefined> {
-    const inline = buildMcpConfig(this.endpoint);
+  private async prepareMcpConfig(outputDir: string, delegationId?: string): Promise<string | undefined> {
+    const inline = buildMcpConfig(this.endpoint, delegationId);
     try {
       const cfgDir = join(dirname(outputDir), '.winvm');
       await mkdir(cfgDir, { recursive: true });
@@ -1134,7 +1200,11 @@ export class CliLlmBridge implements LlmBridge {
     // D4：`--mcp-config` 支持「文件路径或 JSON 串」。经 cmd.exe 传内联 JSON 会因内层双引号
     // 被 cmd 破坏（真机报「找不到指定路径」），故优先把配置写入文件、只把**路径**放进命令行。
     // 落盘失败（如产物目录不可写）时回退为内联 JSON——POSIX 直接 spawn 无 cmd 引用问题。
-    const mcpConfigArg = (await this.prepareMcpConfig(outputDir)) ?? buildMcpConfig(this.endpoint);
+    // 单次 -p 是**逐次委派**独立进程 → 可安全拼 dtid（通道 2 精确归因）。
+    // 仅在委派上下文（有 taskId）时拼 —— 非委派调用绝不新增 query（旧行为逐字节保持）；
+    // 常驻路径（runPersistent）**不传** —— mcp.json 会话级共享，dtid 归因时点错位（见方法注释）。
+    const dtid = input.taskId ? input.traceId : undefined;
+    const mcpConfigArg = (await this.prepareMcpConfig(outputDir, dtid)) ?? buildMcpConfig(this.endpoint, dtid);
 
     const args = renderCliArgs(this.argTemplate, {
       goal: input.goal,
