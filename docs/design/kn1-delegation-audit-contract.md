@@ -22,6 +22,8 @@ K-N1 的判定层根因是：K5 回执反查 `reconcileExecutionTruth` 在「本
 
 任务分解 5 个（T01 契约与纯逻辑 → T02 服务端接线 → T03 provider/桥改判 → T04 运维端点 → T05 单测护栏），依赖全部汇聚于 T01/T02，无长链。
 
+> **本文三处「推荐」已由主理人拍板为定稿决策，见 §11 决策日志（D-1/D-2/D-3）**。实现以 §11 为准。
+
 ---
 
 ## 1. 读码定位结论（设计依据）
@@ -34,7 +36,7 @@ K-N1 的判定层根因是：K5 回执反查 `reconcileExecutionTruth` 在「本
 | blocked 审计正常工作（R19 实证 seq179/181）；硬编码 `channel:'mcp'` | `packages/vm-service/src/server.ts:645`（调用点）、`packages/vm-service/src/approval-replay.ts:55-62` |
 | **`POLICY_DENIED` 硬拒绝零审计（S-4，对照项）** | `server.ts:490-501`（executeCapability 前置拒绝）、`:676-684`（handler 内拒绝）——无 audit 调用 |
 | K-N1 判定层根因：`reconcileExecutionTruth` 首两行短路 | `packages/adapter-agent-workbuddy-llm/src/bridge.ts:908-934`（`:913` 灰度门、`:914` `raisedApprovals.size===0` 退场）；调用点 `:712`（`runGoalInner` 最外层） |
-| 壳步骤合成：委派成功时硬造 `steps[0]={appops.workflow.run, ok:true}`（常驻 `:1063-1076`、单次 `:1245-1258` 附近），**零能力调用也造** | `bridge.ts` runPersistent / runOneShot 的 `steps` 字面量 |
+| 壳步骤合成：委派成功时硬造 `steps[0]={appops.workflow.run, ok:true}`（常驻 `bridge.ts:1067-1078`、单次 `:1248-1258`），**零能力调用也造** | `bridge.ts` runPersistent / runOneShot 的 `steps` 字面量 |
 | 降级标记现状：`summary` 追加文案 `（常驻会话不可用：…已降级为单次 -p 路径）`，无结构化字段 | `bridge.ts:724`（runGoalCore 降级分支，`:716-728`） |
 | 内层 LLM 回连方式：VM 内 codebuddy CLI 经 `--mcp-config` 连本服务 `/mcp`（`url=endpoint`），**每次 tools/call 由 mcp-framework 自造 traceId**（`callTool` `newTraceId()`），与委派 traceId 无父子链 | `bridge.ts:97-105`（buildMcpConfig）、`packages/mcp-framework/src/server.ts:164-190`（callTool）、`:65-69`（newTraceId） |
 | A2A 终态收口：`result.ok → completed/failed`（无服务端反查介入点） | `packages/a2a-framework/src/server.ts:328-331` |
@@ -131,7 +133,7 @@ start 条目同形，`ext.kind="delegation-start"`，`ext.underlying` 缺席、`
 |---|---|---|
 | **provider/桥（改判执行层）** | 在 `runGoal` 收口处施加反查、产出 `failed(NO_EXECUTION_RECEIPT)` | 改判要写进 `GoalResult`，A2A 框架据 `result.ok` 收口（`a2a-framework/src/server.ts:328`），故必须在 handler 返回前完成；`WorkbuddyLlmProvider.ctx.audit: AuditSink` 在 `init()` 已可得（`adapter-agent-workbuddy/src/index.ts:345` 同款用法），查询能力现成 |
 | **server（事实供给层）** | 委派账本 + `delegation.complete` 审计条目是判定的**客观参照物**；server 不改判（它拿不到 LLM 文本，也无时序做终态改判） | 保持"a2a-framework 通用、vm-service 拥有语义"的既有分层 |
-| **壳（appops.workflow.run）自身** | 不判。`bridge.ts:1063-1076/:1245-1258` 的 `steps[0].ok:true` 合成本身是"自宣转写"，无证据地位 → 反查改判时**一并改写 steps**（对齐 `:928` 既有做法） | 壳步骤历来不是服务端证据（K-N1 现象本身） |
+| **壳（appops.workflow.run）自身** | 不判。`bridge.ts:1067-1078/:1248-1258` 的 `steps[0].ok:true` 合成本身是"自宣转写"，无证据地位 → 反查改判时**一并改写 steps**（对齐 `:928` 既有做法） | 壳步骤历来不是服务端证据（K-N1 现象本身） |
 
 ### 3.2 规则（新纯函数，落 `vm-service/src/delegation-audit.ts`，桥侧调用）
 
@@ -213,7 +215,7 @@ A2A 框架据 `result.ok=false` 收口 `failed`（`a2a-framework/src/server.ts:3
 
 ### 4.4 降级标记结构化
 
-`bridge.ts:726` 降级文案追加处，同步在 `LlmGoalResult`（契约加可选 `degraded?: {reason: string}`）与 `delegation.complete.ext` 记 `downgraded:true` + reason——summary 文案保留（宿主可读性），但判定与取证不再依赖字符串匹配。
+`bridge.ts:724` 降级文案追加处，同步在 `LlmGoalResult`（契约加可选 `degraded?: {reason: string}`）与 `delegation.complete.ext` 记 `downgraded:true` + reason——summary 文案保留（宿主可读性），但判定与取证不再依赖字符串匹配。
 
 ---
 
@@ -399,7 +401,7 @@ sequenceDiagram
 | 文件 | 变更 |
 |---|---|
 | `packages/adapter-agent-workbuddy-llm/src/index.ts` | `runGoal` 入口：`evaluateDisabledRejection` → 拒绝分支（§4.1）；构造桥时注入 `probe`（读服务端账本，经 ctx 传递的回调，cast 模式同 `reportNetCfg` 惯例 `server.ts:338`） |
-| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `runGoalInner` 收口链插入 `await reconcileDelegationTruth`（`:707-712`，§3.3 顺序）；`buildMcpConfig` 增可选 `delegationId` 拼 `?dtid=`（`:98-105`）；`:726` 降级处结构化 `degraded` 字段（summary 文案保留）；既有 `reconcileExecutionTruth` **一字不动** |
+| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `runGoalInner` 收口链插入 `await reconcileDelegationTruth`（`:707-712`，§3.3 顺序）；`buildMcpConfig` 增可选 `delegationId` 拼 `?dtid=`（`:98-105`）；`:724` 降级处结构化 `degraded` 字段（summary 文案保留）；既有 `reconcileExecutionTruth` **一字不动** |
 | `packages/adapter-agent-workbuddy-llm/src/persistent-session.ts` | （与 T04 共文件，见 T04） |
 
 依赖：T01、T02（probe 实现在 server 侧）。验收：§9 R-3/R-4。
@@ -487,6 +489,8 @@ graph LR
 
 ## 10. Anything UNCLEAR / 残余局限（登记，不假装闭环）
 
+> 本节各项的最终处置（是否实现、是否留 P2）见 **§11 决策日志**；冲突时以 §11 为准。
+
 1. **无完成声称的零调用委派**（如 LLM 只输出解释文本，`e4e` 型）：§3 门 3 透传 completed——文本无承诺时改判是过度推断。缓解：`delegation.complete.ext.zeroInnerCalls:true` **恒落审计**（即使终态 completed），报告 grep 该字段即可发现"零调用但 completed"形态供人工审视；后续若要强制，加 `ext.zeroInnerCalls && terminalState=completed → 宿主侧告警`规则（P2，需产品确认）。
 2. **窗口 wild 归因的并发噪声**：两个委派窗口重叠时互相可见对方内层条目 → 只会**更宽松**（更不容易误杀合法完成），不会制造假改判；可接受，登记。
 3. **disabled 拒绝是否连带封死确定性模板回退**：§4.3 选择"不封"；`WINVM_A2A_REJECT_ON_DISABLED=strict` 位留而未定。
@@ -507,3 +511,18 @@ graph LR
 | L1/OBS-F | §6 |
 | L8（零单测） | §9 A–F |
 | S-4（POLICY_DENIED 零审计） | 明确排除（§2.2 末），另轮处理 |
+
+---
+
+## 11. 决策日志（主理人拍板，2026-10-02）
+
+设计经主理人独立核验后通过（未返工）。§10 待明确项的最终处置如下，**实现（#26 / T01–T04）以本节为准，不得回退到被否方案**：
+
+| # | 决策点 | 结论 | 约束含义（给 Engineer / QA） |
+|---|---|---|---|
+| D-1 | `bridge.ts:913-914` 是否去短路 | **不删**。采用"只受 `taskId` 门控的先行分支"（§3.4） | K4 灰度回滚保险不可牺牲。T05 断言 B-4（既有反查不二次改判）与 A-3 矩阵必须同时成立；若实现中出现"删门"倾向即为契约违背 |
+| D-2 | S-3 落链 vs 端点 | **选 B**：`GET /audit/receipt?traceId=`；A-极简（`result.dataDigest`）**降级为 P2 升级位**，本轮不实现 | 哈希链体积零增长是硬约束；环形缓存必须有界（≤200）且只存脱敏副本 |
+| D-3 | §10-1「零调用 + completed 但无完成声称」是否强制改判/告警 | **维持现状：不改判、不加告警**。仅保证 `ext.zeroInnerCalls:true` 恒落审计、grep 可发现 | 文本无完成承诺时改判属过度推断，与"绝不错杀合法完成"总取向一致。「零调用+completed → 宿主侧告警」记入 **P2 backlog**，待产品口径明确再议；实现侧**不得**自行加此规则 |
+
+**范围确认**：#26 实现按 T01→T04 派发（Engineer）；**T05 留 QA 后上**（对应 L8 护栏缺口）；S-4（POLICY_DENIED 零审计）与 §10 其余残余项不在本轮范围。
+
