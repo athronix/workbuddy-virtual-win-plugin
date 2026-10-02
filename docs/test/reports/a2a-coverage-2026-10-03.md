@@ -155,3 +155,66 @@ B 组三条失败原文（`✖ failing tests` 块）：
 
 - **Engineer**（单例 `activeTaskId` 的并发/时序缺陷）：测试文件 commit `9c54d95`；B 组 3 条 FAIL 是**缺陷证据**，非用例设计问题。修复需同时给出「端到端可达 `rejected` 终态」的验证路径。
 - 与并行静态根因判定不冲突：本轮只在 `tests/unit/` 与本报告作业，未触碰 `docs/design/a5-approval-drop-rootcause.md`。
+
+### A6.6 增补：D 组「桥级交叠」（采纳 Engineer 的 R2 注入点）
+
+> commit `f3dd21e`（同一测试文件内增补，**未散落新文件**）。
+> 说明：§A6.2 / §A6.3 的「14 例 / 11 PASS / 3 FAIL」是首版 commit `9c54d95` 的实测；
+> **增补后全文件实测为 18 例 / 13 PASS / 5 FAIL**（连跑两次一致）。下文为本增补内容。
+
+**为什么补这一组**：A/B/C 组停在协调器层，证明的是「`raise()` 早退、不挂起」。D 组把链路走完 ——
+`bridge.runGoal(oneshot)` → `maybeResume` → `coordinator.raise` → `return base` → 终态产物，
+用**真实 `CliLlmBridge`** 复现 A5 的终态形态，把「机制」直接对接到「真机证据文件里的那个终态」。
+
+**构造（零真机 / 零真 LLM / 零网络，确定性）**
+
+- 两条委派用**两个独立 `CliLlmBridge` 实例 + 同一个真实 `VmApprovalCoordinator`**（各自 `setApprovalCoordinator`），
+  隔离桥内 `taskReceipts` / `raisedApprovals` 等实例状态 ⇒ 本组只测 P1。
+- `persistent: false` ⇒ 强制走 `runOneShot`，两条委派各自 spawn 独立进程，绕开常驻会话串行链。
+- **时序用闸门文件编排，不是 sleep**：假 CLI `while [ ! -f gate ]; do sleep 0.05; done`；
+  两轮 `beginTask` 都完成后放行 A → A 收尾触发 `endTask()` → 再放行 B → B 走到 `raise`。
+  ⇒ 顺序由文件存在性保证，**无 wall-clock 竞态、无 flake**（连跑两次 18/13/5 完全一致）。
+- **不联网**：未注入 `probe` ⇒ `delegation-truth.ts:80` 门 4 短路（且 `!base.ok` 门 1 亦短路）；
+  `endpoint` 指向不可达端口 `http://127.0.0.1:1/mcp`，全程无任何 HTTP 调用。
+- 假 CLI 放 `$HOME/wbtmp`（沙箱 `/tmp` 只读），`chmod 755`。
+
+**用例清单（D 组 4 例）**
+
+| 用例 | 断言意图 | 实测 | 含义 |
+|---|---|---|---|
+| D1 桥级交叠终态表征 | 交叠后 B 的终态实测值 + `tB` 从未被 `waitApproval` 挂起 | PASS | **与 A5 真机证据逐字吻合**（见下） |
+| D2 修复后应挂起 tB | 修复后 `waitApproval` 对 `tB` 应调用 1 次且带 B 的 `approvalId` | **FAIL** | `actual 0 / expected 1` |
+| D3 宿主批准应被采纳 | 修复后（spy `resolve(true)` + 有 token）桥应进入「宿主已批准」续跑路径 | **FAIL** | `actual 0 / expected 1`；当前早退 ⇒ **宿主批准无处送达** |
+| D4 R2b 形态表征 | 文本含 `apr_` 但无 `APPROVAL_REQUIRED` /「等待审批」时，审批闸不触发（`calls=0`） | PASS | 拦截启发式未命中 ⇒ 不进 `maybeResume`（不断言 `res.ok`，它取决于 completion-claim 判定，非 P1 关注点） |
+
+**D1 实测终态原文（测试输出摘录）**
+
+```
+[D1 实测终态] ok=false code=APPROVAL_REQUIRED
+              summary="等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时完成目标：卸载 VM 企业微信」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑；approvalId=apr_a9aabfcffb5f4246b918"
+              steps[0].summary="等待审批（未执行完成）"
+              waitApproval 调用=[]
+```
+
+逐项对照 A5 真机失败样本（task `51229514-2438-44f3-b44d-53ad9070b327`，证据 `qa/r19/a2a-x5-reject-v1.out.json`）：
+
+| 维度 | A5 真机 | D1 离线复现 |
+|---|---|---|
+| 终态 | `failed`（17.08s 直接终态，从未 `input-required`） | `ok=false`（未注入框架层收口，等价 failed 的成因） |
+| `error.code` | `APPROVAL_REQUIRED` | `APPROVAL_REQUIRED` ✔ |
+| `steps[0].summary` | 「等待审批（未执行完成）」 | 「等待审批（未执行完成）」 **逐字一致** ✔ |
+| `approvalId` | 只在文本里（`apr_a9aabfcffb5f4246b918`），不在结构化 data part | 只在 summary 文本里，`waitApproval 调用=[]` ✔ |
+| 宿主可回复性 | 无从回复 ⇒ `rejected` 终态不可达 | 同（D3 证明批准送不进去）✔ |
+
+**结论不变、且更强**：**P1 在离线环境：已复现**。
+此前是「机制级」复现（若 A5 处于交叠窗口则必然不挂起）；D1 进一步证明：**交叠窗口一旦出现，
+产出的终态与 A5 证据文件里的终态逐字一致**（含 `steps[0].summary` 与「approvalId 只在文本里」这一特征指纹）。
+仍未证明的是「A5 当时确实处于交叠窗口」—— 这一条只能由 VM 恢复后的 `raise` 入口只读日志
+（`approvalId` + `activeTaskId` + `hasTasks`）或 §A5 静默窗口判别实验补齐。
+
+**判级口径（按 Engineer 提醒，本报告不含错误判据）**：
+「persistent vs oneshot」**不是**判据（两条路径都在 `maybeResume` 汇合，D 组用 oneshot 只为拿确定性时序）；
+「risk L1 vs L2」**不是**判据（全链无 risk 分支，D 组固定传 `L2`，未把 risk 当开关）。
+
+**待补（未纳入本轮，如实标注）**：R2b 的「拦截了却不挂起还报成功」（`res.ok===true`）半条 ——
+D4 只钉了「`calls=0`」这半条确定事实，另半条取决于 completion-claim 判定，需专项夹具，本轮未做。
