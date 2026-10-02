@@ -267,4 +267,242 @@ export interface ApprovalWarnSink {
 
 ---
 
-<!-- §2 起待续 -->
+## 2. Fix 裁定与优先级
+
+### 2.0 裁定总表
+
+| 编号 | 裁定 | 优先级 | 本迭代范围 | 依赖 | 回归风险 |
+| --- | --- | --- | --- | --- | --- |
+| **Fix-1A** | **采纳**（止血） | P0 | ✅ 做 | 无（与 C-1 同批） | 低 |
+| **Fix-1B** | **采纳**（根治），与 1A **同 PR** | P0 | ✅ 做 | C-1、C-2 | 低 |
+| **Fix-2** | **采纳**，与 Fix-1 同批（team-lead 拍板 ②）。拆为 T03 独立验证 | P0 | ✅ 做 | Fix-1 | 中 |
+| **Fix-3** | **不采纳进本迭代** → **独立立项**（下称 **CL-F3**） | P1 | ❌ 不做 | — | 大 |
+| **Fix-4** | **拆分采纳**：4a/4b 做，4c 不做 | P1 | ✅ 部分做（T04） | C-5 | 低（见 §6 专项评估） |
+
+**为什么 Fix-1A 与 Fix-1B 都要做（不是二选一）**
+- 1A 解决「后收尾者清掉当前者」这一**具体**交叠时序；成本 2 行 + 1 个可选参数。
+- 1B 解决「协调器依赖共享可变状态」这一**结构性**缺陷：它还额外覆盖两类 1A 覆盖不到的场景 ——
+  ① 非 A2A 委派（`taskId` 缺席 ⇒ `beginTask('')` ⇒ 单例为 falsy）；
+  ② 协调器被其它宿主/未来调用方复用时，`beginTask/endTask` 未被成对调用。
+- 1B 之后 `beginTask/endTask` 退化为兼容接口（建议加 `@deprecated` 注释，**不在本 PR 删除**）。合并成本 ≈ 3 行，合并收益 = 消除整类缺陷。⇒ **都做，1A 先、1B 后**（1A 是可独立回滚的止血层）。
+
+---
+
+### 2.1 Fix-1A（止血）—— 让 `endTask` 可归属
+
+**目标**：A4 收尾时 `endTask('48a90a2f…')` 与当前 `activeTaskId='51229514…'` 不匹配 ⇒ **不清空** ⇒ A5 的 `raise` 正常走到 `waitApproval`。
+
+**改动文件清单（相对路径）**
+
+| 文件 | 落点（行 + 锚点） | 改法 |
+| --- | --- | --- |
+| `packages/contracts/src/bridge.ts` | `:315`（`ApprovalCoordinator`，`beginTask` 下一行） | C-1：`endTask(): void;` → `endTask(taskId?: string): void;` |
+| `packages/vm-service/src/server.ts` | `:171`（`endTask(): void {`，当前体为 `this.activeTaskId = undefined;`） | 归属实现（下方原文） |
+| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `:741`（`runGoal` 的 `finally { this.coordinator?.endTask(); }`） | → `this.coordinator?.endTask(input.taskId ?? '');` |
+
+**`endTask` 归属实现（原文，可直接落码）**
+```ts
+  endTask(taskId?: string): void {
+    // 归属语义（P1-Fix）：
+    //   taskId 缺席 或 空串  ⇒ 无归属信息 ⇒ 旧行为：无条件清空（兼容既有零参调用方）
+    //   taskId 非空且 !== 当前活动任务 ⇒ 本次收尾不属于当前活动任务（并发交叠）⇒ 保持不动
+    //   taskId 非空且 === 当前活动任务 ⇒ 正常释放
+    if (!taskId) {
+      this.activeTaskId = undefined;
+      return;
+    }
+    if (taskId !== this.activeTaskId) return;
+    this.activeTaskId = undefined;
+  }
+```
+
+**依赖顺序**：C-1（契约）→ 本项（实现 + 唯一消费点）。无其它依赖。
+
+**回归风险**：**低**。
+- 唯一实现方 `VmApprovalCoordinator`；唯一源码消费点 `bridge.ts:741`；其余消费点是测试的零参调用 ⇒ 走 `!taskId` 分支 ⇒ 行为逐字不变。
+- ⚠ 唯一必须同步处理的是 `tests/unit/r19c-a5-approval-coordinator.test.js:446`（`endTask.length === 0`），见 §5-Q1。
+
+**验收判据**
+1. `tests/unit/r19c-a5-approval-coordinator.test.js` 的 **B 组红档转绿**：`waitApproval` 被调用 1 次且 `calls[0].id === 'task-A5'`（当前为 0 次）。
+2. 同文件 **D 组（桥级交叠）**：`resB` 任务状态为 `input-required` 而非恒 `submitted`；`calls.some(c => c.id === 'tB')` 为真。
+3. `k4-approval.test.js` / `k4-p3.test.js` / `k5-replay.test.js`（41 例）**全绿**。
+4. `tsc -b` 全量 0 error。
+
+---
+
+### 2.2 Fix-1B（根治）—— `raise` 自带 taskId，协调器对并发无状态
+
+**目标**：`raise` 不再依赖服务级单例；`beginTask/endTask` 降为兼容保留接口。
+
+**改动文件清单**
+
+| 文件 | 落点（行 + 锚点） | 改法 |
+| --- | --- | --- |
+| `packages/contracts/src/bridge.ts` | `:186` 之后（`underlying?` 字段后） | C-2：追加 `readonly taskId?: string;` |
+| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `:950`（`maybeResume` 内 `const req: ApprovalRequest = { approvalId, capabilityId, risk, summary: input.goal, preview: {}, impact: [] };`） | 补 `...(input.taskId ? { taskId: input.taskId } : {}),` |
+| `packages/vm-service/src/server.ts` | `:175` `async raise(req: ApprovalRequest)`；守卫 `:177`；`waitApproval` 调用 `:191`；`tryGet` `:199` | 见下方原文 |
+
+**`raise` 改动原文（可直接落码）**
+```ts
+  async raise(req: ApprovalRequest): Promise<ApprovalOutcome> {
+    // P1-Fix：归属优先取请求自带 taskId（桥从 LlmGoalInput.taskId 注入），
+    // 缺席才回退服务级单例 beginTask 记录值（旧行为逐字保留）。
+    const taskId = req.taskId ?? this.activeTaskId;
+
+    // 无挂接任务（非 A2A / 任务已结束）→ 不放行，保持「等待审批」语义
+    if (!taskId || !this.tasks) {
+      this.logger?.warn('审批协调器：无挂接任务，审批请求被丢弃（任务不会挂起 input-required）', {
+        reason: 'no-active-task',
+        approvalId: req.approvalId,
+        capabilityId: req.capabilityId,
+        reqTaskId: req.taskId ?? '',
+        activeTaskId: this.activeTaskId ?? '',
+        hasTasks: this.tasks !== undefined,
+      });
+      return { approved: false, reason: 'no-active-task' };
+    }
+    // …（:179 enriched 段保持不变，Fix-4a 另补 risk，见 §2.4）
+    const done = this.tasks.waitApproval(taskId, enriched);   // :191
+    // …
+    const meta = this.tasks.tryGet(taskId)?.task.metadata as Record<string, unknown> | undefined;  // :199
+```
+> 全文后续凡出现 `this.activeTaskId` 的位置（`:191`、`:199`）**一律改用局部 `taskId`**；`beginTask` 内的赋值 `:168` 保持不动。
+
+**依赖顺序**：C-2 → 本项。**必须在 Fix-1A 之后**（同 PR 内）：若先做 1B，A5 的 raise 会拿到正确 taskId，但 A4 的 `endTask()` 仍会清掉单例，一旦某条路径 `req.taskId` 缺席就又回到原缺陷 —— 两层都要有。
+
+**回归风险**：**低**。`ApprovalRequest` 加可选字段对 `task-store.ts` 的 `approvalMessage`（显式逐字段构造 data part）零影响；所有 fixture 不写该字段仍合法。`raise` 的返回语义**一字未变**（§4 SK-7）。
+
+**验收判据**
+1. 同 Fix-1A 的 1/2/3/4。
+2. 新增边界用例：`beginTask('A') → beginTask('B') → endTask()`（零参，模拟旧调用方）后，`raise({..., taskId:'A'})` ⇒ `waitApproval` 以 `'A'` 被调用（证明 `req.taskId` 优先于被清空的单例）。
+3. 新增边界用例：`beginTask('')` 后 `raise({...})`（**无** taskId）⇒ 仍 `{approved:false, reason:'no-active-task'}` 且 **产出一条 warn**（证明空串语义与告警出口生效）。
+
+---
+
+### 2.3 Fix-2（P3-b）—— per-delegation 三态搬离共享单例
+
+**目标**：`bridge.ts` 的 `taskReceipts`（`:691`）/ `raisedApprovals`（`:693`）/ `k5ReplayActive`（`:702`）从 `CliLlmBridge` 实例字段搬进**每次 `runGoal` 新建的 `RunContext`**（`:639`，构造于 `runGoalInner` `:764`），使并发委派互不干扰。
+
+**为什么必须做（team-lead 拍板 ② 的复核结论：同意）**
+三者都在 `runGoal` 入口被无条件 `.clear()` / `= false`（`:733`–`:735`）。两个委派交叠时：
+- B 入口清空 A 的 `taskReceipts` ⇒ A 后续 `applyReceipt`（`:1037`）取不到回执 ⇒ `return base` ⇒ **A 被静默改判**；
+- B 入口清空 A 的 `raisedApprovals` ⇒ A 续跑轮再次 raise 同一 approvalId 时**去重失效** ⇒ 二次挂起（K4 旧 token 复用缺陷复发）；
+- `k5ReplayActive` 跨任务残留/被清 ⇒ 回执反查错误介入或错误退场（直接威胁 D-1 红线两道门的判定）。
+⇒ 只修 `activeTaskId` 就宣布结案，等于**把同一个缺陷留下三条支路**。
+
+**改动文件清单（单文件，但触及 D-1 红线两道门的取值来源）**
+
+| 落点（行 + 锚点） | 改法 |
+| --- | --- |
+| `:639` `interface RunContext`（末字段 `lastFinalText: string;`） | 追加三字段（下方原文） |
+| `:691` / `:693` / `:702` 三个实例字段 | **删除** |
+| `:733`–`:735`（`runGoal` 入口 `this.taskReceipts.clear();` / `this.raisedApprovals.clear();` / `this.k5ReplayActive = false;`） | **删除**（状态随 `ctx` 生灭，天然按任务隔离；k5-replay 的「跨任务清零」断言由「每次 runGoal 新建 ctx」**自动满足**，机制变、行为不变） |
+| `:764` `const ctx: RunContext = { prompt, outputDir, skillsDir, started, cli, lastFinalText: '' };` | 追加 `receipts: new Map(), raised: new Set(), replayActive: false,` |
+| `:780` `return this.reconcileExecutionTruth(truthed, ctx.lastFinalText);` | → `return this.reconcileExecutionTruth(truthed, ctx.lastFinalText, ctx);` |
+| `:946` `if (this.raisedApprovals.has(approvalId))` / `:959` `this.raisedApprovals.add(approvalId);` | → `ctx.raised` |
+| `:947` `return this.applyReceipt(approvalId, base);` | → `return this.applyReceipt(approvalId, base, ctx);` |
+| `:978` `this.taskReceipts.set(approvalId, executed);` / `:980` `this.k5ReplayActive = true;` | → `ctx.receipts.set(...)` / `ctx.replayActive = true;` |
+| **`:1003`** `private reconcileExecutionTruth(base, finalText)` | 签名加 `ctx: RunContext` |
+| **D-1 红线 `:1008`** `if (!this.replayEnabled \|\| !this.k5ReplayActive) return base;` | → `if (!this.replayEnabled \|\| !ctx.replayActive) return base;`（**语义、顺序、短路条件一字不改**，只换取值来源） |
+| **D-1 红线 `:1009`** `if (this.raisedApprovals.size === 0) return base;` | → `if (ctx.raised.size === 0) return base;`（同上） |
+| `:1013` `const receipts = [...this.taskReceipts.values()];` / `:1026` `approvalIds: [...this.raisedApprovals]` | → `ctx.receipts` / `ctx.raised` |
+| `:1037` `private applyReceipt(approvalId, base)` / `:1038` `const r = this.taskReceipts.get(approvalId);` | 加 `ctx: RunContext` 参数 / → `ctx.receipts.get(...)` |
+
+**`RunContext` 追加字段（原文）**
+```ts
+  /** P1-Fix：本委派的 K5 服务端执行回执登记（approvalId → 真实执行结果）。随 ctx 生灭 ⇒ 并发委派互不干扰。 */
+  readonly receipts: Map<string, ExecutedResult>;
+  /** P1-Fix：本委派已 raise 过的 approvalId 集合（去重二次 raise + 回执反查触发面）。 */
+  readonly raised: Set<string>;
+  /**
+   * P1-Fix：本委派是否**实际进入过服务端重放模式**（任一 raise 回包携带 `executed`）。
+   * 非 readonly —— 与 `lastFinalText` 同为「跨层写入」字段（先例见 `:650`）。
+   */
+  replayActive: boolean;
+```
+
+**依赖顺序**：**必须在 Fix-1 之后**（T03 依赖 T02）。理由：Fix-2 的验收红档需要「交叠下 A 不被 B 洗白」的用例，而这类用例的基线行为（串行下一切正常）只有在 Fix-1 落地后才干净；否则红/绿混在一起无法归因。
+
+**回归风险**：**中**（纯内部重构、零契约变更，但触及 K5 反查全部判定面 + D-1 红线两道门）。
+
+**三条缓解措施（必须同时执行）**
+1. **先钉后改**：改之前先让 QA 把「交叠下三态互清」钉成红档（可复用 `tests/unit/r19c-a5-approval-coordinator.test.js` D 组的双 bridge + 单 coordinator 骨架，把断言换成 `taskReceipts`/`raisedApprovals` 互清的表征）；改完该红档转绿。
+2. **只换取值来源**：不增不减任何分支、不改任何短路顺序、不改任何文案 —— diff 应全部是 `this.X` → `ctx.X` 形式。
+3. **门禁**：`tsc -b` + `k5-replay.test.js` 41 例全绿 + `k4-approval` / `k4-p3` 全绿，作为 T03 的合入门槛。
+
+**降级缓解方案 Fix-2′（若排期真的不允许，由 team-lead 拍板；我不主张采纳）**
+不搬字段，只在 `runGoal` 入口加「在飞计数」门：
+```ts
+// 实例字段：private readonly inflight = new Set<string>();   // 键 = input.traceId
+const key = input.traceId;
+this.inflight.add(key);
+if (this.inflight.size === 1) {          // ← 仅当本委派是唯一在飞者时才清（止血互清）
+  this.taskReceipts.clear();
+  this.raisedApprovals.clear();
+  this.k5ReplayActive = false;
+}
+try { … } finally { this.inflight.delete(key); … }
+```
+- 成本 ≈ 5 行，**零签名变更、零 D-1 触及**，串行时行为逐字不变（保住 k5-replay 的「跨任务清零」断言）。
+- 代价：这只是**缓解**不是根治 —— 交叠时三态变为「先到者独占」，后到者的回执会**混入**先到者的集合（可能误判），仅比现状（互相 clear）轻。且 `inflight` 本身又是新单例（但只存 traceId、不参与判定，风险远低于三态）。
+- ⇒ 结论：**能用，但不作为结案依据**。若采纳 Fix-2′，仍须把 Fix-2 登记为下迭代必做。
+
+**验收判据**
+1. 新增交叠红档：两条委派 A/B 交叠且 A 先登记回执 ⇒ A 的 `applyReceipt` 仍取到回执（当前会被 B 入口 clear 掉）。
+2. `k5-replay.test.js` **41 例全绿**（尤其 `:689`「连续两次 runGoal → 按任务清零」）。
+3. D-1 红线两道门**源码可核**：`:1008`/`:1009` 仍是两个独立的 `if (…) return base;`，顺序不变、文案不变。
+
+---
+
+### 2.4 Fix-4（风险展示真实化）—— 拆分采纳
+
+> ⚠ 本项**安全相关**：审批卡 risk 现从 LLM 文本正则抠（`parseApprovalBlock`，`bridge.ts:581`，正则 `/risk["']?\s*[:=]\s*["']?(L[0-3])/i`）+ 兜底 `'L2'`；真实 L3 可能展示成 L2/L1 ⇒ **人工据此批准**。
+
+| 子项 | 裁定 | 内容 | 落点 |
+| --- | --- | --- | --- |
+| **Fix-4a** | ✅ **做**（1 行，最高性价比） | `raise` 的 `enriched` 补 `risk: token?.risk ?? req.risk` —— 权威值在 `PendingApproval.risk`（`vm-service/src/server.ts:70`），而现状 `enriched` 补了 preview/impact/underlying **唯独没补 risk** | `packages/vm-service/src/server.ts:182`（`const enriched: ApprovalRequest = token ? { ...req, preview: …, impact: …, underlying: … } : req;`） |
+| **Fix-4b** | ✅ **做**（步骤 risk 如实化） | `LlmGoalInput.maxRisk?`（C-5）+ `index.ts` 透传 + 两处 `risk:'L1'` → `input.maxRisk ?? 'L2'` | `packages/adapter-agent-workbuddy-llm/src/bridge.ts:47` / `:1176` / `:1360`；`packages/adapter-agent-workbuddy-llm/src/index.ts:337`–`:352` |
+| **Fix-4c** | ❌ **本迭代不做** | 审批卡/消息文案标注「风险来源：服务端判定 / 桥侧推断」 | 若做需改 `packages/a2a-framework/src/task-store.ts:264 approvalMessage` 文案 ⇒ 牵动 `host-a2a-bridge` fixture 与多个测试断言；收益/风险比不划算。登记为待办（§5-Q5） |
+| **Fix-4d**（本文新增发现） | ❌ **本迭代不做** | `packages/vm-service/src/delegation-audit.ts:499` 的 `risk: 'L1'` 同样是硬编码，且被 `tests/unit/r19c-kn1-a-pure.test.js:134`（`assert.equal(e.risk, 'L1')`，输入 `maxRisk:'L2'`）**钉死** | 修它会打破该断言 ⇒ 必须先改测试。划出本迭代（§5-Q6） |
+
+**Fix-4a 后 `enriched` 原文**
+```ts
+    const enriched: ApprovalRequest = token
+      ? {
+          ...req,
+          // P1-Fix：风险以**服务端策略引擎判定的权威值**为准（PendingApproval.risk，:70）；
+          // 桥侧值（源自 LLM 文本正则 + 兜底 'L2'）仅作 token 缺席时的降级。
+          risk: token.risk ?? req.risk,
+          preview: Object.keys(req.preview).length > 0 ? req.preview : token.preview,
+          impact: req.impact.length > 0 ? req.impact : (token.impact ?? []),
+          underlying: req.underlying ?? token.underlying,
+        }
+      : req;
+```
+
+**依赖顺序**：4a 依赖 C-2 所在 CL（可与 T02 同 PR）；4b 依赖 C-5（T04）。二者互不依赖。
+**回归风险**：**低** —— 详见 §6 专项评估。**值语义收窄**（`ApprovalRequest.risk` 从此是「服务端判定优先」）须写入 §4 SK-8。
+**验收判据**
+1. 新增单测：服务端 token `risk='L3'`、LLM 文本含 `risk":"L1` ⇒ 审批卡（经真实 `TaskStore.waitApproval` → `approvalMessage`）的 `data.risk === 'L3'` 且文本含「风险 L3」。
+2. 新增单测：`LlmGoalInput.maxRisk='L3'` ⇒ `steps[0].risk === 'L3'`；缺省 ⇒ `'L2'`。
+3. `host-a2a-bridge.test.js`（含 `:137 assert.equal(a.risk,'L2')`）、`k5-replay.test.js`、`r19c-kn1-a-pure.test.js` **全绿**。
+
+---
+
+### 2.5 Fix-3（P3-c，`cancelRequested` 真正中断 turn）—— 独立立项 **CL-F3**
+
+**裁定：不进本迭代，单独立项。** 四条理由：
+
+1. **它不是 A5 的因**。根因文档 §3.3 P3-c 已判级为「**使能条件**」：`cancelRequested` 只写不读使 `tasks/cancel` 不中断 LLM turn，从而**制造**交叠窗口；但修 Fix-1 即可消除「不挂起」症状。把使能条件与根因混在一起做，会让本 CL 的验收判据无法收敛。
+2. **影响面跨 3 包且含新能力**：`packages/a2a-framework/src/task-store.ts`（新增读口）→ `packages/adapter-agent-workbuddy-llm/src/bridge.ts`（turn 进度回调处轮询）→ `packages/adapter-agent-workbuddy-llm/src/persistent-session.ts`（`:546`–`:548` 的 `enqueue` 串行链 + 常驻子进程生命周期，需要 `abortTurn()` 一类**当前未必存在**的能力）。这是「新增能力」而非「修缺陷」。
+3. **约束更严**：框架层新增读口要过 D-4 的 E-3 依赖方向守卫（`tests/unit/r19c-kn1-e-shape.test.js:250` 断言 `a2a-framework/**` 不得 import adapter）；收口语义还要与 D-5 对齐（`canceled` 已在 `TERMINAL_TASK_STATES`（`contracts/src/bridge.ts:24`–`:29`），**绝不得**改写为 `rejected`）。
+4. **依赖本迭代**：CL-F3 的验收（「cancel 后 turn 不再跑完」）只有在 Fix-1 落地后才可判读 —— 否则 cancel 后的遗留 turn 仍会制造交叠噪声。
+
+**建议形态（给 CL-F3 的 spec 骨架）**
+1. `TaskStore` 暴露纯读口 `isCancelRequested(taskId: string): boolean`（**不改状态机、不写任何字段**；读点即 `:188` 写入的 `cancelRequested`）。
+2. 桥在两处检查：`runGoalInner` 每轮结束、`pump` 每批产物推送后。置位 ⇒ 提前收口 `ok:false` + `error.code='TASK_CANCELED'`（新错误码，须同步 `contracts/src/errors.ts`）。
+3. 常驻路径**分两阶段**：① 软中断（停止读取 stdout、标记本轮丢弃、不再入链）；② 子进程终止（新能力 `PersistentCliSession.abortTurn()`，需评估 `persistent-session.ts` 现状后再定）；**先落 ①**。
+4. 收口语义与 D-5 对齐：cancel 路径终态恒 `canceled`，`rejected` 仍唯一致置于 `a2a-framework/src/server.ts:306`。
+
+---
+
