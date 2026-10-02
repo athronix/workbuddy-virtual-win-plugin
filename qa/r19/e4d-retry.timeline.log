@@ -1,0 +1,3 @@
+2026-10-02T02:34:57.123Z SEND {"traceId":"tr_r19_muqcogdf","maxRisk":"L2","timeoutMs":600000,"allowedCapabilities":["app.winget.uninstall"]}
+2026-10-02T02:35:09.319Z SEND_DONE 12197ms task=1c024dbd-b763-4336-84ae-32c9f50206ed
+2026-10-02T02:35:09.320Z DONE 12197ms

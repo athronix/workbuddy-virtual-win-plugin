@@ -1,0 +1,11 @@
+2026-09-30T10:05:46.739Z SEND {"traceId":"tr_r19_munxwinm","maxRisk":"L2","timeoutMs":600000,"allowedCapabilities":["app.winget.uninstall"]}
+2026-09-30T10:05:47.170Z SEND_DONE 433ms task=4a7573ab-bee5-4eb7-a80d-6163a24325f4
+2026-09-30T10:06:02.321Z POLL working 15584ms
+2026-09-30T10:06:17.551Z POLL working 30814ms
+2026-09-30T10:06:32.686Z POLL working 45949ms
+2026-09-30T10:06:47.941Z POLL working 61204ms
+2026-09-30T10:07:03.094Z POLL working 76357ms
+2026-09-30T10:07:18.192Z POLL working 91455ms
+2026-09-30T10:07:33.358Z POLL input-required 106621ms
+2026-09-30T10:07:33.361Z INPUT_REQUIRED {"type":"approval-request","approvalId":"apr_90ba0bce923b446c9682","capabilityId":"app.winget.uninstall","risk":"L2","preview":{"capabilityId":"app.winget.uninstall","risk":"L2","destructive":true,"requiresSession":false,"params":{"id":"Tencent.WeCom","dryRun":false},"dryRun":{"supported":true,"requ
+2026-09-30T10:07:33.365Z DONE 106626ms

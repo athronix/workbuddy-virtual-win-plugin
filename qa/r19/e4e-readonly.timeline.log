@@ -1,0 +1,3 @@
+2026-10-02T02:46:21.579Z SEND {"traceId":"tr_r19_muqd34i2","maxRisk":"L1","timeoutMs":120000,"allowedCapabilities":["app.inventory.list"]}
+2026-10-02T02:46:34.494Z SEND_DONE 12916ms task=12919af4-fe3f-48d3-9a36-025cc06523b2
+2026-10-02T02:46:34.495Z DONE 12917ms

@@ -1,0 +1,4 @@
+2026-10-01T22:34:31.166Z SEND {"traceId":"tr_r19_muq4398e","maxRisk":"L2","timeoutMs":600000,"allowedCapabilities":["app.winget.uninstall"]}
+2026-10-01T22:34:31.382Z SEND_DONE 218ms task=cbebaaa6-a3d0-4214-8ca1-7529b48cde79
+2026-10-01T22:34:46.608Z POLL failed 15444ms
+2026-10-01T22:34:46.611Z DONE 15446ms

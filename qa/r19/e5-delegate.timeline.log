@@ -1,0 +1,23 @@
+2026-09-30T09:52:12.752Z GET {"code":-32602,"message":"缺少任务标识（params.name 或 params.id）","data":{"code":"InvalidParamsError"}}
+2026-09-30T09:52:12.754Z DONE 225ms
+2026-09-30T09:52:40.717Z SEND {"traceId":"tr_r19_munxfo5p","maxRisk":"L2","timeoutMs":600000,"allowedCapabilities":["app.winget.uninstall"]}
+2026-09-30T09:52:40.959Z SEND_DONE 243ms task=1fb7e27a-e935-43c0-964d-0e5d6774212d
+2026-09-30T09:52:56.212Z POLL working 15496ms
+2026-09-30T09:53:11.430Z POLL working 30714ms
+2026-09-30T09:53:26.592Z POLL working 45876ms
+2026-09-30T09:53:41.746Z POLL working 61030ms
+2026-09-30T09:53:56.875Z POLL working 76159ms
+2026-09-30T09:54:12.060Z POLL working 91344ms
+2026-09-30T09:54:27.274Z POLL working 106558ms
+2026-09-30T09:54:42.551Z POLL working 121835ms
+2026-09-30T09:54:57.802Z POLL working 137086ms
+2026-09-30T09:55:13.030Z POLL working 152314ms
+2026-09-30T09:55:28.208Z POLL working 167492ms
+2026-09-30T09:55:43.436Z POLL working 182720ms
+2026-09-30T09:55:58.592Z POLL working 197876ms
+2026-09-30T09:56:13.766Z POLL working 213050ms
+2026-09-30T09:56:28.981Z POLL working 228265ms
+2026-09-30T09:56:44.169Z POLL working 243453ms
+2026-09-30T09:56:59.385Z POLL input-required 258669ms
+2026-09-30T09:56:59.386Z INPUT_REQUIRED {"type":"approval-request","approvalId":"apr_1550b79f6ad34014900e","capabilityId":"appops.workflow.run","risk":"L2","preview":{"capabilityId":"app.winget.uninstall","risk":"L2","destructive":true,"requiresSession":false,"params":{"id":"QA.Nonexistent.Package.99998","dryRun":false},"dryRun":{"support
+2026-09-30T09:56:59.391Z DONE 258671ms
