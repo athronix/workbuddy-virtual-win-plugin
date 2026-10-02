@@ -1,8 +1,9 @@
 # A5 审批未挂起根因判定
 
-STATUS: PARTIAL
+STATUS: FINAL
 
 > 只读根因判定。未修改 `packages/**` 任何文件，未跑部署脚本，未连 VM。
+> 六节齐备：§1 结论 / §2 reconcileApprovalWait 证实-推翻 / §3 P1·P2·P3 / §4 风险判级 / §5 最小修复 / §6 确定性复现。
 > 证据引用 `文件:行`（段落标签为主、行号为辅）。
 
 ## 0. 证据基与判定方法
@@ -330,3 +331,46 @@ assert.equal(calls.length, 0);      // ★ 从未调用 waitApproval ⇒ 从未�
 | A4（task `48a90a2f…`）那一轮 LLM turn 的真实耗时/结束时刻 | 只影响「把交叠坐实到 A4」；不影响根因判定（§1.2/§1.3 已独立锁定出口 #4） | 6.3 第 3 条：读 VM 服务日志该轮次 `[llm-session]` 耗时行 |
 | A5 的 `raise` 是否曾被调用（无服务端 raise 级日志） | 若将来发现 raise 未被调用，则需复查 §1.2 出口 #1（coordinator） | 在 Fix-1 PR 中给 `raise` 的 `no-active-task` 分支加一条 `logger.warn`（含 taskId/approvalId/当前 activeTaskId）——**这一条建议直接写进实现 spec**，否则同类问题下次仍无日志可查 |
 | A5 那一轮 LLM 原始文本 `turn.text` | 只影响确认 `parseApprovalBlock` 抠到的 `capabilityId/risk`；不影响 blocked 判定 | 常驻会话日志/产物目录留存；或在 stub 复现（R2）里直接指定 |
+
+---
+
+## 附录 A｜证据行号索引（本次判定的全部落点，逐条 grep 核实）
+
+> 行号会随并行改动漂移，段落标签为主。列出仅供实现 spec 直接引用。
+
+| 落点 | 文件:行 | 原文/要点 |
+| --- | --- | --- |
+| 单例字段 | `packages/vm-service/src/server.ts:133` | `private activeTaskId: string \| undefined;` |
+| beginTask | 同上 `:167` | `beginTask(taskId: string): void {` → `:168 this.activeTaskId = taskId;` |
+| endTask（无参） | 同上 `:171` | `endTask(): void {` → `:172 this.activeTaskId = undefined;` |
+| **根因守卫** | 同上 `:177` | `if (!this.activeTaskId \|\| !this.tasks) return { approved:false, reason:'no-active-task' };` |
+| 未达成的挂起点 | 同上 `:191` | `const done = this.tasks.waitApproval(this.activeTaskId, enriched);` |
+| token 权威 risk | 同上 `:70` | `readonly risk: RiskLevel;`（`PendingApproval`，`raise` 未取用） |
+| bind（启动时一次） | 同上 `:938` | `approvalCoordinator.bind(a2a.tasks, pendingApprovals);` ⇒ `:177` 的 `!this.tasks` 恒不成立 |
+| 协调器创建/注入 | 同上 `:341` / `:351` | `new VmApprovalCoordinator()` / `bridgeCtx.approvalCoordinator` |
+| provider init 注入 | `packages/core/src/bridge/loader.ts:106` | `await provider.init(ctx);` |
+| coordinator 下传 | `packages/adapter-agent-workbuddy-llm/src/index.ts:198-199` | `if (ctx.approvalCoordinator) this.bridge.setApprovalCoordinator?.(ctx.approvalCoordinator);` |
+| coordinator 落位 | `packages/adapter-agent-workbuddy-llm/src/bridge.ts:872` | `setApprovalCoordinator(coordinator)` |
+| **runGoal 清单例** | 同上 `:737` / `:741` | `beginTask(input.taskId ?? '')` / `finally { endTask() }` |
+| per-delegation 状态（P3-b） | 同上 `:733` / `:734` / `:735` | `taskReceipts.clear()` / `raisedApprovals.clear()` / `k5ReplayActive = false` |
+| 文本启发式常量 | 同上 `:568` | `const APPROVAL_WAIT_PATTERN = /APPROVAL_REQUIRED\|等待审批/;` |
+| reconcileApprovalWait | 同上 `:608` | 命中 → `ok:false` + 固定文案 + `makeError('APPROVAL_REQUIRED', …, { details:{approvalId,…} })`；**不命中 → `return base`** |
+| blocked 门（结构化） | 同上 `:932` | `base.error?.code === 'APPROVAL_REQUIRED' \|\| !!base.error?.details?.approvalId` |
+| 出口 #2 / #3 | 同上 `:937` / `:946` | `if (!approvalId) return base;` / `if (this.raisedApprovals.has(approvalId))` |
+| **不挂起的返回** | 同上 `:961` | `if (!outcome.approved) return base;` |
+| 风险硬编码 | 同上 `:1176`（常驻）/ `:1360`（单次） | `risk: 'L1',` |
+| 串行轮次 | `packages/adapter-agent-workbuddy-llm/src/persistent-session.ts:546-548` | 「轮次（串行）」`private enqueue<T>`（`this.chain.then(fn, fn)`） |
+| 取消只写不读 | `packages/a2a-framework/src/task-store.ts:51` / `:116` / `:188` | `cancelRequested: boolean;` / `= false` / `= true` |
+| 挂起置位 | 同上 `:211` / `:255` | `waitApproval(id, req)` → `this.updateStatus(id, 'input-required', …)` |
+| K4 安全网（反证依据） | `packages/a2a-framework/src/server.ts:352` | `if (recNow && (recNow.task.status.state === 'input-required' \|\| recNow.pendingApproval))` → return |
+| failed 收口 | 同上 `:365` | `const finalState: A2A.TaskState = result.ok ? 'completed' : 'failed';` |
+| rejected 唯一置位 | 同上 `:306` | `this.tasks.updateStatus(taskId, 'rejected');` |
+| 终态集合 | `packages/contracts/src/bridge.ts:24-29` | `TERMINAL_TASK_STATES = ['completed','failed','canceled','rejected']` |
+| 契约接口 | 同上 `:313` / `:315` / `:322` | `beginTask(taskId)` / **`endTask()`** / `raise(req)` |
+| ApprovalRequest | 同上 `:173` | 建议加可选 `taskId?` |
+| GoalRequest.maxRisk | 同上 `:256` | `readonly maxRisk?: RiskLevel;`（未下传到 `LlmGoalInput`） |
+
+### 与 team-lead 任务书的行号差异（非分歧，仅为漂移修正）
+
+- `vm-service/src/server.ts` 单例字段：任务书写 `:144`，实测 `:133`；`endTask` 任务书写 `:173`，实测 `:171`。
+- `contracts/src/bridge.ts`：任务书写「`:313`/`:322`」，实测 `beginTask=313`、`endTask=**315**`、`raise=322`。**需要同步变更的是 `:315`**（见 §5.6）。
