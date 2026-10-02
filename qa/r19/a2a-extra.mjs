@@ -323,6 +323,29 @@ async function runReject() {
   const goal = `卸载 VM 上的软件包 ${pkg}（该包 id 故意不存在，勿改动其它任何软件）`;
   const out = { case: 'A5-approval-reject', pkg, goal, at: new Date().toISOString() };
 
+  /* ---- 静默窗口前置留证（A5-v2a 判据）----
+   * P1 的成因是「已 cancel 但 runGoal 仍在飞」的委派收尾清掉单例 activeTaskId，
+   * 而 `cancelRequested` 只写不读 ⇒ tasks/list 全终态**不足以**证明无在飞委派。
+   * 故发包前先快照 tasks/list（条数 + 各条 state + 与上一终态的时间距），
+   * 把「本次是否真在静默窗口」变成可审计字段，而不是事后口述。
+   */
+  try {
+    const pre = await rpc('tasks/list', { pageSize: 50 }, 30_000);
+    const list = pre.result?.tasks ?? [];
+    out.preflight = {
+      taskCount: list.length,
+      totalSize: pre.result?.totalSize ?? null,
+      states: list.map((t) => ({ id: t.id, state: t.status?.state ?? '?' })),
+      note:
+        'tasks/list 全终态仅说明状态已收口，不证明其 runGoal 已返回（cancelRequested 只写不读）；' +
+        '金标准为「服务重启后首发」，次选为全终态 + 距上一终态 ≥60s',
+    };
+    stamp('PREFLIGHT_LIST', `count=${list.length} states=${list.map((t) => t.status?.state ?? '?').join(',')}`);
+  } catch (e) {
+    out.preflight = { error: String(e) };
+    stamp('PREFLIGHT_LIST', `error=${String(e).slice(0, 120)}`);
+  }
+
   const params = sendParams(goal, {
     maxRisk: 'L2',
     allowedCapabilities: ['app.winget.uninstall'],
