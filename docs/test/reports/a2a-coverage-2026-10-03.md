@@ -65,3 +65,93 @@
 - **A1 / A2 / A3 / A4：全绿 → NoOne**（无需 Engineer，无需续跑）。
 - **A5：FAIL → 路由 Engineer**（携带上述四元组：P1 单例 `activeTaskId` 交叠 + `cancelRequested` 只写不读；判别实验待 VM 恢复）。
 - **A5 v2 复核 + 审计对照：BLOCKED → 需 team-lead 决策 VM 恢复后的续跑窗口**。
+
+## A6 —— A5 离线确定性测试（P1 单例 `activeTaskId` 交叠）：机制级复现已锁定
+
+> 产出：`tests/unit/r19c-a5-approval-coordinator.test.js`（465 行 / 21593B，commit `9c54d95`）
+> 目的：真机 BLOCKED 期间，把 P1 怀疑链从「源码推演」升级为**可离线反复运行的断言**。
+> 本轮只做测试与实测，**不产出根因结论**（根因判定见并行的 `docs/design/a5-approval-drop-rootcause.md`）。
+
+### A6.1 被测对象与可信度边界（如实标注）
+
+- **真实实现，非替身**：`VmApprovalCoordinator` 取自 `@winvm/vm-service`（→ `packages/vm-service/dist/server.js`），`TaskStore` 取自 `@winvm/a2a-framework`（→ `packages/a2a-framework/dist/task-store.js`）。二者均为纯逻辑类；已实测 `import` 只拿到导出符号，**不启动 HTTP 服务 / 不监听端口 / 不 spawn ps-bridge / 不连 VM**。
+- **唯一的替身**：注入 `bind()` 的 **TaskStore spy**（`waitApproval` 直接 `resolve(false)`）。这是被测对象的**依赖**，不是被测对象本身；用途是断言「有没有调用 `waitApproval`」。
+- **dist 新鲜度守卫**（用例 `A0`）：断言 `dist/server.js` 仍含 `if (!this.activeTaskId || !this.tasks)` 与 `this.tasks.waitApproval(this.activeTaskId, enriched)`，且 `dist.mtime ≥ src.mtime`（实测 src `2026-10-02T08:44:24Z` < dist `2026-10-02T12:40:48Z`）。改了 src 未重新 build 时该用例立即 FAIL，杜绝「在陈旧产物上得出假结论」。
+- **读取 TS-private 字段**：`activeTaskId` / `tasks` / `pendingApprovals` 在编译产物中是普通 JS 属性（编译期 `private` 已擦除），测试直接读取以钉死**实际值**。
+- **未改动 `packages/**` 任何文件**（`git status` 已核：`packages/` 无改动项）。
+
+### A6.2 用例清单与实测结果
+
+运行：`node --test tests/unit/r19c-a5-approval-coordinator.test.js`（node v24.13.0；**只跑单文件**）
+实测：**tests 14 / pass 11 / fail 3 / exit=1**；连续两次运行结果完全一致（确定性成立）。
+
+| 用例 | 断言意图 | 实测 | 含义 |
+|---|---|---|---|
+| A0 dist/src 一致性守卫 | dist 由当前 src 编译而来、守卫形态未漂移 | PASS | 行为断言可信的前提（防陈旧产物假象） |
+| A1 单例字段读写 | `beginTask('A')`→`'A'`；`endTask()`→`undefined`（如实记录实际值） | PASS | 单例字段确认（`server.ts:167`–`:173`） |
+| A2 交叠场景 raise 实际返回 | `begin(A)→begin(B)→endTask()` 后 `raise()` 返回 `{approved:false, reason:'no-active-task'}`，且 B 任务状态仍为 `submitted` | PASS | **核心表征**：审批闸被绕过，B 从未挂起 —— 与 A5 真机症状一致 |
+| A3a waitApproval 被调用 | 有 activeTaskId 时 `waitApproval` 被调用 1 次，入参 `id==='B'`（取自单例） | PASS | 挂起目标来自**服务级单例**，而非请求自带 taskId |
+| A3b waitApproval 未被调用 | `endTask()` 后 `waitApproval` / `updateStatus` 调用次数均为 **0**，且 <100ms 立即返回 | PASS | `server.ts:177` 早退 ⇒ **从不调用** `waitApproval`、不挂起、不等待宿主 |
+| B1 交叠不应降级 no-active-task | 修复后：B 仍在飞时 `raise` 不应回 `no-active-task`，且 `waitApproval` 应被调用 1 次（挂起目标为 B） | **FAIL** | `actual: 'no-active-task'`；`waitApproval` 0 次 |
+| B2 应挂起且结构化 approval-request | 修复后：B 应达 `input-required`，且 `status.message` 含 `type:'approval-request'` data part 并携带 `approvalId` | **FAIL** | `actual: 'submitted'`（无 data part）⇒ 正是 A5「approvalId 只在文本里、不在结构化 data part」的成因 |
+| B3 宿主拒绝可达 rejected | 修复后：宿主按协议回复 `approved:false` 应回 `reason:'rejected'` | **FAIL** | `actual: 'no-active-task'` ⇒ 契约 D-5 的 `rejected` 终态（**唯一置位点** `a2a-framework/src/server.ts:306`）为何真机不可达 |
+| C1 endTask 幂等 | 连调 3 次不抛错；不解绑 `tasks`、不清空 `pendingApprovals`、不消费 token | PASS | 修复时的副作用边界 |
+| C2 空 taskId 早退 | `beginTask('')` / `beginTask(undefined)` ⇒ falsy ⇒ `no-active-task`，`waitApproval` 0 次 | PASS | `bridge.ts:737` `input.taskId ?? ''` 的真实风险点：taskId 缺失 ⇒ 审批闸**静默失效** |
+| C3 cancelRequested 无人消费 | 扫 `packages/*/src/**/*.ts`（排除 dist）：`cancelRequested` 全仓仅 **3** 处，且形态恰为声明 / 初始化 / 赋值；行为旁证：`requestCancel` 靠 `updateStatus('canceled')` + `pendingApproval.resolve(false)` 收口，**不读标志** | PASS | P1 第 3 环（交叠窗口来源）成立；将来新增读取点时本用例会 FAIL（即修复已落地） |
+| C4 串行场景回归锚点 | 无交叠时正常挂起 `input-required` + 结构化 approval-request；批准后 `approved:true` 且 `token.hostApproved===true` | PASS | **对照组**：证明「单例被清空」是唯一变量；修复 P1 不得破坏 K4/K5 语义 |
+| C5 归属形态预留 | 断言当前 `endTask.length === 0`（无参 ⇒ 无法表达「哪个任务收尾」） | PASS | `@todo-P1-fix`：归属改造后改为按 taskId 归属断言 |
+| Z-汇总 | 打印全部用例 PASS/FAIL 明细表 | PASS | 让分布肉眼可辨 |
+
+### A6.3 运行命令与输出原文摘录
+
+```
+$ node --test tests/unit/r19c-a5-approval-coordinator.test.js
+▶ A5 / A 表征：VmApprovalCoordinator.activeTaskId 单例语义
+  ✔ A0 被测对象可信度守卫：dist 由当前 src 编译而来（含守卫与 endTask 置空） (4.1625ms)
+  ✔ A1 beginTask/endTask 对单例字段的实际读写值 (0.496094ms)
+  ✔ A2 交叠场景（A 收尾清空后，B 的 raise 返回什么）—— 本轮核心用例 (1.296562ms)
+  ✔ A3a 有 activeTaskId 时：raise 确实调用 taskStore.waitApproval（单例值即挂起目标） (0.56625ms)
+  ✔ A3b endTask 清空后：raise 从不调用 waitApproval，且立即返回（不挂起、不等待） (0.470469ms)
+▶ A5 / B 红档：交叠场景下 B 的审批仍应可挂起（当前必然 FAIL）
+  ✖ B1 交叠场景：B 的审批请求仍应被挂起（不应因 A 的收尾降级为 no-active-task） (1.332657ms)
+  ✖ B2 交叠场景：B 任务应到达 input-required 且 approvalId 出现在结构化 data part (13.652813ms)
+  ✖ B3 交叠场景：宿主回复 approved:false 后应得 reason=rejected（D-5 rejected 终态可达） (1.255625ms)
+▶ A5 / C 边界与回归锚点
+  ✔ C1 endTask() 幂等性…  ✔ C2 beginTask('') / undefined…  ✔ C3 task-store.cancelRequested 全仓只写不读…
+  ✔ C4 回归锚点：串行（无交叠）场景必须照常挂起并批准…  ✔ C5 @todo-P1-fix 预留…
+ℹ tests 14
+ℹ pass 11
+ℹ fail 3
+ℹ duration_ms 405.524375
+```
+
+B 组三条失败原文（`✖ failing tests` 块）：
+
+```
+✖ B1  AssertionError [ERR_ASSERTION]: 修复后：B 仍在飞，A 的收尾不得让 B 的审批闸早退为 no-active-task
+      actual: 'no-active-task'   expected: 'no-active-task'   operator: 'notStrictEqual'
+
+✖ B2  AssertionError [ERR_ASSERTION]: 修复后：B 应挂起为 input-required
+      + actual - expected
+      + 'submitted'
+      - 'input-required'
+
+✖ B3  AssertionError [ERR_ASSERTION]: 修复后：宿主拒绝应回 rejected（当前回 no-active-task ⇒ 宿主无从回复 ⇒ rejected 终态不可达）
+      + actual - expected
+      + 'no-active-task'
+      - 'rejected'
+```
+
+### A6.4 结论
+
+**P1 在离线环境：已复现**（机制级；二选一结论，不含糊）。
+
+- **已锁死**：交叠场景下（`beginTask(A) → beginTask(B) → endTask()` 模拟 A 的 runGoal 收尾）`raise()` 立即返回 `{approved:false, reason:'no-active-task'}`，**从不调用 `waitApproval`** ⇒ B 任务从未进入 `input-required` ⇒ status 里没有结构化 `approval-request` data part ⇒ 宿主无从按协议回复 `approved:false` ⇒ `a2a-framework/src/server.ts:306` 的 `rejected` 置位点不可达 ⇒ 框架按 `result.ok=false` 收口 `failed`（`a2a-framework/src/server.ts:365`）。与 A5 真机样本（终态文本带 `approvalId=apr_a9aabfcffb5f4246b918`、`steps[0].summary`=「等待审批（未执行完成）」、**从未挂起**、17.08s 直接 failed）逐项吻合。
+- **未推翻 P1**：B 组 3 条**全部 FAIL**，无一条意外 PASS。
+- **口径边界（不含糊的部分）**：本轮复现的是**机制**，不是 A5 那一次真机时序的端到端回放。即「若 A5 当时处于交叠窗口，则必然不挂起」已被证明；「A5 当时**确实**处于交叠窗口」仍待 VM 恢复后用 `raise` 入口只读日志（`approvalId` + `activeTaskId` + `hasTasks`）或 §A5 已就绪的静默窗口判别实验确认。
+- **修复验收口径**：P1 修复落地后 —— 本文件 **B 组 3 条应转绿**；**A 组 A2 / A3b 会转 FAIL 且属预期**（它们钉的是「当前缺陷行为」，修复后需按新行为同步改写）；**C 组 5 条必须保持 PASS**（回归护栏）。
+
+### A6.5 路由
+
+- **Engineer**（单例 `activeTaskId` 的并发/时序缺陷）：测试文件 commit `9c54d95`；B 组 3 条 FAIL 是**缺陷证据**，非用例设计问题。修复需同时给出「端到端可达 `rejected` 终态」的验证路径。
+- 与并行静态根因判定不冲突：本轮只在 `tests/unit/` 与本报告作业，未触碰 `docs/design/a5-approval-drop-rootcause.md`。
