@@ -61,6 +61,8 @@ K-N1 的判定层根因是：K5 回执反查 `reconcileExecutionTruth` 在「本
 | **delegation.start** | `runGoalWithLifecycle` 调 handler 前（`a2a-framework/src/server.ts` 经注入回调；实现落点见 §2.4） | `"delegation.start"` | `true`（受理即成功，无歧义） |
 | **delegation.complete** | 终态收口处（completed / failed / rejected / input-required 挂起均落） | `"delegation.complete:<终态>"`（≤500 字符） | 与终态一致（completed→true，其余→false） |
 
+> **各终态的产生路径（见 §11 D-5）**：`failed` = disabled 显式拒绝、NO_EXECUTION_RECEIPT 改判、异常路径；`rejected` = **仅**宿主显式拒绝审批（框架先置 TaskStore `rejected`，observer 据此透出）；`input-required` = 审批挂起。disabled 拒绝**不**产生 `rejected`。
+
 `errorCode` 约定：`completed` 无；`failed(NO_EXECUTION_RECEIPT)` 记 `"NO_EXECUTION_RECEIPT"`；disabled 拒绝记 `"LLM_SESSION_DISABLED"`。
 
 > **注意（读码发现）**：`query({since})` 是**字符串日期比较**（`chain.ts:373`），且 complete 条目 `ts` 天然晚于窗口内条目、`seq` 更大——**窗口过滤绝不能用 since**，必须用 seq 区间（见 §2.2 的 `auditSeqs`）或按 ext 过滤。
@@ -102,6 +104,8 @@ K-N1 的判定层根因是：K5 回执反查 `reconcileExecutionTruth` 在「本
 ```
 
 start 条目同形，`ext.kind="delegation-start"`，`ext.underlying` 缺席、`zeroInnerCalls` 无（未判定），终态字段无。
+
+> **`ext.terminalState` 取值口径（见 §11 D-5）**：类型为 `TaskState`，可含 `rejected`；但**取值由 observer 的 `terminalState` 实参决定**，实测 disabled 拒绝落 `failed`。断言 `ext.terminalState` 时须按路径区分，不得跨路径泛化。
 
 **脱敏纪律**：`ext` 内一切自由文本（goal、summary、downgradeReason）出 `redact()`（`chain.ts:47`）后截断；`params` 沿用 sink 现有 `doRedact`（`chain.ts:282`）。零新增敏感面：不新增任何未脱敏通道。
 
@@ -199,6 +203,8 @@ res = reconcileExecutionTruth(res, ctx.lastFinalText)                 # 既有�
 且同步写一条 delegation.complete 审计（终态 rejected，errorCode=LLM_SESSION_DISABLED，
 zeroInnerCalls:true —— 未开始即拒绝，账本空）
 ```
+
+> **口径更正（见 §11 D-5，保留上文原文不改写）**：本条描述的 disabled 显式拒绝路径，实测终态为 **`failed`**（`errorCode=LLM_SESSION_DISABLED`），**不是** `rejected`。上文「终态 rejected」为设计期笔误，已登记为待整改项；`rejected` 仅在**宿主显式拒绝审批**路径出现（详见 D-5）。
 
 A2A 框架据 `result.ok=false` 收口 `failed`（`a2a-framework/src/server.ts:328`），宿主在 `message/send` 响应里直接拿到失败终态与原因码——**零静默**。
 
@@ -351,7 +357,7 @@ sequenceDiagram
     alt llmSession.disabled 且 persistent=true
         P-->>A: failed(LLM_SESSION_DISABLED)  ★§4 显式拒绝
         A->>S: onGoalTerminal
-        S->>K: append delegation.complete(rejected, zeroInnerCalls:true)
+        S->>K: append delegation.complete(failed, zeroInnerCalls:true)  ★口径见 D-5
     else 正常/降级
         P->>B: runGoal(input, sink)
         B->>C: 常驻轮次 或 单次 -p（mcp-config url=…?dtid=…）
@@ -476,7 +482,9 @@ graph LR
 **E. server.ts 接线形态守卫**（沙箱无法起服务，用源码文本断言，仿 k5-replay E 组）
 1. `/mcp` 路由解析 `dtid` 并注入 ToolContext.ext（grep `dtid`）。
 2. provider append 两处均 `channel: req.channel ?? 'mcp'`（grep 双写点数==2，禁止第三处硬编码）。
-3. `delegationObserver` 在 `a2a-framework` 为**可选**（框架不得出现 `@winvm/core` import——依赖方向守卫 grep import 列表）。
+3. `delegationObserver` 在 `a2a-framework` 为**可选**，且声明**恰 2 处**（`A2AServerOptions.delegationObserver` 与 `A2AServer` 类成员），**每处各自带 `?`**——断言须按「2 处 + 逐处带 `?`」双条件，缺一即失败；只改其中一处为必填会被另一处的 `?` 掩盖。依赖方向守卫改为**两层可判定不变量**（**口径见 §11 D-4**，原「框架不得出现 `@winvm/core` import」一句已废止——该 import 在 T01 基线即存在，字面执行会对未改动的正确代码误报）：
+   - **(a) 框架零审计符号** —— 框架 `src/**` 内不得出现审计**写入侧**符号（`audit.append` / `AuditSink` 的写入方法 / `buildDelegationAuditEntry` / `appendAudit`）。这是 §2.4「审计写入只在 vm-service 层」的可判定形式；只读侧符号（如类型引用）不在此列。
+   - **(b) 框架禁依赖 adapter** —— grep 范围含 `packages/a2a-framework/src/**` **与** `packages/a2a-framework/package.json` 的 `dependencies`/`devDependencies` 表，`@winvm/adapter*` 一律禁止出现。
 4. 管理端点路由体存在 `WINVM_ADMIN_ENDPOINT` 检查文本（默认关）。
 5. `/audit/receipt` 响应体过滤走 `sink.query` 且带 `redact`（grep）。
 
@@ -523,6 +531,8 @@ graph LR
 | D-1 | `bridge.ts:913-914` 是否去短路 | **不删**。采用"只受 `taskId` 门控的先行分支"（§3.4） | K4 灰度回滚保险不可牺牲。T05 断言 B-4（既有反查不二次改判）与 A-3 矩阵必须同时成立；若实现中出现"删门"倾向即为契约违背 |
 | D-2 | S-3 落链 vs 端点 | **选 B**：`GET /audit/receipt?traceId=`；A-极简（`result.dataDigest`）**降级为 P2 升级位**，本轮不实现 | 哈希链体积零增长是硬约束；环形缓存必须有界（≤200）且只存脱敏副本 |
 | D-3 | §10-1「零调用 + completed 但无完成声称」是否强制改判/告警 | **维持现状：不改判、不加告警**。仅保证 `ext.zeroInnerCalls:true` 恒落审计、grep 可发现 | 文本无完成承诺时改判属过度推断，与"绝不错杀合法完成"总取向一致。「零调用+completed → 宿主侧告警」记入 **P2 backlog**，待产品口径明确再议；实现侧**不得**自行加此规则 |
+| D-4 | §9 E-3 依赖方向守卫口径（原字面「框架不得出现 `@winvm/core` import」） | **原字面废止**，改为**两层机器可判定不变量**：(a) **框架零审计符号**——框架 `src/**` 不得出现审计写入侧符号（`audit.append` / `AuditSink` 写入方法 / `buildDelegationAuditEntry` / `appendAudit`），此为 §2.4「审计写入只在 vm-service 层」的可判定形式；(b) **框架禁依赖 adapter**——grep 范围含 `src/**` **与** `package.json` 依赖表，`@winvm/adapter*` 一律禁止。`delegationObserver` 为可选的半句**保留**，并加严为「**恰 2 处**声明（`A2AServerOptions` + 类成员）且每处各自带 `?`」 | **背景与证据**：①`git show 608d4e0:packages/a2a-framework/src/server.ts:20` 的 `import { NullLogger } from '@winvm/core'` **在 T01 基线即存在**（`:96` 处消费），非 T02 引入；②`a90e54b` 对 `packages/a2a-framework/` 的 numstat 为 `server.ts +57/-0`、`index.ts +8/-1`，**纯增量、零 import 增删**（diff 内唯一 `import` 命中是 `+` 注释文本，非代码）；③同类既有 import 另有两处：`client.ts:11 import type { JsonRpcChannel }`、`task-store.ts:13 import { resolveApprovalTtlMs }`；④`packages/a2a-framework/src/index.ts:8` 包内铁律原文为「依赖铁律：仅依赖 `@winvm/contracts` 与 `@winvm/core`，**禁止依赖 adapter**」，`package.json` dependencies 亦**明列** `@winvm/core`——该包本就合法依赖 core。**理由**：字面「零 `@winvm/core` import」对未改动的正确代码必然误报，字面执行即错；真正的架构约束是「不写审计、不碰 adapter」，与 core 依赖无关。**影响面**：QA 的 E-3 断言须按两层重写（源码形态 grep，不做 import 全集判定）；**待整改项**：`a2a-framework/src/server.ts:58` 的 T02 新增注释沿用了被废止字面（「框架层不得 import `@winvm/core`（设计 §2.4）」），与 `index.ts:8` 铁律自相矛盾，**登记待改注释文案**（不改行为、不在本轮改码） |
+| D-5 | 委派拒绝终态口径：设计 §4.1/§7 写 `rejected`，实现收口 `failed` | **当前实现终态口径统一为 `failed`；`rejected` 标记予以保留、不删**——但其语义**收窄**为「**仅**宿主显式拒绝审批」这一条路径。§4.1 与 §7 时序图中「disabled 拒绝 → rejected」的字面为**设计期笔误**，已就地加注指向本条（原文保留不删） | **背景与证据**（`ok:false → failed` 收口发生在**框架层**）：①`packages/a2a-framework/src/server.ts` 的 `runGoalWithLifecycle`，段标签 `finalState` 计算行：`const finalState: A2A.TaskState = result.ok ? 'completed' : 'failed'`，紧随的 `onGoalTerminal` 回调同式传 `state: result.ok ? 'completed' : 'failed'`——**框架只有 completed/failed 二分，无第三分支**；②`DelegationTerminalSnapshot.state` 的类型即钉死为 `'completed' \| 'failed' \| 'input-required'`（**结构上无法表达 `rejected`**）；③adapter 拒绝分支 `adapter-agent-workbuddy-llm/src/index.ts` 的 `runGoal` 段标签「K-N1 §4.1：disabled 入口显式拒绝」，返回 `ok:false` + `steps:[]`，源码注释已自登记该偏差；④vm-service observer `onGoalTerminal` 中确有 `failed → rejected` 的**回改**：`snap.state === 'failed' && storedState === 'rejected' ? 'rejected' : snap.state`，而 `storedState` 来自 TaskStore——`rejected` 仅由框架 `updateStatus(taskId,'rejected')`（宿主审批拒绝应答段）置入。**裁定理由**：`rejected` **并非死语义**，它在宿主显式拒绝审批路径上真实可达（`tests/unit/protocols.test.js` 有「宿主拒绝后任务置 rejected」用例佐证该状态机行为），故**不删**；但它**不是** disabled 拒绝的终态，故 disabled 路径口径统一为 `failed`。**影响面**：QA 断言须按**路径**区分终态，不得跨路径泛化；**待整改项**：(i) `adapter-agent-workbuddy-llm/src/index.ts` 拒绝分支注释「设计 §4.1 写 rejected」的表述已随本裁定过期，登记待改；(ii) `ext.terminalState` 的 `rejected` 分支目前**无测试覆盖**（现有断言只覆盖 completed/failed），建议 T05 补一条宿主拒绝 → `terminalState==='rejected'` 的护栏，本轮不强制 |
 
 **范围确认**：#26 实现按 T01→T04 派发（Engineer）；**T05 留 QA 后上**（对应 L8 护栏缺口）；S-4（POLICY_DENIED 零审计）与 §10 其余残余项不在本轮范围。
 
