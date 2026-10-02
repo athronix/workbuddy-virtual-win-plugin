@@ -13,6 +13,7 @@
 
 import type {
   ApprovalUnderlying,
+  AuditRecord,
   AuditSink,
   ExecutedResult,
   Logger,
@@ -22,6 +23,19 @@ import { redact } from '@winvm/core';
 
 /** 审计 sink 的最小形状（只需 append；`AuditSink` 的其余成员与本模块无关）。 */
 type AuditAppender = Pick<AuditSink, 'append'>;
+
+/**
+ * K-N1（**纯附加可选**）：blocked 审计的通道与归因扩展。
+ * 全部有默认值 —— 既有调用（不传第 5 参）行为逐字不变。
+ */
+export interface BlockedAuditOptions {
+  /** 真实通道（委派内层回连经 dtid 注入后为 'a2a'）；默认 'mcp'（旧行为） */
+  readonly channel?: 'mcp' | 'a2a' | 'internal';
+  /** 所属委派 traceId（通道 2 精确归因；写入 `ext.delegationId`） */
+  readonly delegationId?: string;
+  /** 落链成功后的回调（携带含 seq 的记录）—— 服务端用它把 blocked 登记进委派账本 */
+  readonly onRecorded?: (record: AuditRecord) => void;
+}
 
 /**
  * 被拦调用的审计留痕入参（服务端在 MCP 审批闸拦截时构造）。
@@ -44,22 +58,25 @@ export interface BlockedAuditInput {
  *
  * 失败纪律：审计写入失败**绝不影响拦截结果**（拦截语义优先），只 warn。
  * 返回值供调用方/测试断言（best-effort，异常吞掉并记日志）。
+ *
+ * K-N1（纯附加）：第 5 参 `opts` 缺席时通道恒 `mcp`、无 ext、无回调 —— 既有调用零改动。
  */
 export async function recordBlockedApprovalAudit(
   audit: AuditAppender,
   logger: Logger,
   input: BlockedAuditInput,
   newAuditId: () => string,
+  opts: BlockedAuditOptions = {},
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await audit.append({
+    const record = await audit.append({
       ts: new Date().toISOString(),
       traceId: input.traceId,
       auditId: newAuditId(),
       principal: {
         host: 'vm-service',
         user: process.env['USERNAME'] ?? 'unknown',
-        channel: 'mcp',
+        channel: opts.channel ?? 'mcp',
       },
       capabilityId: input.capabilityId,
       risk: input.risk,
@@ -77,7 +94,17 @@ export async function recordBlockedApprovalAudit(
         summary: 'blocked:approval-required（未执行，等待宿主审批）',
       },
       durationMs: Date.now() - input.startedAtMs,
+      // K-N1：blocked 条目也带归因 ext（有 delegationId 时；无则整键缺席，旧形态逐字节不变）
+      ...(opts.delegationId
+        ? { ext: { kind: 'inner-call' as const, delegationId: opts.delegationId, channel: opts.channel ?? 'mcp' } }
+        : {}),
     });
+    // 账本登记（best-effort：取证失败不得影响拦截结果）
+    try {
+      opts.onRecorded?.(record);
+    } catch (e) {
+      logger.warn('blocked 账本登记失败（不影响拦截结果）', { error: String(e) });
+    }
     return { ok: true };
   } catch (e) {
     logger.warn('blocked 审计写入失败（不影响拦截结果）', { error: String(e) });

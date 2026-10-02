@@ -346,7 +346,13 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         ts: new Date().toISOString(),
         traceId: req.traceId,
         auditId: newId('aud'),
-        principal: { host: 'vm-service', user: process.env['USERNAME'] ?? 'unknown', channel: 'mcp' },
+        // K-N1：通道真实化 —— 委派内层回连（经 /mcp?dtid=）由服务端注入 req.channel='a2a'；
+        // 纯宿主直调仍 'mcp'（req.channel 缺席即旧行为）。修掉「181/181 恒 mcp」观测缺陷。
+        principal: {
+          host: 'vm-service',
+          user: process.env['USERNAME'] ?? 'unknown',
+          channel: req.channel ?? 'mcp',
+        },
         capabilityId: req.capabilityId,
         risk: cap.risk,
         params: req.params,
@@ -364,6 +370,10 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         result: { ok: true, summary: `${req.capabilityId} 执行成功` },
         ...(artifacts.length > 0 ? { artifacts: artifacts.map((a) => `sha256:${a.name}`) } : {}),
         durationMs,
+        // K-N1 通道 2（精确归因）：委派回连条目带 ext.delegationId（账本据此归入 executed）
+        ...(req.delegationId
+          ? { ext: { kind: 'inner-call' as const, delegationId: req.delegationId, channel: req.channel ?? 'a2a' } }
+          : {}),
       });
 
       return { traceId: req.traceId, ok: true, data, artifacts, durationMs, auditRef: audit.auditId };
@@ -903,13 +913,21 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         ts: new Date().toISOString(),
         traceId: req.traceId,
         auditId: newId('aud'),
-        principal: { host: 'vm-service', user: process.env['USERNAME'] ?? 'unknown', channel: 'mcp' },
+        // K-N1：失败站点与成功站点同型（双写点数==2，禁第三处硬编码 channel）
+        principal: {
+          host: 'vm-service',
+          user: process.env['USERNAME'] ?? 'unknown',
+          channel: req.channel ?? 'mcp',
+        },
         capabilityId: req.capabilityId,
         risk: ctx.capabilities.get(req.capabilityId)?.risk ?? 'L3',
         params: req.params,
         policyDecision: { allowed: false, matchedRule: error.code },
         result: { ok: false, errorCode: error.code, summary: error.message },
         durationMs,
+        ...(req.delegationId
+          ? { ext: { kind: 'inner-call' as const, delegationId: req.delegationId, channel: req.channel ?? 'a2a' } }
+          : {}),
       });
     } catch {
       // 审计失败不得掩盖原始错误

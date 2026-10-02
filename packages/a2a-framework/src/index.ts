@@ -12,7 +12,14 @@ export {
   A2AServer,
   InvalidParamsError,
 } from './server.js';
-export type { AgentCardInput, A2AGoalHandler, A2AServerOptions } from './server.js';
+export type {
+  AgentCardInput,
+  A2AGoalHandler,
+  A2AServerOptions,
+  /** K-N1（纯附加）：委派观测点契约 —— vm-service 实现壳双态审计，框架零审计语义 */
+  DelegationObserver,
+  DelegationTerminalSnapshot,
+} from './server.js';
 
 export {
   TaskStore,

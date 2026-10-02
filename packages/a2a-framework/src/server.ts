@@ -51,6 +51,30 @@ export interface A2AGoalHandler {
   runGoal(req: GoalRequest, sink: ProgressSink): Promise<GoalResult>;
 }
 
+/**
+ * K-N1 委派观测点（**纯附加可选**；缺席零行为变化）。
+ *
+ * 为什么在框架只留回调、不落审计：`a2a-framework` 不拥有 `AuditSink`，依赖方向铁律是
+ * 框架层不得 import `@winvm/core`（设计 §2.4）；语义（壳双态条目）由 vm-service 实现本接口完成。
+ * 两点即设计 §7 时序图的 `onGoalAccepted` / `onGoalTerminal`。
+ */
+/** `onGoalTerminal` 的终态快照（框架据 result.ok / 异常 / 挂起 三者之一给出；设计 §2.1 三点均落） */
+export interface DelegationTerminalSnapshot {
+  /** 框架写入 A2A 的任务态：completed | failed | input-required（挂起） */
+  readonly state: 'completed' | 'failed' | 'input-required';
+  /** handler 返回值（挂起与异常路径可为 undefined） */
+  readonly result?: GoalResult;
+  /** runGoal 抛出的异常（仅 failed 异常路径） */
+  readonly error?: unknown;
+}
+
+export interface DelegationObserver {
+  /** 受理：`runGoalWithLifecycle` 调 handler 前（此时 `goal.taskId` 已注入） */
+  onGoalAccepted(goal: GoalRequest): void;
+  /** 终态收口：completed / failed / input-required 挂起三点均回调（设计 §2.1） */
+  onGoalTerminal(taskId: string, goal: GoalRequest, snapshot: DelegationTerminalSnapshot): void;
+}
+
 export interface A2AServerOptions {
   readonly agentCard: AgentCardInput;
   readonly handler: A2AGoalHandler;
@@ -58,6 +82,8 @@ export interface A2AServerOptions {
   readonly taskStore?: TaskStore;
   /** 默认委派最高风险（未显式指定时） */
   readonly defaultMaxRisk?: RiskLevel;
+  /** K-N1（**纯附加可选**）：委派观测点（见 `DelegationObserver`） */
+  readonly delegationObserver?: DelegationObserver;
 }
 
 /* ------------------------------ 工具 ------------------------------ */
@@ -90,12 +116,15 @@ export class A2AServer {
   private readonly logger: Logger;
   readonly tasks: TaskStore;
   private readonly defaultMaxRisk: RiskLevel;
+  /** K-N1（纯附加）：委派观测点（vm-service 注入实现；缺席即旧行为） */
+  private readonly delegationObserver?: DelegationObserver;
 
   constructor(opts: A2AServerOptions) {
     this.handler = opts.handler;
     this.logger = opts.logger ?? new NullLogger();
     this.tasks = opts.taskStore ?? new TaskStore();
     this.defaultMaxRisk = opts.defaultMaxRisk ?? 'L1';
+    this.delegationObserver = opts.delegationObserver;
 
     const c = opts.agentCard;
     this.card = {
@@ -304,6 +333,10 @@ export class A2AServer {
       // 就会静默失效，且会污染调用方持有的原 goal。展开构造保持不可变约定、对冻结安全。
       const goalWithTask: GoalRequest = { ...goal, taskId: id };
 
+      // K-N1（纯附加）：受理观测点（服务端在此落 delegation.start 并开账本窗口）。
+      // 纪律：observer 异常**绝不得**影响委派生命周期 —— 只 warn（取证面与执行面分离）。
+      this.observe(() => this.delegationObserver?.onGoalAccepted(goalWithTask));
+
       const result = await this.handler.runGoal(goalWithTask, {
         ...sink,
         onStatus: (state, message) => {
@@ -317,6 +350,10 @@ export class A2AServer {
       // 绝不覆盖其状态 —— 维持 input-required，由宿主审批应答（continueTask）续跑/拒绝。
       const recNow = this.tasks.tryGet(id);
       if (recNow && (recNow.task.status.state === 'input-required' || recNow.pendingApproval)) {
+        // K-N1：挂起也是一次终态回调（服务端据此落 delegation.complete:input-required）
+        this.observe(() =>
+          this.delegationObserver?.onGoalTerminal(id, goalWithTask, { state: 'input-required', result }),
+        );
         return;
       }
 
@@ -332,9 +369,29 @@ export class A2AServer {
         resultMessage(id, result),
       );
       this.tasks.setMetadata(id, { goalSummary: result.summary, stepCount: result.steps.length });
+      // K-N1（纯附加）：终态观测点（completed / failed 均回调）
+      this.observe(() =>
+        this.delegationObserver?.onGoalTerminal(id, goalWithTask, {
+          state: result.ok ? 'completed' : 'failed',
+          result,
+        }),
+      );
     } catch (e) {
       this.logger.error('runGoal 异常', { taskId: id, error: String(e) });
       this.tasks.updateStatus(id, 'failed', errorMessage(id, e));
+      // K-N1（纯附加）：异常路径同样回调终态（服务端据此落 delegation.complete:failed）
+      this.observe(() =>
+        this.delegationObserver?.onGoalTerminal(id, goal, { state: 'failed', error: e }),
+      );
+    }
+  }
+
+  /** K-N1：观测点统一护栏 —— 回调内任何异常只 warn，绝不影响 A2A 生命周期 */
+  private observe(fn: () => void): void {
+    try {
+      fn();
+    } catch (e) {
+      this.logger.warn('delegationObserver 回调异常（不影响委派）', { error: String(e) });
     }
   }
 

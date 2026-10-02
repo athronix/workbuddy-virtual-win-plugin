@@ -278,6 +278,14 @@ export interface GoalResult {
   /** 逐步执行记录 —— 破除"委派黑盒"（NFR-509） */
   readonly steps: readonly GoalStep[];
   readonly error?: BridgeError;
+  /**
+   * K-N1 §4.4（**纯附加可选**）：本次委派是否走过「常驻会话不可用 → 单次 -p」降级，
+   * 以及降级原因。设计把它放在桥的 `LlmGoalResult` 上；但壳 `delegation.complete` 审计
+   * 由服务端 **delegation observer** 落（它只看得见 `GoalResult`，看不见桥内类型），
+   * 故契约层同步补一个可选字段承载该事实 —— provider 在映射处透传（T03）。
+   * 缺席即旧行为（不改动任何既有构造点）。登记为实现偏差。
+   */
+  readonly degraded?: { readonly reason: string };
 }
 
 export interface ProgressSink {

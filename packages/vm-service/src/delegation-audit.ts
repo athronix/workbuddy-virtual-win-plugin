@@ -190,37 +190,73 @@ export class DelegationLedger {
     return { total: executed + blocked + wild, executed, blocked, wild };
   }
 
-  /** 真实目标能力清单（≤50 项，进 `ext.underlying`；blocked 并入同能力条目并携带 approvalId） */
+  /**
+   * 真实目标能力清单（≤50 项，进 `ext.underlying`）。
+   *
+   * 三通道**都**并入聚合（判"有活动"取宽松、取证展开同样要全）：
+   *  - executed（通道 2 精确归因）→ 主体条目；
+   *  - blocked（审批拦截「到过未执行」）→ 并入同能力条目并携带 approvalId（不污染 executed 计数）；
+   *  - wild（通道 1 时间窗兜底，dtid 缺席时的内层活动）→ 同样并入 —— **必须入清单**，
+   *    否则常驻会话路径（mcp.json 会话级共享、dtid 只能作用于单次 -p）的内层活动虽被计为
+   *    非零证据，却无法经 `ext.underlying.auditSeqs` 被 S-3 端点按委派 traceId 展开（取证断层）。
+   */
   underlying(): DelegationActivity[] {
-    const out: DelegationActivity[] = [];
-    const seen = new Set<string>();
+    // 可变中间态（DelegationActivity 字段为 readonly，聚合完再定型）
+    interface Agg {
+      capabilityId: string;
+      ok: boolean;
+      count: number;
+      approvalId?: string;
+      seqs: number[];
+    }
+    const order: string[] = [];
+    const byCap = new Map<string, Agg>();
+    const push = (a: Agg): void => {
+      if (byCap.has(a.capabilityId)) return;
+      byCap.set(a.capabilityId, a);
+      order.push(a.capabilityId);
+    };
+
     for (const [capabilityId, agg] of this.executedByCap) {
       const blockedHits = this.blockedEntries.filter((b) => b.capabilityId === capabilityId);
       const seqs = [...agg.seqs];
       for (const b of blockedHits) {
         if (seqs.length < MAX_UNDERLYING_ITEMS) seqs.push(b.seq);
       }
-      out.push({
+      push({
         capabilityId,
         ok: agg.ok,
         count: agg.count + blockedHits.length,
         ...(blockedHits[0] ? { approvalId: blockedHits[0].approvalId } : {}),
-        auditSeqs: seqs,
+        seqs,
       });
-      seen.add(capabilityId);
-      if (out.length >= MAX_UNDERLYING_ITEMS) break;
     }
     for (const b of this.blockedEntries) {
-      if (seen.has(b.capabilityId)) continue;
-      out.push({
-        capabilityId: b.capabilityId,
-        ok: false,
-        count: 1,
-        approvalId: b.approvalId,
-        auditSeqs: [b.seq],
-      });
-      seen.add(b.capabilityId);
+      if (byCap.has(b.capabilityId)) continue;
+      push({ capabilityId: b.capabilityId, ok: false, count: 1, approvalId: b.approvalId, seqs: [b.seq] });
+    }
+    for (const w of this.wildEntries) {
+      const hit = byCap.get(w.capabilityId);
+      if (hit) {
+        hit.count += 1;
+        if (hit.seqs.length < MAX_UNDERLYING_ITEMS) hit.seqs.push(w.seq);
+        continue;
+      }
+      push({ capabilityId: w.capabilityId, ok: false, count: 1, seqs: [w.seq] });
+    }
+
+    const out: DelegationActivity[] = [];
+    for (const capId of order) {
       if (out.length >= MAX_UNDERLYING_ITEMS) break;
+      const a = byCap.get(capId);
+      if (!a) continue;
+      out.push({
+        capabilityId: a.capabilityId,
+        ok: a.ok,
+        count: a.count,
+        ...(a.approvalId ? { approvalId: a.approvalId } : {}),
+        auditSeqs: a.seqs,
+      });
     }
     return out;
   }
@@ -606,6 +642,12 @@ export function buildReceiptResponse(args: {
   readonly records: readonly AuditRecord[];
   readonly allRecords?: readonly AuditRecord[];
   readonly receipts?: readonly ReceiptEntry[];
+  /**
+   * T02 端点接线补充：内层记录（traceId ≠ 委派 traceId）的回执按**展开后记录的 traceId**
+   * 反查环形缓存。回调由 server.ts 传入（`(ids) => receiptCache.getAll(ids)`），
+   * 使「委派 traceId 为键」的端点在账本收口后仍能拿到字段级回执。
+   */
+  readonly receiptLookup?: (traceIds: readonly string[]) => readonly ReceiptEntry[];
 }): { traceId: string; records: Record<string, unknown>[]; innerSeqs: number[]; receipts: ReceiptEntry[] } {
   const records = [...args.records];
   const innerSeqs = new Set<number>();
@@ -624,11 +666,27 @@ export function buildReceiptResponse(args: {
     }
   }
   expanded.sort((a, b) => a.seq - b.seq);
+  // 回执合并：调用方显式传入（按委派 traceId 直查）优先；
+  // receiptLookup 再把**展开后的内层记录** traceId 的回执补齐（按 traceId 去重）。
+  const receiptsById = new Map<string, ReceiptEntry>();
+  for (const e of args.receipts ?? []) {
+    if (!receiptsById.has(e.traceId)) receiptsById.set(e.traceId, e);
+  }
+  if (args.receiptLookup) {
+    const innerTraceIds = [...new Set(expanded.map((r) => r.traceId))].filter(
+      (id) => id !== args.traceId && !receiptsById.has(id),
+    );
+    if (innerTraceIds.length > 0) {
+      for (const e of args.receiptLookup(innerTraceIds)) {
+        if (!receiptsById.has(e.traceId)) receiptsById.set(e.traceId, e);
+      }
+    }
+  }
   return {
     traceId: args.traceId,
     records: expanded.map((r) => toReceiptRecord(r)),
     innerSeqs: [...innerSeqs].sort((a, b) => a - b),
-    receipts: [...(args.receipts ?? [])],
+    receipts: [...receiptsById.values()],
   };
 }
 

@@ -30,6 +30,19 @@ export interface McpTool {
 export interface ToolContext {
   readonly traceId: string;
   readonly signal?: AbortSignal;
+  /**
+   * K-N1 通道 2（**纯附加**）：委派 traceId。HTTP `/mcp` 路由从 `?dtid=` 解析后经
+   * `handleRequest(body, ctx)` 注入；缺席即旧行为（纯宿主直调，provider 落 `channel:'mcp'`）。
+   */
+  readonly delegationId?: string;
+}
+
+/**
+ * K-N1（**纯附加**）：一条 JSON-RPC 请求的传输层上下文（HTTP 路由 → callTool → ToolContext）。
+ * 由 `handleRequest(body, reqCtx?)` 的第二个可选参数承载 —— 旧调用方不传即逐字旧行为。
+ */
+export interface McpRequestContext {
+  readonly delegationId?: string;
 }
 
 export type McpToolHandler = (
@@ -113,8 +126,11 @@ export class McpServer {
   /**
    * 处理一条 JSON-RPC 消息。
    * 返回 null 表示这是通知（notification），无需响应。
+   *
+   * `reqCtx`（K-N1，**纯附加可选**）：HTTP 路由解析出的委派 traceId（`?dtid=`）等传输层上下文；
+   * 不传 → `callTool` 组装的 `ToolContext` 逐字等于旧形态（零回归）。
    */
-  async handleRequest(body: unknown): Promise<Record<string, unknown> | null> {
+  async handleRequest(body: unknown, reqCtx?: McpRequestContext): Promise<Record<string, unknown> | null> {
     if (!isRecord(body)) return this.error(null, -32600, '请求体必须是对象');
 
     const id = (body['id'] ?? null) as string | number | null;
@@ -148,7 +164,7 @@ export class McpServer {
           return this.result(id, this.listTools());
 
         case 'tools/call':
-          return await this.callTool(id, params);
+          return await this.callTool(id, params, reqCtx);
 
         default:
           if (isNotification) return null;
@@ -164,6 +180,7 @@ export class McpServer {
   private async callTool(
     id: string | number | null,
     params: Record<string, unknown>,
+    reqCtx?: McpRequestContext,
   ): Promise<Record<string, unknown>> {
     const name = params['name'];
     if (typeof name !== 'string') return this.error(id, -32602, '缺少 params.name');
@@ -172,9 +189,13 @@ export class McpServer {
 
     const args = isRecord(params['arguments']) ? params['arguments'] : {};
     const traceId = newTraceId();
+    // K-N1（纯附加）：仅当 reqCtx 携带非空 dtid 时才补 delegationId 键 ——
+    // 无 dtid 时组装的 ToolContext 逐字节等于旧形态（`{ traceId }`），零回归。
+    const ctx: ToolContext =
+      reqCtx?.delegationId ? { traceId, delegationId: reqCtx.delegationId } : { traceId };
 
     try {
-      const res = await tool.handler(args, { traceId });
+      const res = await tool.handler(args, ctx);
       return this.result(id, {
         ...(res.content ? { content: res.content } : { content: [{ type: 'text', text: summarize(res.structuredContent) }] }),
         ...(res.structuredContent !== undefined ? { structuredContent: res.structuredContent } : {}),

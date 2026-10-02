@@ -51,11 +51,18 @@ import {
   type FileLogger,
   type ServiceConfig,
 } from '@winvm/core';
-import { A2AServer, TaskStore } from '@winvm/a2a-framework';
+import { A2AServer, TaskStore, type DelegationObserver, type DelegationTerminalSnapshot } from '@winvm/a2a-framework';
 import { McpServer, type McpTool, type McpToolResult } from '@winvm/mcp-framework';
 import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime } from '@winvm/vm-capabilities';
 import { raceHealthSubProbes, resolveHealthProbeTimeoutMs, resolvePsBridgeHealthState } from './health-probe.js';
 import { deriveUnderlying, recordBlockedApprovalAudit, toExecutedResult } from './approval-replay.js';
+import {
+  LedgerRegistry,
+  ReceiptCache,
+  buildDelegationAuditEntry,
+  buildReceiptResponse,
+  wrapAuditSink,
+} from './delegation-audit.js';
 
 export interface PendingApproval {
   readonly approvalId: string;
@@ -83,6 +90,12 @@ export interface PendingApproval {
    * 协调器 raise 时并入 approval-request 的 data part → 宿主卡片可读。
    */
   readonly underlying?: ApprovalUnderlying;
+  /**
+   * K-N1（**纯附加**）：拦截发生时所属的委派 traceId（由 `/mcp?dtid=` 注入的
+   * `ToolContext.delegationId`）。留存它使「批准 → 服务端重放」这条**异步**执行链
+   * 仍能把 executed 条目归因回原委派回合（重放没有 HTTP 上下文，只能靠留存值）。
+   */
+  readonly delegationId?: string;
 }
 
 export interface ServiceRuntime {
@@ -310,6 +323,18 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   });
   const policy = new CorePolicyEngine({ registry, config: cfg.policy });
 
+  /* ---- K-N1 取证件（进程内，全部有界） ----
+   *  - `ledgerReg`：委派活动账本注册表 —— 每条**已落链**记录经 `wrapAuditSink` 回调喂入
+   *    （通道 2 精确归因 `ext.delegationId` / 通道 1 时间窗 wild）；桥侧经
+   *    `activityFor` 探针反查（`DelegationTruthProbe`），零活动 → NO_EXECUTION_RECEIPT 改判。
+   *  - `receiptCache`：S-3 回执端点的有界脱敏环形缓存（≤200，重启即失，**不入链**）。
+   * 纪律：`bridgeCtx.audit` 一律用包装 sink（保证 provider 落的每条 executed/blocked 记录
+   * 都被账本看到）；`buildHealth` 的 `verifyChain` 走包装 sink 透传，语义不变。
+   */
+  const ledgerReg = new LedgerRegistry();
+  const receiptCache = new ReceiptCache();
+  const auditSink = wrapAuditSink(audit, (record) => ledgerReg.onAuditRecord(record), logger);
+
   /* ---- 桥接上下文 ---- */
   // K4：审批协调器（须先于 bridgeCtx 创建，以便注入 provider；tasks / pendingApprovals 在其
   // 就绪后通过 bind() 注入，见下方 A2A 构建之后）。
@@ -317,7 +342,8 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
 
   const bridgeCtx = {
     config: cfg as unknown as Record<string, unknown>,
-    audit,
+    // K-N1：注入包装 sink —— provider 落的每条记录（成功/失败/blocked）都经账本过一遍
+    audit: auditSink,
     policy,
     capabilities: registry,
     logger,
@@ -339,6 +365,13 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     reportNetCfg: (collectedAt: string): void => {
       netCfgCache.collectedAt = collectedAt;
       netCfgCache.ok = true;
+    },
+    // K-N1（设计 §3.2）：委派真实性探针 —— 桥在收口处反查「本委派回合服务端是否真有过活动」。
+    // 同 reportNetCfg 惯例：不扩 BridgeContext 契约接口，provider 侧 cast 读取
+    // （`adapter-agent-workbuddy-llm` 只认 `DelegationTruthProbe` 契约类型，不认服务端实现）。
+    // 实现在**存活账本**上取三通道计数；账本缺席 → 三零（桥侧 fail-open + 恒落 zeroInnerCalls 兜底）。
+    delegationProbe: {
+      delegationActivity: async (delegationTraceId: string) => ledgerReg.activityFor(delegationTraceId),
     },
   } as unknown as BridgeContext;
 
@@ -463,6 +496,12 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     readonly approvalId?: string;
     readonly verdict?: PolicyVerdict;
     readonly replayed?: boolean;
+    /**
+     * K-N1（**纯附加**）：所属委派 traceId（`/mcp?dtid=` 解析值，或重放路径从
+     * pendingApprovals 留存值取回）。存在时 provider 侧审计落 `channel:'a2a'` +
+     * `ext.delegationId`（通道 2 精确归因）；缺席逐字节旧行为（`channel:'mcp'`，无 ext）。
+     */
+    readonly delegationId?: string;
   }
 
   /**
@@ -521,12 +560,20 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       // MCP 原路径按闸的实际判定走，绝不在此处擅自升级为「已批准」。
       approved: seg.approved,
       ...(seg.approvalId ? { approvalId: seg.approvalId } : {}),
+      // K-N1：委派归因（通道 2）—— dtid 存在 ⇒ 这是 A2A 委派回合内的内层回连，
+      // 通道真实化为 'a2a' 并携带 delegationId（provider 落 ext，账本据此精确归因）。
+      ...(seg.delegationId ? { channel: 'a2a' as const, delegationId: seg.delegationId } : {}),
       timeoutMs: cap.timeoutMs,
     });
 
     // CL-020 F2：采集时间戳的捕获已从 handler 层移走（避免双写、单一数据源）。
     // 现由 provider.execute 内部的 reportNetCfg 注入回调统一上抛写入 netCfgCache，
     // MCP 与 A2A 两条路径共用同一 execute，全覆盖。此处不再重复捕获。
+
+    // S-3（方案 B）：执行回执进**有界脱敏环形缓存**（≤200 条，不入链，重启即失）。
+    // 键取 `res.traceId`（provider 回传值，与链上条目 traceId 一致）→ 端点按委派
+    // traceId 直查命中壳条目自身的回执；内层回执经账本/链上 auditSeqs 展开命中。
+    receiptCache.record(res.traceId, cap.id, res.ok, res.data);
 
     return {
       isError: !res.ok,
@@ -579,6 +626,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       approved: true,
       approvalId: p.approvalId,
       replayed: true,
+      // K-N1：重放执行也要归因回原委派回合（p.delegationId 是拦截时留存的 dtid）——
+      // 否则「委派内被拦 → 批准 → 服务端重放成功」这条 executed 只能靠时间窗 wild 兜底。
+      ...(p.delegationId ? { delegationId: p.delegationId } : {}),
     });
     return toExecutedResult(p.capabilityId, result);
   };
@@ -637,11 +687,16 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
             traceId: ctx.traceId,
             impact,
             underlying: deriveUnderlying(cap.id, rest),
+            // K-N1：留存委派归因 —— 批准后服务端重放（异步、无 HTTP 上下文）仍可把
+            // executed 条目精确归因回原委派回合。
+            ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
           });
 
           // K5 取证盲区闭合：被拦调用**必须入审计**（旧实现只在执行成功/失败时落条目，
           // 拦截路径无痕 → 事后无法证明「该调用到过、且从未执行」）。
           // best-effort：审计写失败不得影响拦截结果（拦截语义优先）。
+          // K-N1：blocked 经**专用通道**登记进账本（不污染 executed 计数）——
+          // 「委派内层到过但被拦」也是**非零活动证据**，桥侧据此绝不改判。
           void recordBlockedApprovalAudit(
             audit,
             logger,
@@ -654,6 +709,14 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
               startedAtMs: Date.now(),
             },
             () => newId('aud'),
+            {
+              channel: ctx.delegationId ? 'a2a' : 'mcp',
+              ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
+              onRecorded: (record) => {
+                const ledger = ctx.delegationId ? ledgerReg.get(ctx.delegationId) : undefined;
+                ledger?.recordBlocked(record.seq, id, cap.id);
+              },
+            },
           );
 
           return {
@@ -692,6 +755,8 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         approved,
         ...(approvalId ? { approvalId } : {}),
         verdict,
+        // K-N1：dtid 存在 → 归因委派（channel 'a2a' + ext.delegationId 精确入账本）
+        ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
       });
     },
   }));
@@ -707,6 +772,92 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   });
 
   /* ================================ A2A ================================ */
+
+  /**
+   * K-N1 委派观测点实现（设计 §2.1/§2.4）：把 A2A 委派的**壳生命周期**如实落到哈希链上。
+   *
+   * 为什么写在 vm-service 而不是框架：`a2a-framework` 不依赖 `@winvm/core`（依赖方向铁律），
+   * 框架只留两点回调、零审计语义；语义（双态条目、账本窗口）由本层实现。
+   *
+   * 纪律：
+   *  - 两个回调都 **fire-and-forget + catch warn** —— 取证面异常绝不影响委派（框架侧另有 observe 护栏双保险）；
+   *  - `delegation.start` 落**原始 sink**（`audit`），不经 `wrapAuditSink` 回调进账本 ——
+   *    壳条目自身绝不能成为自己的「活动证据」（设计 §2.3「排除两条壳条目自身」的结构性保证）；
+   *    `delegation.complete` 同（账本此刻已 finish，回调通道也不会登记，双保险仍写原始 sink）。
+   */
+  const delegationObserver: DelegationObserver = {
+    onGoalAccepted(goal: GoalRequest): void {
+      const ledger = ledgerReg.begin(goal.traceId, goal.taskId ?? '', exposedIds);
+      void audit
+        .append(
+          buildDelegationAuditEntry('start', {
+            delegationTraceId: goal.traceId,
+            ...(goal.taskId ? { taskId: goal.taskId } : {}),
+            goal: goal.goal,
+            ...(goal.maxRisk ? { maxRisk: goal.maxRisk } : {}),
+            ...(goal.allowedCapabilities ? { allowedCapabilities: goal.allowedCapabilities } : {}),
+            startedAtMs: ledger.startedAtMs,
+            newAuditId: () => newId('aud'),
+          }),
+        )
+        .catch((e: unknown) => logger.warn('delegation.start 落链失败（不影响委派）', { error: String(e) }));
+    },
+
+    onGoalTerminal(taskId: string, goal: GoalRequest, snap: DelegationTerminalSnapshot): void {
+      const delegationTraceId = goal.traceId;
+      // 收口账本：关账（迟到 append 不再污染）+ 摘除 + 取回活动事实用于 complete 条目
+      const ledger = ledgerReg.finish(delegationTraceId);
+      const result = snap.result;
+      const ok = snap.state === 'completed' && result?.ok === true;
+      // 宿主显式拒绝时 TaskStore 已置 rejected —— 终态如实透出（设计 §2.1 列了 rejected）
+      const storedState = taskStore.tryGet(taskId)?.task.status.state;
+      const terminalState =
+        snap.state === 'failed' && storedState === 'rejected' ? 'rejected' : snap.state;
+      // errorCode：completed 无；**failed** 取 result.error.reason（领域码，如 NO_EXECUTION_RECEIPT /
+      // LLM_SESSION_DISABLED），缺席退回契约码，异常路径取 error 上的码。
+      // input-required（审批挂起）**不是执行错误** —— 不落 errorCode，避免把「等待人工」写成失败。
+      const snapError = snap.error as { code?: string; reason?: string } | undefined;
+      const errorCode =
+        ok || snap.state === 'input-required'
+          ? undefined
+          : (result?.error?.reason ??
+              result?.error?.code ??
+              snapError?.reason ??
+              snapError?.code ??
+              'EXECUTION_FAILED');
+      // 降级标记（T03 结构化；运行时经 LlmGoalResult 携带，缺席即 undefined → ext 不落该键）
+      const degraded = (result as { degraded?: { reason: string } } | undefined)?.degraded;
+
+      void audit
+        .append(
+          buildDelegationAuditEntry('complete', {
+            delegationTraceId,
+            taskId,
+            goal: goal.goal,
+            ...(goal.maxRisk ? { maxRisk: goal.maxRisk } : {}),
+            ...(goal.allowedCapabilities ? { allowedCapabilities: goal.allowedCapabilities } : {}),
+            startedAtMs: ledger?.startedAtMs ?? Date.now(),
+            newAuditId: () => newId('aud'),
+            ...(ledger ? { ledger } : {}),
+            terminalState,
+            ok,
+            ...(errorCode ? { errorCode } : {}),
+            ...(degraded ? { downgraded: true, downgradeReason: degraded.reason } : {}),
+            ...(result && result.steps.length > 0
+              ? {
+                  steps: result.steps.map((s) => ({
+                    capabilityId: s.capabilityId,
+                    ok: s.ok,
+                    ...(s.summary ? { summary: s.summary } : {}),
+                  })),
+                }
+              : {}),
+            ...(result?.summary ? { resultSummary: result.summary } : {}),
+          }),
+        )
+        .catch((e: unknown) => logger.warn('delegation.complete 落链失败（不影响委派）', { error: String(e) }));
+    },
+  };
 
   const a2a = new A2AServer({
     agentCard: {
@@ -779,6 +930,8 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     logger,
     defaultMaxRisk: cfg.policy.defaultMaxRisk ?? 'L1',
     taskStore,
+    // K-N1：委派观测点（见上方 delegationObserver 实现）—— 纯附加，框架零审计依赖
+    delegationObserver,
   });
 
   /* ---- K4：把 A2A 任务存储与 MCP 续跑令牌表注入审批协调器（二者此刻已就绪） ---- */
@@ -814,12 +967,52 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         if (path === '/mcp' && req.method === 'POST') {
           const body = await readBody(req);
           const parsed = body ? JSON.parse(body) : null;
-          const result = await mcp.handleRequest(parsed);
+          // K-N1 通道 2（精确归因）：委派回合内层回连的 mcp 端点由桥拼成 `…/mcp?dtid=<委派traceId>`
+          // （`buildMcpConfig`），此处解析注入 → handler 拿到 `ToolContext.delegationId` →
+          // provider 审计落 `channel:'a2a'` + `ext.delegationId`，账本据此**精确**归入 executed。
+          // 无 dtid（纯宿主直调）→ reqCtx 缺席 → ToolContext 逐字节旧形态，零回归。
+          const dtid = url.searchParams.get('dtid') ?? undefined;
+          const result = await mcp.handleRequest(parsed, dtid ? { delegationId: dtid } : undefined);
           if (result === null) {
             res.writeHead(202).end();
             return;
           }
           sendJson(res, 200, result);
+          return;
+        }
+
+        /* ---- S-3（方案 B，设计 §5.2）：回执查询端点（只读投影，零链体积增长） ----
+         * GET /audit/receipt?traceId=<委派或单次调用 traceId>
+         *  - 链上记录（证明「发生过」，附 seq/hash 供与链对齐校验）；命中委派壳 complete 条目时
+         *    按 `ext.underlying[].auditSeqs` 把内层记录一并展开（内层条目经通道 2 缺席时
+         *    也可由壳聚合清单定位 —— 委派 traceId 为唯一取证键）；
+         *  - 进程内**有界脱敏**环形回执（字段级重建；重启即失，§10-4 已登记信任局限）。
+         * 安全边界：与 /health 同级（服务仅 loopback 监听）；只读、无任何状态变更。
+         * 未命中 → `{ records: [] }` + HTTP 200（设计 §9-F-3：非 4xx）。
+         */
+        if (path === '/audit/receipt' && req.method === 'GET') {
+          const traceId = url.searchParams.get('traceId') ?? '';
+          if (!traceId) {
+            sendJson(res, 400, { error: 'missing traceId' });
+            return;
+          }
+          const records = await audit.query({ traceId });
+          // 仅当命中壳 complete 条目（其 ext 聚合了内层 seq）时才付出一次全量读取代价 ——
+          // 有界：全量查询限量 5000，杜绝无上限扫描（链体量随运行增长）。
+          const needExpand = records.some((r) => r.ext?.kind === 'delegation-complete');
+          const allRecords = needExpand ? await audit.query({ limit: 5000 }) : undefined;
+          // 环形回执：委派级按账本内层 traceId 展开（存活期内）+ 直查 traceId 自身；
+          // receiptLookup 兜底**账本已收口**的场景 —— 按链上展开记录（ext.underlying.auditSeqs
+          // → 内层条目）的 traceId 反查缓存，使事后取证同样能拿到字段级回执。
+          const innerTraceIds = ledgerReg.get(traceId)?.innerCallTraceIds() ?? [];
+          const receipts = receiptCache.getAll([...innerTraceIds, traceId]);
+          sendJson(res, 200, buildReceiptResponse({
+            traceId,
+            records,
+            allRecords,
+            receipts,
+            receiptLookup: (ids: readonly string[]) => receiptCache.getAll(ids),
+          }));
           return;
         }
 
@@ -857,6 +1050,42 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
 
           const result = await a2a.handleRequest(parsed);
           sendJson(res, 200, result ?? {});
+          return;
+        }
+
+        /* ---- L1 运维端点（设计 §6）：常驻会话复位 + 故障注入（T04 实体化转发） ----
+         * POST /admin/llm-session/reset[?faultInjection=1]
+         *  - **env 门控**：`WINVM_ADMIN_ENDPOINT=1` 才可达，否则 404（与路由未注册等价，
+         *    不新增鉴权体系 —— 服务仅 loopback 监听，信任面与 /health 同级）；
+         *  - 复位语义（§6.1）：杀子进程 → spawnAttempts 归零 → disabled → stopped，
+         *    **保留 lastError/lastErrorAt**（D11 两信号分离）；非 disabled 态调用**幂等**不报错；
+         *  - `?faultInjection=1`（§6.2）：复位后注入「每次 spawn 立即错误退出」，
+         *    使后续 1+maxRestarts 次委派**确定性**进入 disabled（K-N1 回归不依赖真机抖动）；
+         *    不带参数即复位**并清除**注入；
+         *  - 日志只走 warn（运维面与证据面分离：**不入哈希链**）。
+         */
+        if (path === '/admin/llm-session/reset' && req.method === 'POST') {
+          if (process.env['WINVM_ADMIN_ENDPOINT'] !== '1') {
+            sendJson(res, 404, { error: 'not found', path });
+            return;
+          }
+          const faultInjection = url.searchParams.get('faultInjection') === '1';
+          logger.warn('管理端点：LLM 常驻会话复位', { faultInjection, provider: provider?.id ?? '(degraded)' });
+          if (!provider || provider.llmSessionReset === undefined) {
+            // provider 不实现（非 LLM provider / degraded）→ 如实报告不可用，绝不假成功
+            sendJson(res, 503, { ok: false, error: 'llmSessionReset 不可用（provider 未实现或 degraded）' });
+            return;
+          }
+          const before = provider.llmSessionHealth?.();
+          const after = provider.llmSessionReset();
+          const injected = faultInjection ? provider.llmSessionInjectFault?.(true) ?? false : provider.llmSessionInjectFault?.(false) ?? false;
+          sendJson(res, 200, {
+            ok: true,
+            faultInjection,
+            spawnFaultInjected: injected,
+            before: before ?? null,
+            after: after ?? null,
+          });
           return;
         }
 
