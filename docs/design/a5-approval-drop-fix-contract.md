@@ -1,6 +1,6 @@
 # A5 审批丢弃缺陷 —— 契约增补与实施任务分解
 
-STATUS: DRAFT（§0–§1 已落盘）
+STATUS: FINAL（§0–§8 齐备；commit 见文末 §8）
 
 > 本文档是**修复设计**（contract delta + 任务分解），不是根因判定。
 > **权威根因文档 = `docs/design/a5-approval-drop-rootcause.md`（STATUS: FINAL，commit `eb72788`，376 行）** —— 本文引用它、不改写它。
@@ -628,4 +628,166 @@ try { … } finally { this.inflight.delete(key); … }
 - ⏳ 真机（VM 恢复后，非本迭代门禁）：静默窗口单跑 A5 必挂起；A4+A5 交叠跑 A5 仍必挂起；宿主 `approved:false` ⇒ 终态 `rejected`。
 
 ---
+
+## 4. 共享知识（跨文件约定，工程师必须遵守）
+
+### SK-1｜空 taskId 的语义：**空串 = 无归属**，不是有效标识
+- `''` 与 `undefined` **同样是 falsy**，`beginTask('')` 写入的单例值在 `raise` 的 `!taskId` 守卫下与「未设置」不可区分 —— 这是根因文档 §3.3 P3-a 点名的第二个陷阱。
+- 统一口径：**任何以 taskId 作键/作比较的地方，都必须先把 `''` 归一为「无归属」**。本轮落地为：
+  - `endTask(taskId?)`：`!taskId` ⇒ 走「无条件清空」旧分支（C-1 / §2.1）；
+  - `raise`：`const taskId = req.taskId ?? this.activeTaskId;` ⇒ 空串/缺席一律落到 `!taskId` 守卫（§2.2）。
+- **禁止**把 `''` 用作 Map/Set 键、禁止用 `''` 表达「当前任务」。
+
+### SK-2｜`activeTaskId` 的归属规则（本轮后的权威口径）
+| 操作 | 规则 |
+| --- | --- |
+| 写入 | `beginTask(taskId)` **无条件覆写**（「进入」语义，后进入者即当前活动者）。写入 `''` 等价于置为「无归属」 |
+| 释放（`endTask`） | `taskId` 缺席或 `''` ⇒ **无条件清空**（兼容既有零参调用方，行为逐字不变）；`taskId` 非空且 `=== activeTaskId` ⇒ 清空；`taskId` 非空且 `!== activeTaskId` ⇒ **保持不动**（交叠保护） |
+| 读取（`raise`） | 优先 `req.taskId`，缺席才回退 `activeTaskId`。**单例从此只作兼容兜底，不再是判定的唯一依据** |
+| 生命周期 | 每次 `runGoal` 由 `bridge.ts:737` 进入、`:741` 释放，**必须成对**（`try/finally` 已保证） |
+
+### SK-3｜`logger.warn` 的输出格式与字段（team-lead 拍板 ① 的落地）
+```ts
+this.logger?.warn(
+  '审批协调器：无挂接任务，审批请求被丢弃（任务不会挂起 input-required）',
+  {
+    reason: 'no-active-task',
+    approvalId: req.approvalId,
+    capabilityId: req.capabilityId,
+    reqTaskId: req.taskId ?? '',            // 请求自带归属 id；缺席 = ''
+    activeTaskId: this.activeTaskId ?? '',  // 协调器单例当前值；已被并发清空时 = ''
+    hasTasks: this.tasks !== undefined,     // 区分守卫的两个子条件（根因 §1.2 排空表 #4）
+  },
+);
+```
+**字段口径（硬约束）**
+1. **绝不输出 `undefined` 字面量** —— 缺席字段一律用 `''`。与全仓既有约定一致（先例：`task-store.ts:308`「缺席即不写该键（绝不输出 undefined 字面量）」）。
+2. `reason` 恒为 `'no-active-task'`（与 `ApprovalOutcome` 的 reason 取值保持一致，便于日志检索）。
+3. `hasTasks` 必须带上 —— 它把根因守卫的两个子条件（`!taskId` / `!this.tasks`）**在日志里可区分**，下次同类问题不必再靠反证。
+4. meta 用**扁平**结构（`logger.warn(msg, meta)` 与 `FileLogger` 既有用法一致，先例 `vm-service/src/server.ts:473`）。
+5. **桥侧不重复打**这条 warn（避免双份）；桥侧只在 `outcome.reason === 'no-active-task'` 时走既有的 `input.warn`（`bridge.ts:75` 注入）记一条**委派上下文**告警（含 `traceId`/`goal`），两条日志用文案前缀区分。
+
+### SK-4｜契约增补一律「纯附加可选」
+- 只加 `readonly x?: T;` 可选字段、只给方法加**可选参数**；**禁止**改必填字段、**禁止**重排字段顺序、**禁止**收窄既有类型。
+- 先例（可核）：`underlying?`（`contracts/src/bridge.ts:185`）、`channel?`（`:230`）、`delegationId?`（`:235`）、`degraded?`（`:288`）。
+- 每个新增可选字段的注释必须写明「**缺席即旧行为**」，否则后续无从判断是否安全。
+
+### SK-5｜`dist` 必须先重建，单测才有效
+- `**/dist/` 被 `.gitignore` 排除 ⇒ `git grep` / `git ls-files` **看不到** dist，但它**在磁盘上真实存在**。
+- 单测 `import { VmApprovalCoordinator } from '@winvm/vm-service'` 解析到 `packages/vm-service/dist/server.js`（不是 src）⇒ **改完 src 不 `tsc -b` 就跑测试 = 测的是旧产物，会得出「改了没生效」的假象**。
+- 口令：`npm run build`（= `tsc -b tsconfig.build.json`，见根 `package.json`）。T05 的门禁跑测**必须**先执行它。
+- 依赖方向守卫：`npm run layout`（`scripts/dep-lint.mjs`）—— D-4 相关改动后应跑。
+
+### SK-6｜审批语义不变式（不得为了「修好吊销者」而改）
+- `raise` 返回 `approved:false` 的**三条** reason（`rejected` / `timeout` / `no-active-task`）语义与取值**一字不变**；本轮只让 `no-active-task` 不再被误命中。
+- `rejected` 仍是**仅宿主显式拒绝审批**的终态，唯一置位点 `packages/a2a-framework/src/server.ts:306`。本轮**不得**在别处置 `rejected`。
+- A2A 委派失败仍统一收口 `failed`（`a2a-framework/src/server.ts:365`）—— 本轮修复后，「审批被拒」走的是 task 层的 `:306`，与「委派失败」的 `:365` 是两条不同路径，不得合并。
+
+### SK-7｜`no-active-task` 的兜底语义保持「绝不自批」
+守卫命中时仍返回 `{ approved: false, reason: 'no-active-task' }`（**不改 reason、不改判别联合**）⇒ `bridge.ts:961` 的 `if (!outcome.approved) return base;` 仍把任务停在「等待审批」⇒ 框架收口 `failed`。
+**本轮修复改变的是「守卫不再被误命中」，不是「命中后改判」**。
+
+### SK-8｜审批卡 `risk` 的值语义收窄（Fix-4a 引入）
+- Fix-4a 前：`ApprovalRequest.risk` = 桥侧值（LLM 文本正则 + 兜底 `'L2'`）。
+- Fix-4a 后：**服务端策略引擎判定值优先**（`PendingApproval.risk`，`vm-service/src/server.ts:70`），桥侧值仅作「token 缺席」时的降级。
+- 影响面只到**展示与审计字段**（`task-store.ts:285` 文案、`:302` data part），**不参与任何放行判定**（根因 §4.1 已证：全链无以 risk 为条件的分支）⇒ 不会引入新的安全面。
+
+### SK-9｜本次改动的「不改清单」（评审 checklist）
+| 对象 | 要求 |
+| --- | --- |
+| `packages/a2a-framework/src/**` | **一行不改**（D-4；T05 用 `git diff --stat` 守门） |
+| `bridge.ts:1008` / `:1009` 两道门 | 语义、顺序、短路条件、注释一字不改；Fix-2 只换取值来源 |
+| `ApprovalOutcome`（`contracts/src/bridge.ts:211`） | 一字不改 |
+| `raise` / `beginTask` 签名 | 不改（C-3 / C-4） |
+| `APPROVAL_WAIT_PATTERN`（`bridge.ts:568`）、`parseApprovalBlock`（`:581`） | **不改**（属 §5-Q8 的独立议题，本迭代不动） |
+| `reconcileApprovalWait` 的文案与 steps 改写（`:608`–`:630`） | **一字不改**（A5 终态指纹的对照基准；改了就失去与真机样本逐字比对的能力） |
+
+---
+
+## 5. 待明确事项（需要 team-lead / QA 补充或拍板）
+
+| # | 事项 | 缺什么 | 我的建议 / 前置条件 |
+| --- | --- | --- | --- |
+| **Q1** | `tests/unit/r19c-a5-approval-coordinator.test.js:446` 的 C5 断言（`endTask.length === 0`）必须与 C-1 **同 commit** 改写 | 缺：**谁改**（我受纪律约束不得改 `tests/**`）+ 改写后的断言原文 | 建议新断言（替换 `:443`–`:448` 的 `assert.equal`）：<br>`assert.equal(newCoordinator().endTask.length, 1, 'endTask 已支持可选归属参数');`<br>并**追加行为断言**：`const c = wired(spyStore); c.beginTask('A'); c.beginTask('B'); c.endTask('A'); await c.raise(makeReq('apr_x'));` ⇒ `spyStore.calls` 中 `id === 'B'`（A 的收尾不得清掉 B）。责任人：**QA**（software-qa-engineer-2） |
+| **Q2** | A4（task `48a90a2f…`）那一轮 LLM turn 的真实耗时 | 缺：VM 服务日志 `[llm-session]` 轮次耗时行。**VM 不可达 ⇒ 本轮无法获取** | 不影响根因判定（排空表 + 反证已独立锁定）。列入 VM 恢复后的 R3 第 3 条。可证伪预测：13.8~18.4s |
+| **Q3** | Fix-2 是否启用降级方案 Fix-2′ | 缺：本迭代排期/工作量预算 | 我**不主张**降级（Fix-2′ 只是缓解、非根治）。若 team-lead 仍判工作量不足 ⇒ 请明确批复，我将把 Fix-2 登记为下迭代必做并写入已知并发缺陷清单 |
+| **Q4** | `maxRisk` 口径冲突（**本文新发现**） | 缺：产品口径裁定 | 现状三处不一致：<br>① 服务侧 `packages/vm-service/src/server.ts:931` `defaultMaxRisk: cfg.policy.defaultMaxRisk ?? 'L1'`；<br>② 宿主侧 `packages/host-a2a-bridge/src/tools.ts:311` 的 schema 描述写「默认 L1」；<br>③ 桥侧 `parseApprovalBlock` 兜底与审批卡兜底是 `'L2'`（`bridge.ts:588`、`:942`）。<br>我把桥侧 step risk 缺省暂定为 `'L2'` ⇒ 未显式传 `maxRisk` 的委派，宿主可能看到「审计条目 L1 / 步骤 L2」。请裁定：步骤 risk 缺省究竟取 `'L1'`（对齐 ①②）还是 `'L2'`（对齐 ③）？**我的建议：`'L2'`**（保守向高，安全相关展示宁高勿低；且审批卡已长期按 L2 兜底，改 L1 会让人以为风险变低） |
+| **Q5** | Fix-4c（审批卡标注「风险来源：服务端判定 / 桥侧推断」）是否立项 | 缺：是否接受改 `task-store.ts:264` 文案带来的 fixture 影响 | 建议：单独立项（与宿主侧展示改造一并做），本迭代不做 |
+| **Q6** | Fix-4d（`packages/vm-service/src/delegation-audit.ts:499` 硬编码 `risk:'L1'`）是否修 | 缺：是否接受打破 `tests/unit/r19c-kn1-a-pure.test.js:134`（`assert.equal(e.risk,'L1')`，输入 `maxRisk:'L2'`） | 建议：**本迭代不做**。若要修 ⇒ **必须先改测试后改代码**（该断言当前是绿的，属回归锚点） |
+| **Q7** | 真机 R3 回归（静默窗口单跑 A5 / A4+A5 交叠跑 / 宿主拒绝得 `rejected`） | 缺：VM 恢复时间窗 + 脚本负责人 | 脚本已存在（`qa/r19/a2a-extra.mjs`，见根因 §6.3）。责任人：**QA**。建议 VM 恢复后**第一时间**跑，作为本迭代的终验 |
+| **Q8** | K3 遗留：拦截判定依赖 LLM 文本启发式（**假成功**路径） | 缺：是否立项 + 优先级 | 根因 §2.4：只要 LLM 最终文本既不出现 `APPROVAL_REQUIRED` 也不出现「等待审批」，`reconcileApprovalWait` 就 `return base`（ok=true）⇒ **不挂起、不 raise、直接 completed**。这是比 A5 **更危险**的静默失效（挂起丢失 + 假成功）。建议单独立项 **CL-K3R**，优先级**高于** CL-F3（Fix-3）；根治方向：桥改读 MCP 结构化工具结果而非匹配 LLM 措辞。本迭代不动（SK-9 已把 `APPROVAL_WAIT_PATTERN` 列入不改清单） |
+
+---
+
+## 6. 专项评估：Fix-4 改 `risk:'L1'` 硬编码是否会打破现有测试断言
+
+> 候选文件由 team-lead 指定：`tests/unit/r19c-kn1-e-shape.test.js`、`tests/unit/r19c-kn1-a-pure.test.js`、`tests/unit/k5-replay.test.js`。
+
+### 6.1 结论（先给答案）
+
+**不会打破任何现有断言。** 但有两个**必须区分**的相邻陷阱，以及一处**必须先改测试**的例外（属 T01/T02，不是 Fix-4）。
+
+### 6.2 逐文件核实（`git grep` 全仓，HEAD `eb72788`）
+
+| 候选文件 | `risk` / `'L1'` 命中 | 是否受 Fix-4b 影响 | 依据 |
+| --- | --- | --- | --- |
+| `tests/unit/r19c-kn1-e-shape.test.js` | **零命中**（`git grep "steps\|risk\|L1"` 均无 steps/risk 断言；`L1` 仅命中 `:250`/`:299` 的「L1b 反向依赖 L2」「L1 SPI」**文案**，与 risk 无关） | ❌ 不受影响 | 该文件是**形状/依赖方向守卫**（E-3），不断言桥产物的 step risk |
+| `tests/unit/r19c-kn1-a-pure.test.js` | `:69`（fixture `baseResult` 的 step `risk:'L1'`）、`:134`（`assert.equal(e.risk,'L1')`）、`:977`（fixture `rec`） | ❌ 不受影响（但见 6.3 陷阱一） | `:134` 断言的是 **`buildDelegationAuditEntry` 产出的审计条目** `risk`，来源是 `packages/vm-service/src/delegation-audit.ts:499` 的**独立硬编码**，**不是** `bridge.ts:1176`/`:1360` 的步骤 risk。测试输入虽显式给了 `maxRisk:'L2'`，产出仍是 `'L1'` —— 这恰恰证明它是另一条路径 |
+| `tests/unit/k5-replay.test.js` | `:91`/`:103`/`:386`/`:427`/`:475` 均为 `risk:'L2'`（req fixture / token fixture / BLOCK_TEXT） | ❌ 不受影响 | 全部是**输入侧** fixture 与审批卡 req；`k5-replay` 断言的是 `result.ok` / `result.steps[*].ok` / `summary` / `error.code`（`:601`、`:689`），**无一条断言 step risk** |
+
+**补充全仓核实**：`git grep -n "steps\[0\]\|steps\[0\]\.risk" -- tests/unit` ⇒ 命中项断言的全是 `steps[0].ok` 与 `steps[0].summary`（`r19c-kn1-b-bridge.test.js:198-199`、`:285-290`；`k5-replay.test.js:601`），**无一条断言 `steps[0].risk`**。另 `hermes-provider.test.js:71` 的 `risk:'L1'` 属 `adapter-agent-hermes` 自己的 mock step，与本次改动的两个包无关。
+
+### 6.3 两个必须区分的相邻陷阱
+
+**陷阱一：`packages/vm-service/src/delegation-audit.ts:499` 的 `risk: 'L1'` 是第三处硬编码**（本文新发现，根因文档未列；锚点：`buildDelegationAuditEntry` 的 `return {` 内、`capabilityId: DELEGATION_CAPABILITY_ID` 下一行，且同段 `:502` 把 `input.maxRisk` 只写进 `params` 而**未**用于 `risk`）。它被 `r19c-kn1-a-pure.test.js:134` **钉死**（输入 `maxRisk:'L2'`、产出断言 `'L1'`）。
+⇒ 若有人把 Fix-4 的「risk 如实化」**顺手扩到**审计条目，**该断言会翻红**。故我把此项划为 **Fix-4d / 本迭代不做**（§2.4、§5-Q6）。
+
+**陷阱二：`ApprovalRequest.risk` 的值语义收窄（Fix-4a）**虽然不改类型，但**改了值**。宿主侧 `packages/host-a2a-bridge/src/tools.ts:133`-`:136`（`RISK_LEVELS` 定义于 `:20`）用 `(RISK_LEVELS as readonly string[]).includes(riskRaw)` 做白名单校验 ⇒ 只要值仍在 `L0..L3` 内就安全（服务端 `PendingApproval.risk` 是 `RiskLevel` 类型，闭合）。⇒ 无风险，但须写入 SK-8。
+
+### 6.4 「先改测试还是先改代码」的顺序建议
+
+| 改动 | 顺序 | 理由 |
+| --- | --- | --- |
+| **Fix-4b**（`bridge.ts:1176` / `:1360` 的 `risk:'L1'` → `input.maxRisk ?? 'L2'`） | **先改代码，同时补新测试** | 无任何既有断言覆盖桥 step risk（6.2 已证）⇒ **没有测试需要"先改"**。反而必须**同时新增**两条断言（`maxRisk='L3'` ⇒ `L3`；缺省 ⇒ `L2`），否则这次行为变更将处于零覆盖状态 |
+| **Fix-4a**（`enriched.risk = token.risk ?? req.risk`） | **先改代码，同时补新测试** | 同理：既有 fixture 走的是「直接构造 req」路径，不经 `raise`；需新增一条经真实 `raise` → `waitApproval` → `approvalMessage` 的端到端断言 |
+| **Fix-4d**（审计条目 risk，本迭代不做） | **若做 ⇒ 必须先改测试** | `r19c-kn1-a-pure.test.js:134` 当前是**绿的回归锚点**，先改代码会把它变红，与 A5 红档混在一起无法归因 |
+| **T01/T02 的 C-1**（`endTask(taskId?)`） | **必须先改测试（C5），后改代码** | `endTask.length` 由 0 变 1 ⇒ `r19c-a5-approval-coordinator.test.js:446` 会在**签名落地那一刻**翻红，与实现体是否改无关。这是本轮**唯一**「先测试后代码」的项（§5-Q1） |
+
+---
+
+## 7. 任务依赖图
+
+```mermaid
+graph TD
+    T01["T01 契约与告警底座 (P0)<br/>contracts: endTask(taskId?) / ApprovalRequest.taskId?<br/>vm-service: setLogger + 注入"]
+    T02["T02 Fix-1A + Fix-1B + warn (P0)<br/>endTask 归属 / raise 取 req.taskId / no-active-task warn"]
+    T03["T03 Fix-2 三态搬离单例 (P0)<br/>taskReceipts/raisedApprovals/k5ReplayActive → RunContext"]
+    T04["T04 Fix-4a/4b 风险真实化 (P1)<br/>token.risk 优先 / maxRisk 下传 / step risk"]
+    T05["T05 门禁与回归收口 (P0)<br/>tsc -b + dist 重建 + 全量单测 + 守门 diff"]
+
+    Q1["QA 前置: C5 断言改写<br/>(tests/unit/r19c-a5-...:446)"]
+    Q1R["QA 前置: 交叠三态互清红档"]
+
+    T01 --> T02
+    T01 --> T04
+    T02 --> T03
+    T02 --> T05
+    T03 --> T05
+    T04 --> T05
+    Q1 -.必须与 T01 同 commit.-> T01
+    Q1R -.先于 T03.-> T03
+
+    F3["CL-F3 (独立立项, 本迭代不做)<br/>cancelRequested 真正中断 turn"]
+    K3R["CL-K3R (独立立项, 建议优先于 F3)<br/>拦截判定改读结构化结果"]
+    T02 -.使能条件已分离.-> F3
+```
+
+---
+
+## 8. 附：本文的产出与边界声明
+
+- 本文**只做静态设计**：未修改 `packages/**`、未修改 `tests/**`、未修改 `docs/design/a5-approval-drop-rootcause.md`、未跑 `delivery/*.mjs`、未连 VM。
+- 所有行号基于 **HEAD `eb72788`**（`packages/a2a-framework/src/server.ts` 652 行、`adapter-agent-workbuddy-llm/src/bridge.ts` 1387 行、`vm-service/src/server.ts` 1340 行、`contracts/src/bridge.ts` 496 行、`adapter-agent-workbuddy-llm/src/index.ts` 463 行）。行号漂移时以 §0.3 给出的**锚点符号**为准。
+- 与任务书不一致处已全部在 §0.3 显式列出（含 D-1 红线真实落点的校正）。
+
 
