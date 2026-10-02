@@ -32,6 +32,12 @@
  * 并在此登记该口径修正（交主理人/架构确认）。
  *
  * 纪律：**只读源码文本**，不修改 packages 下的任何 src，不 spawn 进程、不起 HTTP。
+ *
+ * ## 配套变异检验
+ * 本文件是形态守卫，天然有「恒真断言」风险。姊妹文件
+ * **`tests/unit/r19c-kn1-e-mutation.test.js`** 对同一批源码施加破坏性变异，
+ * 要求本文件的每个守卫都因此变红（自证不是装饰品）。**改动本文件任何断言后，
+ * 请一并复跑该变异检验** —— 若守卫被改严/改宽而变异集未同步，姊妹文件会立即变红。
  */
 
 import { describe, test } from 'node:test';
@@ -99,7 +105,14 @@ describe('K-N1 E-1 /mcp 路由：dtid 解析并注入委派归因（通道 2）'
 
   test('ToolContext.delegationId / McpRequestContext 为可选（纯附加，旧调用零改动）', () => {
     assert.match(MCP, /export interface ToolContext \{/, 'ToolContext 必须仍是独立接口');
-    assert.match(MCP, /readonly delegationId\?: string;/, 'ToolContext.delegationId 必须可选');
+    // `readonly delegationId?: string;` 在 mcp-framework 中**出现两次**（ToolContext 与
+    // McpRequestContext 各一）。只断言「存在一处可选」会被另一处仍可选掩盖 —— 故两处**分别**钉死，
+    // 否则任一处被改成必填都抓不到（变异检验实测该漏网，见 r19c-kn1-e-mutation.test.js）。
+    const decls = MCP.match(/readonly delegationId\??: string;/g) ?? [];
+    assert.equal(decls.length, 2, `delegationId 应恰有 2 处声明（ToolContext + McpRequestContext），实得 ${decls.length}`);
+    for (const d of decls) {
+      assert.match(d, /\?: string;$/, `两处声明都必须可选（纯附加，旧调用零改动）：${d}`);
+    }
     assert.match(MCP, /async handleRequest\(body: unknown, reqCtx\?: McpRequestContext\)/, 'handleRequest 第二参必须可选');
   });
 
@@ -340,7 +353,9 @@ describe('K-N1 E-5 GET /audit/receipt：只读投影走 sink.query 且出参脱�
 
   test('环形回执只存脱敏副本且容量有界（D-2：≤200 条、重启即失）', () => {
     assert.match(AUDIT_PURE, /export class ReceiptCache/, '回执缓存为有界环形');
-    assert.match(AUDIT_PURE, /MAX_RECEIPT_ENTRIES = 200/, '容量上限 200（设计 §5.2-B硬约束）');
+    // 末尾锚 `;`：否则 `= 20000` 会**前缀命中** `= 200` 而让容量放大悄悄溜过
+    // （变异检验实测该漏网，见 r19c-kn1-e-mutation.test.js）
+    assert.match(AUDIT_PURE, /export const MAX_RECEIPT_ENTRIES = 200;/, '容量上限 200（设计 §5.2-B硬约束）');
     assert.match(SERVER, /const receiptCache = new ReceiptCache\(/, 'server 须实例化有界缓存');
   });
 
