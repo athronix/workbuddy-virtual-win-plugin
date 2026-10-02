@@ -26,12 +26,23 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { VmApprovalCoordinator } from '@winvm/vm-service';
 import { TaskStore } from '@winvm/a2a-framework';
+import { CliLlmBridge } from '@winvm/adapter-agent-workbuddy-llm';
 
 /* ------------------------------------------------------------------ *
  * 路径：沙箱内 cwd 会失效，一律用 import.meta.url 推导绝对路径
@@ -110,13 +121,13 @@ function wired(store, pendingApprovals = new Map()) {
  * `waitApproval` 直接 resolve(false)（模拟宿主拒绝），使 raise 不悬挂、用例确定性收敛。
  * 注意：这是**注入给被测对象的依赖替身**，被测对象本身是真实实现。
  */
-function spyStore() {
+function spyStore(resolveWith = false) {
   const calls = { waitApproval: [], updateStatus: [] };
   return {
     calls,
     waitApproval(id, req) {
       calls.waitApproval.push({ id, approvalId: req?.approvalId });
-      return Promise.resolve(false); // 宿主拒绝
+      return Promise.resolve(resolveWith); // false=宿主拒绝；true=宿主批准
     },
     updateStatus(id, state) {
       calls.updateStatus.push({ id, state });
@@ -437,6 +448,186 @@ describe('A5 / C 边界与回归锚点', () => {
         '当前 endTask() 无参数 ⇒ 无法表达「哪个任务收尾」⇒ 归属改造后此断言应失效并改为归属断言',
       );
       // TODO(@todo-P1-fix)：归属改造落地后，替换为本组上方的 B1/B2/B3 转绿验证。
+    }));
+});
+
+/* ================================================================== *
+ * D 组：桥级交叠（Engineer R2）—— 完整复现 A5 时序
+ *   bridge(oneshot) → coordinator.raise → 终态产物；零真机、零真 LLM、零网络。
+ *   时序用**闸门文件**编排（不是 sleep）⇒ 确定性，无 flake。
+ *   两条委派用**两个独立 bridge 实例 + 同一个 coordinator** ⇒ 只测 P1，隔离桥内其它状态。
+ * ================================================================== */
+
+/** A5 真机样本里的 approvalId（终态文本带它，但从未挂起） */
+const A5_APPROVAL_ID = 'apr_a9aabfcffb5f4246b918';
+const BLOCK_TEXT_A5 =
+  `工具返回 APPROVAL_REQUIRED: {"approvalId":"${A5_APPROVAL_ID}",` +
+  `"capabilityId":"app.winget.uninstall","risk":"L2"} 等待宿主审批\n`;
+const PLAIN_TEXT = '已向用户转告：企业微信卸载完成\n';
+/** R2b 形态：有 apr_ token 但**不含** APPROVAL_REQUIRED / 等待审批 ⇒ 拦截启发式不命中 */
+const TOKEN_ONLY_TEXT = `工具返回: {"approvalId":"apr_deadbeefcafe1234"} 处理完毕\n`;
+
+/** 沙箱 /tmp 只读 ⇒ 临时产物落到 $HOME/wbtmp */
+const TMP_BASE = (() => {
+  const base = process.env.HOME ? join(process.env.HOME, 'wbtmp') : tmpdir();
+  try {
+    mkdirSync(base, { recursive: true });
+  } catch {
+    /* 已存在 */
+  }
+  return base;
+})();
+
+const tick = () => new Promise((r) => setImmediate(r));
+
+/** 假 codebuddy：等闸门文件出现后回显 out（用完 open() 放行） */
+function makeGatedCli(dir, out) {
+  mkdirSync(dir, { recursive: true });
+  const gate = join(dir, 'gate');
+  const outFile = join(dir, 'out.txt');
+  writeFileSync(outFile, out, 'utf8');
+  const script = [
+    '#!/bin/sh',
+    `while [ ! -f "${gate}" ]; do sleep 0.05; done`,
+    `cat "${outFile}"`,
+    'exit 0',
+    '',
+  ].join('\n');
+  const p = join(dir, 'fake-codebuddy');
+  writeFileSync(p, script, 'utf8');
+  chmodSync(p, 0o755);
+  return { cliPath: p, open: () => writeFileSync(gate, '1', 'utf8') };
+}
+
+function makeSink() {
+  const statuses = [];
+  return { statuses, onStatus: (s, m) => statuses.push([s, m ?? '']), onArtifact: () => {} };
+}
+
+function mkInput(taskId, cliPath, outputDir) {
+  return {
+    goal: '卸载 VM 企业微信',
+    capabilities: ['app.winget.uninstall'],
+    outputDir,
+    cliPath,
+    endpoint: 'http://127.0.0.1:1/mcp', // 不可达端口：本例全程不联网（无 probe ⇒ 账本反查短路）
+    traceId: `tr_${taskId}`,
+    timeoutMs: 20_000,
+    taskId,
+  };
+}
+
+/**
+ * 交叠时序：A（上一轮委派）与 B（A5）同时发起，A 先收尾。
+ * 顺序由闸门保证：两轮 beginTask 都完成后 → 放行 A → A 收尾 endTask() → 放行 B → B 走到 raise。
+ */
+async function runOverlap({ bText = BLOCK_TEXT_A5, approve = false } = {}) {
+  const root = mkdtempSync(join(TMP_BASE, 'a5-overlap-'));
+  const cliA = makeGatedCli(join(root, 'A'), PLAIN_TEXT);
+  const cliB = makeGatedCli(join(root, 'B'), bText);
+  const outA = join(root, 'outA');
+  const outB = join(root, 'outB');
+
+  const spy = spyStore(approve);
+  const coord = new VmApprovalCoordinator();
+  coord.bind(spy, new Map([[A5_APPROVAL_ID, makeToken(A5_APPROVAL_ID)]]));
+
+  const bridgeA = new CliLlmBridge({
+    cliPath: cliA.cliPath,
+    outputDir: outA,
+    persistent: false,
+    endpoint: 'http://127.0.0.1:1/mcp',
+  });
+  const bridgeB = new CliLlmBridge({
+    cliPath: cliB.cliPath,
+    outputDir: outB,
+    persistent: false,
+    endpoint: 'http://127.0.0.1:1/mcp',
+  });
+  bridgeA.setApprovalCoordinator(coord);
+  bridgeB.setApprovalCoordinator(coord);
+
+  const sinkA = makeSink();
+  const sinkB = makeSink();
+  const pA = bridgeA.runGoal(mkInput('tA', cliA.cliPath, outA), sinkA);
+  await tick();
+  const pB = bridgeB.runGoal(mkInput('tB', cliB.cliPath, outB), sinkB);
+  await tick();
+  const activeAfterBothBegin = coord.activeTaskId;
+
+  cliA.open();
+  const resA = await pA; // A 收尾 ⇒ finally → endTask() ⇒ 清掉的是 B 的 id
+  const activeAfterA = coord.activeTaskId;
+
+  cliB.open();
+  const resB = await pB; // B 走到 raise ⇒ 此刻单例已空
+
+  return { resA, resB, spy, coord, activeAfterBothBegin, activeAfterA, statuses: sinkB.statuses };
+}
+
+describe('A5 / D 桥级交叠：完整复现 A5 时序（bridge → coordinator → 终态）', () => {
+  test('D1 表征：A 收尾清空 ⇒ B 终态 ok=false / APPROVAL_REQUIRED / 从未挂起 tB', () =>
+    runCase('D1 桥级交叠终态表征', 'D-桥级', async () => {
+      const { resB, spy, activeAfterBothBegin, activeAfterA } = await runOverlap();
+
+      assert.equal(activeAfterBothBegin, 'tB', '两条委派都 begin 后，单例被后发起的 B 覆盖');
+      assert.equal(activeAfterA, undefined, 'A 收尾（endTask）把 B 的 id 一起清掉');
+
+      // 与 A5 真机终态逐项对齐（steps[0].summary=「等待审批（未执行完成）」、error.code=APPROVAL_REQUIRED）
+      console.log(
+        `    [D1 实测终态] ok=${resB.ok} code=${resB.error?.code}\n` +
+          `                  summary=${JSON.stringify(resB.summary)}\n` +
+          `                  steps[0].summary=${JSON.stringify(resB.steps?.[0]?.summary)}\n` +
+          `                  waitApproval 调用=${JSON.stringify(spy.calls.waitApproval)}`,
+      );
+      assert.equal(resB.ok, false, 'B 终态 ok=false');
+      assert.equal(resB.error?.code, 'APPROVAL_REQUIRED', 'B 终态 error.code=APPROVAL_REQUIRED');
+      assert.ok(
+        String(resB.summary).includes('等待审批'),
+        `B 终态 summary 含「等待审批」（实测：${String(resB.summary).slice(0, 80)}）`,
+      );
+      assert.equal(
+        spy.calls.waitApproval.filter((c) => c.id === 'tB').length,
+        0,
+        'tB 从未被 waitApproval 挂起（这就是 A5「审批闸确实触发、却从未 input-required」的成因）',
+      );
+    }));
+
+  test('D2 红档：修复后 tB 的审批应真的被挂起（waitApproval 调用 1 次）', () =>
+    runCase('D2 修复后应挂起 tB', 'D-桥级', async () => {
+      const { spy } = await runOverlap();
+      const forB = spy.calls.waitApproval.filter((c) => c.id === 'tB');
+      assert.equal(forB.length, 1, '修复后：B 的审批应被挂起一次（当前 0 次 ⇒ 审批闸被绕过）');
+      assert.equal(forB[0]?.approvalId, A5_APPROVAL_ID, '修复后：挂起的应是 B 的 approvalId');
+    }));
+
+  test('D3 红档：修复后宿主批准应被采纳（当前批准根本送不进 B）', () =>
+    runCase('D3 宿主批准应被采纳', 'D-桥级', async () => {
+      // waitApproval resolve(true) + pendingApprovals 里有 token ⇒ 修复后 raise 应回 approved:true
+      const { resB, statuses, spy } = await runOverlap({ approve: true });
+      const approved = statuses.filter(([, m]) => m.includes('宿主已批准'));
+
+      assert.equal(
+        spy.calls.waitApproval.filter((c) => c.id === 'tB').length,
+        1,
+        '修复后：宿主批准须先有挂起（当前 0 次）',
+      );
+      assert.ok(
+        approved.length >= 1,
+        `修复后：桥应进入「宿主已批准」续跑路径（实测 statuses=${JSON.stringify(statuses)}；` +
+          `当前因早退直接 return base ⇒ ok=${resB.ok}，宿主批准无处送达）`,
+      );
+    }));
+
+  test('D4 表征（R2b 形态）：文本无 APPROVAL_REQUIRED 时，审批闸不触发（calls=0）', () =>
+    runCase('D4 无拦截标记不触发审批闸', 'D-桥级', async () => {
+      const { spy } = await runOverlap({ bText: TOKEN_ONLY_TEXT });
+      assert.equal(
+        spy.calls.waitApproval.length,
+        0,
+        '命中不了拦截启发式 ⇒ 不进 maybeResume ⇒ 一次都不挂起（该形态下 approvalId 只在文本里）',
+      );
+      // 注：本例不断言 resB.ok —— 它取决于 completion-claim 判定，非 P1 关注点，留待专项补测。
     }));
 });
 
