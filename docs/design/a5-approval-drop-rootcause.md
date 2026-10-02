@@ -433,3 +433,37 @@ Fix-2 改变的行为**只在并发下才可见**，而现有 41+ 个 test 全�
 
 - `applyReceipt` / `reconcileExecutionTruth` 加 `ctx` 形参是**本文件私有方法**（非契约、非导出），是否允许签名变更（我判断：允许，零外部影响）。
 - `RunContext`（`bridge.ts` `interface RunContext`，当前含 `prompt/outputDir/skillsDir/started/cli/lastFinalText`）增加 3 个**可变**字段 —— 与现有「`lastFinalText: string` 可变」先例一致，类型上无阻碍。
+
+---
+
+## 8. 补充说明：QA 离线复现结果回执（对 §1/§3/§6 的收敛）
+
+> 来源：QA（`software-qa-engineer-2`）commits `f3dd21e`（测试 D 组，`tests/unit/r19c-a5-approval-coordinator.test.js`）、`216fe9e`（报告 `docs/test/reports/a2a-coverage-2026-10-03.md` §A6.6）。本节只做源码侧复核与口径收敛，不改 `packages/**`。
+
+### 8.1 P1 的判级升级：由「静态判定」→「离线已复现」
+
+- **R1（协调器级）**：交叠后 `outcome={approved:false, reason:'no-active-task'}` 且 `waitApproval` 调用数 `0` —— 与 §6.1 主红档一致。
+- **R2（桥级交叠）实测终态**（QA 输出原文摘要）：`ok=false`、`code=APPROVAL_REQUIRED`、summary 含「等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED）…」、`steps[0].summary="等待审批（未执行完成）"`、**`waitApproval` 调用 = `[]`**。
+  ⇒ 与真机 A5 证据 `qa/r19/a2a-x5-reject-v1.out.json` 的**特征指纹逐字同形**（终态文案 + step 文案 + approvalId 只在文本不在 data part）。
+- **判级结论**：P1 不再是「推断」，而是**「交叠一旦发生就必然产出与 A5 同形的终态」**（离线、可重复、两次连跑一致）。§1 的根因链与 §3.1 的机制链无需再降置信度。
+
+### 8.2 方法升级（覆盖 §6.2 的旧建议）：用「闸门文件」代替 sleep
+
+我 §6.2 给的 `FAKE_SLEEP=0.2/1.0` 是**时间序**；QA 改为**因果序**：假 CLI `while [ ! -f <gate> ]; do sleep 0.05; done`，由测试在「两轮 `beginTask` 都完成后」才创建 gate 放行 A，A 收尾 `endTask()` 后再放行 B。
+⇒ 顺序由文件存在性保证，**零 wall-clock 竞态**。**实施阶段的并发测试一律采用此法**，§6.2 的 sleep 版降级为备选。
+
+### 8.3 复核通过的两条 QA 论断（我逐行验过）
+
+- **零 HTTP**：`delegation-truth.ts:79` 门 1 `if (!base.ok) return base;` 在 D1 场景（`base.ok===false`）先短路，`:80` 门 2/门 4 `if (!taskId || !delegationTraceId || !probe) return base;` 亦短路 ⇒ 未注入 `probe` 时全程无网络调用。`endpoint` 填不可达地址是安全的。
+- **`server.ts:209` 陷阱真实存在**：`if (!token) return { approved:false, reason:'rejected' };` —— 位于 `await done` **之后**。即宿主已答 `approved:true`、但 `pendingApprovals` 里没有该 token 时，会被**降级成 rejected**。写「批准路径」测试（QA 的 D3）必须注入 token，否则会误判成"修复没生效"。
+
+### 8.4 实施阶段的两个预期行为（写进验收口径，避免把正确行为当成修坏了）
+
+1. **`VmApprovalCoordinator` 单测默认走 K4 分支**：`replayEnabled` 字段默认 `true`（`server.ts` 字段声明段 `private replayEnabled = true;`），但直接 `new` 出来的协调器 `this.replay` 为 undefined ⇒ `raise` 在 `if (!this.replayEnabled || !this.replay) return { approved: true };` 处返回 **`{approved:true}` 且无 `executed`** ⇒ 桥走 K4「提示 LLM 带 `__approvalId` 重发」续跑（`bridge.ts` `maybeResume` 的 `if (!outcome.executed)` 分支）⇒ **会再跑一轮 turn**。
+   ⇒ 批准路径的假 CLI 必须准备**第二轮输出**；否则第二轮 `turn` 空文本会把结果带偏。
+2. **续跑轮二次进入 `maybeResume` 属正常**：同一 approvalId 命中 `this.raisedApprovals.has(...)` ⇒ `applyReceipt` ⇒ 无回执 ⇒ `return base`（保持「等待审批」语义）。这是既有设计（K4 旧 token 复用防护），**不是** Fix-1 引入的回归。
+
+### 8.5 仍未闭合（与 §6.4 一致，无新增）
+
+- R2b 后半「文本不含关键词 ⇒ `res.ok===true` 的静默假成功」QA 本轮未做（需 completion-claim 专项夹具）。**建议纳入实施阶段的回归集**，它是 §2.4 遗留风险的唯一守护。
+- A4（task `48a90a2f…`）那轮 turn 的实际耗时仍未核验（无真机日志）⇒ §3.1 的定量预测（≈13.8~18.4s）仍是待验证项；**不影响根因判定**（§1.2/§1.3 与本次离线复现已双重锁定）。
