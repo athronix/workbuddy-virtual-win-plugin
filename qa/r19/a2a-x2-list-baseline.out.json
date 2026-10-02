@@ -1,0 +1,24 @@
+{
+  "case": "A2-tasks/list",
+  "at": "2026-10-02T16:01:30.992Z",
+  "raw": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "tasks": [],
+      "nextPageToken": "",
+      "pageSize": 50,
+      "totalSize": 0
+    }
+  },
+  "result": {
+    "tasks": [],
+    "nextPageToken": "",
+    "pageSize": 50,
+    "totalSize": 0
+  },
+  "taskCount": 0,
+  "nextPageToken": "",
+  "totalSize": 0,
+  "states": []
+}

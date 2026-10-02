@@ -1,0 +1,149 @@
+{
+  "case": "A2-tasks/list",
+  "at": "2026-10-02T16:02:31.120Z",
+  "raw": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "tasks": [
+        {
+          "kind": "task",
+          "id": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+          "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+          "status": {
+            "state": "completed",
+            "timestamp": "2026-10-02T16:02:19.109Z",
+            "message": {
+              "kind": "message",
+              "role": "agent",
+              "messageId": "7dab65b3-d5b7-47e8-b8d4-4705827b2195",
+              "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "LLM 运行时（常驻会话）完成目标：列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西"
+                },
+                {
+                  "kind": "data",
+                  "data": {
+                    "ok": true,
+                    "stepCount": 1,
+                    "steps": [
+                      {
+                        "index": 0,
+                        "capabilityId": "appops.workflow.run",
+                        "risk": "L1",
+                        "ok": true,
+                        "durationMs": 36801,
+                        "summary": "LLM 常驻会话自主规划并执行完成"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "history": [
+            {
+              "kind": "message",
+              "role": "user",
+              "messageId": "msg_mur5hxq4",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西"
+                }
+              ]
+            }
+          ],
+          "metadata": {
+            "traceId": "tr_ax_mur5hxq4",
+            "maxRisk": "L1",
+            "timeoutMs": 600000,
+            "goalSummary": "LLM 运行时（常驻会话）完成目标：列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西",
+            "stepCount": 1
+          }
+        }
+      ],
+      "nextPageToken": "",
+      "pageSize": 50,
+      "totalSize": 1
+    }
+  },
+  "result": {
+    "tasks": [
+      {
+        "kind": "task",
+        "id": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "status": {
+          "state": "completed",
+          "timestamp": "2026-10-02T16:02:19.109Z",
+          "message": {
+            "kind": "message",
+            "role": "agent",
+            "messageId": "7dab65b3-d5b7-47e8-b8d4-4705827b2195",
+            "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "LLM 运行时（常驻会话）完成目标：列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西"
+              },
+              {
+                "kind": "data",
+                "data": {
+                  "ok": true,
+                  "stepCount": 1,
+                  "steps": [
+                    {
+                      "index": 0,
+                      "capabilityId": "appops.workflow.run",
+                      "risk": "L1",
+                      "ok": true,
+                      "durationMs": 36801,
+                      "summary": "LLM 常驻会话自主规划并执行完成"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "history": [
+          {
+            "kind": "message",
+            "role": "user",
+            "messageId": "msg_mur5hxq4",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西"
+              }
+            ]
+          }
+        ],
+        "metadata": {
+          "traceId": "tr_ax_mur5hxq4",
+          "maxRisk": "L1",
+          "timeoutMs": 600000,
+          "goalSummary": "LLM 运行时（常驻会话）完成目标：列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西",
+          "stepCount": 1
+        }
+      }
+    ],
+    "nextPageToken": "",
+    "pageSize": 50,
+    "totalSize": 1
+  },
+  "taskCount": 1,
+  "nextPageToken": "",
+  "totalSize": 1,
+  "states": [
+    {
+      "id": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+      "state": "completed"
+    }
+  ],
+  "expectTaskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+  "expectFound": true
+}

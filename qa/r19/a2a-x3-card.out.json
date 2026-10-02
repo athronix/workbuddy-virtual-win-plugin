@@ -1,0 +1,118 @@
+{
+  "case": "A3-agent-card",
+  "at": "2026-10-02T16:01:17.385Z",
+  "wellKnown": {
+    "url": "http://127.0.0.1:18443/.well-known/agent-card.json",
+    "http": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bytes": 1203,
+    "hasCapabilities": true,
+    "hasSkills": true,
+    "keys": [
+      "protocolVersion",
+      "name",
+      "description",
+      "version",
+      "url",
+      "provider",
+      "capabilities",
+      "defaultInputModes",
+      "defaultOutputModes",
+      "supportedInterfaces",
+      "skills"
+    ],
+    "name": "WinVM Bridge Agent",
+    "version": "0.1.0",
+    "capabilities": {
+      "streaming": true,
+      "pushNotifications": false
+    },
+    "skillsCount": 5,
+    "raw": {
+      "protocolVersion": "1.0",
+      "name": "WinVM Bridge Agent",
+      "description": "在 Windows 虚拟机内执行系统管理、应用管理、存储管理、GUI 自动化与应用生产操作任务，并回传截图、产物与变更清单",
+      "version": "0.1.0",
+      "url": "http://127.0.0.1:18443/a2a",
+      "provider": {
+        "organization": "WinVM Bridge"
+      },
+      "capabilities": {
+        "streaming": true,
+        "pushNotifications": false
+      },
+      "defaultInputModes": [
+        "text",
+        "data"
+      ],
+      "defaultOutputModes": [
+        "text",
+        "data",
+        "image/png"
+      ],
+      "supportedInterfaces": [
+        {
+          "url": "http://127.0.0.1:18443/a2a",
+          "protocolBinding": "JSONRPC",
+          "protocolVersion": "1.0"
+        }
+      ],
+      "skills": [
+        {
+          "id": "system-admin",
+          "name": "Windows 系统管理",
+          "description": "服务、进程、计划任务、注册表、网络、用户、环境变量、事件日志",
+          "tags": [
+            "system",
+            "windows"
+          ]
+        },
+        {
+          "id": "app-manager",
+          "name": "Windows 应用管理",
+          "description": "winget 安装/卸载/升级、启动激活、快捷方式、UWP 包",
+          "tags": [
+            "app",
+            "winget"
+          ]
+        },
+        {
+          "id": "storage-manager",
+          "name": "Windows 存储管理",
+          "description": "空间分析、文件目录操作、搜索、压缩、回收站、清理建议",
+          "tags": [
+            "storage",
+            "disk"
+          ]
+        },
+        {
+          "id": "gui-automation",
+          "name": "GUI 与桌面自动化",
+          "description": "截图、键鼠模拟、窗口控制、UIA 元素操作、剪贴板、等待条件",
+          "tags": [
+            "gui",
+            "automation"
+          ]
+        },
+        {
+          "id": "app-operation",
+          "name": "Windows 应用生产操作",
+          "description": "操作桌面软件进行生产活动：图像处理（Photoshop/ImageMagick）、Office/WPS 文档报表、浏览器网页生产、ffmpeg/ImageMagick 音视频批处理、IDE 研发生产。含 CLI 调用、生产型工作流、COM 自动化、GUI 多步生产",
+          "tags": [
+            "appops",
+            "production",
+            "creative"
+          ]
+        }
+      ]
+    }
+  },
+  "extendedCardRpc": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32603,
+      "message": "AuthenticatedExtendedCardNotConfiguredError"
+    }
+  }
+}

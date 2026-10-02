@@ -1,0 +1,135 @@
+{
+  "case": "A5-approval-reject",
+  "pkg": "QA.R19B.Nonexistent.99997",
+  "goal": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）",
+  "at": "2026-10-02T16:03:20.639Z",
+  "send": {
+    "kind": "task",
+    "id": "51229514-2438-44f3-b44d-53ad9070b327",
+    "contextId": "8945057f-339d-411c-992c-48dba4f9ce4b",
+    "status": {
+      "state": "working",
+      "timestamp": "2026-10-02T16:03:20.834Z",
+      "message": "WinVM WorkBuddy LLM Agent 接管目标：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mur5k1xb",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_mur5k1xb",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "taskId": "51229514-2438-44f3-b44d-53ad9070b327",
+  "lastTask": {
+    "kind": "task",
+    "id": "51229514-2438-44f3-b44d-53ad9070b327",
+    "contextId": "8945057f-339d-411c-992c-48dba4f9ce4b",
+    "status": {
+      "state": "failed",
+      "timestamp": "2026-10-02T16:03:37.915Z",
+      "message": {
+        "kind": "message",
+        "role": "agent",
+        "messageId": "8e35011c-9fd2-49ec-86ce-0416e5e1be3a",
+        "taskId": "51229514-2438-44f3-b44d-53ad9070b327",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时（常驻会话）完成目标：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑；approvalId=apr_a9aabfcffb5f4246b918"
+          },
+          {
+            "kind": "data",
+            "data": {
+              "ok": false,
+              "stepCount": 1,
+              "steps": [
+                {
+                  "index": 0,
+                  "capabilityId": "appops.workflow.run",
+                  "risk": "L1",
+                  "ok": false,
+                  "durationMs": 12454,
+                  "summary": "等待审批（未执行完成）"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "artifacts": [
+      {
+        "artifactId": "caf2a4a1-238e-4d7a-a3bd-6b1f38e1a048",
+        "name": "execution-steps",
+        "parts": [
+          {
+            "kind": "data",
+            "data": {
+              "ok": false,
+              "summary": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时（常驻会话）完成目标：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑；approvalId=apr_a9aabfcffb5f4246b918",
+              "steps": [
+                {
+                  "index": 0,
+                  "capabilityId": "appops.workflow.run",
+                  "params": {
+                    "goal": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）",
+                    "runtime": "codebuddy",
+                    "session": "persistent"
+                  },
+                  "risk": "L1",
+                  "ok": false,
+                  "durationMs": 12454,
+                  "traceId": "tr_ax_mur5k1xb",
+                  "summary": "等待审批（未执行完成）"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mur5k1xb",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_mur5k1xb",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ],
+      "goalSummary": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时（常驻会话）完成目标：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑；approvalId=apr_a9aabfcffb5f4246b918",
+      "stepCount": 1
+    }
+  },
+  "earlyTerminal": "failed",
+  "reachedInputRequired": false,
+  "approvalData": null,
+  "error": "未拿到 approvalId，无法回复拒绝"
+}

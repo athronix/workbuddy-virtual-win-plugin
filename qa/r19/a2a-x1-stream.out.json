@@ -1,0 +1,254 @@
+{
+  "case": "A1-message/stream",
+  "goal": "列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西",
+  "http": 200,
+  "contentType": "text/event-stream; charset=utf-8",
+  "at": "2026-10-02T16:01:42.167Z",
+  "events": [
+    {
+      "atMs": 281,
+      "kind": "status-update",
+      "final": false,
+      "state": "working",
+      "raw": {
+        "kind": "status-update",
+        "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "status": {
+          "state": "working",
+          "timestamp": "2026-10-02T16:01:42.113Z"
+        },
+        "final": false
+      }
+    },
+    {
+      "atMs": 282,
+      "kind": "status-update",
+      "final": false,
+      "state": "working",
+      "raw": {
+        "kind": "status-update",
+        "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "status": {
+          "state": "working",
+          "timestamp": "2026-10-02T16:01:42.121Z",
+          "message": "WinVM WorkBuddy LLM Agent 接管目标：列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西"
+        },
+        "final": false
+      }
+    },
+    {
+      "atMs": 318,
+      "kind": "status-update",
+      "final": false,
+      "state": "working",
+      "raw": {
+        "kind": "status-update",
+        "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "status": {
+          "state": "working",
+          "timestamp": "2026-10-02T16:01:42.188Z",
+          "message": "已载入 7 份技能规范：winvm-app-manager, winvm-app-operation, winvm-gui-automation, winvm-mcp-reference, winvm-orchestrator, winvm-storage-manager, winvm-system-admin"
+        },
+        "final": false
+      }
+    },
+    {
+      "atMs": 363,
+      "kind": "status-update",
+      "final": false,
+      "state": "working",
+      "raw": {
+        "kind": "status-update",
+        "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "status": {
+          "state": "working",
+          "timestamp": "2026-10-02T16:01:42.219Z",
+          "message": "已下发 7 份技能规范 → C:\\Users\\User\\WinVMWorkspace\\.winvm\\skills"
+        },
+        "final": false
+      }
+    },
+    {
+      "atMs": 392,
+      "kind": "status-update",
+      "final": false,
+      "state": "working",
+      "raw": {
+        "kind": "status-update",
+        "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "status": {
+          "state": "working",
+          "timestamp": "2026-10-02T16:01:42.246Z",
+          "message": "复用 codebuddy 常驻会话（state=stopped）"
+        },
+        "final": false
+      }
+    },
+    {
+      "atMs": 37156,
+      "kind": "status-update",
+      "final": false,
+      "state": "working",
+      "raw": {
+        "kind": "status-update",
+        "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "status": {
+          "state": "working",
+          "timestamp": "2026-10-02T16:02:19.028Z",
+          "message": "**无法完成：路径被策略黑名单拒绝。**\n\n`storage.search.query` 返回：\n\n```json\n{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"POLICY_DENIED\",\n    \"message\": \"路径命中黑名单，已拒绝：C:\\\\Windows\\\\Temp\",\n    \"details\": { \"path\": \"C:\\\\Windows\\\\Temp\", \"rule\": \"^C:\\\\\\\\Windows\\\\\\\\.*"
+        },
+        "final": false
+      }
+    },
+    {
+      "atMs": 37238,
+      "kind": "artifact-update",
+      "final": false,
+      "raw": {
+        "kind": "artifact-update",
+        "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "artifact": {
+          "artifactId": "a16af75f-1257-447e-848f-353cdc3f5b45",
+          "name": "execution-steps",
+          "parts": [
+            {
+              "kind": "data",
+              "data": {
+                "ok": true,
+                "summary": "LLM 运行时（常驻会话）完成目标：列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西",
+                "steps": [
+                  {
+                    "index": 0,
+                    "capabilityId": "appops.workflow.run",
+                    "params": {
+                      "goal": "列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西",
+                      "runtime": "codebuddy",
+                      "session": "persistent"
+                    },
+                    "risk": "L1",
+                    "ok": true,
+                    "durationMs": 36801,
+                    "traceId": "tr_ax_mur5hxq4",
+                    "summary": "LLM 常驻会话自主规划并执行完成"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "lastChunk": true
+      }
+    },
+    {
+      "atMs": 37239,
+      "kind": "status-update",
+      "final": true,
+      "state": "completed",
+      "raw": {
+        "kind": "status-update",
+        "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+        "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+        "status": {
+          "state": "completed",
+          "timestamp": "2026-10-02T16:02:19.109Z",
+          "message": {
+            "kind": "message",
+            "role": "agent",
+            "messageId": "7dab65b3-d5b7-47e8-b8d4-4705827b2195",
+            "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "LLM 运行时（常驻会话）完成目标：列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西"
+              },
+              {
+                "kind": "data",
+                "data": {
+                  "ok": true,
+                  "stepCount": 1,
+                  "steps": [
+                    {
+                      "index": 0,
+                      "capabilityId": "appops.workflow.run",
+                      "risk": "L1",
+                      "ok": true,
+                      "durationMs": 36801,
+                      "summary": "LLM 常驻会话自主规划并执行完成"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "final": true
+      }
+    }
+  ],
+  "firstFrameMs": 281,
+  "eventCount": 8,
+  "eventKindSeq": [
+    "status-update",
+    "status-update",
+    "status-update",
+    "status-update",
+    "status-update",
+    "status-update",
+    "artifact-update",
+    "status-update"
+  ],
+  "terminalEvent": {
+    "atMs": 37239,
+    "kind": "status-update",
+    "final": true,
+    "state": "completed",
+    "raw": {
+      "kind": "status-update",
+      "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+      "contextId": "bcee8c6f-b3d8-4b7b-8939-d61b4c7f48af",
+      "status": {
+        "state": "completed",
+        "timestamp": "2026-10-02T16:02:19.109Z",
+        "message": {
+          "kind": "message",
+          "role": "agent",
+          "messageId": "7dab65b3-d5b7-47e8-b8d4-4705827b2195",
+          "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "LLM 运行时（常驻会话）完成目标：列出 VM 上 C:\\Windows\\Temp 目录下的文件名（最多 10 个），只读取不改任何东西"
+            },
+            {
+              "kind": "data",
+              "data": {
+                "ok": true,
+                "stepCount": 1,
+                "steps": [
+                  {
+                    "index": 0,
+                    "capabilityId": "appops.workflow.run",
+                    "risk": "L1",
+                    "ok": true,
+                    "durationMs": 36801,
+                    "summary": "LLM 常驻会话自主规划并执行完成"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "final": true
+    }
+  },
+  "totalMs": 37242,
+  "taskId": "b470dc18-7df6-4ff4-bacc-9086a1edf47f"
+}
