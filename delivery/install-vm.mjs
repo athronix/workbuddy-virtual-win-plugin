@@ -22,6 +22,19 @@
  *                                [--skills-root <dir>] [--skip-skills]
  *                                [--task-name WinVMBridge.Service] [--skip-build]
  *                                [--skip-install] [--skip-links]
+ *                                [--admin-endpoint]
+ *
+ * 运维端点开关（--admin-endpoint）：
+ *   计划任务 WinVMBridge.Service 的任务动作不含任何 env 元素，VM 服务能拿到的环境变量
+ *   **唯一来源**就是生成的 start-hidden.ps1 里的显式 `$env:` 赋值（node 由
+ *   `Start-Process` 从该 ps1 继承环境）。故本开关只在生成 ps1 时追加一行
+ *   `$env:WINVM_ADMIN_ENDPOINT = '1'`，从而让 vm-service 的运维端点
+ *   （`POST /admin/llm-session/reset`）在默认 404 的基础上变为可达。
+ *   ⚠ **默认关闭**：不传该开关时生成内容与历史版本逐字节一致（不注入任何 env）。
+ *     开启后端点同时具备「复位 LLM 常驻会话」与「`?faultInjection=1` 注入 spawn 故障
+ *     （远程打挂会话）」两种能力；服务虽只监听 127.0.0.1，但宿主经 SSH 隧道访问的正是
+ *     同一个 loopback 服务，等于暴露面扩大到隧道另一端。
+ *     ⇒ 仅在需要验证时显式开启，**验完必须去掉该开关重新部署以收回**。
  *
  * 卸载（安全：仅删本项目，目录/软链移入回收站，可恢复）：
  *   node delivery/install-vm.mjs --uninstall            # 预览：打印待移除项，不删除
@@ -91,6 +104,9 @@ function parseArgs(argv) {
     provider: undefined,
     cli: undefined,
     skillsRoot: undefined,
+    // 运维端点开关：**默认关闭**。为 true 时在生成的 start-hidden.ps1 里追加
+    // `$env:WINVM_ADMIN_ENDPOINT = '1'`（vm-service 侧唯一 env 来源，见文件头说明）。
+    adminEndpoint: false,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -112,6 +128,7 @@ function parseArgs(argv) {
       case '--cli': out.cli = argv[++i]; break;
       case '--skills-root': out.skillsRoot = argv[++i]; break;
       case '--task-name': out.taskName = argv[++i]; break;
+      case '--admin-endpoint': out.adminEndpoint = true; break;
       default: break;
     }
   }
@@ -201,8 +218,13 @@ function killServiceProcess(port, taskName, dryRun, log) {
  *     node 崩溃时触发 RestartOnFailure）；
  *   · 用 -File 而非 -Command：node 参数含带双引号的路径，-Command 需再嵌一层命令行引号，
  *     转义极易出错；-File 只剩一层引号，node 参数原样写入 .ps1 由 Node 直接落盘。
+ *
+ * @param {boolean} [adminEndpoint=false] 是否注入 `$env:WINVM_ADMIN_ENDPOINT = '1'`。
+ *   任务 XML 无 env 元素，ps1 里的显式 `$env:` 赋值是 VM 服务获得该变量的**唯一来源**
+ *   （node 由 Start-Process 从 ps1 继承环境）。默认 false ⇒ 生成内容与引入该开关前
+ *   **逐字节一致**（回归护栏见 tests/unit/install-vm-admin-endpoint.test.js）。
  */
-function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir) {
+function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir, adminEndpoint = false) {
   // outDir 供单测隔离；不传时沿用模块级 taskXmlPath（保持既有行为不变）
   const out = outDir ?? dirname(taskXmlPath);
   const xmlPath = outDir ? join(out, 'task.xml') : taskXmlPath;
@@ -214,6 +236,10 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir) {
   const ps1 = [
     '# WinVM Bridge VM Service —— 隐藏窗口启动器（由 install-vm.mjs 生成，请勿手改）',
     "$env:WINVM_PSBRIDGE_READY_TIMEOUT_MS = '60000'",
+    // 运维端点开关（--admin-endpoint）：默认不注入，保持与引入前逐字节一致。
+    // 开启时暴露 POST /admin/llm-session/reset（含 ?faultInjection=1 打挂会话能力），
+    // 且宿主经 SSH 隧道访问的正是这个 loopback 服务 ⇒ 仅验证时开、验完去掉开关重部署收回。
+    ...(adminEndpoint ? ["$env:WINVM_ADMIN_ENDPOINT = '1'"] : []),
     '$nodeExe = ' + psStr(nodeExe),
     '$cliArgs = ' + psStr(cliArg),
     '$workDir = ' + psStr(workDir),
@@ -310,6 +336,14 @@ function planSteps(args, cfgPath) {
   steps.push(`部署共享 Skills: 仓库 skills/ → 共享根（${args.skillsRoot || 'C:/WinVMBridge/shared-skills'}），并为各候选 Agent 建 symlink 引用${args.skipSkills ? '  [跳过 --skip-skills]' : ''}`);
   steps.push(`注册任务计划程序任务: ${args.taskName}（开机自启 + 登录即启 / 崩溃重启 / 仅交互式会话 / 隐藏窗口，避免误关）`);
   steps.push(`自检: node ${cliEntry} --self-test`);
+  // 运维端点开关状态随计划显式打印，避免"以为开了其实没开 / 反之"的误判
+  steps.push(
+    `运维端点 POST /admin/llm-session/reset: ${
+      args.adminEndpoint
+        ? '**本次开启**（start-hidden.ps1 注入 WINVM_ADMIN_ENDPOINT=1）—— ⚠ 含 ?faultInjection=1 打挂会话能力，验证后须去掉 --admin-endpoint 重新部署以收回'
+        : '默认关闭（未注入 env，端点 404）'
+    }`,
+  );
   return steps;
 }
 
@@ -712,7 +746,7 @@ async function main() {
   // 清掉仍占用端口的旧实例（如上一版 Hidden=false 的残留窗口），确保新 Hidden=true 实例能绑定
   killServiceProcess(args.port, args.taskName, args.dryRun, (m) => console.log(`      ${m}`));
   const nodeExe = process.execPath;
-  buildTaskXml(args.taskName, nodeExe, cliEntry, args.port, runtimeConfig);
+  buildTaskXml(args.taskName, nodeExe, cliEntry, args.port, runtimeConfig, undefined, args.adminEndpoint);
   r = run('schtasks', ['/Create', '/TN', args.taskName, '/XML', taskXmlPath, '/F']);
   if (r.status !== 0) { console.error('注册任务计划程序失败（需以管理员身份运行）'); process.exit(1); }
   console.log(`      已注册任务 ${args.taskName}（开机自启 + 登录即启 / 崩溃重启 ×3 / 交互式会话 / 无控制台窗口）`);
@@ -745,6 +779,13 @@ async function main() {
   console.log('注意：开机触发落在 Session 0（无交互桌面），仅系统/网络/应用类能力可用；登录后交互式会话再拉起，GUI 能力方可用。');
   console.log(`手动启动（前台）：node ${cliEntry} --host 127.0.0.1 --port ${args.port} --config ${runtimeConfig}`);
   console.log('宿主侧建立 SSH 隧道后即可从 WorkBuddy 调用（见 DEPLOYMENT.md §4.2）。');
+  if (args.adminEndpoint) {
+    console.log('');
+    console.log('⚠ 运维端点本次为【开启】状态（start-hidden.ps1 已注入 $env:WINVM_ADMIN_ENDPOINT = \'1\'）。');
+    console.log('  可达能力：POST /admin/llm-session/reset 复位 LLM 常驻会话，以及 ?faultInjection=1 注入 spawn 故障（远程打挂会话）。');
+    console.log('  服务虽仅监听 127.0.0.1，但宿主经 SSH 隧道访问的正是同一个 loopback 服务 ⇒ 暴露面已扩大到隧道另一端。');
+    console.log('  验证完成后：去掉 --admin-endpoint 重新部署一次即收回（届时该端点恢复 404）。');
+  }
 
   /* 7. 部署插件管理 CLI winvm-plugin（VM 侧）—— 与 host 侧同源，自动识别 side=vm */
   if (!args.dryRun) {

@@ -263,6 +263,8 @@ node qa/probes/a2a.mjs meta.health.check '{}'
 - **服务运维（tools/ 工具箱）**：`delivery/tools/` 下 `svc-state.ps1`（只读巡检）、`kill-restart.ps1`（干净重启）、`qa-kill.ps1`（自愈复现）、`start-hidden-vm.ps1`（手动拉起）、`probe-inv.ps1`（清单探针）、`verify-d30.ps1`（审计链复验）。**先 scp 到 VM 再 `powershell -File`，勿内联**；坑位清单见 `delivery/tools/README.md`。
   > ⚠️ `start-hidden-vm.ps1` 注意：repo 内副本系**作者机器的生成物**（其中 node.exe 路径等硬编码了作者 VM 的安装位置），**你的新 VM 请以 `install-vm.mjs` 在部署时生成到 `C:/WinVMBridge/` 的那份为准**，勿直接 scp repo 副本使用 〔出处：脚本头注「由 install-vm.mjs 生成，请勿手改」+ 硬编码路径事实〕。
 - **隧道守护**：宿主侧常驻隧道守护 `node delivery/tunnel-daemon.mjs`（ssh2 实现，离线可用）〔delivery/tunnel-daemon.mjs + MEMORY CL-015「常驻隧道 daemon」〕；单次部署的隧道由 setup.mjs TUNNEL 相位临时建立并在 HEALTH 后释放。**隧道黑洞**（TCP 通但 HTTP 超时）时先杀宿主侧 ssh/隧道进程再重建，判据见 tools/README.md 坑 4。
+- **运维端点（`POST /admin/llm-session/reset`）——默认关闭，按需临时开启**：该端点默认 404（env `WINVM_ADMIN_ENDPOINT=1` 才注册）。VM 服务环境变量的唯一来源是部署时生成的 `C:/WinVMBridge/delivery/.generated/start-hidden.ps1`（每次部署无条件重写，手改无效），故开关落在部署脚本上：`node delivery/install-vm.mjs --admin-endpoint`（VM 内手动执行，或经 setup 的 VM 相位机制调用）会在该 ps1 追加一行 `$env:WINVM_ADMIN_ENDPOINT = '1'`，去掉开关重部署即收回。
+  > ⚠ **安全**：开启后端点同时具备「复位 LLM 常驻会话」与 `?faultInjection=1`（注入 spawn 故障 = 远程打挂会话）两种能力；服务虽只监听 `127.0.0.1`，但宿主经 SSH 隧道访问的正是同一个 loopback 服务 ⇒ 暴露面扩大到隧道另一端。**仅在需要验证时显式开启，验完必须去掉开关重新部署收回。**〔出处：`delivery/install-vm.mjs` 文件头「运维端点开关」段 + `buildTaskXml()` 注入逻辑〕
 
 ---
 
