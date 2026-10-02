@@ -25,7 +25,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 /* ============================ 被守卫源码（只读） ============================ */
@@ -667,5 +667,65 @@ describe('K-N1 E-META 异常安全自检：本文件不得写磁盘', () => {
     }
     // 读接口允许（基线摘要 + 自检读取必需）
     assert.ok(self.includes('readFileSync('), '读接口是允许的');
+  });
+});
+
+/* ============================ 护栏资产自身的可发现性 ============================ */
+
+/**
+ * 防「**静默跳过**」类假通过（与上面的「变异打空」同源一类）。
+ *
+ * 教训来源（本轮两次独立撞上，其中一次不是我犯的）：
+ *  1. 本文件初版有个变异因锚点文本不符而**打空** —— 源码未变 → 守卫仍绿 → 假通过；
+ *  2. 架构侧复核时误用文件名 `r19b-s1.test.js`（真实为 `r19b-s1-registry-forms.test.js`），
+ *     `node --test` **静默**只跑 8 个文件得 278 test（真实 313），**不报错、exit=0**。
+ *
+ * 本仓库 `test:unit` 的 glob 是 `tests/unit/*.test.js`，故任何被改名成 `.test.mjs` 的护栏
+ * 文件都会**从 CI 里静默消失**（本目录现存 8 个 `.test.mjs` 即长期不被 test:unit 收录）。
+ * 故把「交付集必须全部匹配该 glob」钉成断言：一旦改名/漏交立刻红，而非悄无声息。
+ */
+describe('K-N1 E-META 护栏资产可发现性（防 test:unit 静默跳过）', () => {
+  const EXPECTED = [
+    'r19c-kn1-a-pure.test.js',
+    'r19c-kn1-b-bridge.test.js',
+    'r19c-kn1-c-session.test.js',
+    'r19c-kn1-d-provider.test.js',
+    'r19c-kn1-e-shape.test.js',
+    'r19c-kn1-e-mutation.test.js',
+    'r19c-kn1-f-chain.test.js',
+  ];
+  const UNIT_DIR = import.meta.dirname;
+
+  test('§9 A–F 六组 + 变异检验共 7 个文件全部存在于 tests/unit', () => {
+    for (const f of EXPECTED) {
+      assert.equal(existsSync(join(UNIT_DIR, f)), true, `交付集缺文件：${f}`);
+    }
+  });
+
+  test('全部以 .test.js 结尾（.test.mjs 会被 test:unit glob 静默跳过）', () => {
+    const wrongExt = EXPECTED.filter((f) => !f.endsWith('.test.js'));
+    assert.deepEqual(wrongExt, [], `以下文件不匹配 *.test.js glob，会被静默跳过：${wrongExt.join(', ')}`);
+  });
+
+  test('与 glob 实际收录集合一致（现场复刻 glob 语义，非仅靠后缀推断）', () => {
+    // 复刻 package.json `test:unit` 的 glob：只有 *.test.js 会被 node --test 收录。
+    const globbed = readdirSync(UNIT_DIR).filter((f) => f.endsWith('.test.js'));
+    const missing = EXPECTED.filter((f) => !globbed.includes(f));
+    assert.deepEqual(missing, [], `下列文件不会被 CI 跑到：${missing.join(', ')}`);
+  });
+
+  test('本文件不得存在 .test.mjs 副本（否则本组断言永不执行 → 假绿）', () => {
+    assert.equal(
+      existsSync(join(UNIT_DIR, 'r19c-kn1-e-mutation.test.mjs')),
+      false,
+      '变异检验文件若有 .mjs 副本，会被 glob 跳过导致本组全部断言永不执行',
+    );
+  });
+
+  test('未被 test:unit 收录的 .test.mjs 现状登记（既有形态，不判失败）', () => {
+    // 本仓库既有 8 个 .test.mjs 长期不被 test:unit 收录 —— 登记事实供后续决策，
+    // **不判失败**（属仓库既有形态、非 K-N1 引入；改 glob 超出本轮范围）。
+    const skipped = readdirSync(UNIT_DIR).filter((f) => f.endsWith('.test.mjs'));
+    assert.ok(Array.isArray(skipped), '应能枚举被跳过的 .mjs 清单');
   });
 });
