@@ -229,3 +229,43 @@ stdio       → { type:'stdio', command:<node>, args:[...], runtime:{type:'node'
 | diagnose 仅校验注册面 | `delivery/tools/diagnose-connectors.mjs` 全文 |
 
 〔本诊断全程只读；未改动任何源码/配置/VM；仓库 HEAD `1ca91f2`。〕
+
+---
+
+## 修复记录（R2-M4 H1 修复 · software-engineer-2 · 2026-10-02）
+
+> 主理人已独立核验诊断报告与 commit `d083f41`，H1 确诊 = 活跃账户级 `mcp.json` 漏写 winvm 条目。
+> 仓库 HEAD 修复前：`d083f41`。以下分「阶段 A 即时补救（部署动作，不入仓）」与「阶段 B 三处加固（独立 commit）」。
+
+### 阶段 A · 即时补救（部署动作，无仓库 commit）
+
+- 动作：跑 `node delivery/install-host.mjs`（HOST 相位主跑；本次 VM 实际可达，隧道 `tunnel ensure` 成功非致命，未出现相位错误）。
+- 验证：`grep -c winvm ~/.workbuddy/connectors/8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8/mcp.json` 由 **0 → 3**（`connector:winvm` + `connector:winvm-a2a` 已写入，第 3 个匹配来自条目内 url 含 `winvm`）。
+- 安装日志确认 `已增量合并 : .../connectors/8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8/mcp.json`，且 `连接器自检 : 注册面就位 ✓（exit=0）`。
+- **阶段 A 结论：活跃账户补齐成功**。该动作只经 install-host 管道写 `~/.workbuddy`，属 sanctioned 路径；部署副作用均在仓库外（被 .gitignore 覆盖），未入库、未 commit。
+
+### 阶段 B · 三处加固（独立 commit `fix(R2-M4):`）
+
+1. **`delivery/install-host.mjs`** —— 新增 `assertActiveAccountWinvmEntries(home, accountIds, dryRun)`，在 `runConnectorSelfCheck` 之后显式校验：所有目标账户（含 `KNOWN_ACTIVE_ACCOUNT`）的 `connectors/<account>/mcp.json` 必须含 `connector:winvm` 与 `connector:winvm-a2a`（同时兼容未前缀 `winvm`/`winvm-a2a` 形态）；base 名取自全局 `mcp.json` 实际结构（`winvm`/`winvm-a2a`）。缺失或不可解析 → `console.error(...)` + `process.exit(1)` 显式 FAIL；`--dry-run` 下仅报告、不退出。
+   - 关键修正：本文件 `readJsonSafe` 失败时返回 `null`、成功时直接返回解析对象（非 `{ok,data}` 形态），断言已按该语义实现（初版误用 `.ok`/`.data` 会导致每次真机安装误判 FAIL，已用 `--dry-run` 捕获并修正）。
+2. **`delivery/tools/diagnose-connectors.mjs`** —— `probeAccountMcp` 中「已知活跃账户（`KNOWN_ACTIVE_ACCOUNT`）缺 winvm 条目」的判定由 **WARN 升 FAIL**（其余非活跃账户缺失仍保持 WARN）；新增 `import { KNOWN_ACTIVE_ACCOUNT } from '../account-resolve.mjs'`。使 CI / 安装自检无法再以 `ok:true` 蒙混过 M4（修复「部分账户缺条目却被判 WARN」的假 PASS 根）。
+3. **`docs/INSTALL-GUIDE.md` §8.1** —— 新增「关键澄清（R2-M4 H1 修复）」：明确**连接器页显示「已连接」≠ 会话工具面已注入 winvm 工具**（页读全局 mcp.json、会话面读活跃账户级 mcp.json，二者独立）；首选修复=**重跑 `install-host.mjs` 补齐活跃账户条目**而非仅在页上启用；并补校验步骤——重跑后在 WorkBuddy **新开会话**用 ToolSearch 命中 `winvm__*` / `a2a.*`。最小侵入，未重写整节。
+
+### 验证
+
+- `node --check delivery/install-host.mjs` 与 `node --check delivery/tools/diagnose-connectors.mjs`：语法 OK。
+- 单元级逻辑校验（临时 fixture + `node --test` 思路）：
+  - diagnose WARN→FAIL：A) 已知活跃账户缺失 → FAIL ✓；B) 仅非活跃账户缺失 → 仅 WARN、不破坏 ok ✓；C) 全就位 → 干净 ✓。
+  - install-host 断言：`--dry-run` 下读取已补齐的真实账户文件，输出「活跃账户 … 已含 connector:winvm / connector:winvm-a2a ✓」，无错误 FAIL，dry exit=0。
+- `node --test tests/unit/account-resolve.test.mjs`：4 pass / 0 fail（import 链未受影响）。
+- `tsc -b tsconfig.build.json`：exit=0（仅改 .mjs/.md，无连带破坏）。
+- `git status`：仅 `delivery/install-host.mjs` / `delivery/tools/diagnose-connectors.mjs` / `docs/INSTALL-GUIDE.md` / `docs/test/reports/r2-m4-diagnosis.md` 4 个文件改动（另 `.workbuddy/memory/*`、`qa/r19/` 系其它成员既有改动，未纳入本 commit）。
+
+### commit
+
+- hash：`256e9a3f8ce2113870ed579c4c896e83a23fb90c`（独立 commit，前缀 `fix(R2-M4):`；仅 `git add` 上述 3 个源文件 + 本诊断报告，未混入阶段 A 部署副作用）。
+
+### 状态
+
+- **待用户在 WorkBuddy 新开会话验收**：ToolSearch 应能命中 `winvm__*`（如 `winvm__system_info.get`）与 `a2a.*`（如 `a2a.delegate`）。
+- 旧会话永不热注入属平台会话生命周期预期，必须用**新**会话核验；若仍缺失，先去连接器页确认 winvm / winvm-a2a 已「信任 + 启用」，再按 §8.1 三步路径与只读诊断处置。

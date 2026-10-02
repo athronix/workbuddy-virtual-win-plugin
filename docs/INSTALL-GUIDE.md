@@ -313,6 +313,20 @@ node delivery/winvm-plugin.mjs tunnel stop     # 向 daemon 发 SIGTERM，清理
 本插件只能诊断与规避、无法根治。**旧会话永不热注入属预期**——注册发生在会话建立之后，
 平台不会向既有会话补注入，这不是缺陷。
 
+> ⚠ **关键澄清（R2-M4 H1 修复）**：**连接器页面显示「已连接」≠ 会话工具面已注入 winvm 工具。**
+> 连接器页读取的是**全局** `~/.workbuddy/mcp.json`（决定「可见 / 已连接」），而会话工具面真正消费的是
+> **活跃账户级** `connectors/<activeAccount>/mcp.json`（决定工具是否注入）——两者**独立**。
+> 全局已就位、页显示「已连接」，但活跃账户级文件缺 `connector:winvm` / `connector:winvm-a2a` 时，
+> 新会话**仍然零工具**（本机实测即此形态，根因 H1 = 上次安装漏写活跃账户条目）。
+>
+> **首选修复 = 重跑安装器补齐活跃账户条目**，而非仅在连接器页「启用」：
+> ```bash
+> node delivery/install-host.mjs            # 经 install-host 管道把 connector:winvm / connector:winvm-a2a 写进活跃账户（已含 KNOWN_ACTIVE_ACCOUNT）
+> ```
+> **重跑后务必校验"注入"而非只看页状态**：在 WorkBuddy **新开一个会话**，工具面 / ToolSearch 应命中
+> `winvm__*`（`winvm__system_info.get` 等）与 `a2a.*`（`a2a.delegate` 等）；仍搜不到再走下方三步路径与只读诊断
+> （旧会话永不热注入属预期，必须用**新**会话核验）。
+
 **自助三步路径**：
 
 1. **连接器页确认「信任 + 启用」**：WorkBuddy → 连接器 / 自定义 MCP，逐项确认 `winvm` 与 `winvm-a2a`

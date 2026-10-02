@@ -35,6 +35,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { KNOWN_ACTIVE_ACCOUNT } from '../account-resolve.mjs';
 
 /** 全局 mcp.json 中本项目注册的两条 server 名（与 install-host 全局注册块同源）。 */
 const SERVER_DIRECT = 'winvm';
@@ -252,10 +253,20 @@ export function probeAccountMcp(home) {
         `——请用 node delivery/install-host.mjs 补注册`,
     );
   } else if (without.length > 0) {
-    result.warnings.push(
+    // R2-M4 H1 加固（severity WARN → FAIL）：若"已知活跃账户 KNOWN_ACTIVE_ACCOUNT"本身缺 winvm 条目，
+    // 则升级为 FAIL（会话工具面零工具的根因，CI/安装自检不得蒙混）；其余非活跃账户缺失仍保持 WARN。
+    const knownMissing = without.includes(KNOWN_ACTIVE_ACCOUNT);
+    const baseMsg =
       `账户「${without.join(', ')}」无 winvm 条目（活跃账户为 ${withWinvm.join(', ')} 时不影响注入；` +
-        `若切换账户后工具缺失，重跑 install-host 会遍历全部账户补写）`,
-    );
+      `若切换账户后工具缺失，重跑 install-host 会遍历全部账户补写`;
+    if (knownMissing) {
+      result.failures.push(
+        `已知活跃账户「${KNOWN_ACTIVE_ACCOUNT}」mcp.json 缺 winvm 条目（H1 根因：${baseMsg}）` +
+          `——请重跑 node delivery/install-host.mjs 补齐活跃账户注册`,
+      );
+    } else {
+      result.warnings.push(baseMsg);
+    }
   }
   result.summary = { accounts: result.accounts.length, withWinvm };
   return result;

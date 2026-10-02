@@ -1175,6 +1175,13 @@ async function main() {
    * 诊断工具为**纯只读**（零写入/零网络/零解密，见 delivery/tools/diagnose-connectors.mjs 头注）。
    * 非致命：任何异常仅告警，绝不影响安装主干。卸载相位走不到这里（--uninstall 提前 return）。 */
   runConnectorSelfCheck(args.home, args.dryRun);
+
+  /* ---- H1 加固断言（R2-M4）：安装末尾显式校验活跃账户级 mcp.json 双条目就位 ----
+   * 根因 H1：全局 mcp.json 已含 winvm/winvm-a2a（连接器页显示"已连接"），但会话工具面消费的
+   * 活跃账户级 connectors/<account>/mcp.json 曾漏写 connector:winvm/connector:winvm-a2a，
+   * 导致新会话零工具（M4 FAIL）。诊断此前把"部分账户缺条目"判 WARN，使 ok:true 蒙混过 QA。
+   * 此处显式 FAIL（缺失 → console.error + process.exit(1)），非致命前置同样判 FAIL。 */
+  assertActiveAccountWinvmEntries(args.home, accountIds, args.dryRun);
 }
 
 /**
@@ -1227,6 +1234,83 @@ export function runConnectorSelfCheck(home, dryRun) {
     console.log(`连接器自检 : ⚠ 自检异常（${e.message}），跳过（不影响安装结果）`);
     return { ran: false, error: e.message };
   }
+}
+
+/**
+ * H1 加固断言（R2-M4）：安装末尾显式校验「活跃账户级 mcp.json」必须含 winvm 与 winvm-a2a 两条连接器条目。
+ *
+ * 根因（H1，已确诊）：上次安装漏写活跃账户级条目——全局 ~/.workbuddy/mcp.json 含 winvm / winvm-a2a
+ * （连接器页显示"已连接"），但会话工具面真正消费的活跃账户 connectors/<account>/mcp.json 缺
+ * connector:winvm / connector:winvm-a2a，导致新会话零工具（M4 真机 FAIL 根）。诊断工具此前把
+ * "部分账户缺条目"判 WARN，使安装自检 ok:true 蒙混过 QA（M4 假 PASS 根）。
+ *
+ * 本断言在 runConnectorSelfCheck 之后运行，缺失即显式 FAIL（console.error + process.exit(1)），
+ * 使"双处注册"对活跃账户的覆盖缺口无法静默通过。非致命前置（账户文件缺失/解析失败）同样判 FAIL。
+ *
+ * 键名规则：账户级 mcp.json 采用 `connector:` 前缀（见 uninstallConnectors 与文件头注释），
+ * 但为兼容可能演进/手动写入的未前缀形态，对 `<base>` 与 `connector:<base>` 任一命中即视为就位；
+ * base 名（winvm / winvm-a2a）取自全局 mcp.json 实际结构，保证与全局注册对称。
+ *
+ * @param {string} home 目标用户主目录
+ * @param {string[]} accountIds 本安装已写入的目标账户 id 列表（含 KNOWN_ACTIVE_ACCOUNT）
+ * @param {boolean} dryRun 安装器 --dry-run 标志（dry-run 下只报告、不 exit）
+ * @returns {boolean} 是否就位
+ */
+function assertActiveAccountWinvmEntries(home, accountIds, dryRun) {
+  // 从全局 mcp.json 取得与全局注册对称的 base server 名（winvm / winvm-a2a）。
+  const globalMcpPath = join(home, '.workbuddy', 'mcp.json');
+  /** @type {string[]} */
+  const baseNames = [];
+  const gj = readJsonSafe(globalMcpPath);
+  if (gj && gj.mcpServers && typeof gj.mcpServers === 'object') {
+    for (const k of Object.keys(gj.mcpServers)) {
+      if (k === 'winvm' || k === 'winvm-a2a') baseNames.push(k);
+    }
+  }
+  if (baseNames.length === 0) baseNames.push('winvm', 'winvm-a2a');
+
+  let allOk = true;
+  for (const acct of accountIds) {
+    const acctPath = join(home, '.workbuddy', 'connectors', acct, 'mcp.json');
+    const aj = readJsonSafe(acctPath);
+    if (!aj || typeof aj !== 'object') {
+      console.error(
+        `H1 加固断言 FAIL：活跃账户 ${acct} mcp.json 缺失或不可解析（${acctPath}）` +
+          `——本就该由本安装器补齐，请重跑 node delivery/install-host.mjs`,
+      );
+      allOk = false;
+      continue;
+    }
+    const servers = (aj.mcpServers && typeof aj.mcpServers === 'object') ? aj.mcpServers : {};
+    const missing = [];
+    for (const base of baseNames) {
+      const present = servers[base] || servers[`connector:${base}`];
+      if (!present || typeof present !== 'object') missing.push(base);
+    }
+    if (missing.length > 0) {
+      console.error(
+        `H1 加固断言 FAIL：活跃账户 ${acct} mcp.json 缺连接器条目：${missing
+          .map((m) => `connector:${m}`)
+          .join(', ')}（应含 connector:winvm 与 connector:winvm-a2a；${acctPath}）`,
+      );
+      allOk = false;
+    } else {
+      console.log(
+        `H1 加固断言 : 活跃账户 ${acct} mcp.json 已含 ${baseNames.map((b) => `connector:${b}`).join(' / ')} ✓`,
+      );
+    }
+  }
+
+  if (!allOk) {
+    if (dryRun) {
+      console.error(
+        'H1 加固断言 : [dry-run] 存在缺失，但实际安装未执行写盘；请去掉 --dry-run 重跑以补齐活跃账户条目',
+      );
+    } else {
+      process.exit(1);
+    }
+  }
+  return allOk;
 }
 
 const __filename = fileURLToPath(import.meta.url);
