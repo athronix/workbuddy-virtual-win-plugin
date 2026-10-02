@@ -374,3 +374,62 @@ assert.equal(calls.length, 0);      // ★ 从未调用 waitApproval ⇒ 从未�
 
 - `vm-service/src/server.ts` 单例字段：任务书写 `:144`，实测 `:133`；`endTask` 任务书写 `:173`，实测 `:171`。
 - `contracts/src/bridge.ts`：任务书写「`:313`/`:322`」，实测 `beginTask=313`、`endTask=**315**`、`raise=322`。**需要同步变更的是 `:315`**（见 §5.6）。
+
+---
+
+## 7. 补充说明（待命期间的静态预演）：Fix-2 与 D-1 红线是否冲突
+
+> 命题：要在同一处（`bridge.ts` 的 per-delegation 状态）既做 `raisedApprovals` 归属隔离（Fix-2），又不破坏 `tests/unit/k5-replay.test.js` 的 41 个 test（D-1 红线：两道既有门一字不动）。
+> 结论：**不冲突，无需架构师重排。** 但存在一个必须同批补上的**守护缺口**，见 §7.4。
+
+### 7.1 坐标校正（两处，供 spec 引用）
+
+- **D-1 两道门的实际位置是 `packages/adapter-agent-workbuddy-llm/src/bridge.ts:1008-1009`**：
+  `if (!this.replayEnabled || !this.k5ReplayActive) return base;`
+  `if (this.raisedApprovals.size === 0) return base; // 本任务未发生审批 → K3 行为逐字不变`
+  而 `bridge.ts:770` 的注释写的是「**D-1：:913-914 两道既有门一字不动**」 —— **注释里的行号已漂移 95 行**（同 §附录 A 的漂移现象），建议实施时顺手把注释改成 `:1008-1009`。
+- **保护它们的 test 实际是 `tests/unit/k5-replay.test.js:680-688`**（「无 coordinator → 零改动纪律」，断言 `coord.calls.length===0` + `result.ok===true`）与 **`:690-734`**（「连续两次 runGoal → 回执登记与反查标志按任务清零」，断言 `raiseCount===2`、`second.ok===false`、`second.error.code==='APPROVAL_REQUIRED'`）。团队 lead 给的 `681-688` 落在同一个 test 内，指向正确。
+
+### 7.2 不冲突的三条硬证据
+
+1. **全仓没有任何 test 直接读写这三个私有字段**：`grep -rn "taskReceipts|raisedApprovals|k5ReplayActive" tests/` 只命中**注释**（`r19c-kn1-b-bridge.test.js:437` 一处）和 `coordinator.setReplayEnabled`（协调器侧，与桥无关）。所有断言都走 `result` 形状 / `coord.calls` / `raiseCount` 等**外部可观测量** ⇒ 字段从「实例字段」搬到「`RunContext` 字段」不触碰任何断言。
+2. **三个字段的读写点全部落在单次 `runGoal` 调用栈内**，搬迁后语义等价：
+
+   | 现有位置 | 搬迁后 |
+   | --- | --- |
+   | `runGoal` 入口 `taskReceipts.clear()` / `raisedApprovals.clear()` / `k5ReplayActive = false`（`:733-735`） | 删除，改为「入口构造全新 `ctx`」——**每次委派天然独立**，与「入口清零」语义等价 |
+   | `maybeResume` 去重读 `this.raisedApprovals.has(approvalId)`（`:946`） | `ctx.raisedApprovals.has(...)`（`maybeResume` **已收 `ctx` 参数**，签名不动） |
+   | `maybeResume` 登记 `this.taskReceipts.set(approvalId, executed)`、`this.k5ReplayActive = true`（`:978-980`） | `ctx.taskReceipts.set(...)` / `ctx.k5ReplayActive = true` |
+   | `applyReceipt(approvalId, base)` 读 `this.taskReceipts.get(approvalId)`（`:1038`） | 加 `ctx` 形参（唯一签名变更） |
+   | `reconcileExecutionTruth(base, finalText)` 两道门 + `[...this.taskReceipts.values()]`（`:1008-1013`） | 加 `ctx` 形参；门表达式**逐字保持**，只换取值来源 |
+
+3. **三个「清零/不复用」类 test 在 Fix-2 下仍须通过**（这是最容易被误判为冲突的点）：
+   - `k5-replay.test.js:690` 断言 `raiseCount===2`：Fix-2 后每次 `runGoal` 新建 `ctx` ⇒ 次轮 `raisedApprovals` 为空 ⇒ **仍会重新 raise** ✓；断言 `second.ok===false` + `error.code==='APPROVAL_REQUIRED'`（首轮成功回执不"洗白"次轮）✓。
+   - `r19c-kn1-b-bridge.test.js:407` 断言 `coord.calls.length===2`（同 traceId 两次委派各自 raise）✓ 同理。
+   - `k5-replay.test.js:680` 断言无 coordinator 时不反查 ✓（与状态存放位置无关）。
+
+### 7.3 实施时必须盯住的两个点（写入 spec）
+
+- **`replayEnabled` 必须留在 `this.`**：它是构造函数级的灰度开关（per-bridge），**不是** per-delegation。搬迁后门 1 应为 `if (!this.replayEnabled || !ctx.k5ReplayActive) return base;`。若误把它也搬进 `ctx`，会让 `approvalReplay:false` 的灰度语义失效（`k5-replay.test.js:657`「灰度 REPLAY=off」用例会红）。
+- **K4/K5 续跑轮必须复用同一个 `ctx`**：`maybeResume` 在批准后调 `this.runPersistent(input, sink, ctx, approvalArg)` / `this.runOneShot(input, sink, ctx, { executed })` —— 传的是**同一个 `ctx`**。搬迁后状态随 `ctx` 延续，正是同委派语义；**实现时绝不可在续跑轮重建 `ctx`**（否则 K4 的「带 `__approvalId` 重发」续跑会丢失去重集合，可能二次挂起）。
+
+### 7.4 唯一真实风险：守护缺口（不是冲突，但要同批补）
+
+Fix-2 改变的行为**只在并发下才可见**，而现有 41+ 个 test 全部是**串行**（同一 bridge、顺序 `await`）⇒ **Fix-2 的修复效果没有任何测试守护**：改对了没人证明，改错了现有 test 也照样全绿。
+
+⇒ 建议（写进验收口径）：Fix-2 必须**同批新增**至少 3 个并发用例，形态与 §6.2 的 R2 一致（stub CLI + `persistent:false`，两个 bridge 实例共享同一 coordinator / 或一个 bridge 两条并发 runGoal）：
+1. 委派 A 已登记成功回执后，委派 B 启动 ⇒ A 的 `applyReceipt` 仍取得到回执（**不被 B 的入口 clear 洗掉**）；
+2. 委派 A 已 raise 的 approvalId，在 B 启动后 A 的续跑轮再次进入 ⇒ **仍被去重**（不二次挂起）；
+3. B 完成后 A 的 `k5ReplayActive` 仍保持（反查不错误退场）。
+
+### 7.5 与 Fix-1B 的分工（避免架构师误以为二选一）
+
+两者解决**不同层面**，必须都做：
+- **Fix-1B**（`raise` 自带 taskId）解决「**挂到哪个任务**」——即使有了它，`taskReceipts` 被并发委派清空仍会造成 A 的回执丢失（`applyReceipt` 取不到 ⇒ `return base` ⇒ 静默保持失败态）。
+- **Fix-2**（状态归属 ctx）解决「**状态属于谁**」——即使有了它，raise 仍可能挂到错的任务（单例 `activeTaskId`）。
+- 只做任一个：A5 的**表现症状**（不挂起）可由 Fix-1B 单独消除；但 §3.3 P3-b 的三条支路要全堵上必须两者齐备。
+
+### 7.6 需要架构师裁定的点
+
+- `applyReceipt` / `reconcileExecutionTruth` 加 `ctx` 形参是**本文件私有方法**（非契约、非导出），是否允许签名变更（我判断：允许，零外部影响）。
+- `RunContext`（`bridge.ts` `interface RunContext`，当前含 `prompt/outputDir/skillsDir/started/cli/lastFinalText`）增加 3 个**可变**字段 —— 与现有「`lastFinalText: string` 可变」先例一致，类型上无阻碍。
