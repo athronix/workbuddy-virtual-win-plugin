@@ -143,9 +143,11 @@ const GUARDS = {
   e3_observe_guard: (s) =>
     /private observe\(fn: \(\) => void\): void \{/.test(s.A2A) &&
     /this\.observe\(\(\) => this\.delegationObserver\?\.onGoalAccepted/.test(s.A2A),
-  /** E-3 (a)：框架零审计符号 */
+  /** E-3 (a)：框架零审计写入侧符号（D-4 口径：只拦写入侧，含 buildDelegationAuditEntry/appendAudit） */
   e3_no_audit_symbols: (s) =>
-    s.A2A_ALL.every(({ src }) => !/HashChainAuditSink|\baudit\.append\(/.test(src)),
+    s.A2A_ALL.every(
+      ({ src }) => !/\baudit\.append\(|buildDelegationAuditEntry\(|appendAudit\(|HashChainAuditSink/.test(src),
+    ),
   /** E-3 (b)：框架禁依赖 adapter（含依赖表） */
   e3_no_adapter: (s) =>
     s.A2A_ALL.every(({ src }) => (src.match(/from\s+'@winvm\/adapter[^']*'/g) ?? []).length === 0) &&
@@ -156,6 +158,23 @@ const GUARDS = {
     /const delegationObserver: DelegationObserver = \{/.test(s.SERVER) &&
     /onGoalAccepted\(goal: GoalRequest\): void \{/.test(s.SERVER) &&
     /onGoalTerminal\(taskId: string, goal: GoalRequest, snap: DelegationTerminalSnapshot\): void \{/.test(s.SERVER),
+  /** E-6 (D-5)：框架层 finalState 只有 completed/failed 二分 */
+  d5_final_state_binary: (s) =>
+    /const finalState: A2A\.TaskState = result\.ok \? 'completed' : 'failed';/.test(s.A2A) &&
+    /onGoalTerminal\(id, goalWithTask, \{\s*state: result\.ok \? 'completed' : 'failed',/.test(s.A2A) &&
+    !/result\.ok \? 'completed' : 'rejected'/.test(s.A2A),
+  /** E-6 (D-5)：快照类型结构上无法表达 rejected（三值钉死） */
+  d5_snapshot_type: (s) => /readonly state: 'completed' \| 'failed' \| 'input-required';/.test(s.A2A),
+  /** E-6 (D-5)：rejected 仅由宿主审批拒绝路径置位（单点） */
+  d5_rejected_single_site: (s) =>
+    (s.A2A.match(/updateStatus\(\s*taskId,\s*'rejected'\s*\)/g) ?? []).length === 1,
+  /** E-6 (D-5)：observer 据 TaskStore 把 failed 回改为 rejected */
+  d5_observer_rewrite: (s) =>
+    /snap\.state === 'failed' && storedState === 'rejected' \? 'rejected' : snap\.state/.test(s.SERVER) &&
+    /const storedState = taskStore\.tryGet\(taskId\)\?\.task\.status\.state;/.test(s.SERVER),
+  /** E-6 (D-5)：terminalState 以变量实参透传（不得写死） */
+  d5_terminal_state_passthrough: (s) =>
+    /\n\s*terminalState,\n/.test(s.SERVER) && !/terminalState:\s*'failed',/.test(s.SERVER),
   /** E-4：env 门控默认关 → 404 */
   e4_env_gate: (s) => /process\.env\['WINVM_ADMIN_ENDPOINT'\] !== '1'/.test(ADMIN(s)),
   /** E-4：门控早于任何 provider 调用（关态零副作用） */
@@ -352,10 +371,92 @@ const MUTATIONS = [
     },
   },
   {
-    name: 'E-3 依赖表新增 adapter（源码未import 但清单已破）',
+    name: 'E-3 依赖表新增 adapter（源码未 import 但清单已破）',
     guard: 'e3_no_adapter',
     mutate: (s) => {
       s.A2A_PKG.dependencies['@winvm/adapter-agent-workbuddy-llm'] = '0.1.0';
+    },
+  },
+  {
+    name: 'E-3 框架直接调 buildDelegationAuditEntry（审计写入越层 · D-4 符号集）',
+    guard: 'e3_no_audit_symbols',
+    mutate: (s) => {
+      setA2AServer(
+        s,
+        s.A2A.replace(
+          'const goalWithTask: GoalRequest = { ...goal, taskId: id };',
+          "const goalWithTask: GoalRequest = { ...goal, taskId: id };\n    void buildDelegationAuditEntry('complete', {});",
+        ),
+      );
+    },
+  },
+  {
+    name: 'E-3 框架 import HashChainAuditSink（审计写入件入框架）',
+    guard: 'e3_no_audit_symbols',
+    mutate: (s) => {
+      setA2AServer(
+        s,
+        s.A2A.replace(
+          "import { NullLogger } from '@winvm/core';",
+          "import { NullLogger, HashChainAuditSink } from '@winvm/core';",
+        ),
+      );
+    },
+  },
+  {
+    name: 'E-6 框架把 ok:false 收口成 rejected（跨路径泛化终态 · D-5）',
+    guard: 'd5_final_state_binary',
+    mutate: (s) => {
+      setA2AServer(
+        s,
+        s.A2A.replace(
+          "const finalState: A2A.TaskState = result.ok ? 'completed' : 'failed';",
+          "const finalState: A2A.TaskState = result.ok ? 'completed' : 'rejected';",
+        ),
+      );
+    },
+  },
+  {
+    name: 'E-6 快照类型被放宽为含 rejected（结构上可表达第三终态）',
+    guard: 'd5_snapshot_type',
+    mutate: (s) => {
+      setA2AServer(
+        s,
+        s.A2A.replace(
+          "readonly state: 'completed' | 'failed' | 'input-required';",
+          "readonly state: 'completed' | 'failed' | 'input-required' | 'rejected';",
+        ),
+      );
+    },
+  },
+  {
+    name: 'E-6 rejected 置位点增至第二处（终态语义不再唯一归属宿主拒绝）',
+    guard: 'd5_rejected_single_site',
+    mutate: (s) => {
+      setA2AServer(
+        s,
+        s.A2A.replace(
+          "        // 审批通过：任务由挂起的 runner 自行继续（state 回到 working）\n        this.tasks.updateStatus(taskId, 'working');",
+          "        if (finalState === 'failed') this.tasks.updateStatus(taskId, 'rejected');\n        // 审批通过：任务由挂起的 runner 自行继续（state 回到 working）\n        this.tasks.updateStatus(taskId, 'working');",
+        ),
+      );
+    },
+  },
+  {
+    name: 'E-6 observer 的 failed→rejected 回改被摘（宿主拒绝语义无处透出）',
+    guard: 'd5_observer_rewrite',
+    mutate: (s) => {
+      s.SERVER = s.SERVER.replace(
+        "const terminalState =\n        snap.state === 'failed' && storedState === 'rejected' ? 'rejected' : snap.state;",
+        'const terminalState = snap.state;',
+      );
+    },
+  },
+  {
+    name: 'E-6 terminalState 被写死为 failed（终态不可按路径区分）',
+    guard: 'd5_terminal_state_passthrough',
+    mutate: (s) => {
+      s.SERVER = s.SERVER.replace('            terminalState,', "            terminalState: 'failed',");
     },
   },
   {

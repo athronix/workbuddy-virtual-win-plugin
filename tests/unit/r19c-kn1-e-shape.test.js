@@ -17,19 +17,33 @@
  *   E-4 管理端点路由体含 `WINVM_ADMIN_ENDPOINT` 检查文本（默认关 → 404）；
  *   E-5 `/audit/receipt` 响应体过滤走 `sink.query` 且带 `redact`。
  *
- * ##⚠ 实现与设计的偏差（登记，非测试缺陷；断言按**实况**而非按设计字面）
- * §9-E-3 字面要求「框架不得出现 `@winvm/core` import」。实况：`a2a-framework` 的
- * `@winvm/core` import（`server.ts` 的 `NullLogger`、`client.ts` 的 `JsonRpcChannel`、
- * `task-store.ts` 的 `resolveApprovalTtlMs`）是**K-N1 之前既有基线**
- * （已用 `git show 608d4e0~1` 逐文件核实三者均存在），且 T02（`a90e54b`）对
- * `a2a-framework/src/server.ts` **零 import 增删**（observer 为纯附加）。
- * 该包自身的依赖铁律（`index.ts` 文件头）写的是「仅依赖 contracts 与 core，**禁止依赖 adapter**」。
- * 故本组的依赖方向守卫按**真实不变量**分两层断言：
- *   (a) 框架**零审计符号**（`AuditSink`/`HashChainAuditSink`/`audit.append`）——
- *       这才是 §2.4「审计写入必须在 vm-service 层」的机器可判定形式；
- *   (b) 框架**禁依赖 adapter**（`@winvm/adapter*` import 数为 0）。
- * 若按字面断言「core import 数为 0」，将对**未改动**的正确代码误报 —— 故不采用，
- * 并在此登记该口径修正（交主理人/架构确认）。
+ * ## 依赖方向守卫口径（**设计 §11 D-4**；§9-E-3 原字面已废止）
+ * §9-E-3 曾字面要求「框架不得出现 `@winvm/core` import」。**该字面已由 D-4 废止**：
+ * `a2a-framework` 的 `@winvm/core` import（`server.ts:20 NullLogger`，`:96` 处消费；
+ * 另 `client.ts:11 JsonRpcChannel`、`task-store.ts:13 resolveApprovalTtlMs`）是
+ * **K-N1 之前既有基线**（已用 `git show 608d4e0:packages/a2a-framework/src/server.ts:20`
+ * 独立核实），且 T02（`a90e54b`）对该包是 `server.ts +57/-0` **纯增量、零 import 增删**；
+ * 该包 `index.ts:8` 铁律原文为「仅依赖 `@winvm/contracts` 与 `@winvm/core`，
+ * **禁止依赖 adapter**」——本包**本就合法依赖 core**。按字面执行会对**未改动的正确代码**误报。
+ * 故按 D-4 改为**两层机器可判定不变量**：
+ *   (a) **框架零审计写入侧符号**（`audit.append` / `buildDelegationAuditEntry` /
+ *       `appendAudit` / `HashChainAuditSink`）—— 这才是 §2.4「审计写入只在 vm-service 层」
+ *       的可判定形式。**只读侧符号（如`AuditSink` 类型引用）与解释性注释不在此列**；
+ *   (b) **框架禁依赖 adapter** —— grep 范围含 `src/**` **与 `package.json` 依赖表**。
+ * 「observer 可选」半句保留，并按 D-4 加严为**恰 2 处声明 + 每处各自带 `?`**。
+ *
+ * 已知待整改（**非本组断言范围**，登记自 D-4）：`a2a-framework/src/server.ts:58` 的 T02 注释
+ * 沿用了被废止字面（「框架层不得 import `@winvm/core`」），与 `index.ts:8` 铁律自相矛盾。
+ * 本组 (a) 守卫按「只读侧/注释不在此列」处理，故**不会**误报该注释。
+ *
+ * ## 委派终态口径（**设计 §11 D-5**）
+ * `ok:false → failed` 的收口在**框架层** `runGoalWithLifecycle`（`finalState` 二分），
+ * 且 `DelegationTerminalSnapshot.state` 类型钉死为 `'completed'|'failed'|'input-required'`
+ * ——**结构上无法表达 `rejected`**。故 **disabled 拒绝终态是 `failed`**，不是 `rejected`
+ * （设计 §4.1/§7 的「rejected」为设计期笔误，已就地加注）。
+ * 但 `rejected` **非死语义**：宿主显式拒绝审批时框架 `updateStatus(taskId,'rejected')`
+ * 置位，vm-service observer 据此把 `failed` 回改为 `rejected`。
+ * ⇒ **断言须按路径区分终态，不得跨路径泛化**（见本文件 D-5 组断言）。
  *
  * 纪律：**只读源码文本**，不修改 packages 下的任何 src，不 spawn 进程、不起 HTTP。
  *
@@ -208,19 +222,21 @@ describe('K-N1 E-3 a2a-framework：observer 纯可选 + 依赖方向铁律不破
     assert.match(A2A, /this\.observe\(\(\) =>\s*\n?\s*this\.delegationObserver\?\.onGoalTerminal/, '终态点必须经护栏');
   });
 
-  test('依赖方向 (a)：框架零审计符号（§2.4 审计写入只在 vm-service 层）', () => {
+  test('依赖方向 (a)：框架零审计写入侧符号（§2.4 审计写入只在 vm-service 层 · D-4）', () => {
     for (const { f, src } of A2A_ALL) {
+      // D-4 口径：只拦**写入侧**符号。只读侧（`AuditSink` 类型引用等）与解释性注释不在此列——
+      // 故 `a2a-framework/src/server.ts:58` 那段沿用废止字面的注释不会误报（已登记待整改）。
       assert.doesNotMatch(
         src,
-        /HashChainAuditSink|\baudit\.append\(/,
-        `a2a-framework/${f} 不得出现审计写入符号 —— 壳双态条目由 vm-service 实现`,
+        /\baudit\.append\(|buildDelegationAuditEntry\(|appendAudit\(|HashChainAuditSink/,
+        `a2a-framework/${f} 不得出现审计写入侧符号 —— 壳双态条目由 vm-service 实现（D-4）`,
       );
-      // 注释里允许提及（解释「为什么框架不落审计」），故只断言代码形态：import 不得引入审计类型
+      // 从 core 也不得 import 审计写入类型
       const imports = src.match(/^import[\s\S]{0,400}?from\s+'@winvm\/core';/gm) ?? [];
       assert.equal(
-        imports.filter((s) => /AuditSink|AuditRecord|HashChain/.test(s)).length,
+        imports.filter((s) => /HashChainAuditSink|buildDelegationAuditEntry|appendAudit/.test(s)).length,
         0,
-        `a2a-framework/${f} 不得从 core import 审计类型`,
+        `a2a-framework/${f} 不得从 core import 审计写入件`,
       );
     }
   });
@@ -365,6 +381,66 @@ describe('K-N1 E-5 GET /audit/receipt：只读投影走 sink.query 且出参脱�
       RECEIPT_ROUTE,
       /records\.some\(\(r\) => r\.ext\?\.kind === 'delegation-complete'\)/,
       '仅命中壳 complete 条目时才付出全量代价',
+    );
+  });
+});
+/* ============================ E-6 委派终态口径（D-5） ============================ */
+
+describe('K-N1 E-6 委派终态按路径区分（D-5：disabled 拒绝= failed，宿主拒绝= rejected）', () => {
+  test('框架层finalState 只有 completed/failed 二分（无第三分支）', () => {
+    assert.match(
+      A2A,
+      /const finalState: A2A\.TaskState = result\.ok \? 'completed' : 'failed';/,
+      'ok:false 必须在框架层收口为 failed',
+    );
+    assert.match(
+      A2A,
+      /onGoalTerminal\(id, goalWithTask, \{\s*state: result\.ok \? 'completed' : 'failed',/,
+      '终态回调同式二分 —— disabled 拒绝走此路径，故其终态是 failed 而非 rejected',
+    );
+  });
+
+  test('DelegationTerminalSnapshot.state 类型结构上无法表达 rejected', () => {
+    assert.match(
+      A2A,
+      /readonly state: 'completed' \| 'failed' \| 'input-required';/,
+      '快照类型钉死三值，rejected 只能由 observer 回改产生',
+    );
+  });
+
+  test('rejected 仅由宿主审批拒绝路径置位（框架 updateStatus 单点）', () => {
+    const hits = A2A.match(/updateStatus\(\s*taskId,\s*'rejected'\s*\)/g) ?? [];
+    assert.equal(hits.length, 1, `rejected 应仅在宿主审批拒绝应答处置位一次，实得 ${hits.length}`);
+    assert.doesNotMatch(A2A, /result\.ok \? 'completed' : 'rejected'/, 'runGoal 收口不得产出 rejected');
+  });
+
+  test('observer 把宿主拒绝的 failed 回改为 rejected（D-5 保留 rejected 的落点）', () => {
+    assert.match(
+      SERVER,
+      /snap\.state === 'failed' && storedState === 'rejected' \? 'rejected' : snap\.state/,
+      'observer 须据 TaskStore 已置的 rejected 回改终态（否则该语义无处透出）',
+    );
+    assert.match(
+      SERVER,
+      /const storedState = taskStore\.tryGet\(taskId\)\?\.task\.status\.state;/,
+      '回改依据须取自 TaskStore 实际状态，不得凭空判定',
+    );
+  });
+
+  test('壳 complete 条目透出 observer 计算出的 terminalState（rejected 得以落链取证）', () => {
+    // terminalState 必须以**变量**形式实参透传，不能就地写死终态 ——
+    // 否则 D-5 保留的 rejected 语义将无处落进 ext.terminalState，取证侧看不到宿主拒绝。
+    assert.match(SERVER, /\n\s*terminalState,\n/, '须以实参透传 terminalState');
+    assert.doesNotMatch(
+      SERVER,
+      /terminalState:\s*'failed',/,
+      '不得把终态写死为常量（须由 snap/storedState 推导）',
+    );
+    // errorCode 优先取领域 reason —— disabled 拒绝落 LLM_SESSION_DISABLED
+    assert.match(
+      SERVER,
+      /result\?\.error\?\.reason\s*\?\?/,
+      'errorCode 须优先取领域 reason（LLM_SESSION_DISABLED / NO_EXECUTION_RECEIPT）',
     );
   });
 });

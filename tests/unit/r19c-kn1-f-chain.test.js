@@ -439,3 +439,80 @@ describe('K-N1 F-3 GET /audit/receipt 语义（真实 sink 数据 + buildReceipt
     assert.equal(out.records[0].seq, r.seq);
   });
 });
+
+/* ============================ F-4 委派终态口径（D-5：按路径区分，不跨路径泛化） ============================ */
+
+/**
+ * D-5 覆盖缺口补丁：`ext.terminalState` 的 `rejected` 分支此前**无任何测试覆盖**
+ * （全仓断言只覆盖 completed/failed）。D-5 明确「`rejected` 非死语义，语义收窄为
+ * **仅**宿主显式拒绝审批路径」，故此处补该路径的落链断言，为 D-5 裁定补上护栏。
+ */
+describe('K-N1 F-4 委派终态：宿主显式拒绝 → terminalState=rejected（D-5 覆盖缺口补丁）', () => {
+  /** 落一条壳 complete 条目（模拟 observer 在宿主拒绝后落链） */
+  async function appendComplete(label, { terminalState, ok, errorCode, resultSummary }) {
+    const { dir, sink } = newSink(label);
+    const ledger = new DelegationLedger(DTID, 'task_kn1', [], Date.now() - 4200);
+    const rec = await sink.append(
+      buildDelegationAuditEntry('complete', {
+        delegationTraceId: DTID,
+        taskId: 'task_kn1',
+        goal: '卸载 VM 企业微信',
+        startedAtMs: ledger.startedAtMs,
+        newAuditId: () => 'aud_c',
+        ledger,
+        terminalState,
+        ok,
+        ...(errorCode ? { errorCode } : {}),
+        ...(resultSummary ? { resultSummary } : {}),
+      }),
+    );
+    const v = await sink.verifyChain();
+    return { dir, rec, valid: v.valid, raw: lines(dir) };
+  }
+
+  test('宿主拒绝 → ext.terminalState=rejected 入链且可取证（ok:false、summary 标 rejected）', async () => {
+    const { rec, valid, raw } = await appendComplete('rejected', {
+      terminalState: 'rejected',
+      ok: false,
+      resultSummary: '宿主拒绝审批：企业微信未卸载',
+    });
+
+    assert.equal(rec.ext.terminalState, 'rejected', 'D-5 保留的 rejected 语义须真实落链可取证');
+    assert.equal(rec.ext.kind, 'delegation-complete');
+    assert.equal(rec.result.ok, false, 'rejected 属非completed 终态 → result.ok=false');
+    assert.match(rec.result.summary, /^delegation\.complete:rejected/, 'summary 前缀须如实标出终态');
+    assert.equal(valid, true, 'rejected 条目入链不得破坏哈希链');
+    assert.match(JSON.stringify(raw), /"terminalState":"rejected"/, '链上原始记录可grep 到 rejected');
+  });
+
+  test('路径区分：disabled 拒绝 → failed（绝不与宿主拒绝的 rejected 混同）', async () => {
+    // D-5：ok:false 在框架层收口 failed；rejected 只在宿主显式拒绝路径出现。
+    // 两者 result.ok 同为 false，**唯一区分信号就是 terminalState** —— 故该字段不得被泛化写死。
+    const rej = await appendComplete('cmp-rejected', { terminalState: 'rejected', ok: false });
+    const fail = await appendComplete('cmp-failed', {
+      terminalState: 'failed',
+      ok: false,
+      errorCode: 'LLM_SESSION_DISABLED',
+    });
+
+    assert.equal(fail.rec.ext.terminalState, 'failed', 'disabled 拒绝终态是 failed（D-5 笔误更正）');
+    assert.equal(fail.rec.result.errorCode, 'LLM_SESSION_DISABLED', '原因码独立于终态表达');
+    assert.equal(rej.rec.ext.terminalState, 'rejected');
+    assert.equal(
+      rej.rec.result.ok,
+      fail.rec.result.ok,
+      '两者 ok 同为 false —— 证明跨路径泛化 ok 会丢失终态语义',
+    );
+    assert.notEqual(rej.rec.ext.terminalState, fail.rec.ext.terminalState, '终态必须按路径可区分');
+  });
+
+  test('terminalState 缺席时按 ok 兜底（completed/failed），不产出第三种臆造终态', async () => {
+    const okCase = await appendComplete('fallback-ok', { ok: true });
+    assert.equal(okCase.rec.ext.terminalState, undefined, '未给 terminalState 时不凭空造字段');
+    assert.match(okCase.rec.result.summary, /^delegation\.complete:completed/, 'summary 兜底 completed');
+
+    const failCase = await appendComplete('fallback-fail', { ok: false });
+    assert.equal(failCase.rec.ext.terminalState, undefined);
+    assert.match(failCase.rec.result.summary, /^delegation\.complete:failed/, 'summary 兜底 failed');
+  });
+});
