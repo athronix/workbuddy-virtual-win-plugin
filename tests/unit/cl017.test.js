@@ -19,11 +19,23 @@ const engine = () => new CorePolicyEngine();
 const byId = (id) => WINDOWS_CAPABILITIES.find((c) => c.id === id);
 
 describe('CL-017 D9 · 注册表路径归一化', () => {
-  test('HKLM\\ 无冒号形式被识别，并自动补冒号', () => {
+  // R19-B · S-1（契约 docs/design/r19b-s1-kn2-contract.md §2.2 B2-2）：
+  // 权威归一形态 = **根键大写短名 + 冒号 + 键名段小写 + 无尾分隔符**（`HKLM:\software\…`）。
+  // 键名段折叠为小写使归一成为**幂等全函数**，白名单比对据此改为**大小写敏感**
+  // （`matchRegistryAllowlist`）。原 4 条断言写的是「保留用户大小写」的过渡形态，
+  // 若沿用会让「`HKLM:\SOFTWARE` ≡ `hklm\software`」这条等价关系只靠 `/i` 标志维持 ——
+  // 而 D9 的诉求本来就是**写法不影响成败**，把等价性显式落在归一结果上更可审计。
+  // ⚠ 生效前提：`@winvm/core` 需已重建 dist（旧 dist 仍返回大小写保留形态 ⇒ 本组断言失败）。
+  test('HKLM\\ 无冒号形式被识别，并归一为权威形态（根键大写 + 键名段小写）', () => {
     assert.ok(looksLikeRegistryPath('HKLM\\SOFTWARE\\Microsoft'), '无冒号也应按注册表路径识别');
-    assert.equal(normalizeRegistryPath('HKLM\\SOFTWARE\\Microsoft'), 'HKLM:\\SOFTWARE\\Microsoft');
-    assert.equal(normalizeRegistryPath('HKLM:\\SOFTWARE'), 'HKLM:\\SOFTWARE', '已带冒号保持不变');
-    assert.equal(normalizeRegistryPath('HKCU\\Software'), 'HKCU:\\Software');
+    assert.equal(normalizeRegistryPath('HKLM\\SOFTWARE\\Microsoft'), 'HKLM:\\software\\microsoft');
+    assert.equal(normalizeRegistryPath('HKLM:\\SOFTWARE'), 'HKLM:\\software', '冒号形态与无冒号形态归一到同一串（D9 等价性）');
+    assert.equal(normalizeRegistryPath('HKCU\\Software'), 'HKCU:\\software');
+    // 幂等 + 无 `::`（契约 §5 A4）：裸根键四种写法全部收敛为 `HKLM:`，二次归一不变
+    for (const bare of ['HKLM:', 'HKLM:\\', 'HKLM\\', 'hklm']) {
+      assert.equal(normalizeRegistryPath(bare), 'HKLM:', `裸根键 ${JSON.stringify(bare)} 应归一为 HKLM:`);
+      assert.equal(normalizeRegistryPath(normalizeRegistryPath(bare)), 'HKLM:', '归一必须幂等');
+    }
   });
 
   test('读注册表：HKLM\\SOFTWARE（无冒号）放行；HKLM\\SYSTEM 拒绝', () => {

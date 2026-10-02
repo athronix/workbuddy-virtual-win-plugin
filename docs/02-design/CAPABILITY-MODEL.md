@@ -3,9 +3,9 @@
 | 项 | 值 |
 |---|---|
 | 文档 ID | CAPABILITY-MODEL-winvm-bridge-v1 |
-| 版本 | v1.2（K-N2：§3.2.1 `app.winget.uninstall` 的 dryRun 改为宿主侧纯查询预览 + 新增 `plan` 字段；R17-T01：`app.winget.uninstall` 回执语义增补 §3.2.1） |
+| 版本 | v1.3（S-1：新增 §3.1.1 注册表路径形态归一化；K-N2：§3.2.1 `app.winget.uninstall` 的 dryRun 改为宿主侧纯查询预览 + 新增 `plan` 字段；R17-T01：回执语义增补 §3.2.1） |
 | 层 | L0 规范层（`packages/contracts`） |
-| 日期 | 2026-10-02（v1.2）；2026-08-28（v1.0） |
+| 日期 | 2026-10-02（v1.3）；2026-08-28（v1.0） |
 
 ---
 
@@ -46,14 +46,37 @@
 | `system.process.list` | 进程清单（CPU/内存/命令行） | L0 | `Get-CimInstance Win32_Process` |
 | `system.process.terminate` | 结束进程（含进程树） | L2 | `Stop-Process` / `taskkill /T` |
 | `system.task.scheduled` | 计划任务增删改查 | L2 | `*-ScheduledTask` |
-| `system.registry.read` | 读注册表 | L0 | `Get-ItemProperty` |
-| `system.registry.write` | 写注册表（受限根键白名单） | L2 | `Set-ItemProperty` |
+| `system.registry.read` | 读注册表（路径**形态等价**，见 §3.1.1） | L0 | `Get-ItemProperty` |
+| `system.registry.write` | 写注册表（受限根键白名单；路径形态规则同 §3.1.1） | L2 | `Set-ItemProperty` |
 | `system.network.config` | 网卡/IP/DNS/路由查看与配置 | L2 | `Get/Set-NetIPAddress` 等 |
 | `system.user.manage` | 本地用户与组 | L2 | `*-LocalUser` / `*-LocalGroup*` |
 | `system.env.manage` | 环境变量读写 | L1 | `[Environment]::SetEnvironmentVariable` |
 | `system.eventlog.query` | 事件日志查询 | L0 | `Get-WinEvent` |
 | `system.power.control` | 关机/重启/休眠 | **L3** | `Stop-Computer` / `Restart-Computer` |
 | `system.update.manage` | Windows 更新查看与安装 | L2 | `PSWindowsUpdate` / UsoClient |
+
+#### 3.1.1 注册表路径形态归一化（S-1 · R19-B）
+
+> 权威契约：`docs/design/r19b-s1-kn2-contract.md` §1–§3（B1 根因 / B2 归一权威 / B3 回显）。
+> 判定实现唯一在**策略层** `packages/core/src/policy/engine.ts`（`canonicalRegistryPath` +
+> `matchRegistryAllowlist`）；`psmod/system.ps1` 的 `ConvertTo-RegistryPath` 保持 D9 原实现
+> （仅补冒号），**不实现第二份归一** —— 双实现正是 S-1 的病灶类型。
+> 回归护栏：`tests/unit/r19b-s1-registry-forms.test.js`、`tests/unit/cl017.test.js`（D9 四条）。
+
+- **权威归一形态**：`HKLM:\software\…` —— 根键大写短名 + `:` + 反斜杠 + **键名段小写** + 无尾分隔符。
+  该形态同时用于白名单比对与错误回显（判定 / 日志 / 回执三处同一串）。
+- **写法不影响成败**（D9 + S-1）：有无冒号（`HKLM:\` ≡ `HKLM\`）、长短根键
+  （`HKLM` ≡ `HKEY_LOCAL_MACHINE`）、任意大小写（`hklm:\Software` ≡ `HKLM:\SOFTWARE`）、
+  正/反斜杠一律等价 —— 归一后在同一字符串上比对。
+- **归一 ≠ 放行**：根键**准入清单恰 4 条**（HKLM/HKCU 的长短写法）。
+  `HKU`/`HKEY_USERS`、`HKCR`、`HKCC` **不被铸造合法形态**，且必被拒；
+  它们的判定仍落在**注册表域**（`registry{Read,Write}Allowlist:miss`），
+  不会退回文件系统域撞 `pathAllowlist:miss`（真机 S-1 的错误归属即在此）。
+- **比对大小写敏感**（仅注册表域）：文件系统匹配保持大小写不敏感（NTFS 不敏感但保留大小写，
+  且默认表含 `C:\Program Files (x86)\**` 一类混合大小写条目）。
+- **错误体**：`POLICY_DENIED.details.path` 回显**权威形态**，`details.inputPath` 保留原样入参，
+  `details.forms` 给出等价可用写法与读写范围；**不得**建议「改回某一种写法」，也不得出现
+  `M:\…` 一类伪盘符（旧 `extractPathTokens` 盘符正则把 `HKLM:` 尾字母当盘符所致的真机症状）。
 
 ### 3.2 `app` —— 应用管理（FR-202）
 
