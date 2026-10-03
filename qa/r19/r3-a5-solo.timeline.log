@@ -1,0 +1,176 @@
+2026-10-03T17:28:51.523Z RPC tasks/list http=200 bytes=3776
+2026-10-03T17:28:51.525Z PREFLIGHT_LIST count=4 states=failed,canceled,completed,completed
+2026-10-03T17:28:51.665Z RPC message/send http=200 bytes=620
+2026-10-03T17:28:51.666Z SEND task=94f159e3-1a2a-4242-a9d7-3884bc8af0d1 state=working
+2026-10-03T17:28:51.742Z RPC tasks/get http=200 bytes=590
+2026-10-03T17:28:51.742Z POLL working 464ms
+2026-10-03T17:28:52.797Z RPC tasks/get http=200 bytes=561
+2026-10-03T17:28:52.797Z POLL working 1519ms
+2026-10-03T17:28:53.861Z RPC tasks/get http=200 bytes=561
+2026-10-03T17:28:53.861Z POLL working 2583ms
+2026-10-03T17:28:54.923Z RPC tasks/get http=200 bytes=561
+2026-10-03T17:28:54.923Z POLL working 3645ms
+2026-10-03T17:28:55.985Z RPC tasks/get http=200 bytes=561
+2026-10-03T17:28:55.985Z POLL working 4707ms
+2026-10-03T17:28:57.048Z RPC tasks/get http=200 bytes=561
+2026-10-03T17:28:57.049Z POLL working 5771ms
+2026-10-03T17:28:58.114Z RPC tasks/get http=200 bytes=561
+2026-10-03T17:28:58.114Z POLL working 6836ms
+2026-10-03T17:28:59.164Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:28:59.164Z POLL working 7886ms
+2026-10-03T17:29:00.229Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:00.229Z POLL working 8951ms
+2026-10-03T17:29:01.280Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:01.280Z POLL working 10002ms
+2026-10-03T17:29:02.332Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:02.332Z POLL working 11054ms
+2026-10-03T17:29:03.399Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:03.400Z POLL working 12122ms
+2026-10-03T17:29:04.460Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:04.460Z POLL working 13182ms
+2026-10-03T17:29:05.519Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:05.519Z POLL working 14241ms
+2026-10-03T17:29:06.600Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:06.600Z POLL working 15322ms
+2026-10-03T17:29:07.668Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:07.668Z POLL working 16390ms
+2026-10-03T17:29:08.743Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:08.743Z POLL working 17465ms
+2026-10-03T17:29:09.797Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:09.797Z POLL working 18519ms
+2026-10-03T17:29:10.851Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:10.851Z POLL working 19573ms
+2026-10-03T17:29:11.915Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:11.915Z POLL working 20637ms
+2026-10-03T17:29:12.979Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:12.979Z POLL working 21701ms
+2026-10-03T17:29:14.041Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:14.041Z POLL working 22763ms
+2026-10-03T17:29:15.107Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:15.108Z POLL working 23830ms
+2026-10-03T17:29:16.167Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:16.168Z POLL working 24890ms
+2026-10-03T17:29:17.220Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:17.220Z POLL working 25942ms
+2026-10-03T17:29:18.275Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:18.276Z POLL working 26998ms
+2026-10-03T17:29:19.327Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:19.328Z POLL working 28050ms
+2026-10-03T17:29:20.409Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:20.409Z POLL working 29131ms
+2026-10-03T17:29:21.466Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:21.467Z POLL working 30189ms
+2026-10-03T17:29:22.521Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:22.521Z POLL working 31243ms
+2026-10-03T17:29:23.575Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:23.575Z POLL working 32297ms
+2026-10-03T17:29:24.626Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:24.627Z POLL working 33349ms
+2026-10-03T17:29:25.690Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:25.690Z POLL working 34412ms
+2026-10-03T17:29:26.755Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:26.756Z POLL working 35478ms
+2026-10-03T17:29:27.809Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:27.810Z POLL working 36532ms
+2026-10-03T17:29:28.868Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:28.869Z POLL working 37591ms
+2026-10-03T17:29:29.922Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:29.922Z POLL working 38644ms
+2026-10-03T17:29:30.987Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:30.987Z POLL working 39709ms
+2026-10-03T17:29:32.039Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:32.039Z POLL working 40761ms
+2026-10-03T17:29:33.087Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:33.087Z POLL working 41809ms
+2026-10-03T17:29:34.137Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:34.137Z POLL working 42859ms
+2026-10-03T17:29:35.201Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:35.201Z POLL working 43923ms
+2026-10-03T17:29:36.252Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:36.252Z POLL working 44974ms
+2026-10-03T17:29:37.303Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:37.304Z POLL working 46026ms
+2026-10-03T17:29:38.358Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:38.358Z POLL working 47080ms
+2026-10-03T17:29:39.421Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:39.421Z POLL working 48143ms
+2026-10-03T17:29:40.492Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:40.492Z POLL working 49214ms
+2026-10-03T17:29:41.559Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:41.559Z POLL working 50281ms
+2026-10-03T17:29:42.623Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:42.624Z POLL working 51346ms
+2026-10-03T17:29:43.691Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:43.691Z POLL working 52413ms
+2026-10-03T17:29:44.738Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:44.738Z POLL working 53460ms
+2026-10-03T17:29:45.788Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:45.788Z POLL working 54510ms
+2026-10-03T17:29:46.836Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:46.837Z POLL working 55559ms
+2026-10-03T17:29:47.893Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:47.894Z POLL working 56616ms
+2026-10-03T17:29:48.955Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:48.955Z POLL working 57677ms
+2026-10-03T17:29:50.012Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:50.012Z POLL working 58734ms
+2026-10-03T17:29:51.071Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:51.071Z POLL working 59793ms
+2026-10-03T17:29:52.123Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:52.124Z POLL working 60846ms
+2026-10-03T17:29:53.191Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:53.191Z POLL working 61913ms
+2026-10-03T17:29:54.261Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:54.262Z POLL working 62984ms
+2026-10-03T17:29:55.322Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:55.322Z POLL working 64044ms
+2026-10-03T17:29:56.375Z RPC tasks/get http=200 bytes=562
+2026-10-03T17:29:56.376Z POLL working 65098ms
+2026-10-03T17:29:57.436Z RPC tasks/get http=200 bytes=780
+2026-10-03T17:29:57.436Z POLL working 66158ms
+2026-10-03T17:29:58.489Z RPC tasks/get http=200 bytes=1749
+2026-10-03T17:29:58.490Z POLL input-required 67212ms
+2026-10-03T17:29:58.491Z INPUT_REQUIRED {"type":"approval-request","approvalId":"apr_b4cb5dbba90c4e6aa769","capabilityId":"app.winget.uninstall","risk":"L2","preview":{"capabilityId":"app.winget.uninstall","risk":"L2","destructive":true,"requiresSession":false,"params":{"id":"QA.R19B.Nonexistent.99997","dryRun":false},"dryRun":{"supported
+2026-10-03T17:29:58.599Z RPC message/send http=200 bytes=718
+2026-10-03T17:29:58.600Z REPLY_FALSE state=rejected
+2026-10-03T17:29:58.657Z RPC tasks/get http=200 bytes=1528
+2026-10-03T17:29:58.658Z POLL rejected 67380ms
+2026-10-03T17:29:58.658Z REJECT_FINAL rejected
+2026-10-03T17:40:54.370Z PREFLIGHT_LIST error=TypeError: fetch failed
+2026-10-03T17:40:56.416Z FATAL TypeError: fetch failed
+    at node:internal/deps/undici/undici:16416:13
+    at async rpc (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/qa/r19/a2a-extra.mjs:69:15)
+    at async runReject (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/qa/r19/a2a-extra.mjs:355:13)
+    at async file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/qa/r19/a2a-extra.mjs:443:15
+2026-10-03T17:44:28.748Z RPC tasks/list http=200 bytes=974
+2026-10-03T17:44:28.749Z PREFLIGHT_LIST count=1 states=rejected
+2026-10-03T17:44:28.871Z RPC message/send http=200 bytes=620
+2026-10-03T17:44:28.872Z SEND task=f81388ee-ee02-40c2-8995-632366402ed7 state=working
+2026-10-03T17:44:28.931Z RPC tasks/get http=200 bytes=590
+2026-10-03T17:44:28.932Z POLL working 389ms
+2026-10-03T17:44:29.987Z RPC tasks/get http=200 bytes=559
+2026-10-03T17:44:29.987Z POLL working 1444ms
+2026-10-03T17:44:31.057Z RPC tasks/get http=200 bytes=559
+2026-10-03T17:44:31.057Z POLL working 2514ms
+2026-10-03T17:44:32.122Z RPC tasks/get http=200 bytes=559
+2026-10-03T17:44:32.123Z POLL working 3580ms
+2026-10-03T17:44:33.193Z RPC tasks/get http=200 bytes=559
+2026-10-03T17:44:33.194Z POLL working 4651ms
+2026-10-03T17:44:34.255Z RPC tasks/get http=200 bytes=559
+2026-10-03T17:44:34.255Z POLL working 5712ms
+2026-10-03T17:44:35.323Z RPC tasks/get http=200 bytes=559
+2026-10-03T17:44:35.323Z POLL working 6780ms
+2026-10-03T17:44:36.387Z RPC tasks/get http=200 bytes=560
+2026-10-03T17:44:36.387Z POLL working 7844ms
+2026-10-03T17:44:37.461Z RPC tasks/get http=200 bytes=560
+2026-10-03T17:44:37.463Z POLL working 8920ms
+2026-10-03T17:44:38.521Z RPC tasks/get http=200 bytes=560
+2026-10-03T17:44:38.521Z POLL working 9978ms
+2026-10-03T17:44:39.577Z RPC tasks/get http=200 bytes=1747
+2026-10-03T17:44:39.578Z POLL input-required 11035ms
+2026-10-03T17:44:39.579Z INPUT_REQUIRED {"type":"approval-request","approvalId":"apr_6c17a82d369c41929e92","capabilityId":"appops.workflow.run","risk":"L2","preview":{"capabilityId":"app.winget.uninstall","risk":"L2","destructive":true,"requiresSession":false,"params":{"id":"QA.R19B.Nonexistent.99997","dryRun":false},"dryRun":{"supported"
+2026-10-03T17:44:39.687Z RPC message/send http=200 bytes=718
+2026-10-03T17:44:39.688Z REPLY_FALSE state=rejected
+2026-10-03T17:44:39.764Z RPC tasks/get http=200 bytes=1528
+2026-10-03T17:44:39.764Z POLL rejected 11221ms
+2026-10-03T17:44:39.764Z REJECT_FINAL rejected

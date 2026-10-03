@@ -1,0 +1,40 @@
+# Q2 取证：A4 轮次耗时（可证伪预测 13.8~18.4s）
+# 来源：VM 服务日志 C:\Users\User\AppData\Local\WinVMBridge\logs\winvm-service-*.log
+# 采集时间：2026-10-03T17:48:21Z  方式：ssh User@172.16.100.2 grep（只读）
+# --- R3 交叠轮次（本轮实测）---
+{"ts":"2026-10-03T17:41:40.371Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":12636,"ok":true}
+{"ts":"2026-10-03T17:44:39.274Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":10346,"ok":true}
+{"ts":"2026-10-03T17:45:19.824Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":15626,"ok":true}
+{"ts":"2026-10-03T17:45:29.840Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":10015,"ok":true}
+# --- 历史 [llm-session] 轮次完成全量（供对照）---
+{"ts":"2026-09-28T07:03:59.181Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":43762,"ok":true}
+{"ts":"2026-09-28T07:34:09.347Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":103761,"ok":true}
+{"ts":"2026-09-28T09:25:04.312Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":29895,"ok":true}
+{"ts":"2026-09-28T11:06:39.233Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":70965,"ok":true}
+{"ts":"2026-09-28T11:17:44.643Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":26729,"ok":true}
+{"ts":"2026-09-28T11:17:58.861Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":10424,"ok":true}
+{"ts":"2026-09-29T03:06:58.043Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":60199,"ok":false}
+{"ts":"2026-09-29T03:20:22.987Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":71828,"ok":true}
+{"ts":"2026-09-29T03:26:34.624Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":54615,"ok":true}
+{"ts":"2026-09-29T10:37:58.831Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":60127,"ok":false}
+{"ts":"2026-09-29T10:43:01.951Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":29868,"ok":true}
+{"ts":"2026-09-29T10:46:30.077Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":12522,"ok":true}
+{"ts":"2026-09-29T10:47:21.278Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":48006,"ok":true}
+{"ts":"2026-09-29T10:50:38.831Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":136688,"ok":true}
+{"ts":"2026-09-29T10:52:38.297Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":62450,"ok":true}
+{"ts":"2026-09-30T09:53:41.286Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":60105,"ok":false}
+{"ts":"2026-09-30T10:07:32.283Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":104996,"ok":true}
+{"ts":"2026-09-30T10:12:07.201Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":60188,"ok":false}
+{"ts":"2026-09-30T10:54:26.896Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":60116,"ok":false}
+{"ts":"2026-10-01T22:34:44.135Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":12819,"ok":false}
+{"ts":"2026-10-02T15:34:59.019Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":42484,"ok":true}
+{"ts":"2026-10-02T16:02:19.073Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":36803,"ok":true}
+{"ts":"2026-10-02T16:02:53.786Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":14953,"ok":true}
+{"ts":"2026-10-02T16:03:25.427Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":18301,"ok":true}
+{"ts":"2026-10-02T16:03:37.883Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":12454,"ok":true}
+{"ts":"2026-10-03T17:29:57.566Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":66016,"ok":true}
+{"ts":"2026-10-03T17:41:40.371Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":12636,"ok":true}
+{"ts":"2026-10-03T17:44:39.274Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":10346,"ok":true}
+{"ts":"2026-10-03T17:45:19.824Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":15626,"ok":true}
+{"ts":"2026-10-03T17:45:29.840Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":10015,"ok":true}
+# --- 检索结论：48a90a2f / apr_a9aabfcffb5f4246b918 在全部留存日志中零命中 ---

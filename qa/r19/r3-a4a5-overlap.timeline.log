@@ -1,0 +1,58 @@
+2026-10-03T17:45:04.039Z RPC tasks/list http=200 bytes=1856
+2026-10-03T17:45:04.041Z PREFLIGHT_LIST count=2 states=rejected,rejected
+2026-10-03T17:45:04.156Z RPC message/send http=200 bytes=565
+2026-10-03T17:45:04.156Z SEND_A4 task=6bab926e-15be-42c7-abb8-5e36f9a4b183 state=working atMs=333
+2026-10-03T17:45:07.273Z RPC tasks/get http=200 bytes=505
+2026-10-03T17:45:07.273Z A4_STATE_WHEN_A5_SENT working 3450ms
+2026-10-03T17:45:07.402Z RPC message/send http=200 bytes=614
+2026-10-03T17:45:07.403Z SEND_A5 task=0281fb63-a1e5-4e07-8224-399b0d4720e0 state=working atMs=3580
+2026-10-03T17:45:07.469Z RPC tasks/get http=200 bytes=553
+2026-10-03T17:45:07.469Z POLL_A5 working 3646ms
+2026-10-03T17:45:08.545Z RPC tasks/get http=200 bytes=553
+2026-10-03T17:45:08.545Z POLL_A5 working 4722ms
+2026-10-03T17:45:09.605Z RPC tasks/get http=200 bytes=553
+2026-10-03T17:45:09.605Z POLL_A5 working 5782ms
+2026-10-03T17:45:10.674Z RPC tasks/get http=200 bytes=553
+2026-10-03T17:45:10.674Z POLL_A5 working 6851ms
+2026-10-03T17:45:11.735Z RPC tasks/get http=200 bytes=553
+2026-10-03T17:45:11.735Z POLL_A5 working 7912ms
+2026-10-03T17:45:12.797Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:12.797Z POLL_A5 working 8974ms
+2026-10-03T17:45:13.855Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:13.855Z POLL_A5 working 10032ms
+2026-10-03T17:45:14.922Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:14.922Z POLL_A5 working 11099ms
+2026-10-03T17:45:15.986Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:15.986Z POLL_A5 working 12163ms
+2026-10-03T17:45:17.036Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:17.037Z POLL_A5 working 13214ms
+2026-10-03T17:45:18.092Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:18.093Z POLL_A5 working 14270ms
+2026-10-03T17:45:19.158Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:19.161Z POLL_A5 working 15338ms
+2026-10-03T17:45:20.219Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:20.219Z POLL_A5 working 16396ms
+2026-10-03T17:45:21.282Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:21.283Z POLL_A5 working 17460ms
+2026-10-03T17:45:22.352Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:22.353Z POLL_A5 working 18530ms
+2026-10-03T17:45:23.404Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:23.404Z POLL_A5 working 19581ms
+2026-10-03T17:45:24.466Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:24.467Z POLL_A5 working 20644ms
+2026-10-03T17:45:25.521Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:25.522Z POLL_A5 working 21699ms
+2026-10-03T17:45:26.584Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:26.584Z POLL_A5 working 22761ms
+2026-10-03T17:45:27.636Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:27.637Z POLL_A5 working 23814ms
+2026-10-03T17:45:28.709Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:28.709Z POLL_A5 working 24886ms
+2026-10-03T17:45:29.768Z RPC tasks/get http=200 bytes=554
+2026-10-03T17:45:29.768Z POLL_A5 working 25945ms
+2026-10-03T17:45:30.820Z RPC tasks/get http=200 bytes=1741
+2026-10-03T17:45:30.821Z POLL_A5 input-required 26998ms
+2026-10-03T17:45:30.822Z A5_INPUT_REQUIRED {"type":"approval-request","approvalId":"apr_71045d0a1c3c454fa890","capabilityId":"appops.workflow.run","risk":"L2","preview":{"capabilityId":"app.winget.uninstall","risk":"L2","destructive":true,"requiresSession":false,"params":{"id":"QA.R19B.Nonexistent.99997","dryRun":false},"dryRun":{"supported"
+2026-10-03T17:45:30.933Z RPC tasks/get http=200 bytes=1497
+2026-10-03T17:45:30.933Z POLL completed 27110ms
+2026-10-03T17:45:30.934Z A4_FINAL completed 27111ms
