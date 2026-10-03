@@ -59,7 +59,7 @@ spec §1 C-1 第 4 点称「C-1 一落地 `endTask.length` 立即变 1 ⇒ C5 �
 
 ---
 
-## 3. T02 —— Fix-1A + Fix-1B + `no-active-task` 告警（已完成，commit `f66cd0a`）
+## 3. T02 —— Fix-1A + Fix-1B + `no-active-task` 告警（已完成，commit `10967c2`）
 
 **改动**
 1. `packages/vm-service/src/server.ts`
@@ -117,7 +117,49 @@ B 组须由 QA 把 `makeReq` 补 `taskId`（或把 `endTask()` 改为 `endTask('
 
 ---
 
-## 4. T03 —— Fix-2：per-delegation 三态搬离单例（待做）
+## 4. T03 —— Fix-2：per-delegation 三态搬离单例（已完成）
+
+**改动（单文件 `packages/adapter-agent-workbuddy-llm/src/bridge.ts`，13 落点，严格按 spec 六步序）**
+1. `RunContext` 追加 `receipts: Map<string, ExecutedResult>` / `raised: Set<string>` / `replayActive: boolean`
+2. `runGoalInner` 的 ctx 构造补 `receipts: new Map(), raised: new Set(), replayActive: false,`
+3. 删三个实例字段（`taskReceipts` / `raisedApprovals` / `k5ReplayActive`）⇒ 换成一段说明注释；
+   删 `runGoal` 入口的三行清零 ⇒ 换成说明注释
+4. `maybeResume`：`ctx.raised.has(...)` / `applyReceipt(approvalId, base, ctx)` / `ctx.raised.add(...)` /
+   `ctx.receipts.set(...)` / `ctx.replayActive = true`
+5. `reconcileExecutionTruth` 加 `ctx` 形参；**红线两行**只换取值来源；`[...ctx.receipts.values()]`；
+   `[...ctx.raised]`；`applyReceipt` 加 `ctx` 形参 + `ctx.receipts.get(...)`
+6. 调用点 `:786` → `this.reconcileExecutionTruth(truthed, ctx.lastFinalText, ctx)`
+
+**验收**
+- `tsc -b` **0 error** ✅；dist 已重建 ✅
+- `grep -n "this\.taskReceipts\|this\.raisedApprovals\|this\.k5ReplayActive"` ⇒ **空**（仅注释提及）✅
+- `k5-replay` **41/41** ✅、`k4-approval` 6/6、`k4-p3` 16/16、`r19c-kn1-a-pure` 76/76、
+  `r19c-kn1-b-bridge` 23/23、`host-a2a-bridge` 35/35、`llm-provider` 20/20 ⇒ **零回归** ✅
+
+**D-1 红线 before / after 原文（diff 只换取值来源，语义·顺序·短路条件·注释一字未改）**
+
+BEFORE（T03 前，`:1013` / `:1014`）：
+```ts
+    if (!this.replayEnabled || !this.k5ReplayActive) return base;
+    if (this.raisedApprovals.size === 0) return base; // 本任务未发生审批 → K3 行为逐字不变
+```
+AFTER（T03 后，`:1017` / `:1018`）：
+```ts
+    if (!this.replayEnabled || !ctx.replayActive) return base;
+    if (ctx.raised.size === 0) return base; // 本任务未发生审批 → K3 行为逐字不变
+```
+⇒ 仍是两个相邻独立的 `if (…) return base;`，顺序不变、文案不变、短路条件不变；
+只有 `this.k5ReplayActive`→`ctx.replayActive`、`this.raisedApprovals`→`ctx.raised`。
+`this.replayEnabled`（桥级灰度开关，非 per-delegation 态）**按 spec 保留为实例字段**，未搬。
+
+**⚠ 与 QA 并发的观察**：本轮跑测时 QA 已在改 `tests/unit/r19c-a5-approval-coordinator.test.js`
+（mtime 01:29 晚于我的 T02 跑测）。C5 已被改写为「length === 1 + 归属行为断言」并**转绿**，
+其注释中的判读口径（「翻红时刻 = 实现落码 + dist 重建，不是契约落地那一刻」）与我上报主理人的
+实测结论一致。⇒ 后续 before/after 计数以 T05 收口时的快照为准。
+
+---
+
+## 5. T04 —— Fix-4a / 4b：风险展示真实化（待做）
 
 ## 5. T04 —— Fix-4a / 4b：风险展示真实化（待做）
 
