@@ -185,4 +185,60 @@ AFTER（T03 后，`:1017` / `:1018`）：
 
 ---
 
-## 6. T05 —— 类型门禁与回归收口（待做）
+## 6. T05 —— 类型门禁与回归收口（已完成）
+
+### 6.1 `tsc -b` 与 dist
+
+- `npx tsc -b tsconfig.build.json --force`（**全量强制重建**）⇒ **exit 0，0 error** ✅
+- dist 新于 src（epoch 秒，逐对核实）：
+
+| src | dist | 判读 |
+| --- | --- | --- |
+| `vm-service/src/server.ts` (1791048748) | `vm-service/dist/server.js` (1791048893) | ✅ dist 新于 src |
+| `adapter…llm/src/bridge.ts` (1791048774) | `adapter…llm/dist/bridge.js` (1791048892) | ✅ |
+| `adapter…llm/src/index.ts` (1791048782) | `adapter…llm/dist/index.js` (1791048892) | ✅ |
+| `contracts/src/bridge.ts` (1791048294) | `contracts/dist/bridge.js` (1791048890) | ✅ |
+
+补充内容取证（不只看 mtime）：`vm-service/dist/server.js:83 endTask(taskId)`、
+`vm-service/dist/server.d.ts:106 setLogger` / `:118 ApprovalWarnSink` 均可 grep 到 ✅
+
+### 6.2 全量受影响单测 before / after（T05 收口快照 2026-10-04 01:36）
+
+| 单测 | before（基线） | after | 判读 |
+| --- | --- | --- | --- |
+| `k4-approval` | 6 / 6 / 0 | **6 / 6 / 0** | ✅ 零回归 |
+| `k4-p3` | 16 / 16 / 0 | **16 / 16 / 0** | ✅ 零回归 |
+| `k5-replay` | 41 / 41 / 0 | **41 / 41 / 0** | ✅ **D-1 红线未被削弱** |
+| `r19c-a5-approval-coordinator` | 18 / 13 / **5** | **21 / 21 / 0** | ✅ **红档全清**（QA 同批改写：C5 归属断言、B 组补 taskId、D1 指纹翻转、Fix-4 新增断言；用例数 18→21） |
+| `r19c-kn1-a-pure` | 76 / 76 / 0 | **76 / 76 / 0** | ✅ Q6 回归锚点 `:134` 仍绿 |
+| `r19c-kn1-b-bridge` | 23 / 23 / 0 | **23 / 23 / 0** | ✅ 零回归 |
+| `host-a2a-bridge` | 35 / 35 / 0 | **35 / 35 / 0** | ✅ 含 `:137 assert.equal(a.risk,'L2')` |
+| `llm-provider` | 20 / 20 / 0 | **20 / 20 / 0** | ✅ 零回归 |
+
+> 一律 `node --test tests/unit/<单文件>` 逐个跑，**未整批跑**。
+
+### 6.3 守门结论
+
+| 守门项 | 结论 |
+| --- | --- |
+| **D-4** `packages/a2a-framework/src/**` 零改动 | ✅ `git diff --stat 6ad6410 HEAD -- packages/a2a-framework/src/` **为空** |
+| **D-5** `rejected` 唯一置位点 | ✅ 全仓 `packages/a2a-framework/src/` 内 `'rejected'` 仅 `server.ts:306` 一处，本轮未新增任何置位点 |
+| **D-1** 红线两行 | ✅ 见 §4 的 before/after 原文与 git diff |
+| **Q5 / Q6** `delegation-audit.ts:499` `risk:'L1'` | ✅ 一字未动 |
+| **Q8** `APPROVAL_WAIT_PATTERN`(:568) / `parseApprovalBlock`(:581) | ✅ 未动 |
+| **SK-7** `no-active-task` 仍「绝不自批」 | ✅ reason 取值与 `ApprovalOutcome` 判别联合一字未改，只是守卫不再被误命中 |
+
+### 6.4 本迭代整体验收（spec T05 定义）
+
+- ✅ `r19c-a5-approval-coordinator.test.js` **fail 5 → 0**（含 C5 改写后仍绿）
+- ✅ `k5-replay.test.js` **41/41 绿**
+- ✅ `tsc -b` 0 error；`git diff --stat` 中 `packages/a2a-framework/src/**` 为空
+- ✅ `a2a-framework/src/server.ts:306` 仍是 `rejected` 唯一置位点
+- ⏳ 真机 R3 回归（VM 恢复后，非本迭代门禁，责任人 QA）
+
+### 6.5 遗留 / 需上报
+
+1. **`npm run layout` 不可用**：`package.json:16` 指向 `node scripts/dep-lint.mjs`，但仓库**无 `scripts/` 目录**
+   ⇒ 该脚本在本 HEAD 上属**既存失效**，与本次改动无关。D-4 改用 `git diff --stat` 守门（结论：零改动）。
+2. QA 在本轮实施中**并发提交**了两个测试 CL：`fafa59c`（Fix-4 新增断言）与
+   `3681525`（C5 归属断言改写 + 翻转协议执行）。我的 before/after 计数以 T05 收口快照为准。
