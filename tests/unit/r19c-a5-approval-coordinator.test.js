@@ -52,6 +52,8 @@ const ROOT = resolve(HERE, '..', '..');
 const SRC_SERVER = join(ROOT, 'packages/vm-service/src/server.ts');
 const DIST_SERVER = join(ROOT, 'packages/vm-service/dist/server.js');
 const SRC_TASK_STORE = join(ROOT, 'packages/a2a-framework/src/task-store.ts');
+/** Fix-2 / D-1 红线所在文件（C6 静态判据用） */
+const SRC_BRIDGE = join(ROOT, 'packages/adapter-agent-workbuddy-llm/src/bridge.ts');
 
 /* ------------------------------------------------------------------ *
  * 结果登记：让 PASS/FAIL 分布肉眼可辨（末条用例打印明细表）
@@ -583,6 +585,51 @@ describe('A5 / C 边界与回归锚点', () => {
         spy.calls.waitApproval.some((x) => x.id === 'B'),
         `A 的收尾后，B 的审批仍须挂到 B（实测 waitApproval 调用=${JSON.stringify(spy.calls.waitApproval)}）`,
       );
+    }));
+
+  test('C6 护栏：Fix-2 三态已搬离实例 + D-1 两道门只换取值来源（静态判据 + 行为旁证）', () =>
+    runCase('C6 Fix-2/D-1 红线护栏', 'C-边界', () => {
+      /* 【为什么补这条】
+       * T03（Fix-2）把 taskReceipts / raisedApprovals / k5ReplayActive 从 bridge 实例字段
+       * 搬进 per-runGoal 的 RunContext，并触及 D-1 红线两道门。spec T03 验收判据 3 要求
+       * 「两道门仍是两个相邻独立的 `if (…) return base;`，语义/顺序/短路条件一字未改，
+       * 仅取值来源由 `this.` 变 `ctx.`」。该判据当前**无任何断言覆盖**（k5-replay 41 例只
+       * 覆盖行为，不覆盖形态），故补一条静态判据把这条红线钉死。
+       */
+      const src = readFileSync(SRC_BRIDGE, 'utf8');
+      const lines = src.split('\n');
+      const idxGate1 = lines.findIndex((l) => l.includes('if (!this.replayEnabled || !ctx.replayActive) return base;'));
+      const idxGate2 = lines.findIndex((l) => l.includes('if (ctx.raised.size === 0) return base;'));
+
+      assert.ok(idxGate1 >= 0, 'D-1 门① 缺失或形态已变（应为 `!this.replayEnabled || !ctx.replayActive`）');
+      assert.ok(idxGate2 >= 0, 'D-1 门② 缺失或形态已变（应为 `ctx.raised.size === 0`）');
+      assert.equal(
+        idxGate2,
+        idxGate1 + 1,
+        `两道门必须相邻且顺序不变（实测 门① 行 ${idxGate1 + 1} / 门② 行 ${idxGate2 + 1}）`,
+      );
+
+      // 三态必须**不再**挂在实例上（否则并发委派仍会互相 clear）
+      for (const f of ['this.taskReceipts', 'this.raisedApprovals', 'this.k5ReplayActive']) {
+        assert.ok(
+          !src.includes(f),
+          `src 仍残留实例三态字段 ${f} —— Fix-2 已被回退或部分回退（并发互清缺陷会复发）`,
+        );
+      }
+      // RunContext 必须真的承载三态
+      assert.ok(src.includes('receipts: new Map()'), 'RunContext 未携带 receipts 初值');
+      assert.ok(src.includes('raised: new Set()'), 'RunContext 未携带 raised 初值');
+      assert.ok(src.includes('replayActive: false'), 'RunContext 未携带 replayActive 初值');
+
+      // 行为旁证：连续两次 runGoal 各自独立（跨任务清零由「每次新建 ctx」自动满足）
+      const c = newCoordinator();
+      const spy = spyStore();
+      c.bind(spy, new Map());
+      c.beginTask('t1');
+      c.endTask('t1');
+      c.beginTask('t2');
+      c.endTask('t2');
+      assert.equal(c.activeTaskId, undefined, '归属收尾语义在本用例场景下仍照常释放');
     }));
 });
 
