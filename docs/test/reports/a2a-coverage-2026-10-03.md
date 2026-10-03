@@ -218,3 +218,202 @@ B 组三条失败原文（`✖ failing tests` 块）：
 
 **待补（未纳入本轮，如实标注）**：R2b 的「拦截了却不挂起还报成功」（`res.ok===true`）半条 ——
 D4 只钉了「`calls=0`」这半条确定事实，另半条取决于 completion-claim 判定，需专项夹具，本轮未做。
+
+---
+
+## A7 —— C5 归属断言改写与翻转协议执行结果（QA · 2026-10-04）
+
+> 执行人：严过关（software-qa-engineer）。独占区：`tests/**`、`docs/test/**`、`qa/**`；**未改任何 `packages/**`**。
+> 授权依据：owner 拍板 **Q1**（C5 由 QA 如实重写并注明翻转原因）、**Q3**（Fix-2 不降级，C 组护栏须保持 PASS）、
+> **Q4**（缺省 risk 取 `'L2'`，maxRisk 透传）、**Q8**（K3 假成功属独立项目 CL-K3R，本轮不写断言）、
+> **Q5/Q6**（Fix-4c / Fix-4d 本迭代不做，不动 `r19c-kn1-a-pure.test.js:134`）。
+> 纪律：单测**一律单文件跑**（`node --test <单文件>`），**未整批跑**。
+
+### A7.1 基线（修复前，本轮起跑时实测）
+
+| 文件 | tests | pass | fail | 失败项 |
+|---|---|---|---|---|
+| `tests/unit/r19c-a5-approval-coordinator.test.js` | 18 | 13 | **5** | B1 / B2 / B3 + D2 / D3 |
+| `tests/unit/k5-replay.test.js`（D-1 红线） | 41 | 41 | 0 | — |
+
+### A7.2 A 块 · C5 改写（`3681525`）
+
+**改写原文（spec §5-Q1 授权，逐字落地）**
+
+- 形态断言：`assert.equal(newCoordinator().endTask.length, 0)` → `assert.equal(newCoordinator().endTask.length, 1, 'endTask 已支持可选归属参数');`
+- 追加归属行为断言：`beginTask('A') → beginTask('B') → endTask('A')` 后 `activeTaskId` 仍为 `'B'`；
+  且 `raise(makeReq('apr_x'))` 后 `spyStore.calls.waitApproval` 中存在 `id === 'B'`（A 的收尾不得清掉 B 的归属）。
+- 用例内已注明**翻转原因**（原断言是「修复前无归属参数」的表征，C-1 落地后设计上预期失效）。
+
+**判读口径订正（与 spec §5-Q1 / T01 验收判据 3 不一致，实测为准）**
+
+spec 称「C-1（契约）一旦落地，`endTask.length` 立即变 1 ⇒ C5 当场翻红」。运行时**不成立**：
+`contracts/src/bridge.ts` 是 TS **接口**（编译期擦除）；`Function.prototype.length` 由**实现类**
+`vm-service/src/server.ts` 的 `endTask` 决定（那是 **T02** 的活），且单测解析到 **dist**（SK-5）。
+⇒ 真实翻红时刻 = **「实现落码 + dist 重建」**。本轮据此盯 `dist/server.js` 是否出现 `endTask(taskId)`，
+实测落地即改，**红档窗口压在 1 分钟内**（`dist` 出现 `endTask(taskId)` → 提交 `3681525`）。
+
+### A7.3 B 块 · 翻转协议（`3681525`）
+
+**(a) 五条红档全部转绿**
+
+| 用例 | 修复前 | 修复后 | 证据 |
+|---|---|---|---|
+| B1 交叠不应降级 `no-active-task` | FAIL | **PASS** | `waitApproval` 调用 1 次、`calls[0].id === 'B'` |
+| B2 应挂起且结构化 approval-request | FAIL | **PASS** | 状态 `input-required`；data part `approvalId='apr_B'` |
+| B3 宿主拒绝可达 `rejected` | FAIL | **PASS** | `out.reason === 'rejected'`（D-5：`:306` 首次可达） |
+| D2 桥级交叠应挂起 tB | FAIL | **PASS** | `waitApproval` 中 `id==='tB'` 出现 1 次 |
+| D3 宿主批准应被采纳 | FAIL | **PASS** | 桥进入「宿主已批准」续跑路径 |
+
+**(b) 表征重写（按修复后行为如实改写，用例内注明翻转原因，语义未删）**
+
+| 用例 | 处置 | 翻转原因（摘要） |
+|---|---|---|
+| A2 | setup 同步为桥真实调用约定（`endTask(input.taskId)` + req 注入 `taskId`）后如实重写 | 原形态（早退 `no-active-task`、恒 `submitted`）已与事实相反 |
+| A3b | 同上，断言由「`waitApproval` 0 次」翻转为「1 次、目标 B」 | 原断言钉的是**缺陷本身**（审批闸被绕过） |
+| D1 | 断言 `activeAfterA` 由 `undefined` 翻转为 `'tB'`；tB 挂起次数由 0 → 1 | A 带归属收尾不再清掉 B；原「终态恒 failed」指纹不复存在 |
+| A0 | dist 守卫机制同步（形态改为 `if (!taskId \|\| !this.tasks)` + `const taskId = req.taskId ?? this.activeTaskId`） | **守卫目的「dist 必须比 src 新」一字未改** |
+
+**(c) ⚠ 与 owner 预判不一致的一条（如实记录）**
+
+owner 预判 **A2 / A3b 修复后会转 FAIL** —— 实测**没有翻转**（仍 PASS）。
+根因：这两条的 setup 用的是**修复前的调用约定**（`endTask()` 零参 + req 无 `taskId`），
+该组合在 SK-2 下走「**无条件清空**」兼容分支，**修复刻意不改** ⇒ 缺陷在该组合下**仍复现**。
+处置：① setup 同步为桥真实调用约定后如实翻转；② 原 setup 与断言**逐字保留**为新增用例
+**A2b「遗留零参调用方仍复现缺陷」**，把这条**残余风险**显式钉住。
+
+> **残余风险（须随修复一并交付给调用方）**：Fix-1B 的根治**只对「传 taskId 的调用方」生效**。
+> 任何既不传 `endTask` 归属、也不给 `req.taskId` 的旧调用方，**仍会复现 A5 缺陷**。这不是回归，是兼容代价。
+
+**(d) C 组护栏：6 条全部 PASS，无一条被削弱**
+
+C1 幂等 / C2 空 taskId 早退 / C3 `cancelRequested` 只写不读 / C4 串行回归锚点 /
+**C5 归属形态（修复后）** / **C6（新增）**。
+
+**C6（`6a0c950`）补的是一个覆盖缺口**：spec T03 验收判据 3（D-1 两道门「只换取值来源」）
+此前**零断言覆盖** —— `k5-replay` 41 例只覆盖行为、不覆盖形态，Fix-2 若被部分回退 CI 捕获不到。
+C6 钉住：两道门行号连续（顺序/短路条件不变）且取值来源为 `ctx.`；src 内**不再残留**
+`this.taskReceipts` / `this.raisedApprovals` / `this.k5ReplayActive`；`RunContext` 三态初值在场。
+
+**(e) 新增两条 spec §2.2 边界用例**：B4（零参收尾 + `req.taskId` ⇒ 仍挂起，证明 **Fix-1B 独立于 Fix-1A** 生效）、
+B5（`beginTask('')` + 无 taskId ⇒ 仍 `no-active-task` 且产出**恰一条**结构化 warn，SK-3 字段口径：
+`reason` 恒 `no-active-task`、缺席字段一律 `''`、`hasTasks` 在场、meta 无 `undefined`）。
+
+### A7.4 C 块 · Fix-4 新增断言（`fafa59c`，新增文件 `tests/unit/r19c-a5-fix4-risk.test.js`）
+
+spec §6.2 已核实既有断言无一条覆盖桥 step risk 或经 `raise` 的审批卡 risk ⇒ **净新增、零冲突**。
+
+| 用例 | 判据 | 写入时 | T04 后 |
+|---|---|---|---|
+| F4a-1 | token `risk='L3'` + 桥侧 req `risk='L1'` ⇒ 经真实 `TaskStore.waitApproval` 的 `data.risk === 'L3'` 且文案含「风险 L3」 | FAIL（实测 L1） | **PASS** |
+| F4a-2 | token 缺席 ⇒ `enrich=req` ⇒ risk 沿用桥侧值（降级语义不被改坏） | PASS | **PASS** |
+| F4b-1 | `maxRisk='L3'` ⇒ `steps[0].risk === 'L3'`（不再恒 `'L1'`） | FAIL（实测 L1） | **PASS** |
+| F4b-2 | `maxRisk` 缺省 ⇒ `steps[0].risk === 'L2'`（owner 拍板 Q4，保守向高） | FAIL（实测 L1） | **PASS** |
+
+三条红档均**因缺陷值本身**而红（L1 vs L3 / L1 vs L2），属有效新覆盖，非测试 bug。
+
+### A7.5 计数 before / after
+
+| 文件 | before | after |
+|---|---|---|
+| `r19c-a5-approval-coordinator.test.js` | **18 / 13 / 5** | **22 / 22 / 0** |
+| `r19c-a5-fix4-risk.test.js`（新增） | 4 / 1 / 3（写入时，待 T04） | **4 / 4 / 0** |
+| `k5-replay.test.js` | 41 / 41 / 0 | **41 / 41 / 0** |
+
+**全量回归（逐个单文件跑，未整批），零回归**：
+
+| 文件 | 结果 |
+|---|---|
+| `k5-replay.test.js`（D-1 两道门） | **41 / 41 / 0** |
+| `k4-approval.test.js` | 6 / 6 / 0 |
+| `k4-p3.test.js` | 16 / 16 / 0 |
+| `r19c-kn1-a-pure.test.js`（含 `:134` `assert.equal(e.risk,'L1')` 回归锚点，**Fix-4d 未被触碰**） | 76 / 76 / 0 |
+| `r19c-kn1-b-bridge.test.js` | 23 / 23 / 0 |
+| `host-a2a-bridge.test.js`（含 `:137` `assert.equal(a.risk,'L2')`） | 35 / 35 / 0 |
+| `llm-provider.test.js` | 20 / 20 / 0 |
+
+### A7.6 A7 路由判定
+
+**NoOne（离线侧全通过）** —— 无一条 FAIL 需要路由给 Engineer；Fix-4 在写入时的 3 条红档
+已随 T04（`3be5509`）落地转绿，属**按计划的预期红档**，不是源码缺陷。
+
+---
+
+## A8 —— 真机 R3 终验（QA · 2026-10-04）
+
+### A8.1 环境事实（本轮实测，非转述）
+
+| 项 | 实测 |
+|---|---|
+| 隧道 | pid **55660** `node delivery/tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User`（02:42:33 起） |
+| 端口 | `127.0.0.1:18443` **LISTENING**；`/.well-known/agent-card.json` → 200 |
+| `/health` | **200**；`provider.state=ready`、`session.interactive=true`、`locked=false`、`blackScreen=false`、`psBridge.state=ready`、`audit.chainValid=true`、`capabilities 54/54` ⇒ **GUI 可用，审批穿透具备条件** |
+| SSH | `ssh User@172.16.100.2` 直连可用（只读 `grep` 采集 VM 日志） |
+
+**产物新鲜度核实（关键，避免「测的是旧产物」）**：
+真机 A5 产物的 `execution-steps.steps[0].risk = 'L2'`，而修复前该处**硬编码 `'L1'`**
+⇒ **真机跑的是含 T01~T05 的产物**。宿主 dist 亦已核实：`vm-service` / `adapter` / `contracts` 三个包
+的 `dist` mtime 均 **≥** 对应 `src`（`tsc -b` 于 `2026-10-03T17:34:53Z` 重建）。
+
+> 注：本轮早期曾据 `/health` 的 `psBridge.uptimeMs ≈ 26h` 推断「VM 跑旧构建」，
+> 该推断被上面的产物指纹**证伪**（`risk` 由 L1 → L2 只能来自新代码）。结论以产物指纹为准。
+
+### A8.2 三项终验结论
+
+| # | 场景 | 判据 | 实测 | 结论 |
+|---|---|---|---|---|
+| ① | **静默窗口单跑 A5** | 必须挂起 `input-required` | preflight `tasks/list` = 1 条、全 `rejected`（静默窗口成立）；`reachedInputRequired=true`；`approvalId=apr_6c17a82d369c41929e92`；`risk=L2`；**11035ms** 到挂起 | **PASS** |
+| ② | **A4+A5 交叠** | A5 仍必须挂起 | A4(`6bab926e`) 先发起；**3450ms 时 A4 仍 `working`** ⇒ 此时发 A5(`0281fb63`)（**真实交叠成立**）；`reachedInputRequired=true`；`approvalId=apr_71045d0a1c3c454fa890`；`risk=L2`；**26999ms** 到挂起；A4 终态 `completed` | **PASS**（修复前该场景必 `failed`） |
+| ③ | **宿主回复 `approved:false`** | 终态必须 `rejected` | `stateAfterReply=rejected`；`finalState=**rejected**` | **PASS**（`a2a-framework/src/server.ts:306` **首次可达**） |
+
+**Fix-4b 真机旁证（顺带取得）**：A4（`maxRisk='L1'`）⇒ `steps[0].risk=L1`；A5（`maxRisk='L2'`）⇒ `steps[0].risk=L2`
+⇒ **maxRisk 透传生效**，不再是硬编码 L1。
+
+### A8.3 Q2 取证：A4 轮次耗时
+
+- 可证伪预测：**13.8~18.4s**。
+- 实测：`[llm-session] LLM 常驻会话轮次完成` **`durationMs = 15626`（15.6s）**（`ts=2026-10-03T17:45:19.824Z`），
+  与交叠轮次中 A4 任务的 `steps[0].durationMs = 15626` **逐字吻合**（可交叉归因）。
+- 结论：**15.6s ∈ [13.8, 18.4]，预测未被证伪**。
+- 同轮参照：A5 轮次 `10015ms`（17:45:29.840）；静默单跑 A5 轮次 `10346ms`（17:44:39.274）。
+
+> ⚠ **口径声明（不混淆）**：Q2 原意是取**历史** task `48a90a2f…` 那一轮的耗时。
+> 实测 `48a90a2f` 与 A5 事故 `approvalId apr_a9aabfcffb5f4246b918` 在**全部留存 VM 日志**
+> （`winvm-service-2026-09-24 … 2026-10-04`）中**零命中**，故历史那条**不可得**。
+> 本轮改以**同形态的新鲜 A4 轮**（递归统计 `C:\Windows\System32` 下 `.dll` 数量，与 A4 同型）作等价取证，
+> 归因链条完整（ts + durationMs 与任务 artifact 逐字吻合）。**不得**把 15.6s 表述为「48a90a2f 那一轮的实测值」。
+
+### A8.4 证据清单（已入库 `qa/r19/`，未删除任何证据）
+
+| 文件 | 内容 |
+|---|---|
+| `qa/r19/r3-a5-solo.out.json` / `.timeline.log` | R3 ① + ③（13019B，mtime `2026-10-03T17:44:39.764Z`） |
+| `qa/r19/r3-a4a5-overlap.out.json` / `.timeline.log` | R3 ②（11912B，mtime `2026-10-03T17:45:30.932Z`） |
+| `qa/r19/r3-q2-llm-session.log` | Q2 的 `[llm-session]` 轮次摘录 + 历史对照 + 检索结论 |
+
+> **留痕说明**：`.gitignore:20` 的 `*.log` 会吞掉 timeline 与 Q2 日志证据，已用 `git add -f` 强制入库
+> （commit `0f6da7b`），**未改 `.gitignore`**。若团队希望维持 `*.log` 全局忽略，可改存 `.jsonl`/`.txt`
+> —— 请 owner 裁定。
+
+### A8.5 BLOCKED 项
+
+| 项 | 原因 | 影响 |
+|---|---|---|
+| Q2 的**历史** A4 轮次（`48a90a2f…`） | task id 与 A5 `approvalId` 在全部留存 VM 服务日志中零命中（日志最早 `2026-09-24`，事故疑早于留存窗口或已被轮转） | 已用同形态新鲜 A4 轮等价取证；历史那条**不可能**再取得，建议关闭而非挂起 |
+
+### A8.6 A8 路由判定
+
+**NoOne** —— 真机三项终验全部 PASS，Q2 预测未被证伪。无源码缺陷需路由 Engineer。
+
+---
+
+## A7 / A8 提交索引
+
+| 块 | commit | 内容 |
+|---|---|---|
+| A + B | `3681525` | C5 归属断言改写 + 翻转协议执行（18/13/5 → 21/21/0） |
+| B（补） | `6a0c950` | C6 静态护栏（Fix-2 三态搬离 + D-1 两道门只换取值来源）⇒ 22/22/0 |
+| C | `fafa59c` | 新增 `tests/unit/r19c-a5-fix4-risk.test.js`（F4a-1/F4a-2/F4b-1/F4b-2）⇒ 4/4/0 |
+| D（脚本） | `b01a41a` | `qa/r19/a2a-extra.mjs` 新增 `overlap` 子命令 |
+| D（证据） | `119c071` | R3 三项真机证据 + Q2 日志取证 |
+| D（证据补） | `0f6da7b` | force-add timeline 与 Q2 日志（绕过 `.gitignore:20 *.log`） |
