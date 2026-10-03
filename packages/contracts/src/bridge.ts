@@ -183,6 +183,16 @@ export interface ApprovalRequest {
    * 缺席即旧行为（卡片只显示 capabilityId/summary）。
    */
   readonly underlying?: ApprovalUnderlying;
+  /**
+   * K5（纯附加可选）：本次审批**归属**的 A2A 委派任务 id。
+   *
+   * 由桥从 `LlmGoalInput.taskId` 注入（见 adapter `bridge.ts` `maybeResume` 构造 `req` 处）。
+   * 缺席 ⇒ 协调器回退到 `beginTask` 记录的服务级单例（**旧行为逐字不变**）。
+   *
+   * 存在时协调器**优先用它**挂 `input-required`，不再依赖共享单例 `activeTaskId`
+   * —— 这是根治 P1 的关键：并发委派不再互相清场（根因 §3.1 / §5.2）。
+   */
+  readonly taskId?: string;
 }
 
 /**
@@ -311,8 +321,17 @@ export interface ProgressSink {
 export interface ApprovalCoordinator {
   /** 进入一个委派任务（记录当前 taskId，供 raise 挂接） */
   beginTask(taskId: string): void;
-  /** 离开一个委派任务（清空当前 taskId） */
-  endTask(): void;
+  /**
+   * 离开一个委派任务（清空当前 taskId）。
+   *
+   * P1-Fix（**纯附加可选**）：`taskId` 非空时按**归属**释放 —— 仅当它等于协调器当前记录的
+   * 活动任务 id 才清空；不相等 ⇒ 本次收尾**不属于**当前活动任务（并发委派交叠），
+   * 保持不动，绝不误清他人（根因见 a5-approval-drop-rootcause.md §3.1）。
+   *
+   * `taskId` 缺席（`undefined`）或空串 `''` ⇒ **旧行为逐字不变**：无条件清空
+   * （调用方没有归属信息，协调器无从判断，只能按 K4 原语义释放）。
+   */
+  endTask(taskId?: string): void;
   /**
    * 发出 input-required（挂起任务）并等待宿主决议；宿主批准后由**服务端重放**原调用。
    * 实现必须把对应续跑令牌标记为「待宿主批准（hostApproved=false）」，宿主经 A2A

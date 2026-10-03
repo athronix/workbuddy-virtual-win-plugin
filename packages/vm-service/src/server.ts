@@ -164,6 +164,17 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
     this.timedOutApprovals.add(approvalId);
   }
 
+  /**
+   * P1-Fix：告警出口（可选）。由 `createService` 注入服务 logger；未注入时降级为 no-op，
+   * 保证单测/纯逻辑场景零副作用。
+   */
+  private logger: ApprovalWarnSink | undefined;
+
+  /** P1-Fix：注入告警出口（`createService` 内 `new VmApprovalCoordinator()` 之后调用一次）。 */
+  setLogger(logger: ApprovalWarnSink): void {
+    this.logger = logger;
+  }
+
   beginTask(taskId: string): void {
     this.activeTaskId = taskId;
   }
@@ -232,6 +243,17 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
     this.pendingApprovals?.delete(req.approvalId);
     return outcome;
   }
+}
+
+/**
+ * P1-Fix：协调器告警出口的最小形状（只依赖 warn，便于单测注入 spy）。
+ *
+ * 不进 `ApprovalCoordinator` 契约：该接口的既有扩展方法（`bind` / `setReplay` /
+ * `setReplayEnabled` / `noteTimeout`）本来就不在接口里 —— 它们是 vm-service 侧的
+ * 注入式扩展，保持一致。缺席即 no-op（纯逻辑/单测场景零副作用）。
+ */
+export interface ApprovalWarnSink {
+  warn(msg: string, meta?: Record<string, unknown>): void;
 }
 
 /**
@@ -339,6 +361,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   // K4：审批协调器（须先于 bridgeCtx 创建，以便注入 provider；tasks / pendingApprovals 在其
   // 就绪后通过 bind() 注入，见下方 A2A 构建之后）。
   const approvalCoordinator = new VmApprovalCoordinator();
+  // P1-Fix：注入告警出口 —— 使 `raise` 的 no-active-task 早退**可观测**（根因文档 §6.4
+  // 点名「零日志」是本次只能靠反证定位的原因）。logger 已在上方 :286 创建，顺序成立。
+  approvalCoordinator.setLogger(logger);
 
   const bridgeCtx = {
     config: cfg as unknown as Record<string, unknown>,
