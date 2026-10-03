@@ -7,6 +7,7 @@
  *   card    --prefix=<绝对路径前缀>
  *   cancel  --prefix=<绝对路径前缀> [--goal=...] [--settle-ms=8000]
  *   reject  --prefix=<绝对路径前缀> [--pkg=QA.R19B.Nonexistent.99997]
+ *   overlap --prefix=<绝对路径前缀> [--poll-ms=1000] [--settle-ms=3000] [--goal-a=...] [--pkg=...]
  *
  * 两个已知坑（本脚本已规避）：
  *   ① 证据落盘一律用**绝对路径前缀**（cwd 失效时相对路径不落盘）—— 现有 qa/r19/a2a-call.mjs
@@ -429,9 +430,130 @@ async function runReject() {
   return out;
 }
 
+/* ==================== R3 ② A4+A5 交叠：A5 仍必须挂起 ==================== *
+ * A5 缺陷的**核心场景**：上一次委派（A4）的 runGoal 仍在飞时发起 A5，
+ * A4 收尾 endTask() 清掉服务级单例 ⇒ A5 的 raise 早退 no-active-task ⇒ 从不挂起。
+ * 本子命令用**真实时序**复现该交叠（非 sleep 猜测）：
+ *   A4 非阻塞发起 → 等到 A4 进入非终态推进（working/submitted）→ 此时发起 A5
+ *   → 1s 密采轮训 A5 是否到达 input-required。
+ * 判据（修复后）：a5.reachedInputRequired === true。
+ * 判据（修复前，基线）：A5 直接进终态 failed，earlyTerminal='failed'。
+ *
+ * 用法：overlap --prefix=<绝对路径前缀> [--poll-ms=1000] [--settle-ms=3000]
+ *              [--goal-a=...] [--pkg=QA.R19B.Nonexistent.99997]
+ * ======================================================================== */
+
+async function runOverlapCase() {
+  const pollMs = Number(opts['poll-ms'] ?? 1000);
+  const settleMs = Number(opts['settle-ms'] ?? 3000);
+  const pkg = opts.pkg ?? 'QA.R19B.Nonexistent.99997';
+  const goalA =
+    opts['goal-a'] ??
+    '递归统计 VM 上 C:\\Windows\\System32 目录下所有 .dll 文件的数量，只统计不修改任何东西';
+  const goalB = `卸载 VM 上的软件包 ${pkg}（该包 id 故意不存在，勿改动其它任何软件）`;
+  const out = { case: 'A5-overlap-A4+A5', goalA, goalB, pkg, at: new Date().toISOString() };
+
+  /* ---- 静默窗口前置留证（同 runReject）---- */
+  try {
+    const pre = await rpc('tasks/list', { pageSize: 50 }, 30_000);
+    const list = pre.result?.tasks ?? [];
+    out.preflight = {
+      taskCount: list.length,
+      states: list.map((t) => ({ id: t.id, state: t.status?.state ?? '?' })),
+      note: '全终态仅说明状态已收口，不证明其 runGoal 已返回（cancelRequested 只写不读）',
+    };
+    stamp('PREFLIGHT_LIST', `count=${list.length} states=${list.map((t) => t.status?.state ?? '?').join(',')}`);
+  } catch (e) {
+    out.preflight = { error: String(e) };
+    stamp('PREFLIGHT_LIST', `error=${String(e).slice(0, 120)}`);
+  }
+
+  /* ---- A4：长耗时只读委派，非阻塞发起（模拟「上一次委派仍在飞」）---- */
+  const sA = await rpc(
+    'message/send',
+    sendParams(goalA, { maxRisk: 'L1', timeoutMs: 600_000, blocking: false, traceId: 'tr_r3_a4' }),
+    120_000,
+  );
+  const tA = sA.result?.id ?? null;
+  out.a4 = { taskId: tA, sendState: sA.result?.status?.state ?? null, sendAtMs: Date.now() - T0 };
+  stamp('SEND_A4', `task=${tA} state=${out.a4.sendState} atMs=${out.a4.sendAtMs}`);
+  if (!tA) {
+    out.error = '未取得 A4 的 taskId';
+    out.evidence = writeEvidence(out);
+    return out;
+  }
+
+  // 让 A4 真正跑起来（非终态）后，再发起 A5 —— 这才构成「交叠」
+  await new Promise((r) => setTimeout(r, settleMs));
+  const gA = await rpc('tasks/get', { id: tA }, 60_000);
+  out.a4.stateWhenA5Sent = gA.result?.status?.state ?? null;
+  out.a4.msBeforeA5Sent = Date.now() - T0;
+  stamp('A4_STATE_WHEN_A5_SENT', `${out.a4.stateWhenA5Sent} ${out.a4.msBeforeA5Sent}ms`);
+
+  /* ---- A5：高危卸载委派，交叠中发起 ---- */
+  const sB = await rpc(
+    'message/send',
+    sendParams(goalB, {
+      maxRisk: 'L2',
+      allowedCapabilities: ['app.winget.uninstall'],
+      timeoutMs: 600_000,
+      blocking: false,
+      traceId: 'tr_r3_a5',
+    }),
+    120_000,
+  );
+  const tB = sB.result?.id ?? null;
+  out.a5 = { taskId: tB, sendState: sB.result?.status?.state ?? null, sendAtMs: Date.now() - T0 };
+  stamp('SEND_A5', `task=${tB} state=${out.a5.sendState} atMs=${out.a5.sendAtMs}`);
+  if (!tB) {
+    out.error = '未取得 A5 的 taskId';
+    out.evidence = writeEvidence(out);
+    return out;
+  }
+
+  /* ---- 密采 A5：是否真的挂起 input-required ---- */
+  let approval = null;
+  let reachedInputRequired = false;
+  const deadline = Date.now() + 600_000;
+  while (Date.now() < deadline) {
+    const g = await rpc('tasks/get', { id: tB }, 60_000);
+    const st = g.result?.status?.state ?? '?';
+    stamp('POLL_A5', `${st} ${Date.now() - T0}ms`);
+    if (g.result) out.a5.lastTask = g.result;
+    if (st === 'input-required') {
+      reachedInputRequired = true;
+      approval = approvalDataOf(g.result);
+      out.a5.taskAtInputRequired = g.result;
+      out.a5.msToInputRequired = Date.now() - T0;
+      stamp('A5_INPUT_REQUIRED', JSON.stringify(approval ?? {}).slice(0, 300));
+      break;
+    }
+    if (TERMINAL.includes(st)) {
+      out.a5.earlyTerminal = st;
+      out.a5.msToEarlyTerminal = Date.now() - T0;
+      stamp('A5_EARLY_TERMINAL', `${st} ${out.a5.msToEarlyTerminal}ms`);
+      break;
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+  out.a5.reachedInputRequired = reachedInputRequired;
+  out.a5.approvalData = approval;
+
+  /* ---- 收尾：等 A4 终态（记录 A4 轮次耗时，供 Q2 取证对照）---- */
+  const polledA = await pollUntil(tA, { maxMs: 300_000, intervalMs: 5000 });
+  out.a4.pollSeen = polledA.seen;
+  out.a4.finalState = polledA.final?.status?.state ?? null;
+  out.a4.final = polledA.final;
+  out.a4.msToTerminal = Date.now() - T0;
+  stamp('A4_FINAL', `${out.a4.finalState} ${out.a4.msToTerminal}ms`);
+
+  out.evidence = writeEvidence(out);
+  return out;
+}
+
 /* ============================ 分派 ============================ */
 
-const RUN = { stream: runStream, list: runList, card: runCard, cancel: runCancel, reject: runReject };
+const RUN = { stream: runStream, list: runList, card: runCard, cancel: runCancel, reject: runReject, overlap: runOverlapCase };
 
 (async () => {
   const fn = RUN[sub];
