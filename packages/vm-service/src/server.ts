@@ -219,6 +219,9 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
     const enriched: ApprovalRequest = token
       ? {
           ...req,
+          // P1-Fix：风险以**服务端策略引擎判定的权威值**为准（PendingApproval.risk，:70）；
+          // 桥侧值（源自 LLM 文本正则 + 兜底 'L2'）仅作 token 缺席时的降级。
+          risk: token.risk ?? req.risk,
           preview: Object.keys(req.preview).length > 0 ? req.preview : token.preview,
           impact: req.impact.length > 0 ? req.impact : (token.impact ?? []),
           underlying: req.underlying ?? token.underlying,

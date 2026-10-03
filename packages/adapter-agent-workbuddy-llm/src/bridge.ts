@@ -73,6 +73,13 @@ export interface LlmGoalInput {
    * 收口反查 fail-open 时记「恰一条」warn（设计 §9-B-3）—— 取证故障可观测，但绝不影响委派。
    */
   readonly warn?: (msg: string, meta?: Record<string, unknown>) => void;
+  /**
+   * P1-Fix（**纯附加可选**）：本次委派允许的最高风险（由 provider 从 `GoalRequest.maxRisk`
+   * 透传）。用于 `execution-steps` 步骤 `risk` 的如实化 —— 现状两处步骤硬编码 `risk:'L1'`，
+   * 导致被拦的 L2/L3 高危在宿主侧展示成 L1（审计/取证缺陷，根因 §4.2）。
+   * 缺席 ⇒ 回退 `'L2'`（与审批卡既有的桥侧兜底口径一致）。
+   */
+  readonly maxRisk?: RiskLevel;
 }
 
 /**
@@ -1182,7 +1189,7 @@ export class CliLlmBridge implements LlmBridge {
                 capabilityId: 'appops.workflow.run',
                 params: { goal: input.goal, runtime: this.cliPath, session: 'persistent' },
                 ok: true,
-                risk: 'L1',
+                risk: input.maxRisk ?? 'L2',
                 durationMs: turn.durationMs,
                 traceId: input.traceId,
                 summary: 'LLM 常驻会话自主规划并执行完成',
@@ -1366,7 +1373,7 @@ export class CliLlmBridge implements LlmBridge {
                       capabilityId: 'appops.workflow.run',
                       params: { goal: input.goal, runtime: this.cliPath },
                       ok: true,
-                      risk: 'L1',
+                      risk: input.maxRisk ?? 'L2',
                       durationMs: Date.now() - started,
                       traceId: input.traceId,
                 summary: 'LLM 自主规划并执行完成',

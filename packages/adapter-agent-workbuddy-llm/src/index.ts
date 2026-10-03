@@ -345,6 +345,9 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
         timeoutMs: goal.timeoutMs || 300_000,
         // K4：把 A2A 任务 id 透传给桥接层，使其能经审批协调器把 input-required 挂到正确任务。
         ...(goal.taskId ? { taskId: goal.taskId } : {}),
+        // P1-Fix：把委派允许的最高风险透传给桥接层，用于 execution-steps 步骤 risk 如实化
+        //（缺省由桥侧回退 'L2'，与主理人 Q4 裁定口径一致）。
+        ...(goal.maxRisk ? { maxRisk: goal.maxRisk } : {}),
         // K-N1：逐调用下传账本探针（缺席即桥门 4 透传，零回归）与服务 logger 告警出口
         ...(this.probe ? { probe: this.probe } : {}),
         warn: (msg: string, meta?: Record<string, unknown>): void => this.ctx?.logger.warn(msg, meta ?? {}),

@@ -159,8 +159,30 @@ AFTER（T03 后，`:1017` / `:1018`）：
 
 ---
 
-## 5. T04 —— Fix-4a / 4b：风险展示真实化（待做）
+## 5. T04 —— Fix-4a / 4b：风险展示真实化（已完成）
 
-## 5. T04 —— Fix-4a / 4b：风险展示真实化（待做）
+**改动（按 spec「4a → LlmGoalInput → index.ts 透传 → 两处 step risk」顺序）**
+1. **Fix-4a**：`packages/vm-service/src/server.ts` `enriched` 补 `risk: token.risk ?? req.risk,`
+   （服务端 `PendingApproval.risk` 权威值优先；值语义收窄已按 SK-8 写入注释）
+2. **C-5**：`packages/adapter-agent-workbuddy-llm/src/bridge.ts` `LlmGoalInput` 末尾追加
+   `readonly maxRisk?: RiskLevel;`
+3. `packages/adapter-agent-workbuddy-llm/src/index.ts` `runGoal` 入参补
+   `...(goal.maxRisk ? { maxRisk: goal.maxRisk } : {}),`
+4. **Fix-4b**：`bridge.ts` 常驻路径（`session: 'persistent'`）与单次路径（`params: { goal, runtime }`）
+   两处 `risk: 'L1',` ⇒ `risk: input.maxRisk ?? 'L2',`（Q4 裁定：缺省取 `'L2'`）
+
+**验收**
+- `tsc -b` **0 error** ✅；dist 已重建 ✅
+- `k5-replay` **41/41**、`k4-approval` 6/6、`k4-p3` 16/16、`r19c-kn1-a-pure` **76/76**、
+  `r19c-kn1-b-bridge` 23/23、`host-a2a-bridge` **35/35**（含 `:137 assert.equal(a.risk,'L2')`）、
+  `llm-provider` 20/20 ⇒ **零回归** ✅（与 spec §6 评估一致：无既有断言依赖桥 step risk）
+
+**Q5 / Q6 红线守门**
+- `packages/vm-service/src/delegation-audit.ts:499` 的 `risk: 'L1'` **一字未动** ✅
+  （`r19c-kn1-a-pure.test.js:134` 仍是绿的回归锚点 —— 76/76 全绿可证）
+- Fix-4c（审批卡文案标注风险来源）本迭代不做 ✅
+- `APPROVAL_WAIT_PATTERN`（bridge.ts:568）/ `parseApprovalBlock`（:581）**未动**（Q8 独立议题）✅
+
+---
 
 ## 6. T05 —— 类型门禁与回归收口（待做）
