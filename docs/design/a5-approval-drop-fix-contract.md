@@ -790,4 +790,59 @@ graph TD
 - 所有行号基于 **HEAD `eb72788`**（`packages/a2a-framework/src/server.ts` 652 行、`adapter-agent-workbuddy-llm/src/bridge.ts` 1387 行、`vm-service/src/server.ts` 1340 行、`contracts/src/bridge.ts` 496 行、`adapter-agent-workbuddy-llm/src/index.ts` 463 行）。行号漂移时以 §0.3 给出的**锚点符号**为准。
 - 与任务书不一致处已全部在 §0.3 显式列出（含 D-1 红线真实落点的校正）。
 
+---
+
+## 9. 实测勘误（2026-10-04，实施后订正）
+
+> 本章由 **T01–T05 实施完成后**追加，**只订正实施期发现的运行时/工程事实偏差，不修改 §0–§8 的任何裁定、结论与章节文字**。
+> 三条均由 Engineer 实施侧实测发现，并经 QA 测试侧与主理人验收侧独立核验。
+
+### E-1｜C5 翻红时点（订正 §5-Q1 与 §3 T01 验收判据 3）
+
+**原文**：「C-1（`endTask(taskId?)` 契约）一旦落地，`endTask.length` 立即变 1 ⇒ C5 当场翻红」。
+
+**实测订正：该说法在运行时不成立。** 三条理由：
+
+1. `packages/contracts/src/bridge.ts` 是 `.ts` **类型声明**，编译期擦除，对运行时**零影响**；
+2. `Function.prototype.length` 取决于**实现类**（`packages/vm-service/src/server.ts:171` 的 `endTask()`），不是接口签名；
+3. 单测 `import { VmApprovalCoordinator } from '@winvm/vm-service'` 解析到 **`dist/server.js`**（见 §4 SK-5）。
+
+⇒ **真实翻红时刻 = T02 实现端落 `endTask(taskId?)` + dist 重建**，而非 T01。
+T01 落地后运行时 `endTask.length` **仍为 0**，C5 **仍 PASS**（T01 实施后实测：`r19c-a5` 计数 18/13/5，与改前完全一致）。
+
+**证据来源**：Engineer 实施侧逐 T 跑测记录 + QA 测试侧改写 C5 时写入的「翻转原因」注释（两者独立得出同一判读口径：「翻红时刻 = 实现落码 + dist 重建，不是契约落地那一刻」）。主理人验收侧已确认 C5 最终转绿。
+
+**对流程的影响**：§5-Q1 要求「C5 改写必须与 T01 同 commit」。实测下 **C5 与 T02 同批改写即可**（T01 不会引入该红档）。
+
+---
+
+### E-2｜构建命令路径（订正 §4 SK-5）
+
+**原文**：口令写作 `npm run build`（= `tsc -b tsconfig.build.json`，见根 `package.json`），但同节另一处写作 `npx tsc -b packages/tsconfig.build.json`。
+
+**实测订正**：**`packages/tsconfig.build.json` 路径不存在**（仓库 `packages/` 下无 tsconfig，`tsconfig.build.json` 与 `tsconfig.base.json` 均在**仓库根**）。正确口令为：
+
+```bash
+npx tsc -b tsconfig.build.json          # 增量
+npx tsc -b tsconfig.build.json --force  # 全量强制重建（门禁收口推荐）
+```
+
+与 `npm run build` / `npm run typecheck`（`package.json` 内均为 `tsc -b tsconfig.build.json`）同源。
+
+**证据来源**：Engineer 实施侧。T05 用 `--force` 全量重建，四个受改包的 dist mtime 均新于对应 src（`vm-service` / `adapter-agent-workbuddy-llm` / `contracts`，见进度文档 `docs/design/a5-approval-drop-fix-impl-progress.md` §6.1）。
+
+---
+
+### E-3｜`npm run layout` 失效（**既存**，非本次引入）
+
+**原文**（§4 SK-5）：「依赖方向守卫：`npm run layout`（`scripts/dep-lint.mjs`）—— D-4 相关改动后应跑」。
+
+**实测订正**：`package.json:16` 定义 `"layout": "node scripts/dep-lint.mjs"`，但仓库**不存在 `scripts/` 目录** ⇒ 该脚本在本 HEAD 上**无法执行**（`MODULE_NOT_FOUND`），与本次改动无关。
+
+**本次处置**：D-4 守门改用 `git diff --stat -- packages/a2a-framework/src/` 达成，结论 **零改动** ✅。
+
+**建议**：补回 `scripts/dep-lint.mjs`，或从 `package.json` 移除该失效 script —— 属独立议题，不在本迭代范围。
+
+**证据来源**：Engineer 实施侧（T05 门禁）；主理人验收侧已确认 D-4 守门结论。
+
 
