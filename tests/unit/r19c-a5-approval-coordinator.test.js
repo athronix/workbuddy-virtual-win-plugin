@@ -158,14 +158,23 @@ describe('A5 / A 表征：VmApprovalCoordinator.activeTaskId 单例语义', () =
     runCase('A0 dist/src 一致性守卫', 'A-表征', () => {
       assert.ok(existsSync(DIST_SERVER), `dist 缺失：${DIST_SERVER}`);
       const dist = readFileSync(DIST_SERVER, 'utf8');
-      // 守卫形态必须与 src 同位（src:177 → `if (!this.activeTaskId || !this.tasks)`）
+      /* 【机制已变更 · P1-Fix 同步更新】
+       * 守卫的**取值来源**由服务级单例 `this.activeTaskId` 改为局部 `taskId`
+       * （`const taskId = req.taskId ?? this.activeTaskId;`），守卫的**目的与语义不变**
+       * （无归属 ⇒ 不放行、不改 reason）。故本守卫的形态断言同步为当前形态，
+       * 「dist 必须比 src 新」这一守卫目的本身一字未改。
+       */
       assert.ok(
-        dist.includes('if (!this.activeTaskId || !this.tasks)'),
-        'dist 内找不到 activeTaskId 守卫 —— 行为断言将失去意义，请先 npm run build',
+        dist.includes('if (!taskId || !this.tasks)'),
+        'dist 内找不到 no-active-task 守卫 —— 行为断言将失去意义，请先 npm run build',
       );
       assert.ok(
-        dist.includes('this.tasks.waitApproval(this.activeTaskId, enriched)'),
-        'dist 内 waitApproval 不再使用单例 activeTaskId —— 机制链已变更，本文件断言需同步复核',
+        dist.includes('const taskId = req.taskId ?? this.activeTaskId;'),
+        'dist 内 raise 不再「优先取 req.taskId、缺席回退单例」 —— 机制链已变更，本文件断言需同步复核',
+      );
+      assert.ok(
+        dist.includes('this.tasks.waitApproval(taskId, enriched)'),
+        'dist 内 waitApproval 不再按归属 taskId 挂起 —— 机制链已变更，本文件断言需同步复核',
       );
       const srcMtime = statSync(SRC_SERVER).mtimeMs;
       const distMtime = statSync(DIST_SERVER).mtimeMs;
@@ -187,8 +196,15 @@ describe('A5 / A 表征：VmApprovalCoordinator.activeTaskId 单例语义', () =
       assert.equal(c.activeTaskId, undefined, `endTask() 后实际值=${String(c.activeTaskId)}`);
     }));
 
-  test('A2 交叠场景（A 收尾清空后，B 的 raise 返回什么）—— 本轮核心用例', () =>
-    runCase('A2 交叠场景 raise 实际返回', 'A-表征', async () => {
+  test('A2 交叠场景（A 收尾后，B 的 raise 返回什么）—— 本轮核心用例', () =>
+    runCase('A2 交叠场景 raise 实际返回（修复后）', 'A-表征', async () => {
+      /* 【翻转原因】
+       * 原用例的 setup 用的是**修复前**的调用约定：`endTask()` 零参 + `req` 无 taskId。
+       * 修复后该组合走 SK-2 的「兼容分支」（零参 ⇒ 无条件清空），仍会复现缺陷 ——
+       * 它被**完整保留**为下方新增的 `A2b`（残余风险，不得丢失）。
+       * 本用例改为**修复后桥的真实调用约定**（bridge.ts:736 传 `input.taskId ?? ''`、
+       * bridge.ts:965 给 req 注入 `taskId`）⇒ 如实地钉死修复后的真实行为。
+       */
       const store = new TaskStore({ approvalTtlMs: 300 });
       const recA = store.create();
       const recB = store.create();
@@ -196,17 +212,56 @@ describe('A5 / A 表征：VmApprovalCoordinator.activeTaskId 单例语义', () =
 
       c.beginTask(recA.task.id); // A 委派进入
       c.beginTask(recB.task.id); // B 委派进入（真实交叠：此时 A 的 runGoal 仍在飞）
-      c.endTask(); // A 的 runGoal 收尾（bridge.ts:741 finally）⇒ 单例被清
+      c.endTask(recA.task.id); // A 的 runGoal 收尾（带归属 ⇒ 'A' !== 'B' ⇒ 不清 B）
 
-      const out = await c.raise(makeReq('apr_B'));
+      const p = c.raise(makeReq('apr_B', { taskId: recB.task.id })); // 桥注入归属
+      await new Promise((r) => setImmediate(r));
 
-      // 如实钉死当前真实行为：
-      assert.equal(out.approved, false, '当前实现 approved=false');
-      assert.equal(out.reason, 'no-active-task', '当前实现 reason=no-active-task（不是 rejected/timeout）');
+      // 如实钉死修复后的真实行为：B **真的挂起了**（不再早退 no-active-task）
+      const rec = store.get(recB.task.id);
+      assert.equal(
+        rec.task.status.state,
+        'input-required',
+        '修复后：交叠下 B 应挂起 input-required（修复前恒 submitted，与 A5 真机症状一致）',
+      );
+      assert.equal(c.activeTaskId, recB.task.id, 'A 的归属收尾不得清掉 B');
+
+      rec.pendingApproval.resolve(true); // 宿主批准
+      const out = await p;
+      assert.notEqual(
+        out.reason,
+        'no-active-task',
+        '修复后：交叠下 B 的 raise 不再早退为 no-active-task',
+      );
+      assert.equal(out.approved, true, '修复后：交叠下宿主批准应被采纳');
+    }));
+
+  test('A2b 残余风险（保留原 A2 语义）：遗留零参调用方 + req 无 taskId ⇒ 缺陷仍复现', () =>
+    runCase('A2b 遗留零参调用方仍复现缺陷', 'A-表征', async () => {
+      /* 【为什么保留这条】
+       * SK-2 明确规定：`endTask()` 零参 ⇒ **无条件清空**（兼容既有零参调用方，行为逐字不变）。
+       * 因此「调用方不传归属 + raise 的 req 也不带 taskId」这一组合，修复**刻意不改** ——
+       * 缺陷在该组合下**仍然复现**。这不是回归，而是兼容代价，必须显式钉住以免被误读为
+       * 「已根治」。根治路径是 Fix-1B 的 `req.taskId`（见 B4：零参收尾 + req 带 taskId ⇒ 仍挂起）。
+       * 本用例的 setup 与断言**逐字沿用修复前的 A2**，仅改名与加注。
+       */
+      const store = new TaskStore({ approvalTtlMs: 300 });
+      const recA = store.create();
+      const recB = store.create();
+      const c = wired(store, new Map([['apr_B', makeToken('apr_B')]]));
+
+      c.beginTask(recA.task.id); // A 委派进入
+      c.beginTask(recB.task.id); // B 委派进入
+      c.endTask(); // 遗留零参收尾 ⇒ 无条件清空（SK-2 兼容分支）
+
+      const out = await c.raise(makeReq('apr_B')); // req 也不带 taskId
+
+      assert.equal(out.approved, false);
+      assert.equal(out.reason, 'no-active-task', '遗留组合仍早退 no-active-task（SK-2 兼容代价，非回归）');
       assert.equal(
         store.get(recB.task.id).task.status.state,
         'submitted',
-        'B 任务从未进入 input-required（与 A5 真机症状一致：终态文本里有 approvalId，但从未挂起）',
+        '遗留组合下 B 仍不会挂起 input-required —— 残余风险，须靠调用方传 taskId 消除',
       );
     }));
 
@@ -226,23 +281,26 @@ describe('A5 / A 表征：VmApprovalCoordinator.activeTaskId 单例语义', () =
       assert.equal(out.reason, 'rejected', '替身 resolve(false) ⇒ 应为 rejected（对照 no-active-task）');
     }));
 
-  test('A3b endTask 清空后：raise 从不调用 waitApproval，且立即返回（不挂起、不等待）', () =>
-    runCase('A3b waitApproval 未被调用', 'A-表征', async () => {
+  test('A3b 归属收尾后：raise 仍调用 waitApproval 挂起 B（不再绕过审批闸）', () =>
+    runCase('A3b waitApproval 被调用（修复后）', 'A-表征', async () => {
+      /* 【翻转原因】
+       * 原用例钉的是「endTask() 零参清空后 raise 从不调用 waitApproval」——那是**缺陷本身**
+       * （审批闸被绕过）。修复后，桥按真实约定调用（endTask 带归属 + req 带 taskId），
+       * 该形态不复存在 ⇒ 原断言（`length === 0`）按修复后行为**如实翻转**为 `=== 1`。
+       * 零参遗留组合的等价形态由 `A2b` 承接（仍为 0 次，属已知残余风险）。
+       */
       const spy = spyStore();
       const c = newCoordinator();
       c.bind(spy, new Map([['apr_B', makeToken('apr_B')]]));
       c.beginTask('A');
       c.beginTask('B');
-      c.endTask(); // 模拟 A 收尾
+      c.endTask('A'); // A 带归属收尾 ⇒ 不清 B
 
-      const startedAtMs = Date.now();
-      const out = await c.raise(makeReq('apr_B'));
-      const elapsedMs = Date.now() - startedAtMs;
+      const out = await c.raise(makeReq('apr_B', { taskId: 'B' })); // 桥注入归属
 
-      assert.equal(spy.calls.waitApproval.length, 0, 'waitApproval 一次都没被调用 ⇒ 审批闸被绕过');
-      assert.equal(spy.calls.updateStatus.length, 0, 'updateStatus(input-required) 也没有被调用');
-      assert.equal(out.reason, 'no-active-task');
-      assert.ok(elapsedMs < 100, `早退应立即返回（实测 ${elapsedMs}ms），不会挂起等待宿主`);
+      assert.equal(spy.calls.waitApproval.length, 1, '修复后：waitApproval 应被调用一次（审批闸不再被绕过）');
+      assert.equal(spy.calls.waitApproval[0].id, 'B', '修复后：挂起目标是 B');
+      assert.equal(out.reason, 'rejected', '替身 resolve(false) ⇒ rejected（对照早退的 no-active-task）');
     }));
 });
 
@@ -258,11 +316,14 @@ describe('A5 / B 红档：交叠场景下 B 的审批仍应可挂起（当前必
       c.bind(spy, new Map([['apr_B', makeToken('apr_B')]]));
       c.beginTask('A');
       c.beginTask('B');
-      c.endTask(); // A 收尾 —— 修复后不应影响仍在飞的 B
+      // 【setup 同步为修复后桥的真实调用约定】原为 `endTask()` 零参 + req 无 taskId，
+      // 该组合在 SK-2 下走「无条件清空」兼容分支，修复**刻意不改**（已由 A2b 显式钉住）。
+      // 桥的实际调用是：:736 `endTask(input.taskId ?? '')` + :965 req 注入 taskId。
+      c.endTask('A'); // A 收尾（带归属）—— 修复后不应影响仍在飞的 B
 
-      const out = await c.raise(makeReq('apr_B'));
+      const out = await c.raise(makeReq('apr_B', { taskId: 'B' })); // 桥注入归属
 
-      // 修复后应有行为：
+      // 修复后应有行为（断言一字未削弱，仅 setup 对齐真实调用约定）：
       assert.notEqual(
         out.reason,
         'no-active-task',
@@ -281,9 +342,9 @@ describe('A5 / B 红档：交叠场景下 B 的审批仍应可挂起（当前必
 
       c.beginTask(recA.task.id);
       c.beginTask(recB.task.id);
-      c.endTask();
+      c.endTask(recA.task.id); // setup 同步为桥真实调用约定（:736 传 input.taskId ?? ''）
 
-      const p = c.raise(makeReq('apr_B'));
+      const p = c.raise(makeReq('apr_B', { taskId: recB.task.id })); // :965 注入归属
       // waitApproval 的 Promise 构造体同步执行 ⇒ 让出一个 tick 即可读到挂起结果
       await new Promise((r) => setImmediate(r));
       const rec = store.get(recB.task.id);
@@ -312,9 +373,9 @@ describe('A5 / B 红档：交叠场景下 B 的审批仍应可挂起（当前必
 
       c.beginTask(recA.task.id);
       c.beginTask(recB.task.id);
-      c.endTask();
+      c.endTask(recA.task.id); // setup 同步为桥真实调用约定（:736 传 input.taskId ?? ''）
 
-      const p = c.raise(makeReq('apr_B'));
+      const p = c.raise(makeReq('apr_B', { taskId: recB.task.id })); // :965 注入归属
       await new Promise((r) => setImmediate(r));
       const rec = store.get(recB.task.id);
       // 宿主按协议回复 approved:false（契约 D-5 的唯一 rejected 置位前置：
@@ -328,6 +389,63 @@ describe('A5 / B 红档：交叠场景下 B 的审批仍应可挂起（当前必
         'rejected',
         '修复后：宿主拒绝应回 rejected（当前回 no-active-task ⇒ 宿主无从回复 ⇒ rejected 终态不可达）',
       );
+    }));
+
+  test('B4 边界：A 用**零参**收尾（旧调用方）但 req 带 taskId ⇒ B 仍挂起（Fix-1B 独立生效）', () =>
+    runCase('B4 零参收尾 + req.taskId 仍挂起', 'B-红档', async () => {
+      /* spec §2.2 验收判据 2：证明 `req.taskId` 的优先级**高于**被清空的单例 ——
+       * 即便调用方是「不传归属」的旧代码（endTask() 零参 ⇒ 单例被无条件清空），
+       * 只要 raise 的 req 自带 taskId，审批仍应挂起。这是 Fix-1B 独立于 Fix-1A 的价值。
+       */
+      const spy = spyStore();
+      const c = newCoordinator();
+      c.bind(spy, new Map([['apr_x', makeToken('apr_x')]]));
+      c.beginTask('A');
+      c.beginTask('B');
+      c.endTask(); // 旧调用方零参收尾 ⇒ 单例被清空
+      assert.equal(c.activeTaskId, undefined, '前置：零参收尾确实清空了单例');
+
+      const out = await c.raise(makeReq('apr_x', { taskId: 'A' })); // req 自带归属 'A'
+
+      assert.notEqual(out.reason, 'no-active-task', 'Fix-1B：req.taskId 优先于被清空的单例');
+      assert.equal(spy.calls.waitApproval.length, 1, 'Fix-1B：仍应挂起一次');
+      assert.equal(spy.calls.waitApproval[0]?.id, 'A', 'Fix-1B：挂起目标取 req.taskId（=A），而非被清空的单例');
+    }));
+
+  test('B5 边界：beginTask(\'\') + req 无 taskId ⇒ 仍 no-active-task，且产出**一条**结构化 warn', () =>
+    runCase('B5 空归属早退 + warn 可观测', 'B-红档', async () => {
+      /* spec §2.2 验收判据 3 + SK-3：根因文档 §6.4 点名「零日志」是本次只能靠反证定位的原因，
+       * 故 C-6 的 logger 出口必须有断言覆盖。字段口径（SK-3 硬约束）：
+       *   reason 恒 'no-active-task'；缺席字段一律 ''（绝不输出 undefined 字面量）；
+       *   hasTasks 必须带上（把守卫的两个子条件 !taskId / !this.tasks 在日志里区分开）。
+       */
+      const spy = spyStore();
+      const warns = [];
+      const c = newCoordinator();
+      c.bind(spy, new Map());
+      c.setLogger({ warn: (msg, meta) => warns.push({ msg, meta }) });
+
+      c.beginTask(''); // 空串 = 无归属（SK-1）
+      const out = await c.raise(makeReq('apr_x')); // req 也不带 taskId
+
+      assert.equal(out.approved, false, '空归属 ⇒ 绝不自批（SK-7 兜底语义未变）');
+      assert.equal(out.reason, 'no-active-task', '空归属仍早退 no-active-task（reason 一字未变）');
+      assert.equal(spy.calls.waitApproval.length, 0, '空归属不应挂起');
+
+      assert.equal(warns.length, 1, `应产出恰一条 warn（实测 ${warns.length} 条）`);
+      const { msg, meta } = warns[0];
+      assert.ok(
+        String(msg).includes('审批协调器'),
+        `warn 文案应可检索（实测：${String(msg).slice(0, 80)}）`,
+      );
+      assert.equal(meta.reason, 'no-active-task', 'meta.reason 恒为 no-active-task（便于日志检索）');
+      assert.equal(meta.approvalId, 'apr_x');
+      assert.equal(meta.reqTaskId, '', "缺席字段一律 ''（绝不输出 undefined 字面量，SK-3 硬约束）");
+      assert.equal(meta.activeTaskId, '', "缺席字段一律 ''（SK-3 硬约束）");
+      assert.equal(meta.hasTasks, true, 'hasTasks 用于区分守卫的两个子条件（根因 §1.2 排空表 #4）');
+      for (const [k, v] of Object.entries(meta)) {
+        assert.notEqual(v, undefined, `meta.${k} 不得为 undefined（SK-3 硬约束）`);
+      }
     }));
 });
 
@@ -437,17 +555,34 @@ describe('A5 / C 边界与回归锚点', () => {
       assert.equal(token.hostApproved, true, 'K4 安全点：token 被置 hostApproved=true');
     }));
 
-  test('C5 @todo-P1-fix 预留：按 taskId 归属形态的断言（修复后启用）', () =>
-    runCase('C5 归属形态预留', 'C-边界', () => {
-      // 修复方向（若采纳「activeTaskId → Map<taskId, ...> 归属」）：
-      //   beginTask('A') → beginTask('B') → endTask('A') 后，B 的绑定仍在。
-      // 当前实现是单例（endTask() 无参、无法指定收尾哪个任务），故只做**形态断言**：
-      assert.equal(
-        newCoordinator().endTask.length,
-        0,
-        '当前 endTask() 无参数 ⇒ 无法表达「哪个任务收尾」⇒ 归属改造后此断言应失效并改为归属断言',
+  test('C5 归属形态：endTask 已支持可选归属参数，且 A 的收尾不得清掉 B 的归属', () =>
+    runCase('C5 归属形态（修复后）', 'C-边界', async () => {
+      /* 【翻转原因 · 必读】
+       * 原断言：`assert.equal(newCoordinator().endTask.length, 0)`，是 **修复前** 的表征
+       *   （`endTask()` 无参 ⇒ 协调器无从知道「哪个任务在收尾」⇒ 只能无条件清空单例，
+       *    这正是 A5 缺陷的根因，见 a5-approval-drop-rootcause.md §3.1）。
+       * C-1 落地后（`contracts/src/bridge.ts` `endTask(taskId?: string)` +
+       *   `vm-service/src/server.ts` 归属实现）⇒ `Function.prototype.length` 由 0 变 1，
+       *   该表征断言**设计上预期失效**（用例自述「归属改造后此断言应失效并改为归属断言」）。
+       * 故按修复后行为**如实改写**为 1，并补一条行为断言证明归属语义真的生效，语义不删。
+       * 判读口径：`endTask.length` 由**实现类**决定（接口在编译期擦除），且单测解析到
+       *   dist ⇒ 翻红时刻 = 「实现落码 + dist 重建」，不是契约落地的那一刻。
+       */
+      assert.equal(newCoordinator().endTask.length, 1, 'endTask 已支持可选归属参数');
+
+      // 归属行为断言：A 的收尾（归属不匹配当前活动任务）不得清掉 B 的归属
+      const spy = spyStore();
+      const c = wired(spy);
+      c.beginTask('A');
+      c.beginTask('B'); // B 是后进入者 ⇒ 当前活动任务为 B
+      c.endTask('A'); // A 收尾：'A' !== 'B' ⇒ 保持不动，绝不误清他人
+      assert.equal(c.activeTaskId, 'B', 'A 的收尾不得清掉 B 的归属（交叠保护）');
+
+      await c.raise(makeReq('apr_x'));
+      assert.ok(
+        spy.calls.waitApproval.some((x) => x.id === 'B'),
+        `A 的收尾后，B 的审批仍须挂到 B（实测 waitApproval 调用=${JSON.stringify(spy.calls.waitApproval)}）`,
       );
-      // TODO(@todo-P1-fix)：归属改造落地后，替换为本组上方的 B1/B2/B3 转绿验证。
     }));
 });
 
@@ -566,30 +701,47 @@ async function runOverlap({ bText = BLOCK_TEXT_A5, approve = false } = {}) {
 }
 
 describe('A5 / D 桥级交叠：完整复现 A5 时序（bridge → coordinator → 终态）', () => {
-  test('D1 表征：A 收尾清空 ⇒ B 终态 ok=false / APPROVAL_REQUIRED / 从未挂起 tB', () =>
-    runCase('D1 桥级交叠终态表征', 'D-桥级', async () => {
+  test('D1 表征（修复后）：A 带归属收尾不再清掉 B ⇒ B 终态按宿主裁决收口（非恒 failed）', () =>
+    runCase('D1 桥级交叠终态表征（修复后）', 'D-桥级', async () => {
+      /* 【翻转原因】
+       * 原用例钉的是**修复前**的终态指纹：A 收尾把 B 的 id 一起清掉 ⇒ tB 从未被挂起
+       * ⇒ B 恒 `ok=false / APPROVAL_REQUIRED / summary 含「等待审批」`。
+       * 修复后该指纹不复存在（A 带归属收尾，B 的 id 保留），原断言 `activeAfterA === undefined`
+       * 与 `tB 挂起次数 === 0` 已与事实相反 ⇒ 按修复后行为**如实重写**：
+       *   - `activeAfterA` 应为 'tB'（A 的收尾不再误清）
+       *   - tB 应被挂起 1 次（缺陷核心症状消失）
+       *   - B 的终态由宿主裁决决定（本例替身 resolve(false) ⇒ 未批准 ⇒ 仍是 APPROVAL_REQUIRED，
+       *     但**成因不同**：现在是「宿主拒绝后收口」，不再是「审批闸被绕过」）
+       * 修复前的完整指纹已归档进 docs/test/reports/a2a-coverage-2026-10-03.md（A5 逐字对照）。
+       */
       const { resB, spy, activeAfterBothBegin, activeAfterA } = await runOverlap();
 
       assert.equal(activeAfterBothBegin, 'tB', '两条委派都 begin 后，单例被后发起的 B 覆盖');
-      assert.equal(activeAfterA, undefined, 'A 收尾（endTask）把 B 的 id 一起清掉');
+      assert.equal(
+        activeAfterA,
+        'tB',
+        '修复后：A 的带归属收尾（endTask(input.taskId)）不再把 B 的 id 一起清掉',
+      );
 
-      // 与 A5 真机终态逐项对齐（steps[0].summary=「等待审批（未执行完成）」、error.code=APPROVAL_REQUIRED）
       console.log(
-        `    [D1 实测终态] ok=${resB.ok} code=${resB.error?.code}\n` +
+        `    [D1 实测终态（修复后）] ok=${resB.ok} code=${resB.error?.code}\n` +
           `                  summary=${JSON.stringify(resB.summary)}\n` +
           `                  steps[0].summary=${JSON.stringify(resB.steps?.[0]?.summary)}\n` +
           `                  waitApproval 调用=${JSON.stringify(spy.calls.waitApproval)}`,
       );
-      assert.equal(resB.ok, false, 'B 终态 ok=false');
+
+      // 修复后：tB **被真的挂起了**（这是本缺陷的核心症状）
+      assert.equal(
+        spy.calls.waitApproval.filter((c) => c.id === 'tB').length,
+        1,
+        `修复后：tB 应被 waitApproval 挂起一次（实测 ${JSON.stringify(spy.calls.waitApproval)}）`,
+      );
+      // 本例替身 resolve(false)（宿主未批准）⇒ 终态仍按「等待审批未执行」收口，但成因已变
+      assert.equal(resB.ok, false, '宿主未批准 ⇒ B 终态 ok=false');
       assert.equal(resB.error?.code, 'APPROVAL_REQUIRED', 'B 终态 error.code=APPROVAL_REQUIRED');
       assert.ok(
         String(resB.summary).includes('等待审批'),
         `B 终态 summary 含「等待审批」（实测：${String(resB.summary).slice(0, 80)}）`,
-      );
-      assert.equal(
-        spy.calls.waitApproval.filter((c) => c.id === 'tB').length,
-        0,
-        'tB 从未被 waitApproval 挂起（这就是 A5「审批闸确实触发、却从未 input-required」的成因）',
       );
     }));
 
