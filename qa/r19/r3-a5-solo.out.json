@@ -1,0 +1,372 @@
+{
+  "case": "A5-approval-reject",
+  "pkg": "QA.R19B.Nonexistent.99997",
+  "goal": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）",
+  "at": "2026-10-03T17:44:28.544Z",
+  "preflight": {
+    "taskCount": 1,
+    "totalSize": 1,
+    "states": [
+      {
+        "id": "90217da7-83a8-4a63-b269-1128d9abecfe",
+        "state": "rejected"
+      }
+    ],
+    "note": "tasks/list 全终态仅说明状态已收口，不证明其 runGoal 已返回（cancelRequested 只写不读）；金标准为「服务重启后首发」，次选为全终态 + 距上一终态 ≥60s"
+  },
+  "send": {
+    "kind": "task",
+    "id": "f81388ee-ee02-40c2-8995-632366402ed7",
+    "contextId": "29f5adcd-f454-49cb-aba4-8abee32beea1",
+    "status": {
+      "state": "working",
+      "timestamp": "2026-10-03T17:44:28.850Z",
+      "message": "WinVM WorkBuddy LLM Agent 接管目标：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_musolyry",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_musolyry",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "taskId": "f81388ee-ee02-40c2-8995-632366402ed7",
+  "lastTask": {
+    "kind": "task",
+    "id": "f81388ee-ee02-40c2-8995-632366402ed7",
+    "contextId": "29f5adcd-f454-49cb-aba4-8abee32beea1",
+    "status": {
+      "state": "input-required",
+      "timestamp": "2026-10-03T17:44:39.302Z",
+      "message": {
+        "kind": "message",
+        "role": "agent",
+        "messageId": "626236fa-9c4a-4837-bb58-796c788a29dd",
+        "taskId": "f81388ee-ee02-40c2-8995-632366402ed7",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "需要人工审批（风险 L2）后才能继续。\n操作：appops.workflow.run\n真实目标：能力 app.winget.uninstall · 参数 id=QA.R19B.Nonexistent.99997 · dryRun=false\n说明：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_6c17a82d369c41929e92\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+          },
+          {
+            "kind": "data",
+            "data": {
+              "type": "approval-request",
+              "approvalId": "apr_6c17a82d369c41929e92",
+              "capabilityId": "appops.workflow.run",
+              "risk": "L2",
+              "preview": {
+                "capabilityId": "app.winget.uninstall",
+                "risk": "L2",
+                "destructive": true,
+                "requiresSession": false,
+                "params": {
+                  "id": "QA.R19B.Nonexistent.99997",
+                  "dryRun": false
+                },
+                "dryRun": {
+                  "supported": true,
+                  "requested": false,
+                  "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+                  "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+                },
+                "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+              },
+              "impact": [
+                "id=QA.R19B.Nonexistent.99997",
+                "dryRun=false"
+              ],
+              "expiresAtMs": 1791051279302,
+              "underlying": {
+                "capabilityId": "app.winget.uninstall",
+                "paramsSummary": "id=QA.R19B.Nonexistent.99997 · dryRun=false"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_musolyry",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_musolyry",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "taskAtInputRequired": {
+    "kind": "task",
+    "id": "f81388ee-ee02-40c2-8995-632366402ed7",
+    "contextId": "29f5adcd-f454-49cb-aba4-8abee32beea1",
+    "status": {
+      "state": "input-required",
+      "timestamp": "2026-10-03T17:44:39.302Z",
+      "message": {
+        "kind": "message",
+        "role": "agent",
+        "messageId": "626236fa-9c4a-4837-bb58-796c788a29dd",
+        "taskId": "f81388ee-ee02-40c2-8995-632366402ed7",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "需要人工审批（风险 L2）后才能继续。\n操作：appops.workflow.run\n真实目标：能力 app.winget.uninstall · 参数 id=QA.R19B.Nonexistent.99997 · dryRun=false\n说明：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_6c17a82d369c41929e92\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+          },
+          {
+            "kind": "data",
+            "data": {
+              "type": "approval-request",
+              "approvalId": "apr_6c17a82d369c41929e92",
+              "capabilityId": "appops.workflow.run",
+              "risk": "L2",
+              "preview": {
+                "capabilityId": "app.winget.uninstall",
+                "risk": "L2",
+                "destructive": true,
+                "requiresSession": false,
+                "params": {
+                  "id": "QA.R19B.Nonexistent.99997",
+                  "dryRun": false
+                },
+                "dryRun": {
+                  "supported": true,
+                  "requested": false,
+                  "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+                  "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+                },
+                "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+              },
+              "impact": [
+                "id=QA.R19B.Nonexistent.99997",
+                "dryRun=false"
+              ],
+              "expiresAtMs": 1791051279302,
+              "underlying": {
+                "capabilityId": "app.winget.uninstall",
+                "paramsSummary": "id=QA.R19B.Nonexistent.99997 · dryRun=false"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_musolyry",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_musolyry",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "reachedInputRequired": true,
+  "approvalData": {
+    "type": "approval-request",
+    "approvalId": "apr_6c17a82d369c41929e92",
+    "capabilityId": "appops.workflow.run",
+    "risk": "L2",
+    "preview": {
+      "capabilityId": "app.winget.uninstall",
+      "risk": "L2",
+      "destructive": true,
+      "requiresSession": false,
+      "params": {
+        "id": "QA.R19B.Nonexistent.99997",
+        "dryRun": false
+      },
+      "dryRun": {
+        "supported": true,
+        "requested": false,
+        "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+        "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+      },
+      "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+    },
+    "impact": [
+      "id=QA.R19B.Nonexistent.99997",
+      "dryRun=false"
+    ],
+    "expiresAtMs": 1791051279302,
+    "underlying": {
+      "capabilityId": "app.winget.uninstall",
+      "paramsSummary": "id=QA.R19B.Nonexistent.99997 · dryRun=false"
+    }
+  },
+  "replyRpc": {
+    "kind": "task",
+    "id": "f81388ee-ee02-40c2-8995-632366402ed7",
+    "contextId": "29f5adcd-f454-49cb-aba4-8abee32beea1",
+    "status": {
+      "state": "rejected",
+      "timestamp": "2026-10-03T17:44:39.680Z"
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_musolyry",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      },
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_musom74s",
+        "taskId": "f81388ee-ee02-40c2-8995-632366402ed7",
+        "parts": [
+          {
+            "kind": "data",
+            "data": {
+              "approvalId": "apr_6c17a82d369c41929e92",
+              "approved": false
+            }
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_musolyry",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "stateAfterReply": "rejected",
+  "pollSeen": [
+    {
+      "atMs": 11221,
+      "state": "rejected"
+    }
+  ],
+  "final": {
+    "kind": "task",
+    "id": "f81388ee-ee02-40c2-8995-632366402ed7",
+    "contextId": "29f5adcd-f454-49cb-aba4-8abee32beea1",
+    "status": {
+      "state": "rejected",
+      "timestamp": "2026-10-03T17:44:39.680Z"
+    },
+    "artifacts": [
+      {
+        "artifactId": "3ec02d58-5961-49c4-a39b-7d5001038e96",
+        "name": "execution-steps",
+        "parts": [
+          {
+            "kind": "data",
+            "data": {
+              "ok": false,
+              "summary": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时（常驻会话）完成目标：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑；approvalId=apr_6c17a82d369c41929e92",
+              "steps": [
+                {
+                  "index": 0,
+                  "capabilityId": "appops.workflow.run",
+                  "params": {
+                    "goal": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）",
+                    "runtime": "codebuddy",
+                    "session": "persistent"
+                  },
+                  "risk": "L2",
+                  "ok": false,
+                  "durationMs": 10346,
+                  "traceId": "tr_ax_musolyry",
+                  "summary": "等待审批（未执行完成）"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_musolyry",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      },
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_musom74s",
+        "taskId": "f81388ee-ee02-40c2-8995-632366402ed7",
+        "parts": [
+          {
+            "kind": "data",
+            "data": {
+              "approvalId": "apr_6c17a82d369c41929e92",
+              "approved": false
+            }
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_musolyry",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ],
+      "goalSummary": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时（常驻会话）完成目标：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑；approvalId=apr_6c17a82d369c41929e92",
+      "stepCount": 1
+    }
+  },
+  "finalState": "rejected",
+  "finalTerminalStateExt": null
+}

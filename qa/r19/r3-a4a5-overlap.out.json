@@ -1,0 +1,320 @@
+{
+  "case": "A5-overlap-A4+A5",
+  "goalA": "递归统计 VM 上 C:\\Windows\\System32 目录下所有 .dll 文件的数量，只统计不修改任何东西",
+  "goalB": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）",
+  "pkg": "QA.R19B.Nonexistent.99997",
+  "at": "2026-10-03T17:45:03.823Z",
+  "preflight": {
+    "taskCount": 2,
+    "states": [
+      {
+        "id": "f81388ee-ee02-40c2-8995-632366402ed7",
+        "state": "rejected"
+      },
+      {
+        "id": "90217da7-83a8-4a63-b269-1128d9abecfe",
+        "state": "rejected"
+      }
+    ],
+    "note": "全终态仅说明状态已收口，不证明其 runGoal 已返回（cancelRequested 只写不读）"
+  },
+  "a4": {
+    "taskId": "6bab926e-15be-42c7-abb8-5e36f9a4b183",
+    "sendState": "working",
+    "sendAtMs": 333,
+    "stateWhenA5Sent": "working",
+    "msBeforeA5Sent": 3450,
+    "pollSeen": [
+      {
+        "atMs": 27110,
+        "state": "completed"
+      }
+    ],
+    "finalState": "completed",
+    "final": {
+      "kind": "task",
+      "id": "6bab926e-15be-42c7-abb8-5e36f9a4b183",
+      "contextId": "93cc028e-229e-4aba-b0ff-0cab2bab00a2",
+      "status": {
+        "state": "completed",
+        "timestamp": "2026-10-03T17:45:19.861Z",
+        "message": {
+          "kind": "message",
+          "role": "agent",
+          "messageId": "f19fadb7-429a-4b3b-b458-6057d32b6f96",
+          "taskId": "6bab926e-15be-42c7-abb8-5e36f9a4b183",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "LLM 运行时（常驻会话）完成目标：递归统计 VM 上 C:\\Windows\\System32 目录下所有 .dll 文件的数量，只统计不修改任何东西"
+            },
+            {
+              "kind": "data",
+              "data": {
+                "ok": true,
+                "stepCount": 1,
+                "steps": [
+                  {
+                    "index": 0,
+                    "capabilityId": "appops.workflow.run",
+                    "risk": "L1",
+                    "ok": true,
+                    "durationMs": 15626,
+                    "summary": "LLM 常驻会话自主规划并执行完成"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "artifacts": [
+        {
+          "artifactId": "39d59b37-7562-40e4-a99c-c88aa347683c",
+          "name": "execution-steps",
+          "parts": [
+            {
+              "kind": "data",
+              "data": {
+                "ok": true,
+                "summary": "LLM 运行时（常驻会话）完成目标：递归统计 VM 上 C:\\Windows\\System32 目录下所有 .dll 文件的数量，只统计不修改任何东西",
+                "steps": [
+                  {
+                    "index": 0,
+                    "capabilityId": "appops.workflow.run",
+                    "params": {
+                      "goal": "递归统计 VM 上 C:\\Windows\\System32 目录下所有 .dll 文件的数量，只统计不修改任何东西",
+                      "runtime": "codebuddy",
+                      "session": "persistent"
+                    },
+                    "risk": "L1",
+                    "ok": true,
+                    "durationMs": 15626,
+                    "traceId": "tr_r3_a4",
+                    "summary": "LLM 常驻会话自主规划并执行完成"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "history": [
+        {
+          "kind": "message",
+          "role": "user",
+          "messageId": "msg_musomq09",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "递归统计 VM 上 C:\\Windows\\System32 目录下所有 .dll 文件的数量，只统计不修改任何东西"
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "traceId": "tr_r3_a4",
+        "maxRisk": "L1",
+        "timeoutMs": 600000,
+        "goalSummary": "LLM 运行时（常驻会话）完成目标：递归统计 VM 上 C:\\Windows\\System32 目录下所有 .dll 文件的数量，只统计不修改任何东西",
+        "stepCount": 1
+      }
+    },
+    "msToTerminal": 27111
+  },
+  "a5": {
+    "taskId": "0281fb63-a1e5-4e07-8224-399b0d4720e0",
+    "sendState": "working",
+    "sendAtMs": 3580,
+    "lastTask": {
+      "kind": "task",
+      "id": "0281fb63-a1e5-4e07-8224-399b0d4720e0",
+      "contextId": "eb0ff40e-fa9f-459e-8f07-b27734c36522",
+      "status": {
+        "state": "input-required",
+        "timestamp": "2026-10-03T17:45:29.870Z",
+        "message": {
+          "kind": "message",
+          "role": "agent",
+          "messageId": "4745c0ea-11b6-4e6b-a8c6-8f972842ae8c",
+          "taskId": "0281fb63-a1e5-4e07-8224-399b0d4720e0",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "需要人工审批（风险 L2）后才能继续。\n操作：appops.workflow.run\n真实目标：能力 app.winget.uninstall · 参数 id=QA.R19B.Nonexistent.99997 · dryRun=false\n说明：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_71045d0a1c3c454fa890\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+            },
+            {
+              "kind": "data",
+              "data": {
+                "type": "approval-request",
+                "approvalId": "apr_71045d0a1c3c454fa890",
+                "capabilityId": "appops.workflow.run",
+                "risk": "L2",
+                "preview": {
+                  "capabilityId": "app.winget.uninstall",
+                  "risk": "L2",
+                  "destructive": true,
+                  "requiresSession": false,
+                  "params": {
+                    "id": "QA.R19B.Nonexistent.99997",
+                    "dryRun": false
+                  },
+                  "dryRun": {
+                    "supported": true,
+                    "requested": false,
+                    "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+                    "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+                  },
+                  "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+                },
+                "impact": [
+                  "id=QA.R19B.Nonexistent.99997",
+                  "dryRun=false"
+                ],
+                "expiresAtMs": 1791051329870,
+                "underlying": {
+                  "capabilityId": "app.winget.uninstall",
+                  "paramsSummary": "id=QA.R19B.Nonexistent.99997 · dryRun=false"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "artifacts": [],
+      "history": [
+        {
+          "kind": "message",
+          "role": "user",
+          "messageId": "msg_musomsi1",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "traceId": "tr_r3_a5",
+        "maxRisk": "L2",
+        "timeoutMs": 600000,
+        "allowedCapabilities": [
+          "app.winget.uninstall"
+        ]
+      }
+    },
+    "taskAtInputRequired": {
+      "kind": "task",
+      "id": "0281fb63-a1e5-4e07-8224-399b0d4720e0",
+      "contextId": "eb0ff40e-fa9f-459e-8f07-b27734c36522",
+      "status": {
+        "state": "input-required",
+        "timestamp": "2026-10-03T17:45:29.870Z",
+        "message": {
+          "kind": "message",
+          "role": "agent",
+          "messageId": "4745c0ea-11b6-4e6b-a8c6-8f972842ae8c",
+          "taskId": "0281fb63-a1e5-4e07-8224-399b0d4720e0",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "需要人工审批（风险 L2）后才能继续。\n操作：appops.workflow.run\n真实目标：能力 app.winget.uninstall · 参数 id=QA.R19B.Nonexistent.99997 · dryRun=false\n说明：卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_71045d0a1c3c454fa890\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+            },
+            {
+              "kind": "data",
+              "data": {
+                "type": "approval-request",
+                "approvalId": "apr_71045d0a1c3c454fa890",
+                "capabilityId": "appops.workflow.run",
+                "risk": "L2",
+                "preview": {
+                  "capabilityId": "app.winget.uninstall",
+                  "risk": "L2",
+                  "destructive": true,
+                  "requiresSession": false,
+                  "params": {
+                    "id": "QA.R19B.Nonexistent.99997",
+                    "dryRun": false
+                  },
+                  "dryRun": {
+                    "supported": true,
+                    "requested": false,
+                    "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+                    "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+                  },
+                  "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+                },
+                "impact": [
+                  "id=QA.R19B.Nonexistent.99997",
+                  "dryRun=false"
+                ],
+                "expiresAtMs": 1791051329870,
+                "underlying": {
+                  "capabilityId": "app.winget.uninstall",
+                  "paramsSummary": "id=QA.R19B.Nonexistent.99997 · dryRun=false"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "artifacts": [],
+      "history": [
+        {
+          "kind": "message",
+          "role": "user",
+          "messageId": "msg_musomsi1",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "卸载 VM 上的软件包 QA.R19B.Nonexistent.99997（该包 id 故意不存在，勿改动其它任何软件）"
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "traceId": "tr_r3_a5",
+        "maxRisk": "L2",
+        "timeoutMs": 600000,
+        "allowedCapabilities": [
+          "app.winget.uninstall"
+        ]
+      }
+    },
+    "msToInputRequired": 26999,
+    "reachedInputRequired": true,
+    "approvalData": {
+      "type": "approval-request",
+      "approvalId": "apr_71045d0a1c3c454fa890",
+      "capabilityId": "appops.workflow.run",
+      "risk": "L2",
+      "preview": {
+        "capabilityId": "app.winget.uninstall",
+        "risk": "L2",
+        "destructive": true,
+        "requiresSession": false,
+        "params": {
+          "id": "QA.R19B.Nonexistent.99997",
+          "dryRun": false
+        },
+        "dryRun": {
+          "supported": true,
+          "requested": false,
+          "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+          "hint": "params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）"
+        },
+        "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+      },
+      "impact": [
+        "id=QA.R19B.Nonexistent.99997",
+        "dryRun=false"
+      ],
+      "expiresAtMs": 1791051329870,
+      "underlying": {
+        "capabilityId": "app.winget.uninstall",
+        "paramsSummary": "id=QA.R19B.Nonexistent.99997 · dryRun=false"
+      }
+    }
+  }
+}
