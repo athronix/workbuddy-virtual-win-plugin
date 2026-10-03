@@ -113,4 +113,88 @@ R19F（A5 修复）把 `APPROVAL_WAIT_PATTERN` / `parseApprovalBlock` 列入**�
 > **定级理由（一句话）**：A5 是「安全闸咬死」（显式噪声），K3 是「安全闸被绕过且无人知晓」（静默失效）。
 > 安全工程的基本排序是 **静默失败 ≫ 显式失败**。故 owner 的判级（K3 比 A5 更危险）成立，本文采纳。
 
+---
+
+## 2. 现状机制剖析（文本启发式链路 + 假成功的确切产生点）
+
+### 2.1 全链时序图（现状，HEAD `6dca16e`）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Host as 宿主 (host-a2a-bridge)
+    participant A2A as a2a-framework<br/>runGoalWithLifecycle
+    participant Prov as adapter index.ts<br/>LlmProvider
+    participant Bridge as adapter bridge.ts<br/>CliLlmBridge
+    participant CLI as VM 内 codebuddy CLI
+    participant MCP as vm-service /mcp<br/>McpServer.callTool
+    participant Pol as CorePolicyEngine
+    participant PA as pendingApprovals<br/>(服务端 Map)
+
+    Host->>A2A: tasks/send (goal, maxRisk)
+    Note over A2A: :334 无条件注入 taskId<br/>const goalWithTask = {...goal, taskId:id}
+    A2A->>Prov: runGoal(goalWithTask)
+    Prov->>Bridge: runGoal(input{goal,taskId,traceId,probe})
+    Note over Bridge: :737 beginTask(input.taskId ?? '')
+    Bridge->>Bridge: buildMcpConfig / appendDtid
+    Note over Bridge: 单次 -p 路径：URL 拼 ?dtid=<traceId><br/>常驻路径：mcp.json 会话级共享 ⇒ **不拼 dtid**
+    Bridge->>CLI: spawn / runTurn(系统提示 + MCP 配置)
+
+    CLI->>MCP: tools/call app.winget.uninstall
+    MCP->>Pol: evaluate({capabilityId, risk, approved:false})
+    Pol-->>MCP: !allowed && requiresApproval
+    MCP->>PA: pendingApprovals.set(apr_x, {risk,params,...,hostApproved:false})
+    Note over MCP,PA: ★结构化事实#1：拦截已发生<br/>（server.ts:730）
+    MCP->>MCP: recordBlockedApprovalAudit(...)
+    Note over MCP: ★结构化事实#2：入哈希链<br/>:770 ledger?.recordBlocked —— **常驻路径恒空操作**
+    MCP-->>CLI: structuredContent {ok:false,<br/>error.code:'APPROVAL_REQUIRED', approval:{approvalId}}
+    Note over MCP,CLI: ★结构化事实#3：工具结果本身携带拦截信息
+
+    CLI-->>Bridge: turn.text / stdoutText
+    Note over CLI,Bridge: ⚠ 唯一的判定输入 = **LLM 措辞**<br/>（结构化结果到此为止，不再上行）
+
+    Bridge->>Bridge: reconcileApprovalWait(base, finalText)
+    Note over Bridge: :616 门：APPROVAL_WAIT_PATTERN.test(finalText)
+
+    alt 命中（A5 的情形）
+        Bridge->>Bridge: ok=false + APPROVAL_REQUIRED + approvalId
+        Bridge->>Bridge: maybeResume → blocked=true → raise
+    else 未命中 ★★ K3 假成功的确切产生点 ★★
+        Bridge->>Bridge: :616 `return base`（ok:true 原样保留）
+        Note over Bridge: ❶ 假成功诞生于此：<br/>操作从未执行，结果却是 ok:true
+        Bridge->>Bridge: maybeResume :945 blocked=false ⇒ :946 `return base`
+        Note over Bridge: ❷ 不 raise、不挂起
+        Bridge->>Bridge: reconcileDelegationTruth（门3/门4/total>0 退场）
+        Bridge->>Bridge: reconcileExecutionTruth（D-1 门1 退场）
+        Note over Bridge: ❸ 两道兜底防线均退场
+    end
+
+    Bridge-->>Prov: LlmGoalResult{ok:true}
+    Prov-->>A2A: GoalResult{ok:true}
+    Note over A2A: :352 K4 安全网：状态不是 input-required ⇒ 不 return
+    Note over A2A: :365 finalState = result.ok ? 'completed' : 'failed'
+    A2A-->>Host: 终态 **completed**
+    Note over Host,A2A: ❗静默假成功：宿主以为高风险操作已完成<br/>pendingApprovals 里 apr_x 仍是未决状态，无人处理
+```
+
+**图中三个「★结构化事实」与「❶/❷/❸」的位置关系，就是本缺陷的全部**：
+结构化事实**在服务端已经存在**（三处，且互相独立），但它们**从未上行到桥**；桥只看得到 LLM 的话。
+
+### 2.2 假成功的确切产生点（一句话定位）
+
+> **`packages/adapter-agent-workbuddy-llm/src/bridge.ts:616`**
+> `if (!APPROVAL_WAIT_PATTERN.test(finalText)) return base;` —— **这一行的 `return base`**。
+>
+> 它把 `base`（`ok:true`、`error:undefined`、summary「LLM 运行时（常驻会话）完成目标：…」）**原样放行**，
+> 从而使下游 `maybeResume`(:945) 的 `blocked` 为 false ⇒ `:946 return base` ⇒ 不 raise ⇒ 不挂起 ⇒ `completed`。
+
+与 A5 的对照：A5 的失败点是 **`vm-service/src/server.ts` `raise()` 首行守卫**（`no-active-task`，R19F 已修，
+现为 `const taskId = req.taskId ?? this.activeTaskId;` + `:213` 早退）。**两者是同一条收口链上不同位置的两个洞**：
+R19F 补的是「raise 之后挂到哪里」，CL-K3R 补的是「根本没走到 raise」。
+
+### 2.3 现状判据的失效方向（关键，决定新判据该怎么设计）
+
+`reconcileApprovalWait` 是**单向**判据：命中 ⇒ 改判为「等待审批」（保守）；未命中 ⇒ **透传**（放行）。
+它的**默认输出是放行**。因此「LLM 没说」与「LLM 说没被拦」在桥侧**不可区分** —— 这就是 fail-open 的结构性根源。
+
 <!-- APPEND-MARKER -->
