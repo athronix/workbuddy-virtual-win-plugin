@@ -59,9 +59,61 @@ spec §1 C-1 第 4 点称「C-1 一落地 `endTask.length` 立即变 1 ⇒ C5 �
 
 ---
 
-## 3. T02 —— Fix-1A + Fix-1B + `no-active-task` 告警（进行中）
+## 3. T02 —— Fix-1A + Fix-1B + `no-active-task` 告警（已完成，commit `f66cd0a`）
 
-（待落）
+**改动**
+1. `packages/vm-service/src/server.ts`
+   - `endTask(): void` → `endTask(taskId?: string): void`，按 §2.1 原文实现三分支归属语义（Fix-1A）
+   - `raise`：`const taskId = req.taskId ?? this.activeTaskId;`；守卫改用 `taskId`；
+     `no-active-task` 分支加 `this.logger?.warn(...)`（格式逐字按 SK-3，含 reason/approvalId/
+     capabilityId/reqTaskId/activeTaskId/hasTasks，缺席一律 `''`）；`waitApproval(taskId, enriched)`；
+     `tryGet(taskId)`（Fix-1B）
+2. `packages/adapter-agent-workbuddy-llm/src/bridge.ts`
+   - `:741` → `this.coordinator?.endTask(input.taskId ?? '');`
+   - `maybeResume` 的 `const req: ApprovalRequest` 补 `...(input.taskId ? { taskId: input.taskId } : {}),`
+3. `packages/contracts/src/bridge.ts`：给 `beginTask` / `endTask` 加 `@deprecated` 注释（T02 可选建议项，不删除）
+
+**验收**
+- `tsc -b` **0 error** ✅；dist 已重建（`vm-service/dist/server.js:83 endTask(taskId)`）✅
+- `k4-approval` 6/6、`k4-p3` 16/16、`k5-replay` **41/41**、`r19c-kn1-a-pure` 76/76、
+  `r19c-kn1-b-bridge` 23/23、`host-a2a-bridge` 35/35、`llm-provider` 20/20 ⇒ **零回归** ✅
+- **D-4 守门**：`git diff --stat -- packages/a2a-framework/src/` ⇒ **空** ✅
+- `r19c-a5` ⇒ 18 / **pass 12 / fail 6**（基线 13/5）
+
+**r19c-a5 逐例变化（相对基线 13/5）**
+| 用例 | 基线 | T02 后 | 判读 |
+| --- | --- | --- | --- |
+| D2「tB 的审批应真的被挂起」 | ✖ | **✔** | ✅ 红转绿（Fix-1B 生效） |
+| D3「宿主批准应被采纳」 | ✖ | **✔** | ✅ 红转绿（D-5 `rejected` 路径首次可达） |
+| D1「表征：A 收尾清空 ⇒ B 从未挂起 tB」 | ✔ | ✖ | ⚠ **旧缺陷表征被修复推翻**，QA 须重写（非回归） |
+| A0「dist 可信度守卫」 | ✔ | ✖ | ⚠ 该守卫 grep dist 里的 `activeTaskId` 守卫**字面量**；实现改名为局部 `taskId` ⇒ 指纹失效。**dist 确已重建**（非陈旧），属测试侧指纹，QA 须重写 |
+| C5「`endTask.length === 0`」 | ✔ | ✖ | ✅ **已登记的预期红档**（实现体签名带 `taskId?` ⇒ length=1） |
+| B1 / B2 / B3 | ✖ | ✖ | ⚠ **见下方「B 组未转绿的原因」** |
+
+**⚠ B 组（B1/B2/B3）未转绿的原因 —— 需主理人裁定 / QA 改写（不是实现缺陷）**
+
+B 组用例的编排是：`beginTask('A') → beginTask('B') → endTask()`（**零参**，注释自述「模拟 A 收尾」）
+⇒ `raise(makeReq('apr_B'))`，而 `makeReq` **不带 `taskId`**。
+
+按 SK-2 / C-1 的**硬约束**：`endTask()` 零参 **必须**「无条件清空」（这是保住 `k4-approval`/
+`k5-replay` 等既有零参调用方行为逐字不变的前提）；而 `req.taskId` 缺席时 `raise` 只能回退已被
+清空的单例 ⇒ **必然** `no-active-task`。⇒ 在已定稿设计下，B 组当前编排**不可达**「挂起」，
+除非用例给 `makeReq` 补 `taskId`（即 Fix-1B 的载体）。
+
+已用离线探针（`~/wbtmp/a5-t02-probe.mjs`，不改 tests/packages）逐场景取证：
+
+| 场景 | 编排 | 实测 outcome | waitApproval |
+| --- | --- | --- | --- |
+| 1 | `endTask()` 零参 + req **无** taskId（= B 组现状） | `no-active-task` | 0 次 |
+| 2 | `endTask()` 零参 + req **带** `taskId:'B'` | `rejected` | **1 次，id='B'** ✅ |
+| 3 | `endTask('A')` 归属 + req 带 `taskId:'B'` | `rejected` | **1 次，id='B'** ✅ |
+| 4 | 兼容回归：`beginTask('A') → endTask()` 零参 | `no-active-task` | 0 次 ✅（旧行为逐字不变） |
+| 5 | `endTask('A')`（当前活动是 B）⇒ 交叠保护 | `rejected` | **1 次，id='B'** ✅（Fix-1A 生效） |
+| 6 | `beginTask('')` 后 raise（无 taskId） | `no-active-task` + **产出 1 条 warn** | 0 次 ✅（SK-3 字段齐全、无 undefined） |
+
+⇒ 结论：实现**逐字符合 spec**（场景 2/3/5/6 即 spec §2.2 验收判据 2/3 与 §2.1 判据）。
+B 组须由 QA 把 `makeReq` 补 `taskId`（或把 `endTask()` 改为 `endTask('A')`）后才会转绿。
+**我未为此削弱签名、未改 tests。**
 
 ---
 

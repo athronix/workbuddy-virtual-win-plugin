@@ -179,13 +179,39 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
     this.activeTaskId = taskId;
   }
 
-  endTask(): void {
+  endTask(taskId?: string): void {
+    // 归属语义（P1-Fix）：
+    //   taskId 缺席 或 空串  ⇒ 无归属信息 ⇒ 旧行为：无条件清空（兼容既有零参调用方）
+    //   taskId 非空且 !== 当前活动任务 ⇒ 本次收尾不属于当前活动任务（并发交叠）⇒ 保持不动
+    //   taskId 非空且 === 当前活动任务 ⇒ 正常释放
+    if (!taskId) {
+      this.activeTaskId = undefined;
+      return;
+    }
+    if (taskId !== this.activeTaskId) return;
     this.activeTaskId = undefined;
   }
 
   async raise(req: ApprovalRequest): Promise<ApprovalOutcome> {
+    // P1-Fix：归属优先取请求自带 taskId（桥从 LlmGoalInput.taskId 注入），
+    // 缺席才回退服务级单例 beginTask 记录值（旧行为逐字保留）。
+    const taskId = req.taskId ?? this.activeTaskId;
+
     // 无挂接任务（非 A2A / 任务已结束）→ 不放行，保持「等待审批」语义
-    if (!this.activeTaskId || !this.tasks) return { approved: false, reason: 'no-active-task' };
+    if (!taskId || !this.tasks) {
+      // P1-Fix：可观测性 —— 根因文档 §6.4 点名「零日志」是本次只能靠反证定位的原因。
+      // 字段口径见 spec SK-3：缺席一律 ''（绝不输出 undefined 字面量）；hasTasks 用于把
+      // 守卫的两个子条件（!taskId / !this.tasks）在日志里区分开。
+      this.logger?.warn('审批协调器：无挂接任务，审批请求被丢弃（任务不会挂起 input-required）', {
+        reason: 'no-active-task',
+        approvalId: req.approvalId,
+        capabilityId: req.capabilityId,
+        reqTaskId: req.taskId ?? '',
+        activeTaskId: this.activeTaskId ?? '',
+        hasTasks: this.tasks !== undefined,
+      });
+      return { approved: false, reason: 'no-active-task' };
+    }
 
     // K5：宿主卡片可读性 —— 拦截时服务端留存的 preview/impact/underlying 并入审批请求
     //（桥侧只能给出 LLM 回显的粗信息；真实参数只存在于服务端 token 里）。
@@ -199,7 +225,7 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
         }
       : req;
 
-    const done = this.tasks.waitApproval(this.activeTaskId, enriched);
+    const done = this.tasks.waitApproval(taskId, enriched);
     const approved = await done;
 
     if (!approved) {
@@ -207,7 +233,7 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
       // reason 细分两个信号（任一命中即为 timeout）：
       //   ① TaskStore 把超时事实固化进 task.metadata（approvalTimedOut + 对应 approvalId）；
       //   ② 服务侧 onApprovalTimeout 回调经 noteTimeout 显式登记（metadata 被后续写覆盖时的兜底）。
-      const meta = this.tasks.tryGet(this.activeTaskId)?.task.metadata as Record<string, unknown> | undefined;
+      const meta = this.tasks.tryGet(taskId)?.task.metadata as Record<string, unknown> | undefined;
       const timedOut =
         this.timedOutApprovals.delete(req.approvalId) ||
         (meta?.['approvalTimedOut'] === true && meta?.['approvalTimeoutApprovalId'] === req.approvalId);

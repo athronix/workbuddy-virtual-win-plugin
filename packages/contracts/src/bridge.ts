@@ -319,7 +319,13 @@ export interface ProgressSink {
  * 非 A2A 场景（纯 MCP 直调 / 单测）不注入协调器，桥接层行为完全不变。
  */
 export interface ApprovalCoordinator {
-  /** 进入一个委派任务（记录当前 taskId，供 raise 挂接） */
+  /**
+   * 进入一个委派任务（记录当前 taskId，供 raise 挂接）。
+   *
+   * @deprecated P1-Fix：Fix-1B 之后归属信息已由 `ApprovalRequest.taskId` 随审批请求携带，
+   * 单例仅作「`taskId` 缺席」时的兼容兜底，不再是判定的唯一依据。**本迭代不删除**；
+   * `endTask` 同理。二者退化为兼容保留接口，语义见 SK-2。
+   */
   beginTask(taskId: string): void;
   /**
    * 离开一个委派任务（清空当前 taskId）。
@@ -330,6 +336,8 @@ export interface ApprovalCoordinator {
    *
    * `taskId` 缺席（`undefined`）或空串 `''` ⇒ **旧行为逐字不变**：无条件清空
    * （调用方没有归属信息，协调器无从判断，只能按 K4 原语义释放）。
+   *
+   * @deprecated 与 `beginTask` 同：Fix-1B 之后退化为兼容保留接口，**本迭代不删除**。
    */
   endTask(taskId?: string): void;
   /**

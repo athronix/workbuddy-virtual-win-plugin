@@ -738,7 +738,9 @@ export class CliLlmBridge implements LlmBridge {
     try {
       return await this.runGoalInner(input, sink);
     } finally {
-      this.coordinator?.endTask();
+      // Fix-1A：按**归属**释放 —— 只有本委派的 taskId 仍是协调器当前活动任务时才清空，
+      // 交叠场景下（A 收尾时 B 在跑）绝不误清他人（根因 §3.1）。
+      this.coordinator?.endTask(input.taskId ?? '');
     }
   }
 
@@ -954,6 +956,9 @@ export class CliLlmBridge implements LlmBridge {
       summary: input.goal,
       preview: {},
       impact: [],
+      // Fix-1B：把本委派的任务 id 随审批请求带上 ⇒ 协调器**优先用它**挂 input-required，
+      // 不再依赖可能被并发清空的共享单例 activeTaskId。缺席（非 A2A）即旧行为。
+      ...(input.taskId ? { taskId: input.taskId } : {}),
     };
 
     this.raisedApprovals.add(approvalId);
