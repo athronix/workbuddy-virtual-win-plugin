@@ -16,6 +16,17 @@
  *    使本模块「加载 / 单元测试」不依赖真实 ssh2 是否安装（无网沙箱即可测）。
  *  - 导出的 TunnelHandle 形态：{ pid:undefined, stop, on, localPort, alive,
  *    baseUrl, close, exited }，可被上层与 core 后端复用。
+ *
+ * 稳定性契约（P0-02 崩溃缺陷修复后新增，务必遵守）：
+ *  - **本类任何情况下都不会因 emit('error') 让宿主进程崩溃**。
+ *    Node EventEmitter 在无 'error' 监听时 emit('error') 会直接 throw；该 throw 发生在
+ *    ssh2 异步回调栈里无人 catch ⇒ uncaughtException ⇒ 守护进程整进程退出
+ *    （pidfile 消失、本地端口停监听）。上层守护进程历史上未注册 'error' 监听，
+ *    因此该路径必崩（实证：`Unhandled 'error' event` @ oh-tunnel.mjs:414）。
+ *    ⇒ 一律走 _safeEmitError() 派发：无监听则降级为内部自愈，监听内部抛错也一并兜住。
+ *  - **错误分两级**：单条 direct-tcpip 通道开失败 ⇒ 只丢弃该连接；连接层错误
+ *    （keepalive 超时 / socket 断开 / 连续多次开通道失败）⇒ 整条 ssh 连接不可用，
+ *    走既有指数退避重连。
  */
 
 import { createServer } from 'node:net';
@@ -38,6 +49,59 @@ const RECONNECT_BASE_MS = 1_000;
 
 /** 仅允许回环地址，杜绝端口外泄。 */
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
+
+/**
+ * 连接层错误特征：命中即认为**整条 ssh 连接**已不可用（而非单条通道失败），
+ * 必须重建连接。关键词取自 ssh2 实际抛出的 message（含主理人取证的
+ * `No response from server`）与常见 socket 错误码。
+ */
+const CONNECTION_LEVEL_PATTERNS = [
+  /no response from server/i,
+  /keepalive/i,
+  /channel open fail/i,
+  /administratively prohibited/i,
+  /administratively refused/i,
+  /connection refused/i,
+  /socket\s+(?:is\s+)?(?:closed|not\s+open|hang\s*up)/i,
+  /this socket (?:is closed|has been ended)/i,
+  /econnreset|epipe|etimedout|ehostunreach|enetunreach|econnaborted/i,
+];
+
+/**
+ * 连续单通道失败达到该阈值 → 即使错误信息不明确，也判定连接层不可用并重连。
+ * 理由：VM 侧 sshd 半死时，每条新连接都以同一原因失败，需整体重建而非逐条重试。
+ */
+const FORWARD_ERROR_RECONNECT_THRESHOLD = 3;
+
+/**
+ * 判断错误是否属于「连接层」（需重建 ssh 连接）。
+ * @param {unknown} err 任意错误入参
+ * @returns {boolean} true 表示连接层错误
+ */
+export function isConnectionLevelError(err) {
+  const text = `${err instanceof Error ? err.message : String(err ?? '')}`;
+  if (!text) return false;
+  return CONNECTION_LEVEL_PATTERNS.some((re) => re.test(text));
+}
+
+/**
+ * 归一化为 Error（ssh2 回调偶有误传字符串 / undefined 的情况）。
+ * @param {unknown} err 原始错误
+ * @returns {Error} Error 实例
+ */
+function toError(err) {
+  if (err instanceof Error) return err;
+  return new Error(typeof err === 'string' ? err : `(非 Error 类型错误) ${String(err ?? '')}`);
+}
+
+/**
+ * 提取错误信息文本（凭据绝不会进入这里，仅取 message）。
+ * @param {unknown} err 原始错误
+ * @returns {string} 错误信息
+ */
+function errText(err) {
+  return toError(err).message;
+}
 
 /* ------------------------------- 工具 ------------------------------- */
 
@@ -104,6 +168,7 @@ function normalizeOpts(raw) {
     raw.readyTimeoutMs != null ? Number(raw.readyTimeoutMs) : DEFAULT_READY_TIMEOUT_MS;
   const reconnect = raw.reconnect !== false;
   const maxAttempts = raw.maxAttempts != null ? Number(raw.maxAttempts) : Infinity;
+  const logger = typeof raw.logger === 'function' ? raw.logger : null;
 
   return {
     vmHost,
@@ -122,6 +187,7 @@ function normalizeOpts(raw) {
     maxAttempts,
     ssh2Client: raw.ssh2Client ?? null,
     hostVerifier: typeof raw.hostVerifier === 'function' ? raw.hostVerifier : null,
+    logger,
   };
 }
 
@@ -178,6 +244,10 @@ export class OhSshTunnel extends EventEmitter {
     this._actualPort = this._opts.localBindPort;
     this._cleanupBound = false;
 
+    // 自愈诊断计数（无 'error' 监听时的内部降级用，也用于 giveup 终态原因）
+    this._consecutiveForwardErrors = 0;
+    this._lastErrorText = '';
+
     // 进程级清理句柄（绑定 this，便于 unref / removeListener）
     this._onExit = () => this._hardCleanup();
     this._onSigint = () => this._hardCleanup();
@@ -229,22 +299,8 @@ export class OhSshTunnel extends EventEmitter {
     this._unregisterCleanup();
 
     try {
-      if (this._client) {
-        try {
-          this._client.end();
-        } catch {
-          /* ignore */
-        }
-        try {
-          this._client.removeAllListeners?.();
-          // removeAllListeners 把 error 监听也移掉了；随后的 end()/socket 关闭可能触发
-          // ECONNRESET → Client 再 emit('error') 时无监听会 unhandled crash 进程退出
-          // （run2 实证：HEALTH 结束停隧道时 Error: read ECONNRESET）。补 noop 兜底。
-          this._client.on?.('error', () => {});
-        } catch {
-          /* ignore */
-        }
-      }
+      // 统一拆除（内含 removeAllListeners 后的 noop error 兜底，避免 ECONNRESET 崩进程）
+      this._teardownClient();
     } finally {
       if (this._server) {
         await new Promise((resolve) => {
@@ -263,6 +319,98 @@ export class OhSshTunnel extends EventEmitter {
     }
   }
 
+  /* ---- 内部：安全事件派发（稳定性契约的核心） ---- */
+
+  /**
+   * 安全派发任意事件：监听者内部抛错绝不演变成 uncaughtException。
+   * @param {string} event 事件名
+   * @param {...unknown} args 参数
+   * @returns {boolean} 是否派发成功
+   */
+  _safeEmit(event, ...args) {
+    try {
+      // 'error' 特殊：无监听时 Node 会 throw ⇒ 交由 _safeEmitError 处理。
+      if (event === 'error' && this.listenerCount('error') === 0) return false;
+      return this.emit(event, ...args);
+    } catch (e) {
+      this._logInternal('ERROR', `隧道 ${event} 事件监听内部抛错：${errText(e)}`);
+      return false;
+    }
+  }
+
+  /**
+   * 安全派发 'error' 事件 —— **本方法保证永不 throw**。
+   *
+   * 缺陷背景（必须留下这段说明，别删）：上层守护进程曾经只注册
+   * ready/close/reconnecting/reconnected，未注册 'error'；当 forwardOut 通道打开失败
+   * （VM 侧 sshd 无响应）时，这里 emit('error') 直接 throw 在 ssh2 的异步回调栈中，
+   * 无人 catch ⇒ uncaughtException ⇒ 守护进程整进程退出。
+   *
+   * @param {unknown} err 错误
+   * @param {string} [context] 错误来源（用于内部诊断日志），如 'forwardOut' / 'ssh-client'
+   * @returns {void}
+   */
+  _safeEmitError(err, context = '') {
+    const e = toError(err);
+    this._lastErrorText = e.message;
+    try {
+      if (this.listenerCount('error') === 0) {
+        // 无监听 ⇒ 绝不 throw（否则宿主进程必崩）；降级为内部诊断日志，自愈逻辑照常执行。
+        this._logInternal('WARN', `隧道错误（无外部监听，已内部消化${context ? ` · ${context}` : ''}）：${e.message}`);
+        return;
+      }
+      this.emit('error', e);
+    } catch (inner) {
+      this._logInternal('ERROR', `隧道 error 监听内部抛错：${errText(inner)}`);
+    }
+  }
+
+  /**
+   * 内部诊断日志（可选 logger 注入；凭据永不进入）。
+   * @param {string} level 级别
+   * @param {string} msg 消息
+   * @returns {void}
+   */
+  _logInternal(level, msg) {
+    try {
+      this._opts?.logger?.(level, msg);
+    } catch {
+      /* logger 自身失败不得影响隧道 */
+    }
+  }
+
+  /* ---- 内部：ssh2 连接拆除（带 error 兜底监听） ---- */
+
+  /**
+   * 拆除当前 ssh2 连接并释放引用。
+   *
+   * 关键点：`removeAllListeners()` 会把 'error' 监听一并移除；此后 ssh2 Client 仍可能
+   * emit('error')（如 socket 关闭后的 ECONNRESET）⇒ 无监听会 unhandled throw 崩进程
+   * （历史实证：HEALTH 结束停隧道时 `Error: read ECONNRESET`）。故拆除后补 noop 兜底。
+   *
+   * @returns {void}
+   */
+  _teardownClient() {
+    const client = this._client;
+    if (!client) return;
+    try {
+      client.removeAllListeners?.();
+    } catch {
+      /* ignore */
+    }
+    try {
+      client.on?.('error', () => {});
+    } catch {
+      /* ignore */
+    }
+    try {
+      client.end();
+    } catch {
+      /* ignore */
+    }
+    this._client = null;
+  }
+
   /* ---- 内部：本地监听 ---- */
   _listen() {
     return new Promise((resolve, reject) => {
@@ -276,8 +424,9 @@ export class OhSshTunnel extends EventEmitter {
           addr && typeof addr === 'object' ? addr.port ?? this._opts.localBindPort : this._opts.localBindPort;
         this._server = server;
         // 监听建立后的错误（如运行中端口异常）转交给上层，不阻塞。
-        server.on('error', (err) => this.emit('error', err));
-        this.emit('listening', { host: this._opts.localBindHost, port: this._actualPort });
+        // 注意：必须走 _safeEmit，否则无 'error' 监听时此处 throw 会直接崩掉宿主进程。
+        server.on('error', (err) => this._safeEmitError(err, 'local-server'));
+        this._safeEmit('listening', { host: this._opts.localBindHost, port: this._actualPort });
         resolve();
       });
     });
@@ -308,12 +457,9 @@ export class OhSshTunnel extends EventEmitter {
       const fail = (err) => {
         if (settled) return;
         settled = true;
-        try {
-          this._client?.removeAllListeners?.();
-        } catch {
-          /* ignore */
-        }
-        reject(err);
+        // 统一拆除（含 noop error 兜底）：拆到一半的 client 若再 emit('error') 不得崩进程。
+        this._teardownClient();
+        reject(toError(err));
       };
 
       (async () => {
@@ -333,13 +479,26 @@ export class OhSshTunnel extends EventEmitter {
           settled = true;
           this._alive = true;
           this._attempt = 0;
-          this.emit('ready');
+          this._consecutiveForwardErrors = 0;
+          this._safeEmit('ready');
           resolve(true);
         });
-        client.on('error', (err) => fail(err instanceof Error ? err : new Error(String(err))));
+        client.on('error', (err) => {
+          if (settled) {
+            // 【静默缺陷修复】就绪之后到达的连接层错误（keepalive 超时 No response from server、
+            // socket 断开等）。原实现里 fail() 被 `settled` 短路 ⇒ 错误被吞掉 ⇒ 隧道「假活」：
+            // alive 仍为 true、不重连、不报警，外部只表现为 18443 无响应。
+            // 现在：标记失活 + 退避重连（随后到达的 'close' 会被 timer 去重拦掉）。
+            this._alive = false;
+            this._safeEmitError(err, 'ssh-client');
+            this._markDeadAndReconnect(err, false);
+            return;
+          }
+          fail(err);
+        });
         client.on('close', () => {
           this._alive = false;
-          this.emit('close');
+          this._safeEmit('close');
           if (settled) {
             // 已建立后断开 → 触发退避重连
             this._scheduleReconnect();
@@ -376,25 +535,50 @@ export class OhSshTunnel extends EventEmitter {
   _scheduleReconnect() {
     if (this._stopping || !this._opts.reconnect) return;
     if (this._attempt >= this._opts.maxAttempts) {
-      this.emit('error', new Error(`重连次数已达上限（${this._opts.maxAttempts}），停止重连`));
+      this._safeEmitError(
+        new Error(`重连次数已达上限（${this._opts.maxAttempts}），停止重连；最后错误：${this._lastErrorText || '(未知)'}`),
+        'giveup',
+      );
+      // 终态事件：携带原因，供上层（守护进程）写出可诊断状态并有序退出，绝不静默死。
+      this._safeEmit('giveup', {
+        attempts: this._attempt,
+        lastError: this._lastErrorText || '(未知)',
+        reason: new Error(`重连次数已达上限（${this._opts.maxAttempts}）；最后错误：${this._lastErrorText || '(未知)'}`),
+      });
       return;
     }
+    // timer 去重：避免 'close' 与 'error' 同期各触发一次导致重复定时器（重复重连/计数失真）。
+    if (this._reconnectTimer) return;
+
     this._attempt += 1;
     const delay = Math.min(MAX_RECONNECT_DELAY_MS, RECONNECT_BASE_MS * 2 ** (this._attempt - 1));
     const jitter = Math.random() * delay * 0.3; // 抖动 0~30%
     const wait = Math.floor(delay + jitter);
-    this.emit('reconnecting', { attempt: this._attempt, delayMs: wait });
+    this._safeEmit('reconnecting', { attempt: this._attempt, delayMs: wait });
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null;
       this._connectOnce()
         .then(() => {
-          if (this._alive) this.emit('reconnected', { attempt: this._attempt });
+          if (this._alive) this._safeEmit('reconnected', { attempt: this._attempt });
         })
         .catch((err) => {
-          this.emit('error', err);
+          this._safeEmitError(err, 'reconnect');
           this._scheduleReconnect();
         });
     }, wait);
+  }
+
+  /**
+   * 标记连接失活并触发退避重连（连接层错误专用）。不依赖外部 'error' 监听是否存在。
+   * @param {unknown} err 触发失败的错误（仅取其 message 用于诊断）
+   * @param {boolean} [destroyClient] 是否先拆除当前 client（默认 true）
+   * @returns {void}
+   */
+  _markDeadAndReconnect(err, destroyClient = true) {
+    this._alive = false;
+    this._lastErrorText = errText(err);
+    if (destroyClient) this._teardownClient();
+    this._scheduleReconnect();
   }
 
   /* ---- 内部：本地连接 → forwardOut 双向 pipe ---- */
@@ -411,10 +595,32 @@ export class OhSshTunnel extends EventEmitter {
       o.remotePort,
       (err, remoteStream) => {
         if (err) {
-          this.emit('error', err);
-          localSocket.destroy();
+          // 【崩溃缺陷核心落点】forwardOut 通道打开失败（onChannelOpenFailure / VM 侧 sshd 无响应）。
+          // 原实现 `this.emit('error', err)` 在上层（守护进程）未注册 'error' 监听时直接 throw，
+          // 崩掉整个守护进程（实测栈：Unhandled 'error' event @ oh-tunnel.mjs:414）。
+          // 现改为：安全派发 + 错误分级 + 必要时整体重连。
+          const e = toError(err);
+          this._consecutiveForwardErrors += 1;
+          this._safeEmitError(e, 'forwardOut');
+
+          const connectionLevel =
+            isConnectionLevelError(e) ||
+            this._consecutiveForwardErrors >= FORWARD_ERROR_RECONNECT_THRESHOLD;
+          if (connectionLevel) {
+            this._consecutiveForwardErrors = 0;
+            // 整条 ssh 连接已不可用：丢弃该连接并走既有退避重连，本地 18443 恢复后自动可用。
+            this._markDeadAndReconnect(e);
+          }
+          try {
+            localSocket.destroy();
+          } catch {
+            /* ignore */
+          }
           return;
         }
+
+        // 成功建立单条通道：重置连续失败计数。
+        this._consecutiveForwardErrors = 0;
         const cleanup = () => {
           try {
             remoteStream.destroy();
