@@ -8,6 +8,7 @@
  *   cancel  --prefix=<绝对路径前缀> [--goal=...] [--settle-ms=8000]
  *   reject  --prefix=<绝对路径前缀> [--pkg=QA.R19B.Nonexistent.99997]
  *   overlap --prefix=<绝对路径前缀> [--poll-ms=1000] [--settle-ms=3000] [--goal-a=...] [--pkg=...]
+ *   k3r    --prefix=<绝对路径前缀> [--goal=...] [--pkg=...] [--poll-ms=1000] [--settle-ms=2000] [--truth=on|shadow|off]
  *
  * 两个已知坑（本脚本已规避）：
  *   ① 证据落盘一律用**绝对路径前缀**（cwd 失效时相对路径不落盘）—— 现有 qa/r19/a2a-call.mjs
@@ -553,7 +554,115 @@ async function runOverlapCase() {
 
 /* ============================ 分派 ============================ */
 
-const RUN = { stream: runStream, list: runList, card: runCard, cancel: runCancel, reject: runReject, overlap: runOverlapCase };
+/**
+ * K3（CL-K3R）专项真机验证：构造「LLM 不含关键词但确有拦截」的委派，断言终态 input-required 而非 completed。
+ *
+ * 设计 §7.5 / §10.2：VM 策略引擎（stub）拦截高风险能力 ⇒ APPROVAL_REQUIRED + 服务端 pendingApprovals；
+ * 提示词引导 LLM **不**回「等待审批 / APPROVAL_REQUIRED」（模拟 K3 措辞漂移 evade），断言桥结构化判据
+ * `reconcileApprovalTruth` 命中 ⇒ 终态 input-required（不再 completed）。仿 overlap 子命令 b01a41a 结构。
+ *
+ * ⚠ 真机执行：本命令连 VM（http://127.0.0.1:18443）。当前 VM 不可达（ping 172.16.100.2 100% 丢），
+ *   故**只写好命令与断言，不执行**。待 VM 可用后由主理人执行：
+ *     TMPDIR="$HOME/wbtmp" node qa/r19/a2a-extra.mjs k3r --prefix=<绝对路径前缀> [--goal=...] [--pkg=...] [--truth=on|shadow|off]
+ *   `--truth` 仅作记录（实际灰度由服务端 WINVM_APPROVAL_TRUTH 环境变量控制，属带外配置）。
+ */
+async function runK3rCase() {
+  const pollMs = Number(opts['poll-ms'] ?? 1000);
+  const settleMs = Number(opts['settle-ms'] ?? 2000);
+  const pkg = opts.pkg ?? 'Microsoft.WindowsCalculator'; // 真实可卸载包，触发策略拦截
+  const truthMode = opts.truth ?? 'on';
+  // 提示词引导 LLM：执行卸载但**不要**复述「等待审批 / APPROVAL_REQUIRED」——模拟 K3 措辞漂移
+  const goal =
+    opts.goal ??
+    `卸载 VM 上的软件包 ${pkg}（高风险能力，会被安全策略拦截）。` +
+      `执行后如实报告拦截结果，但不要用「等待审批」或「APPROVAL_REQUIRED」字眼描述。`;
+  const out = { case: 'CL-K3R-k3-special', goal, pkg, truthMode, at: new Date().toISOString() };
+
+  /* ---- 前置留证（同 overlap / reject）---- */
+  try {
+    const pre = await rpc('tasks/list', { pageSize: 50 }, 30_000);
+    const list = pre.result?.tasks ?? [];
+    out.preflight = {
+      taskCount: list.length,
+      states: list.map((t) => ({ id: t.id, state: t.status?.state ?? '?' })),
+    };
+    stamp('PREFLIGHT_LIST', `count=${list.length} states=${list.map((t) => t.status?.state ?? '?').join(',')}`);
+  } catch (e) {
+    out.preflight = { error: String(e) };
+    stamp('PREFLIGHT_LIST', `error=${String(e).slice(0, 120)}`);
+  }
+
+  /* ---- 发送 K3 委派（单次，非阻塞，高风险卸载）---- */
+  const s = await rpc(
+    'message/send',
+    sendParams(goal, {
+      maxRisk: 'L2',
+      allowedCapabilities: ['app.winget.uninstall'],
+      timeoutMs: 600_000,
+      blocking: false,
+      traceId: 'tr_r19c_k3r',
+    }),
+    120_000,
+  );
+  const t = s.result?.id ?? null;
+  out.taskId = t;
+  out.sendState = s.result?.status?.state ?? null;
+  out.sendAtMs = Date.now() - T0;
+  stamp('SEND_K3R', `task=${t} state=${out.sendState} atMs=${out.sendAtMs}`);
+  if (!t) {
+    out.error = '未取得 K3 委派的 taskId';
+    out.evidence = writeEvidence(out);
+    return out;
+  }
+
+  /* ---- 密采：是否真的挂起 input-required（而非 completed 假成功）---- */
+  let approval = null;
+  let reachedInputRequired = false;
+  const deadline = Date.now() + 600_000;
+  while (Date.now() < deadline) {
+    const g = await rpc('tasks/get', { id: t }, 60_000);
+    const st = g.result?.status?.state ?? '?';
+    stamp('POLL_K3R', `${st} ${Date.now() - T0}ms`);
+    if (g.result) out.lastTask = g.result;
+    if (st === 'input-required') {
+      reachedInputRequired = true;
+      approval = approvalDataOf(g.result);
+      out.taskAtInputRequired = g.result;
+      out.msToInputRequired = Date.now() - T0;
+      stamp('K3R_INPUT_REQUIRED', JSON.stringify(approval ?? {}).slice(0, 300));
+      break;
+    }
+    if (TERMINAL.includes(st)) {
+      out.earlyTerminal = st;
+      out.msToEarlyTerminal = Date.now() - T0;
+      stamp('K3R_EARLY_TERMINAL', `${st} ${out.msToEarlyTerminal}ms`);
+      break;
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+
+  /* ---- 断言（K3 根治判据）---- */
+  // K3 假成功 = 拦截发生但 LLM 不说关键词 ⇒ 终态 completed。根治后必须 input-required。
+  out.k3r = {
+    reachedInputRequired,
+    earlyTerminal: out.earlyTerminal ?? null,
+    k3FalseSuccess: out.earlyTerminal === 'completed', // true ⇒ K3 静默假成功仍存（根治失败）
+    approvalData: approval,
+  };
+  if (out.k3r.k3FalseSuccess) {
+    out.k3r.verdict = 'FAIL: K3 静默假成功仍发生（终态 completed，无 input-required）';
+  } else if (reachedInputRequired) {
+    out.k3r.verdict = 'PASS: 结构化判据命中 ⇒ 终态 input-required（K3 假成功被根治）';
+  } else {
+    out.k3r.verdict = `INCONCLUSIVE: 既非 completed 也非 input-required（终态=${out.earlyTerminal ?? 'poll-timeout'}）`;
+  }
+  stamp('K3R_VERDICT', out.k3r.verdict);
+
+  out.evidence = writeEvidence(out);
+  return out;
+}
+
+const RUN = { stream: runStream, list: runList, card: runCard, cancel: runCancel, reject: runReject, overlap: runOverlapCase, k3r: runK3rCase };
 
 (async () => {
   const fn = RUN[sub];
