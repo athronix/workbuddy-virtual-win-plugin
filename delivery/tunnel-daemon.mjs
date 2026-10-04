@@ -79,13 +79,22 @@ export function writePidfileAtomic(pidfile, obj) {
   renameSync(tmp, pidfile);
 }
 
-/** 原子写状态心跳（同一 schema，便于 `tunnel status` 读取）。 */
-export function writeStateAtom(statePath, state, lastEvent, alive, pid) {
+/** 原子写状态心跳（同一 schema，便于 `tunnel status` 读取）。
+ * @param {string} statePath 状态文件路径
+ * @param {string} state 主状态（STARTING/RUNNING/DEGRADED/STOPPING/STOPPED）
+ * @param {string} lastEvent 最近事件名
+ * @param {boolean} alive 隧道是否可用
+ * @param {number} pid 守护进程 pid
+ * @param {object|null} [extra] 额外诊断字段（如 lastError / errorCount / reason），合并进 state。
+ */
+export function writeStateAtom(statePath, state, lastEvent, alive, pid, extra = null) {
   mkdirSync(dirname(statePath), { recursive: true });
+  const base = { state, lastEvent, alive, updatedAt: new Date().toISOString(), pid };
+  const merged = extra && typeof extra === 'object' ? { ...base, ...extra } : base;
   const tmp = `${statePath}.tmp`;
   writeFileSync(
     tmp,
-    JSON.stringify({ state, lastEvent, alive, updatedAt: new Date().toISOString(), pid }, null, 2) + '\n',
+    JSON.stringify(merged, null, 2) + '\n',
     'utf8',
   );
   renameSync(tmp, statePath);
@@ -162,6 +171,10 @@ export async function runDaemon(argv, deps = {}) {
 
   let tunnel;
   let stopping = false;
+  let errorCount = 0;
+  let lastErrorText = '';
+  let giveupReason = '';
+
   const shutdown = async () => {
     if (stopping) return;
     stopping = true;
@@ -174,6 +187,34 @@ export async function runDaemon(argv, deps = {}) {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
   process.on('exit', () => { try { rmSync(o.pidfile, { force: true }); } catch { /* ignore */ } });
+
+  // P0-02 崩溃缺陷防护：隧道运行期单次 ssh 错误**不得**让守护进程整进程退出。
+  // 这里兜底收住任何逃逸的异常，把原因写进 state 文件后**继续保活**（等 SIGNTERM 或自愈），
+  // 绝不静默死、也绝不因单次错误退出。仅记录诊断，不影响事件循环。
+  process.on('uncaughtException', (err) => {
+    if (stopping) return;
+    const msg = err instanceof Error ? `${err.message}` : String(err);
+    logLine(logPath, 'ERROR', `uncaughtException（已兜底，进程保持存活）：${msg}`);
+    try {
+      writeStateAtom(statePath, 'DEGRADED', 'uncaughtException', tunnel?.alive ?? false, process.pid, {
+        lastError: msg,
+        errorCount: errorCount + 1,
+        lastErrorAt: new Date().toISOString(),
+      });
+    } catch { /* 兜底写入失败也不致命 */ }
+  });
+  process.on('unhandledRejection', (reason) => {
+    if (stopping) return;
+    const msg = reason instanceof Error ? reason.message : String(reason ?? '(unknown)');
+    logLine(logPath, 'ERROR', `unhandledRejection（已兜底，进程保持存活）：${msg}`);
+    try {
+      writeStateAtom(statePath, 'DEGRADED', 'unhandledRejection', tunnel?.alive ?? false, process.pid, {
+        lastError: msg,
+        errorCount: errorCount + 1,
+        lastErrorAt: new Date().toISOString(),
+      });
+    } catch { /* ignore */ }
+  });
 
   try {
     tunnel = new Tunnel({
@@ -189,11 +230,43 @@ export async function runDaemon(argv, deps = {}) {
       ssh2Client,
       readyTimeoutMs: 15_000,
       keepaliveInterval: 30_000,
+      logger: (level, msg) => logLine(logPath, level, msg),
     });
     tunnel.on('ready', () => writeStateAtom(statePath, 'RUNNING', 'ready', true, process.pid));
     tunnel.on('close', () => writeStateAtom(statePath, 'DEGRADED', 'closed', false, process.pid));
     tunnel.on('reconnecting', () => writeStateAtom(statePath, 'DEGRADED', 'reconnecting', false, process.pid));
     tunnel.on('reconnected', () => writeStateAtom(statePath, 'RUNNING', 'reconnected', true, process.pid));
+    // F7：注册 'error' 监听 —— 这是修复崩溃的关键接线（原实现唯独漏了它）。
+    // 隧道内部已保证 emit('error') 不会 throw，此处仅把原因持久化进 state 供诊断。
+    tunnel.on('error', (err) => {
+      if (stopping) return;
+      const msg = err instanceof Error ? err.message : String(err ?? '(unknown)');
+      errorCount += 1;
+      lastErrorText = msg;
+      logLine(logPath, 'WARN', `隧道错误（已内部消化，走退避重连）：${msg}`);
+      writeStateAtom(statePath, 'DEGRADED', 'error', tunnel.alive, process.pid, {
+        lastError: msg,
+        errorCount,
+        lastErrorAt: new Date().toISOString(),
+      });
+    });
+    // F7：连续重连达上限的终态事件 —— 写出可诊断状态后**有序退出**（绝不静默死）。
+    tunnel.on('giveup', (payload) => {
+      if (stopping) return;
+      giveupReason = payload?.reason instanceof Error ? payload.reason.message : String(payload?.reason ?? '(unknown)');
+      logLine(logPath, 'ERROR', `重连耗尽，有序退出：${giveupReason}`);
+      writeStateAtom(statePath, 'STOPPED', 'giveup', false, process.pid, {
+        reason: giveupReason,
+        attempts: payload?.attempts ?? errorCount,
+        lastError: lastErrorText || payload?.lastError || '(unknown)',
+        lastErrorAt: new Date().toISOString(),
+      });
+      // 清理 pid/state 后退出（不残留死 pidfile）。
+      try { tunnel?.stop(); } catch { /* ignore */ }
+      rmSync(o.pidfile, { force: true });
+      rmSync(statePath, { force: true });
+      process.exit(1);
+    });
     await tunnel.start();
     logLine(logPath, 'INFO', `隧道已就绪：127.0.0.1:${o.localPort} → ${o.vmUser}@${o.vmHost}:${o.vmSshPort} → 127.0.0.1:${o.remotePort}`);
     return 0;
