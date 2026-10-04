@@ -1016,6 +1016,26 @@ graph TD
 - **D-3 默认 `on`**：根治态；发布前强制走一轮 `shadow` 真机测量（量化 K3 命中率 + 串台率，§10.2）后再切 `on` 复跑。
 - 三项决策均取架构师推荐项；STATUS 由 DRAFT 转为 **APPROVED**，可进 T01。
 
+### 9.5 设计勘误（2026-10-05，实施期发现，owner 已确认采纳）
+
+> 本节为**勘误**：只修订 §5.3 门 6 的**适用前提**，§0～§8 的结论一律不动。
+
+#### E-1｜门 6 的前提须收窄为「已 raise **且尚无服务端回执**」
+
+- **原条文（§5.3 判定表 门 6）**：「所有 fact 的 `approvalId` 都已在 `ctx.raised` → 回退文本启发式」，理由为「交既有的 `applyReceipt` 去重路径（K4 旧 token 复用防护），不二次挂起」。
+- **勘误理由（代码级反证）**：`applyReceipt` **只在 `blocked === true` 时被触达**（`maybeResume` 首行
+  `blocked = base.error?.code === 'APPROVAL_REQUIRED' || !!base.error?.details?.approvalId`，`!blocked` 即 `return base`）。
+  若续跑轮里门 6 无条件生效**且文本不含关键词**，则 `base.error` 为 `undefined` ⇒ `blocked=false` ⇒
+  `applyReceipt` **永不触达** ⇒ 结果 `ok:true` → `completed`。而此时服务端**已有真实回执**（宿主已批准、
+  服务端已重放），且该回执可能是**失败**的 ⇒ 产出「回执失败却 `completed`」的**新的假成功**，
+  直接违反 §5.4「单向 fail-closed、绝不制造新的假成功」与 SK-K6。
+- **修订后条文**：门 6 仅在「`fact.approvalId ∈ ctx.raised` **且** `ctx.receipts` 中**尚无**该 approvalId 的回执」时
+  生效（跳过该 fact）。已有回执 ⇒ **不跳过**，令 `maybeResume` 走 `applyReceipt`，以**服务端真实回执**收口
+  （成功则 `ok:true`、失败则 `ok:false`，均为如实结论，且不会二次 raise —— `ctx.raised` 去重仍生效）。
+- **不变性约束**：纯逻辑单测场景（`deps.ctx` 无 `receipts`）下，门 6 行为与修订前**完全等价**
+  （仍按「已 raise ⇒ 跳过」判定）—— 红档 `r19c-k3r-approval-truth` 门 6 断言不受影响。
+- **性质**：本条属**设计自身原则的必然要求**（§5.4 的推论），不是实施偏离；但原判定表未点明，故登记为勘误。
+
 ---
 
 ## 10. 风险与回滚
