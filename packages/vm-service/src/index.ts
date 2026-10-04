@@ -12,11 +12,18 @@ export { VmApprovalCoordinator } from './server.js';
 /** K5：导出重放函数形状与纯逻辑件（可脱离 HTTP 服务与 ps-bridge 单测） */
 export type { ReplayFn } from './server.js';
 export {
+  collectApprovalFacts,
   deriveUnderlying,
   recordBlockedApprovalAudit,
   toExecutedResult,
 } from './approval-replay.js';
-export type { BlockedAuditInput, SegmentResultLike } from './approval-replay.js';
+export type {
+  BlockedAuditInput,
+  PendingApprovalLike,
+  SegmentResultLike,
+} from './approval-replay.js';
+/** CL-K3R：未决审批事实的契约类型（桥侧判据与单测引用同一形状，避免类型漂移） */
+export type { ApprovalWaitQuery, PendingApprovalFact } from '@winvm/contracts';
 /** K-N1：委派层审计真实性的服务端纯逻辑件（账本 / 壳双态条目 / 回执缓存 / sink 装饰器；可脱离 HTTP 服务与 ps-bridge 单测） */
 export {
   buildDelegationAuditEntry,

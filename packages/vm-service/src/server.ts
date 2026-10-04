@@ -19,6 +19,7 @@ import {
   type ApprovalOutcome,
   type ApprovalRequest,
   type ApprovalUnderlying,
+  type ApprovalWaitQuery,
   type Artifact,
   type BridgeContext,
   type CacheHealth,
@@ -28,6 +29,7 @@ import {
   type GoalRequest,
   type HealthStatus,
   type LoggingHealth,
+  type PendingApprovalFact,
   type PolicyVerdict,
   type ProgressSink,
   type RiskLevel,
@@ -55,7 +57,12 @@ import { A2AServer, TaskStore, type DelegationObserver, type DelegationTerminalS
 import { McpServer, type McpTool, type McpToolResult } from '@winvm/mcp-framework';
 import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime } from '@winvm/vm-capabilities';
 import { raceHealthSubProbes, resolveHealthProbeTimeoutMs, resolvePsBridgeHealthState } from './health-probe.js';
-import { deriveUnderlying, recordBlockedApprovalAudit, toExecutedResult } from './approval-replay.js';
+import {
+  collectApprovalFacts,
+  deriveUnderlying,
+  recordBlockedApprovalAudit,
+  toExecutedResult,
+} from './approval-replay.js';
 import {
   LedgerRegistry,
   ReceiptCache,
@@ -426,6 +433,15 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     // 实现在**存活账本**上取三通道计数；账本缺席 → 三零（桥侧 fail-open + 恒落 zeroInnerCalls 兜底）。
     delegationProbe: {
       delegationActivity: async (delegationTraceId: string) => ledgerReg.activityFor(delegationTraceId),
+      // CL-K3R（**纯附加可选成员**）：桥在收口处反查「本委派回合是否仍有未决审批」。
+      // 两条事实通道合并返回：
+      //   S1 主通道 —— 同进程 `pendingApprovals` 令牌表（`collectApprovalFacts` 按 R1/R2/R3 归因）；
+      //   S2 副通道 —— 委派账本 `blockedFor`（补 V-3：常驻路径 blocked 恒空的观测断层）。
+      // 缺席/抛错 ⇒ 桥侧门 3/门 4 fail-open，退回文本启发式（旧行为逐字不变）。
+      approvalWait: async (q: ApprovalWaitQuery): Promise<readonly PendingApprovalFact[]> => [
+        ...collectApprovalFacts(pendingApprovals, q, Date.now()),
+        ...ledgerReg.blockedFor(q),
+      ],
     },
   } as unknown as BridgeContext;
 
@@ -767,8 +783,14 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
               channel: ctx.delegationId ? 'a2a' : 'mcp',
               ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
               onRecorded: (record) => {
-                const ledger = ctx.delegationId ? ledgerReg.get(ctx.delegationId) : undefined;
-                ledger?.recordBlocked(record.seq, id, cap.id);
+                // CL-K3R：blocked 登记改走**注册表分发**（补 V-3）——
+                //   - `ctx.delegationId` 存在（单次 -p / dtid 注入）→ 精确落到该委派账本（R1，与旧行为等价）；
+                //   - 缺席（常驻路径：mcp.json 会话级共享，dtid 不生效）→ 按 `inWindow && isExposed`
+                //     窗口归因分发，使常驻路径的「到过且被拦」不再恒空（旧实现是恒空操作）。
+                ledgerReg.recordBlocked(record.seq, id, cap.id, {
+                  ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
+                  risk: cap.risk,
+                });
               },
             },
           );

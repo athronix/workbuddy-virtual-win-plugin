@@ -13,10 +13,12 @@
 
 import type {
   ApprovalUnderlying,
+  ApprovalWaitQuery,
   AuditRecord,
   AuditSink,
   ExecutedResult,
   Logger,
+  PendingApprovalFact,
   RiskLevel,
 } from '@winvm/contracts';
 import { redact } from '@winvm/core';
@@ -224,4 +226,73 @@ function summarizeParams(params: Record<string, unknown>): string | undefined {
   if (items.length === 0) return undefined;
   const line = items.join(' · ');
   return line.length > 200 ? `${line.slice(0, 200)}…` : line;
+}
+
+/* ==================== CL-K3R · 未决审批事实采集（S1 主通道，纯函数） ==================== */
+
+/**
+ * 未决审批令牌的最小形状（`VmApprovalCoordinator.pendingApprovals` 的条目；
+ * 只取本函数需要的字段，避免让纯逻辑件反向依赖 `server.ts`）。
+ */
+export interface PendingApprovalLike {
+  readonly approvalId: string;
+  readonly capabilityId: string;
+  readonly risk?: RiskLevel;
+  readonly createdAtMs: number;
+  /** 恒 false 才是「未决」；置真/已拒绝的条目不纳入事实 */
+  readonly hostApproved?: boolean;
+  /** K-N1：拦截发生时的委派 traceId（`/mcp?dtid=` 注入；常驻路径**缺席**） */
+  readonly delegationId?: string;
+}
+
+/**
+ * CL-K3R：从服务端**同进程**的未决审批令牌表反查「属于本委派回合的未决审批」（纯函数，零副作用）。
+ *
+ * 这是 K3「静默假成功」根治的 **S1 主通道事实源**：拦截发生时服务端已 `pendingApprovals.set(id, …)`，
+ * 该事实与「LLM 最终文本说了什么」完全无关 —— 桥据此改判，即可在 LLM 措辞漂移时仍挂起审批。
+ *
+ * 归因三规则**严格有序**（SK-K4，防串台误报）：
+ *   - **R1（精确）**：`delegationId === q.delegationTraceId` ⇒ 命中（attribution='exact'，零歧义）；
+ *   - **R2（精确排除）**：`delegationId` 存在但属于**他人** ⇒ **排除**（他人委派的拦截绝不串到本委派）；
+ *   - **R3（窗口兜底）**：`delegationId` 缺席（常驻路径，dtid 不生效）且
+ *     `q.startedAtMs <= createdAtMs <= nowMs` ⇒ 命中（attribution='window'）；
+ *     能力面非空时按 `q.capabilities` 过滤（收窄「宿主并发直调另一 capability」的串台窗口）。
+ *
+ * 只返**未决**项（`hostApproved !== true`；已批准/已拒绝的条目由服务端移出或标记）。
+ * 返回按 `createdAtMs` **升序**（FIFO：改判时最老的未决项优先）。
+ */
+export function collectApprovalFacts(
+  pendingApprovals: ReadonlyMap<string, PendingApprovalLike>,
+  q: ApprovalWaitQuery,
+  nowMs: number,
+): PendingApprovalFact[] {
+  const caps =
+    q.capabilities && q.capabilities.length > 0 ? new Set<string>(q.capabilities) : undefined;
+  const out: PendingApprovalFact[] = [];
+  for (const entry of pendingApprovals.values()) {
+    if (!entry) continue;
+    if (entry.hostApproved === true) continue; // 只返未决项
+    const delegationId = typeof entry.delegationId === 'string' && entry.delegationId ? entry.delegationId : undefined;
+    let attribution: 'exact' | 'window';
+    if (delegationId) {
+      if (delegationId !== q.delegationTraceId) continue; // R2 精确排除（防串台）
+      attribution = 'exact'; // R1
+    } else {
+      // R3 窗口兜底：下界=本委派进入时刻，上界=判据执行时刻
+      if (entry.createdAtMs < q.startedAtMs) continue;
+      if (entry.createdAtMs > nowMs) continue;
+      if (caps && !caps.has(entry.capabilityId)) continue;
+      attribution = 'window';
+    }
+    out.push({
+      approvalId: entry.approvalId,
+      capabilityId: entry.capabilityId,
+      risk: entry.risk ?? 'L2',
+      createdAtMs: entry.createdAtMs,
+      attribution,
+      hostApproved: false,
+    });
+  }
+  out.sort((a, b) => a.createdAtMs - b.createdAtMs);
+  return out;
 }
