@@ -897,4 +897,75 @@ graph TD
     A2b["A2b 已证事实<br/>生产 A2A 主链路必带 taskId"] -.T03 门1 依赖.-> T03
 ```
 
+---
+
+## 8. 共享知识 SK（跨文件约定，供 Engineer 落地）
+
+> 本节承上：CL-K3R 是 **A5（CL-R19F）的增量续作**，A5 合同 §4 的 `SK-1`～`SK-9` **全部继续有效**，本设计不重述其正文，只在 §8.1 标明"哪些被 K3R 直接继承、哪些被 K3R 局部收紧"。§8.2 是本设计**新增**的 K3R 专属约定（`SK-K1`～`SK-K7`）。
+> 引用上游一律用**章节标签**为主、行号（HEAD `6dca16e`）为次。
+
+### 8.1 继承自 R19F（A5 合同 §4）的约定 —— K3R 继续遵守
+
+| 上游约定 | 在 K3R 中的状态 | 说明 |
+| --- | --- | --- |
+| `SK-1` 空 taskId = 无归属 | **继承** | T03 门 1（`!input.taskId`）即据此回退文本启发式；`beginTask('')` 仍等同「无归属」 |
+| `SK-2` `activeTaskId` 归属规则 | **继承** | K3R 不改 coordinator，只新增桥侧判据；`RunContext.taskId` 取自既有 `beginTask`/`req.taskId` |
+| `SK-3` `logger.warn` 格式 | **继承** | T02 新增的探针/归因 warn 沿用同一扁平 meta 结构（reason/approvalId/capabilityId/`myTrace`/`hasBlocked`） |
+| `SK-4` 契约纯附加可选 | **继承并强化** | C-K1/C-K2/C-K3 全员 `?:` 可选；`approvalWait?` 缺席即旧行为（§8.2 SK-K1） |
+| `SK-5` `dist` 必须先重建 | **继承** | T05 门禁 `npx tsc -b` 前所有单测测的是 dist，必先重建（§10 再强调） |
+| `SK-6` 审批语义不变式 | **继承** | `raise` 三条 reason 取值不变；`rejected` 唯一置位点仍是 `a2a-framework/src/server.ts:306`（D-5 守门） |
+| `SK-7` `no-active-task` 绝不自批 | **继承** | K3R 不触动该分支 |
+| `SK-8` `risk` 值语义收窄 | **继承** | K3R 命中改判**直接采用服务端 `PendingApproval.risk` 权威值**（与 Fix-4a 同源，无新增安全面） |
+| `SK-9` 不改清单 | **继承 + 局部收紧**（见 §8.2 SK-K6） | `APPROVAL_WAIT_PATTERN` / `parseApprovalBlock` 仍**一字不改**；`reconcileApprovalWait` 函数体仍**一字不改**，仅调用层级降为兜底 |
+
+### 8.2 K3R 新增约定
+
+#### SK-K1｜探针注入纪律：可选 + fail-open（绝不阻断主链路）
+- `DelegationTruthProbe.approvalWait?`（`contracts/src/bridge.ts` §6 C-K1）**必须**保持可选。桥侧取到 `bridgeCtx.delegationProbe` 后**先 cast 再空判**：`const probe = (ctx as any).delegationProbe as DelegationTruthProbe | undefined; const fn = probe?.approvalWait;`
+- 任一下列情形 ⇒ `reconcileApprovalTruth` 落到**门 3 文本兜底**，**不得**抛错、不得改变 `base.ok`：
+  1. `probe` 不存在（老版本 vm-service 未注入）；
+  2. `fn` 为 `undefined`（未在 `delegationProbe` 字面量内实现）；
+  3. `fn` 执行抛异常（T03 门 4：`try/catch` 包住，记一条 `warn` 后回退）。
+- 这是**不可妥协**的兜底：即便 K3R 全部落完，任何探针缺席/异常都**必须**退化为"与今无异"的文本启发式行为，保证新代码对老链路零破坏。
+
+#### SK-K2｜`WINVM_APPROVAL_TRUTH` 三态语义（灰度开关）
+| 取值 | 行为 | 用途 |
+| --- | --- | --- |
+| `'on'`（默认） | 结构化优先判据生效；命中即改判 `ok:false` | 根治态（推荐终态） |
+| `'shadow'` | 判据**照常计算**，命中时**只发 `warn`、不改 `base.ok`**；warn 必须同时打印"结构化结论"与"文本启发式结论"以便对账 | 上线前一轮灰度：量化命中率 + 串台率，供 owner 决策默认 `on` |
+| `'off'` | 判据函数整体短路（T03 门 2）：`return base`（今行为） | 一键回滚（§10） |
+
+- 解析函数 `resolveApprovalTruth(env)`：只认 `'on'`/`'shadow'`/`'off'`，**非法值/缺席一律回退 `'on'`**（与 A5 `resolveApprovalReplay` 的回退纪律对齐）。
+- 开关在 `bridge.ts` 构造期一次解析成只读字段 `approvalTruthEnabled: boolean`（`'off'` → `false`，其余 → `true`）；`shadow` 通过另一只读字段 `approvalTruthShadow: boolean` 区分。两字段构造自 `process.env`，不走运行时热切换（避免并发态不一致）。
+
+#### SK-K3｜`pendingApprovals` 内存态 caveat（S1 主通道的前提）
+- `VmApprovalCoordinator.pendingApprovals`（`vm-service/src/server.ts:512`）是**服务端进程内 `Map`**，桥通过 `loadProvider` 注入、与 server **同一进程** ⇒ 探针可读；这是 §3 可行性论证成立的前提。
+- 三条固有特性，Engineer 与 QA 必须知悉：
+  1. **重启即空**：进程重启后未决审批丢失（与 K2/K3 修复无关，属既有行为）。
+  2. **只含"未决"**：`hostApproved` 置真或已 `rejected` 的项会被移出/标记 ⇒ 探针**只返未决项**（`collectApprovalFacts` 过滤 `hostApproved !== true`）。
+  3. **长期累积风险**：生产长会话可能累积未清理条目 ⇒ T05 验收判据 §7.5 的"⏳ 非门禁"项要求观测；清理策略（容量上限/超时回收）列为 §9-Q5 待办，**本轮不实现**，避免扩大改动面。
+
+#### SK-K4｜R3 窗口归因 tie-break 与 R2 串台排除（防误报）
+- 常驻路径无 `delegationId`（V-3 实证），只能靠时间窗归因。**三个规则严格有序**：
+  1. **R1（精确）**：`fact.delegationId === myTrace` ⇒ 命中（最高优先，零歧义）。
+  2. **R2（精确排除）**：`fact.delegationId` 存在但 `!== myTrace` ⇒ **排除**（防其他委派拦截串到本委派）。注意：R2 必须先于 R3 判定，否则会误把"他人拦截"当"自己窗口内拦截"。
+  3. **R3（窗口兜底）**：`fact.delegationId` 缺失 且 `fact.createdAtMs >= ctx.started`（本委派进入时刻）⇒ 命中。窗口上界用 `Date.now()`（判据执行时刻）。
+- R3 的窗口边界语义**必须与 `DelegationLedger.inWindow` / `isExposed`（`delegation-audit.ts`）同源**，不得另写一套阈值，避免口径分裂。
+- `myTrace` 取值：优先 `ctx.delegationId`，缺席回退 `RunContext` 内既有 trace 标识（§5.3 `ApprovalWaitQuery.myTrace`）。
+- **反例夹具**（T04）：构造"host 并发直调另一个 capability 触发拦截、本委派 `runGoal` 窗口内但其 `delegationId` 为**他人**" ⇒ 断言**不误挂本委派**（R2 过滤生效）。
+
+#### SK-K5｜与 SK-5 同源：dist 重建 + 依赖方向守卫
+- 同 R19F `SK-5`：`packages/**` 改完 `src` 必须 `npx tsc -b tsconfig.build.json` 重建 dist，单测才测新产物。
+- 新增守卫：`npm run layout`（`scripts/dep-lint.mjs`）—— 因 T01 在 `contracts`/`core` 加导出，T02/T03 反向依赖，需确认 `vm-service`/`adapter-...` → `contracts`/`core` 方向未被破坏。
+
+#### SK-K6｜`reconcileApprovalWait` 不改（SK-9 合规）+ 新判据单向 fail-closed
+- **函数体一字不改**：`APPROVAL_WAIT_PATTERN`（`bridge.ts:575`）、`parseApprovalBlock`（`:588`）、`reconcileApprovalWait` 的 steps/文案（`:615`–`:638`）全部维持 A5 终态指纹基准。本设计只把它的**调用层级降为兜底**（T03 门 1/2/3/4/5 任一不命中才调用），不改其源码。
+- **新判据 `reconcileApprovalTruth` 单向性**：只做 `ok:true → ok:false`（并已附服务端权威 `approvalId`/`risk` 证据），**绝不**做 `ok:false → ok:true`。这是 §5.4 论证"fail-closed 安全"的代码级保证：任何误报只会让本应 `completed` 的任务多一次 `input-required`（可观测、可恢复、用户手动放行即可），而**绝不**制造新的假成功。
+- **指纹可比性**：命中改判的 `base.error.code` 复用 `APPROVAL_REQUIRED` 前缀（与 `reconcileApprovalWait` 现有终态同源），仅 `details.approvalId` 取服务端权威值 + 可加可分辨后缀（如 `source:'structured'`），便于与 A5 真机样本逐字比对（D-2 决策点）。
+
+#### SK-K7｜D-1 / D-4 / D-5 三道红线在 K3R 中**一字不动**
+- **D-1**（`reconcileExecutionTruth` 两道门，HEAD `bridge.ts:1024`/`:1025`）：K3R 在**其后**插入审批真值判据，不触及 D-1 的短路顺序与语义（§5.3 门 0 已显式 `if (!base.ok) return base` 让 D-1 结论优先）。
+- **D-4**（`a2a-framework/src/**` 零改动）：T02 只在 `vm-service` 内补探针与入库；T05 用 `git diff --stat -- packages/a2a-framework/src/` 守门为空。
+- **D-5**（`rejected` 唯一置位点 `a2a-framework/src/server.ts:306`）：K3R 不引入任何新 `rejected` 写入点，`ApprovalOutcome` 判别联合一字未改。
+
 <!-- APPEND-MARKER -->
