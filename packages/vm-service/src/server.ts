@@ -1288,6 +1288,10 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         state: 'unavailable' as const,
         detail: providerError ?? 'provider 未加载',
       },
+      // CL-K3R E-3（纯附加）：审批真值三态指纹透传 —— adapter 的 health() 已把它放在
+      // providerHealth 顶层（HealthStatus.approvalTruth），此处不透传就会在最后一跳被丢弃
+      //（T05 真机实测命中：/health.provider 缺 approvalTruth ⇒ shadow 轮不可证）。
+      ...(providerHealth?.approvalTruth ? { providerApprovalTruth: providerHealth.approvalTruth } : {}),
       session,
       psBridge,
       capabilities: { count: registry.size(), available: exposedIds.size },
