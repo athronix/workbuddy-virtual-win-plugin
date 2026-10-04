@@ -20,9 +20,16 @@
  *     宁可放过 completed，不可错杀合法完成（设计 §2.3 不变式）。
  */
 
-import type { DelegationActivityCount, DelegationTruthProbe, LlmSessionState } from '@winvm/contracts';
+import type {
+  ApprovalWaitQuery,
+  DelegationActivityCount,
+  DelegationTruthProbe,
+  LlmSessionState,
+  PendingApprovalFact,
+} from '@winvm/contracts';
 import { makeError } from '@winvm/contracts';
 
+import { reconcileApprovalWait } from './bridge.js';
 import type { LlmGoalResult } from './bridge.js';
 
 /* --------------------------- 完成声称识别（从 bridge.ts 迁入，单一来源） --------------------------- */
@@ -106,6 +113,186 @@ export async function reconcileDelegationTruth(
         delegationTraceId,
         taskId,
         ledger: { executed: activity.executed, blocked: activity.blocked, wild: activity.wild },
+      },
+    }),
+  };
+}
+
+/* ============================ 判据 2：disabled 显式拒绝 ============================ */
+
+/* ==================== 判据 3（CL-K3R）：APPROVAL_REQUIRED 结构化真值 ==================== */
+
+/**
+ * `reconcileApprovalTruth` 的委派入参面（只需判定所需字段；与 `LlmGoalInput` 结构化兼容）。
+ */
+export interface ApprovalTruthInput {
+  /** A2A 任务 id；缺席（纯 MCP 直调 / 非委派）⇒ 门 1 直接回退文本兜底 */
+  readonly taskId?: string;
+  /** 委派 traceId（R1 精确归因键） */
+  readonly traceId?: string;
+  /** 委派能力面（R3 收窄串台；空/缺席 ⇒ 不按能力过滤） */
+  readonly capabilities?: readonly string[];
+  /** 服务端探针（也可经 `ctx.delegationProbe` 注入） */
+  readonly probe?: DelegationTruthProbe;
+  readonly startedAtMs?: number;
+}
+
+/** `reconcileApprovalTruth` 的运行上下文面（与桥 `RunContext` 结构化兼容）。 */
+export interface ApprovalTruthRunCtx {
+  /** 本委派进入时刻（ms，R3 窗口下界） */
+  readonly started?: number;
+  readonly startedAtMs?: number;
+  /** 本委派已 raise 过的 approvalId（门 6 去重） */
+  readonly raised?: ReadonlySet<string>;
+  /** 本委派已登记的服务端执行回执（approvalId → 回执；**有回执**的审批不被门 6 跳过，见下） */
+  readonly receipts?: ReadonlyMap<string, unknown>;
+  /** 委派 traceId（dtid 注入后的归因键） */
+  readonly delegationId?: string;
+  /** 服务端探针（cast 注入形态，与 `input.probe` 二选一） */
+  readonly delegationProbe?: DelegationTruthProbe;
+}
+
+/** `reconcileApprovalTruth` 的注入面（全部可选；缺席即回退文本兜底 —— 零回归）。 */
+export interface ApprovalTruthDeps {
+  readonly input?: ApprovalTruthInput;
+  readonly ctx?: ApprovalTruthRunCtx;
+  /** 灰度开关：`false` ⇒ 门 2 整体短路（逐字 = R19F 后现状）；缺席 ⇒ `true` */
+  readonly enabled?: boolean;
+  /** `shadow` 态：命中时**只 warn、不改判**（埋点对拍，SK-K2） */
+  readonly shadow?: boolean;
+  /** 服务端探针（顶层形态；缺席时回退 `ctx.delegationProbe` / `input.probe`） */
+  readonly probe?: DelegationTruthProbe;
+  readonly warn?: (msg: string, meta?: Record<string, unknown>) => void;
+}
+
+/** 命中改判时的 steps 文案（与文本兜底路径**可区分**，便于取证归因）。 */
+const APPROVAL_TRUTH_STEP_SUMMARY = '等待审批（未执行完成·服务端结构化判定）';
+
+/** 命中改判的 `details.source` 标记（服务端权威来源，供与 A5 文本路径样本比对） */
+const APPROVAL_TRUTH_SOURCE = 'server-ledger';
+
+/**
+ * CL-K3R 判据 3：**服务端结构化未决审批反查**（接在两处 `reconcileApprovalWait` 收口点，
+ * 先于 `maybeResume`；文本启发式降级为**兜底**，函数体一字不改 —— SK-9 / D-2）。
+ *
+ * 判定表（自上而下短路，设计 §5.3）：
+ *   门 0 `!base.ok` → 透传（已是失败态，不重复改判；**D-1 结论优先**）；
+ *   门 1 无 `taskId`（非委派 / 纯 MCP 直调）→ 回退文本兜底（SK-1：无归属不介入）；
+ *   门 2 灰度开关 `off` → 回退文本兜底（一键回滚面）；
+ *   门 3 无 probe 或 `probe.approvalWait` 缺席 → 回退文本兜底（兼容旧服务端 / 单测，**绝不 warn**）；
+ *   门 4 探针抛错 → 回退文本兜底 + **warn 恰一条**（fail-open，绝不挂死委派）；
+ *   门 5 `facts` 为空 → 回退文本兜底（结构化说「无未决审批」时绝不强行改判）；
+ *   门 6 所有 fact 都「已 raise **且尚无服务端回执**」→ 回退文本兜底（不二次挂起）；
+ *   命中 → 改判 `ok:false` + `APPROVAL_REQUIRED`（服务端权威 approvalId / risk）。
+ *
+ * **单向 fail-closed**（SK-K6）：只做 `ok:true → ok:false`，绝不反向。门 0 +
+ * 「只在有结构化证据时改判」共同保证本函数在**任何**路径上都不可能制造新的假成功。
+ *
+ * 门 6 的适用前提（实施偏差 E-1，见 `docs/design/cl-k3r-impl-progress.md` §6）：
+ * 仅当该 approvalId **尚无服务端回执**时才跳过 —— 已有回执说明宿主已批、服务端已重放，
+ * 此时必须让 `maybeResume` 走 `applyReceipt` 以**真实回执**收口；否则续跑轮会返回
+ * `completed`，反而掩盖「回执其实失败」这一**新的假成功**。
+ */
+export async function reconcileApprovalTruth(
+  base: LlmGoalResult,
+  finalText: string,
+  deps: ApprovalTruthDeps = {},
+): Promise<LlmGoalResult> {
+  if (!base.ok) return base; // 门 0：已是失败态（含 D-1 两道门的结论）→ 绝不重复改判
+
+  const input = deps.input;
+  const ctx = deps.ctx;
+  const taskId = typeof input?.taskId === 'string' && input.taskId ? input.taskId : undefined;
+  if (!input || !taskId) return reconcileApprovalWait(base, finalText); // 门 1：无归属不介入
+
+  if (deps.enabled === false) return reconcileApprovalWait(base, finalText); // 门 2：一键回滚
+
+  const probe = deps.probe ?? ctx?.delegationProbe ?? input.probe;
+  const approvalWait = probe?.approvalWait;
+  if (typeof approvalWait !== 'function') return reconcileApprovalWait(base, finalText); // 门 3：探针缺席 = 旧行为
+
+  const delegationTraceId =
+    (typeof ctx?.delegationId === 'string' && ctx.delegationId ? ctx.delegationId : undefined) ??
+    (typeof input.traceId === 'string' ? input.traceId : '');
+  const startedAtMs = ctx?.started ?? ctx?.startedAtMs ?? input?.startedAtMs ?? Date.now();
+  const query: ApprovalWaitQuery = {
+    delegationTraceId,
+    startedAtMs,
+    ...(input.capabilities && input.capabilities.length > 0
+      ? { capabilities: [...input.capabilities] }
+      : {}),
+  };
+
+  let raw: readonly PendingApprovalFact[];
+  try {
+    const awaited = await approvalWait.call(probe, query);
+    raw = Array.isArray(awaited) ? awaited : [];
+  } catch (e) {
+    // 门 4：fail-open —— 取证故障绝不改变 base.ok，只记恰一条 warn
+    deps.warn?.('未决审批反查探针异常（透传原结果，不改判）', {
+      delegationTraceId,
+      taskId,
+      error: String(e),
+    });
+    return reconcileApprovalWait(base, finalText);
+  }
+
+  const facts = raw.filter((f) => !!f && typeof f.approvalId === 'string' && f.approvalId.length > 0);
+  if (facts.length === 0) return reconcileApprovalWait(base, finalText); // 门 5
+
+  const raised = ctx?.raised;
+  const receipts = ctx?.receipts;
+  const pending = facts.filter(
+    (f) => !(raised?.has(f.approvalId) === true && receipts?.has(f.approvalId) !== true),
+  );
+  if (pending.length === 0) return reconcileApprovalWait(base, finalText); // 门 6
+
+  const ordered = [...pending].sort((a, b) => (a.createdAtMs ?? 0) - (b.createdAtMs ?? 0));
+  const fact = ordered[0]!;
+  const rest = ordered.slice(1);
+
+  if (deps.shadow === true) {
+    // shadow 态：只埋点对拍（结构化结论 vs 文本启发式结论），**不改判**
+    deps.warn?.('[shadow] 未决审批结构化命中（不改判，供对拍）', {
+      taskId,
+      delegationTraceId,
+      approvalId: fact.approvalId,
+      attribution: fact.attribution,
+      risk: fact.risk,
+      structuredVerdict: 'waiting-approval',
+      textHeuristicVerdict: reconcileApprovalWait(base, finalText).ok
+        ? 'not-waiting'
+        : 'waiting-approval',
+      others: rest.map((f) => f.approvalId),
+    });
+    return base;
+  }
+
+  if (rest.length > 0) {
+    deps.warn?.('同一委派存在多个未决审批（请宿主逐条处理）', {
+      taskId,
+      delegationTraceId,
+      approvalId: fact.approvalId,
+      others: rest.map((f) => f.approvalId),
+    });
+  }
+
+  return {
+    ...base,
+    ok: false,
+    summary:
+      `等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「${base.summary}」未执行完成，` +
+      `须经宿主人工审批后经 MCP 直调通道续跑；approvalId=${fact.approvalId}` +
+      `（来源=服务端结构化判定·${fact.attribution}）`,
+    steps: base.steps.map((s) => ({ ...s, ok: false, summary: APPROVAL_TRUTH_STEP_SUMMARY })),
+    error: makeError('APPROVAL_REQUIRED', '服务端结构化记录显示存在未决审批，操作未执行', {
+      details: {
+        approvalId: fact.approvalId,
+        capabilityId: fact.capabilityId,
+        risk: fact.risk,
+        attribution: fact.attribution,
+        source: APPROVAL_TRUTH_SOURCE,
+        ...(rest.length > 0 ? { others: rest.map((f) => f.approvalId) } : {}),
       },
     }),
   };

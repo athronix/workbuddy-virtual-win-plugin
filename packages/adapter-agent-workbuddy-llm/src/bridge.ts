@@ -26,7 +26,13 @@ import type {
   TaskState,
 } from '@winvm/contracts';
 import { makeError } from '@winvm/contracts';
-import { resolveApprovalReplay, resolveLlmSessionConfig, type LlmSessionConfig } from '@winvm/core';
+import {
+  resolveApprovalReplay,
+  resolveApprovalTruth,
+  resolveLlmSessionConfig,
+  type ApprovalTruthMode,
+  type LlmSessionConfig,
+} from '@winvm/core';
 
 import {
   PersistentCliSession,
@@ -34,7 +40,11 @@ import {
   type SessionLog,
   type TurnResult,
 } from './persistent-session.js';
-import { COMPLETION_CLAIM_PATTERN, reconcileDelegationTruth } from './delegation-truth.js';
+import {
+  COMPLETION_CLAIM_PATTERN,
+  reconcileApprovalTruth as reconcileApprovalTruthPure,
+  reconcileDelegationTruth,
+} from './delegation-truth.js';
 
 /** 下发给 VM 内 Agent 的技能规范（供其按规范拆解步骤 / 编写脚本 / 调用工具） */
 export interface LlmSkillDoc {
@@ -536,6 +546,13 @@ export interface CliLlmBridgeOptions {
    * on：批准后消费服务端回执 + 完成声明做回执反查；off：退回 K4 提示词行为（不反查）。
    */
   readonly approvalReplay?: boolean;
+  /**
+   * CL-K3R：审批真值判据模式（显式配置优先；未指定时取 env `WINVM_APPROVAL_TRUTH`，缺省 `on`）。
+   *   - `on`：结构化未决审批优先，命中即改判 `ok:false`（fail-closed，根治 K3 假成功）；
+   *   - `shadow`：只 warn 不改判（埋点对拍，量化命中率/串台率）；
+   *   - `off`：判据整体短路，逐字 = R19F 后现状（文本启发式仍是唯一判据）。
+   */
+  readonly approvalTruth?: ApprovalTruthMode;
 }
 
 /** 产物逐步回传的扫描节流间隔 */
@@ -611,8 +628,12 @@ export { COMPLETION_CLAIM_PATTERN } from './delegation-truth.js';
  *
  * LLM 文本表明其在等待审批时，不得断言成功：改为 `ok=false` + 「等待审批」语义的 summary，
  * 并保留已收集的产物（截图等中间产物对宿主人工审批有参考价值）。
+ *
+ * CL-K3R：函数体与文案**一字不改**（SK-9），仅新增 `export` —— 供 `delegation-truth.ts`
+ * 的 `reconcileApprovalTruth` 在「结构化判据退场」时作为**文本兜底**复用
+ * （D-2：角色从「唯一判据」降为「兜底判据」，源码不变）。
  */
-function reconcileApprovalWait(base: LlmGoalResult, finalText: string): LlmGoalResult {
+export function reconcileApprovalWait(base: LlmGoalResult, finalText: string): LlmGoalResult {
   if (!APPROVAL_WAIT_PATTERN.test(finalText)) return base;
   const parsed = parseApprovalBlock(finalText);
   return {
@@ -710,6 +731,13 @@ export class CliLlmBridge implements LlmBridge {
    * K4「LLM 重发」完成误杀成假成功 —— 故 off 时反查退场，逐字保持 K4 行为。
    */
   private readonly replayEnabled: boolean;
+  /**
+   * CL-K3R：审批真值判据开关（env `WINVM_APPROVAL_TRUTH`：on/shadow/off，非法值/缺席 → on）。
+   * `off` ⇒ false，其余 ⇒ true；构造期一次解析为只读字段，不做运行时热切换（避免并发态不一致）。
+   */
+  private readonly approvalTruthEnabled: boolean;
+  /** CL-K3R：`shadow` 态 —— 判据照常计算，命中时只 warn 不改判（SK-K2 埋点对拍） */
+  private readonly approvalTruthShadow: boolean;
 
   constructor(opts: CliLlmBridgeOptions = {}) {
     this.cliPath = opts.cliPath ?? opts.runtime ?? 'codebuddy';
@@ -722,6 +750,33 @@ export class CliLlmBridge implements LlmBridge {
     // 默认取 env（缺省启用）；显式配置优先
     this.persistentEnabled = opts.persistent ?? resolveLlmSessionConfig(process.env).enabled;
     this.replayEnabled = opts.approvalReplay ?? resolveApprovalReplay(process.env);
+    // CL-K3R：默认取 env（缺省 on）；显式配置优先
+    const approvalTruthMode = opts.approvalTruth ?? resolveApprovalTruth(process.env);
+    this.approvalTruthEnabled = approvalTruthMode !== 'off';
+    this.approvalTruthShadow = approvalTruthMode === 'shadow';
+  }
+
+  /**
+   * CL-K3R 收口判据的**桥侧接线**（`runPersistent` / `runOneShot` 两处共用）。
+   *
+   * 把「服务端结构化未决审批」翻译成 `base.error`（`APPROVAL_REQUIRED` + 服务端权威
+   * `approvalId`/`risk`），使**既有**的 `maybeResume` → raise → `input-required` 链路原样工作。
+   * 结构化判据任一门退场时回退文本启发式 `reconcileApprovalWait`（**函数体一字不改**，SK-9）。
+   */
+  private async reconcileApprovalTruth(
+    base: LlmGoalResult,
+    finalText: string,
+    input: LlmGoalInput,
+    ctx: RunContext,
+  ): Promise<LlmGoalResult> {
+    return reconcileApprovalTruthPure(base, finalText, {
+      input,
+      ctx,
+      enabled: this.approvalTruthEnabled,
+      ...(this.approvalTruthShadow ? { shadow: true } : {}),
+      // fail-open 告警出口：provider 注入的服务 logger.warn 优先，缺席回退会话日志出口
+      warn: input.warn ?? this.onSessionLog ?? undefined,
+    });
   }
 
   /**
@@ -1176,7 +1231,7 @@ export class CliLlmBridge implements LlmBridge {
     }
     return {
       result: await this.maybeResume(
-        reconcileApprovalWait(
+        await this.reconcileApprovalTruth(
           {
             ok: true,
             summary:
@@ -1197,6 +1252,8 @@ export class CliLlmBridge implements LlmBridge {
             ],
           },
           turn.text,
+          input,
+          ctx,
         ),
         input,
         sink,
@@ -1362,7 +1419,7 @@ export class CliLlmBridge implements LlmBridge {
           //     无 coordinator / 未命中则保持 K3 旧行为（返回「等待审批」）。
           finish(
             await this.maybeResume(
-              reconcileApprovalWait(
+              await this.reconcileApprovalTruth(
                 {
                   ok: true,
                   summary: `LLM 运行时完成目标：${input.goal}` + (artifacts.length ? `（产出 ${artifacts.length} 个文件）` : ''),
@@ -1381,6 +1438,8 @@ export class CliLlmBridge implements LlmBridge {
             ],
           },
           stdoutText,
+          input,
+          ctx,
         ),
         input,
         sink,

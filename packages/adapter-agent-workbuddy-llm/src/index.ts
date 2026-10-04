@@ -28,7 +28,7 @@ import {
   type ProgressSink,
   makeError,
 } from '@winvm/contracts';
-import type { LlmSessionConfig } from '@winvm/core';
+import { resolveApprovalTruth, type ApprovalTruthMode, type LlmSessionConfig } from '@winvm/core';
 import type { PsBridgeOptions } from '@winvm/vm-capabilities';
 import { DeterministicAgentProvider } from '@winvm/adapter-agent-workbuddy';
 
@@ -127,6 +127,11 @@ export interface WorkbuddyLlmProviderOptions {
   readonly sessionConfig?: Partial<LlmSessionConfig>;
   /** CL-018 C1：常驻会话日志出口（接到服务 logger，便于事后诊断） */
   readonly onSessionLog?: SessionLog;
+  /**
+   * CL-K3R：审批真值判据模式（显式配置优先；未指定时取 env `WINVM_APPROVAL_TRUTH`，缺省 `on`）。
+   * `shadow` = 只 warn 不改判（灰度对拍）；`off` = 一键回滚到 R19F 后现状。
+   */
+  readonly approvalTruth?: ApprovalTruthMode;
 }
 
 export class WorkbuddyLlmProvider implements AgentServiceProvider {
@@ -167,6 +172,8 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
         ...(opts.persistent !== undefined ? { persistent: opts.persistent } : {}),
         ...(opts.sessionConfig ? { sessionConfig: opts.sessionConfig } : {}),
         ...(opts.onSessionLog ? { onSessionLog: opts.onSessionLog } : {}),
+        // CL-K3R：审批真值判据模式（显式配置优先；否则取 env `WINVM_APPROVAL_TRUTH`，缺省 on）
+        approvalTruth: opts.approvalTruth ?? resolveApprovalTruth(process.env),
       });
   }
 
@@ -437,7 +444,11 @@ export {
 export {
   COMPLETION_CLAIM_PATTERN,
   evaluateDisabledRejection,
+  reconcileApprovalTruth,
   reconcileDelegationTruth,
+  type ApprovalTruthDeps,
+  type ApprovalTruthInput,
+  type ApprovalTruthRunCtx,
   type DelegationTruthDeps,
   type DisabledRejectionInput,
   type DisabledRejectionVerdict,
