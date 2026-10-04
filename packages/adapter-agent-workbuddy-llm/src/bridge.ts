@@ -44,7 +44,19 @@ import {
   COMPLETION_CLAIM_PATTERN,
   reconcileApprovalTruth as reconcileApprovalTruthPure,
   reconcileDelegationTruth,
+  registerApprovalWaitFallback,
 } from './delegation-truth.js';
+
+/**
+ * CL-K3R（E-2 去环）：把本模块的文本兜底 `reconcileApprovalWait` **注册**为
+ * `reconcileApprovalTruth` 的默认兜底实现。
+ *
+ * 为什么要注册而不是让 `delegation-truth.ts` 反向 import 本文件：那样会与既有的
+ * `bridge → delegation-truth` 静态依赖构成**包内环**。注册后依赖方向仍为单向，
+ * 且 SK-9 的落点（本文件 `reconcileApprovalWait`）一字不动。
+ * 桥的两个收口点另外**显式**经 `deps.reconcileApprovalWait` 传入同一函数引用（注入优先）。
+ */
+registerApprovalWaitFallback(reconcileApprovalWait);
 
 /** 下发给 VM 内 Agent 的技能规范（供其按规范拆解步骤 / 编写脚本 / 调用工具） */
 export interface LlmSkillDoc {
@@ -629,11 +641,12 @@ export { COMPLETION_CLAIM_PATTERN } from './delegation-truth.js';
  * LLM 文本表明其在等待审批时，不得断言成功：改为 `ok=false` + 「等待审批」语义的 summary，
  * 并保留已收集的产物（截图等中间产物对宿主人工审批有参考价值）。
  *
- * CL-K3R：函数体与文案**一字不改**（SK-9），仅新增 `export` —— 供 `delegation-truth.ts`
- * 的 `reconcileApprovalTruth` 在「结构化判据退场」时作为**文本兜底**复用
- * （D-2：角色从「唯一判据」降为「兜底判据」，源码不变）。
+ * CL-K3R（D-2）：本函数**函数体与文案一字不改**（SK-9），角色从「唯一判据」降为「兜底判据」；
+ * 桥在收口点把它作为**依赖注入**传给 `delegation-truth.ts` 的 `reconcileApprovalTruth`
+ * （并在模块加载时注册为默认兜底，见本文件顶部 `registerApprovalWaitFallback`）——
+ * 单向依赖 `bridge → delegation-truth` 保持不变，包内无静态环。
  */
-export function reconcileApprovalWait(base: LlmGoalResult, finalText: string): LlmGoalResult {
+function reconcileApprovalWait(base: LlmGoalResult, finalText: string): LlmGoalResult {
   if (!APPROVAL_WAIT_PATTERN.test(finalText)) return base;
   const parsed = parseApprovalBlock(finalText);
   return {
@@ -773,6 +786,8 @@ export class CliLlmBridge implements LlmBridge {
       input,
       ctx,
       enabled: this.approvalTruthEnabled,
+      // E-2：文本兜底**显式注入**（同一函数引用，SK-9 落点不变）
+      reconcileApprovalWait,
       ...(this.approvalTruthShadow ? { shadow: true } : {}),
       // fail-open 告警出口：provider 注入的服务 logger.warn 优先，缺席回退会话日志出口
       warn: input.warn ?? this.onSessionLog ?? undefined,

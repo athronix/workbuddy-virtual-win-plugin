@@ -29,7 +29,6 @@ import type {
 } from '@winvm/contracts';
 import { makeError } from '@winvm/contracts';
 
-import { reconcileApprovalWait } from './bridge.js';
 import type { LlmGoalResult } from './bridge.js';
 
 /* --------------------------- 完成声称识别（从 bridge.ts 迁入，单一来源） --------------------------- */
@@ -152,10 +151,40 @@ export interface ApprovalTruthRunCtx {
   readonly delegationProbe?: DelegationTruthProbe;
 }
 
+/**
+ * 文本兜底函数的形状（= `bridge.ts` `reconcileApprovalWait` 的签名）。
+ *
+ * E-2 去环：本文件**不得** `import` `bridge.ts`（否则与「bridge → delegation-truth」的既有
+ * 静态依赖构成包内环）。兜底实现改为**注入**：
+ *   1. 首选 `deps.reconcileApprovalWait`（桥在每个调用点传入它自己的函数引用）；
+ *   2. 缺席时取模块级默认（由 `bridge.ts` 加载时 `registerApprovalWaitFallback` 注册，
+ *      供直接调用方 —— 如单测 —— 拿到与生产**同一份**实现）；
+ *   3. 都没有 ⇒ 恒等透传（fail-open，逐字 = 无兜底时的旧行为）。
+ */
+export type ApprovalWaitFallback = (base: LlmGoalResult, finalText: string) => LlmGoalResult;
+
+/** 模块级文本兜底默认实现（由 `bridge.ts` 注册；未注册时缺席） */
+let approvalWaitFallback: ApprovalWaitFallback | undefined;
+
+/**
+ * 注册文本兜底默认实现 —— 由 `bridge.ts` 在模块加载时把自己的 `reconcileApprovalWait` 注入。
+ *
+ * 依赖方向仍为单向 `bridge.ts → delegation-truth.ts`（本文件零反向 import），
+ * 且 SK-9 的落点（`bridge.ts:615`–`:638`）**一字不动**。
+ */
+export function registerApprovalWaitFallback(fn: ApprovalWaitFallback | undefined): void {
+  approvalWaitFallback = fn;
+}
+
 /** `reconcileApprovalTruth` 的注入面（全部可选；缺席即回退文本兜底 —— 零回归）。 */
 export interface ApprovalTruthDeps {
   readonly input?: ApprovalTruthInput;
   readonly ctx?: ApprovalTruthRunCtx;
+  /**
+   * 文本兜底实现（E-2 依赖注入，去静态环）。
+   * 桥在每个收口点传入自己的 `reconcileApprovalWait`；缺席时回退模块级默认注册。
+   */
+  readonly reconcileApprovalWait?: ApprovalWaitFallback;
   /** 灰度开关：`false` ⇒ 门 2 整体短路（逐字 = R19F 后现状）；缺席 ⇒ `true` */
   readonly enabled?: boolean;
   /** `shadow` 态：命中时**只 warn、不改判**（埋点对拍，SK-K2） */
@@ -200,16 +229,20 @@ export async function reconcileApprovalTruth(
 ): Promise<LlmGoalResult> {
   if (!base.ok) return base; // 门 0：已是失败态（含 D-1 两道门的结论）→ 绝不重复改判
 
+  // E-2：文本兜底经**依赖注入**取得（deeps 显式传入 > bridge 模块级注册 > 恒等透传）
+  const fallback: ApprovalWaitFallback =
+    deps.reconcileApprovalWait ?? approvalWaitFallback ?? ((b: LlmGoalResult) => b);
+
   const input = deps.input;
   const ctx = deps.ctx;
   const taskId = typeof input?.taskId === 'string' && input.taskId ? input.taskId : undefined;
-  if (!input || !taskId) return reconcileApprovalWait(base, finalText); // 门 1：无归属不介入
+  if (!input || !taskId) return fallback(base, finalText); // 门 1：无归属不介入
 
-  if (deps.enabled === false) return reconcileApprovalWait(base, finalText); // 门 2：一键回滚
+  if (deps.enabled === false) return fallback(base, finalText); // 门 2：一键回滚
 
   const probe = deps.probe ?? ctx?.delegationProbe ?? input.probe;
   const approvalWait = probe?.approvalWait;
-  if (typeof approvalWait !== 'function') return reconcileApprovalWait(base, finalText); // 门 3：探针缺席 = 旧行为
+  if (typeof approvalWait !== 'function') return fallback(base, finalText); // 门 3：探针缺席 = 旧行为
 
   const delegationTraceId =
     (typeof ctx?.delegationId === 'string' && ctx.delegationId ? ctx.delegationId : undefined) ??
@@ -234,18 +267,18 @@ export async function reconcileApprovalTruth(
       taskId,
       error: String(e),
     });
-    return reconcileApprovalWait(base, finalText);
+    return fallback(base, finalText);
   }
 
   const facts = raw.filter((f) => !!f && typeof f.approvalId === 'string' && f.approvalId.length > 0);
-  if (facts.length === 0) return reconcileApprovalWait(base, finalText); // 门 5
+  if (facts.length === 0) return fallback(base, finalText); // 门 5
 
   const raised = ctx?.raised;
   const receipts = ctx?.receipts;
   const pending = facts.filter(
     (f) => !(raised?.has(f.approvalId) === true && receipts?.has(f.approvalId) !== true),
   );
-  if (pending.length === 0) return reconcileApprovalWait(base, finalText); // 门 6
+  if (pending.length === 0) return fallback(base, finalText); // 门 6
 
   const ordered = [...pending].sort((a, b) => (a.createdAtMs ?? 0) - (b.createdAtMs ?? 0));
   const fact = ordered[0]!;
@@ -260,7 +293,7 @@ export async function reconcileApprovalTruth(
       attribution: fact.attribution,
       risk: fact.risk,
       structuredVerdict: 'waiting-approval',
-      textHeuristicVerdict: reconcileApprovalWait(base, finalText).ok
+      textHeuristicVerdict: fallback(base, finalText).ok
         ? 'not-waiting'
         : 'waiting-approval',
       others: rest.map((f) => f.approvalId),
