@@ -142,6 +142,20 @@ export interface HealthStatus {
   readonly logging?: LoggingHealth;
   /** CL-018 C5：进程内缓存状态（纯附加） */
   readonly cache?: CacheHealth;
+  /**
+   * CL-K3R E-3：审批真值判据运行时模式（纯附加；非 LLM provider 缺席）。
+   *
+   * 为什么是三元组而非只给 mode：shadow 轮未命中时，`[shadow] 未决审批结构化命中`
+   * 指纹不出现，仅凭 mode 无法区分「shadow 且未命中」与「根本没启用」（违反「未复现≠已修、
+   * 必须确定性注入」）。`enabled` / `shadow` 两个布尔把桥构造期解析的**生效值**原样透出，
+   * 与 `mode` 互为冗余校验（假指纹即不一致）。取值纪律：必须在构造 bridge 时一次性解析
+   * （消费方禁止在 health() 里二次读 process.env，否则配置值≠生效值）。
+   */
+  readonly approvalTruth?: {
+    readonly mode: 'on' | 'shadow' | 'off';
+    readonly enabled: boolean;
+    readonly shadow: boolean;
+  };
 }
 
 /** 产出物（A2A artifact / MCP artifacts） */

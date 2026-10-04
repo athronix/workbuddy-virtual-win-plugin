@@ -153,12 +153,23 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
   private readonly endpoint: string;
   private readonly outputDir: string;
   private readonly skillsRoot: string;
+  /**
+   * CL-K3R E-3：审批真值判据的**运行时指纹**（构造期一次性解析，随 bridge 生效值同源）。
+   * 必须在构造 bridge 那一行一并算出并存为 readonly 字段 —— 严禁在 health() 里二次读
+   * process.env（否则配置值≠生效值，指纹失真）。取值：shadow ⇒ 'shadow'；
+   * 否则 enabled ? 'on' : 'off'（与 CliLlmBridge 构造期的 enabled/shadow 两个字段逐字同源）。
+   */
+  private readonly approvalTruthMode: ApprovalTruthMode;
 
   constructor(opts: WorkbuddyLlmProviderOptions = {}) {
     this.cliPath = opts.cliPath ?? opts.runtime ?? 'codebuddy';
     this.endpoint = opts.endpoint ?? 'http://127.0.0.1:18443/mcp';
     this.outputDir = opts.outputDir ?? '%USERPROFILE%\\WinVMWorkspace\\out';
     this.skillsRoot = opts.skillsRoot ? expandEnvPath(opts.skillsRoot) : '';
+    // CL-K3R E-3：构造期一次性解析（显式配置优先；否则取 env `WINVM_APPROVAL_TRUTH`，缺省 on）。
+    // 同一解析值既注入 bridge（生效值）也存为本类只读指纹（上报值）——二者天然同源。
+    const approvalTruthMode = opts.approvalTruth ?? resolveApprovalTruth(process.env);
+    this.approvalTruthMode = approvalTruthMode;
     this.executor =
       opts.executor ?? new DeterministicAgentProvider({ psBridge: opts.psBridge, maxConcurrency: opts.maxConcurrency });
     this.bridge =
@@ -173,7 +184,7 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
         ...(opts.sessionConfig ? { sessionConfig: opts.sessionConfig } : {}),
         ...(opts.onSessionLog ? { onSessionLog: opts.onSessionLog } : {}),
         // CL-K3R：审批真值判据模式（显式配置优先；否则取 env `WINVM_APPROVAL_TRUTH`，缺省 on）
-        approvalTruth: opts.approvalTruth ?? resolveApprovalTruth(process.env),
+        approvalTruth: approvalTruthMode,
       });
   }
 
@@ -242,6 +253,13 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
     // 健康态由 LLM provider 自身上报身份（id/kind），底层 executor 只是实现细节
     const base = await this.executor.health();
     const bridgeOk = base.provider.state === 'ready';
+    // CL-K3R E-3：审批真值判据运行时指纹（三态可观测）。值取自构造期 readonly 字段
+    // （不在此处读 process.env —— 生效值在 bridge 构造那行已定，配置值≠生效值会出假指纹）。
+    const approvalTruth = {
+      mode: this.approvalTruthMode,
+      enabled: this.approvalTruthMode !== 'off',
+      shadow: this.approvalTruthMode === 'shadow',
+    };
     return {
       ok: bridgeOk,
       provider: {
@@ -253,6 +271,9 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
       ...(base.psBridge ? { psBridge: base.psBridge } : {}),
       ...(base.capabilities ? { capabilities: base.capabilities } : {}),
       ...(base.audit ? { audit: base.audit } : {}),
+      // CL-K3R E-3（纯附加）：审批真值判据三态指纹（`/health.provider.approvalTruth`）。
+      // 值取自构造期一次性解析的 readonly 字段，禁止在此二次读 process.env（假指纹防线）。
+      ...(approvalTruth !== undefined ? { approvalTruth } : {}),
     };
   }
 
