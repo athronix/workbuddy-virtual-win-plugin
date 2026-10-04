@@ -101,6 +101,45 @@ git diff --stat 6dca16e..HEAD -- packages/a2a-framework/src/  → 0 行（空）
 `r19c-kn1-e-mutation` 49、`r19c-kn1-e-shape` 33、`r19c-kn1-f-chain` 16、
 `llm-provider` 20、`host-a2a-bridge` 35、`k4-approval` 6、`k4-p3` 16。
 
+## 5.3 owner 裁定后的两笔追加 commit（E-1 勘误 / E-2 去环）
+
+| # | commit | 内容 | 重跑结果 |
+|---|---|---|---|
+| E-1 | `574f9c9` | `docs(k3r): §9.5 设计勘误` —— 在 `cl-k3r-silent-false-success-design.md` §9.4 之后新增 §9.5，登记「门 6 前提收窄为『已 raise 且尚无服务端回执』」及 fail-closed 依据（§0–§8 不动） | 文档 only，无需重跑 |
+| E-2 | `95052d5` | `refactor(k3r): 依赖注入去除 bridge↔delegation-truth 静态环` | 见 §5.4 |
+
+### 5.4 E-2 去环后的四条门禁重跑（全部保持绿）
+
+```
+node --test tests/unit/r19c-k3r-approval-truth.test.js  → tests 11 / pass 11 / fail 0
+node --test tests/unit/r19c-k3r-approval-wait.test.js   → tests 10 / pass 10 / fail 0
+node --test tests/unit/r19c-k3r-bridge-integ.test.js    → tests  2 / pass  2 / fail 0
+node --test tests/unit/k5-replay.test.js                → tests 41 / pass 41 / fail 0
+npx tsc -b tsconfig.build.json --force                  → 0 error
+git diff --stat 6dca16e..HEAD -- packages/a2a-framework/src/ → 0 行（空）
+逐文件巡检 tests/unit/*.test.js|*.test.mjs（全量）           → SWEEP DONE（零异常）
+```
+
+### 5.5 E-2 加载序显式验证（命令 + 输出）
+
+```
+# 序 A：包入口先（index → bridge → delegation-truth）
+node -e "import('@winvm/adapter-agent-workbuddy-llm').then(async m => { ...reconcileApprovalTruth(base, '工具返回 APPROVAL_REQUIRED，等待宿主审批\n', {...}) })"
+  → 文本兜底生效: true | error.code= APPROVAL_REQUIRED
+
+# 序 B：delegation-truth 先加载，再加载 bridge
+node -e "const dt = await import('./packages/adapter-agent-workbuddy-llm/dist/delegation-truth.js'); await import('./packages/adapter-agent-workbuddy-llm/dist/bridge.js'); ..."
+  → 文本兜底生效: true | error.code= APPROVAL_REQUIRED
+
+# 序 C：仅加载 delegation-truth（无注册 → 恒等透传，fail-open 且不抛）
+node -e "const dt = await import('.../dist/delegation-truth.js'); ..."
+  → 降级透传（不抛、不改 ok）: true | 返回同一 base: true
+```
+
+去环核验：`grep -n "bridge.js" src/delegation-truth.ts dist/delegation-truth.js`
+→ `src` 仅剩 `import type { LlmGoalResult } from './bridge.js'`（**类型导入，编译期擦除**）；
+→ `dist/delegation-truth.js` **零** `bridge.js` 引用 ⇒ 运行时**无**反向边。
+
 ## 6. 红线自检（源码可核，逐条已验）
 
 | 红线 | 证据 |
@@ -116,7 +155,7 @@ git diff --stat 6dca16e..HEAD -- packages/a2a-framework/src/  → 0 行（空）
 | # | 偏差 | 处置 |
 |---|---|---|
 | **E-1** | 红档 C 组（integ）要求「raise 后 `result.ok === false`」；而 §5.3 门 6「全部 fact 已在 `ctx.raised` ⇒ 回退文本兜底」在续跑轮会让 `maybeResume` 因 `blocked=false` 直接返回 `ok:true`，`applyReceipt` 永不触达 ⇒ 回执为失败时反而产出 `completed`（新的假成功） | 落地时把门 6 的适用前提收窄为「已 raise **且尚无服务端回执**」：已有回执 ⇒ 不跳过，交 `maybeResume.applyReceipt` 以**真实回执**收口（fail-closed，与 §5.4 同源）。纯逻辑单测（`r19c-k3r-approval-truth` 门 6，无 receipts）行为不变 |
-| **E-2** | `reconcileApprovalWait` 是 `bridge.ts` 模块内**非导出**函数，而 `reconcileApprovalTruth` 需在同一收口链内复用它做文本兜底 | 只对 `reconcileApprovalWait` 增加 `export` 关键字（**函数体/文案一字不改**），由 `delegation-truth.ts` 静态 import；`bridge.ts` → `delegation-truth.ts` 的既有运行时依赖与新增反向 import 在同一包内，函数声明提升保证求值顺序安全 |
+| **E-2** | `reconcileApprovalWait` 是 `bridge.ts` 模块内**非导出**函数，而 `reconcileApprovalTruth` 需在同一收口链内复用它做文本兜底 | **owner 裁定：不许搬函数**（搬走即破坏 SK-9 落点与 A5 指纹比对基准），改用**依赖注入**去环：`deps.reconcileApprovalWait` 由 `bridge.ts` 在两处调用点显式传入；另提供 `registerApprovalWaitFallback()` 供 `bridge.ts` 在模块加载时注册**默认兜底**（使单测等直接调用方仍能拿到与生产同一份实现）；`delegation-truth.ts` 因此**不再 import bridge.ts**（`commit 95052d5`）。`bridge.ts` 的 `reconcileApprovalWait` 已**还原为原状**（`export` 关键字撤回，函数体与注释块零改动） |
 | **E-3** | `BlockedEntry` 原不含 `createdAtMs` / `risk`，`blockedFor` 构造 `PendingApprovalFact` 需要二者 | 以**可选**字段追加（`createdAtMs?` / `risk?` / `delegationId?` / `attribution?`），`recordBlocked` 登记时写入；缺席回退 `ledger.startedAtMs` / `'L1'`；既有构造点与消费者零改动 |
-| **E-4** | `npm run layout`（`scripts/dep-lint.mjs`，SK-K5 依赖方向守卫）在本仓库**不存在**（`MODULE_NOT_FOUND`） | 无法执行该守卫；改为人工核对依赖方向：新增导出全部落在 `contracts` / `core`，`vm-service` / `adapter-*` **反向依赖**它们（方向未破坏）。回报主理人决定是否补脚本 |
+| **E-4** | `npm run layout`（`scripts/dep-lint.mjs`，SK-K5 依赖方向守卫）在本仓库**不存在**（`MODULE_NOT_FOUND`） | **owner 裁定：已知既存问题（R19F spec 勘误 E-3），本轮不修**，避免扩大改动面。设计文档 §10.3 把它列为门禁项属于引用了失效脚本。**本轮以人工方向核对替代**：新增导出全部落在 `contracts` / `core`，`vm-service` / `adapter-*` **反向依赖**它们（方向未破坏）；E-2 后包内依赖亦恢复单向 `bridge → delegation-truth`。是否补脚本 / 删除该门禁项由 owner 决定（主理人已报备） |
 | **E-5** | 桥侧 `shadow` 态需要「计算但不改判」，而 §7.3 只列了 `enabled` | `deps` 追加**可选** `shadow?: boolean`（缺省 false）；桥构造两个只读字段 `approvalTruthEnabled` / `approvalTruthShadow`（SK-K2）。`on` 态行为与只传 `enabled` 完全一致 |
