@@ -1009,4 +1009,83 @@ graph TD
 - 发现的 **V-1～V-5** 偏差（行号漂移 3 处 + 常驻路径 `blocked` 恒空 1 处 + 通道误标 1 处 + 死代码 1 处）已全数登记在 §0.3，**如实回报**，不自行修订上游。
 - **对外口径建议**：若 owner 认为 V-3（常驻路径 `blocked` 恒空）应在 K-N1 设计文档补记，请由对应 owner 修订 K-N1 文档；CL-K3R 已据该事实完成选型，不依赖其修订。
 
-<!-- APPEND-MARKER -->
+---
+
+## 10. 风险与回滚
+
+> 设计原则：K3R 的每一项新增逻辑都带**独立、可逆、可观测**的回退通道；任何一级验证失败都能在**不碰源码**的前提下回到"今行为"。
+
+### 10.1 回滚总纲（单点 + 零源码）
+| 层级 | 回退手段 | 是否需改源码 | 是否需重建 |
+| --- | --- | --- | --- |
+| **运行期（首选）** | 设 `WINVM_APPROVAL_TRUTH=off` ⇒ T03 门 2 短路 `return base`（今行为） | 否 | 否 |
+| **单测/集成** | 桩 `delegationProbe.approvalWait` 不实现 ⇒ T03 门 3 回退文本启发式 | 否 | 否 |
+| **故障运行期** | 探针抛异常 ⇒ T03 门 4 `try/catch` 回退 + warn（SK-K1） | 否 | 否 |
+| **顽固 / 全撤** | revert T01+T02+T03 三个 CL ⇒ 契约与探针整体消失，桥回到"无 `approvalWait`"旧态 | 是（git revert） | 是（重建 dist） |
+
+- **关键不变量**：`off` / 探针缺失 / 探针异常 三种情形，终态**逐字节等价于今行为**（门 1/2/3/4/5 任一不命中即走 `reconcileApprovalWait` 兜底，函数体未改 ⇒ A5 指纹不丢）。即"新代码对老链路零破坏"是可证明的，不是口头的。
+
+### 10.2 分阶段验证（从 shadow 到 on）
+1. **T0 基线**：先全量跑 §10.3 回归护栏，确认 K3R 未合入前全绿（基准线）。
+2. **T05 shadow 一轮**（默认 `shadow` 或 owner 指定）：结构化判据照常计算，命中只 `warn`（打印"结构化结论 + 文本结论"对账）。量化两个指标：
+   - **K3 命中率**：构造"LLM 不说关键词但确有拦截"的委派（`a2a-extra.mjs k3r`），断言 shadow warn 命中 ⇒ 证判据能抓住假成功。
+   - **串台率**：host 并发直调另一 capability（R-K1 反例），统计误挂本委派次数 ⇒ 应 = 0（R2 排除生效）。
+3. **切 `on`**：shadow 一轮 K3 命中率 > 0 且串台率 = 0 ⇒ 翻 `on`，真机复跑 `k3r` 断言终态 `input-required`。
+4. **回归复跑**：`on` 后再跑 §10.3 全护栏，确认无回退。
+
+### 10.3 回归护栏清单（T05 门禁，必须全绿）
+| 类别 | 条目 | 守门点 |
+| --- | --- | --- |
+| **单测** | `k5-replay` **41/41**（`reconcileExecutionTruth` 两道门未动，这些用例无 `approvalWait` ⇒ 门 3 逐字节旧行为） | D-1 未削弱 |
+|  | `k4-approval` / `k4-p3` / `r19c-a5-*`(22) / `r19c-kn1-a-pure` / `r19c-kn1-b-bridge` / `host-a2a-bridge` / `llm-provider` | A5 修复未回归 |
+|  | **新增** `r19c-k3r-approval-truth` / `r19c-k3r-approval-wait` / `r19c-k3r-bridge-integ`（T04 红档，先红后绿） | K3 真被根治 |
+| **红线 diff** | `git diff --stat -- packages/a2a-framework/src/` **必须为空** | D-4 守门 |
+| **源码可核** | `a2a-framework/src/server.ts:306` 仍是 `rejected` 唯一置位点；`bridge.ts:575`/`parseApprovalBlock` 未改；`reconcileApprovalWait` 文案未改 | D-5 / SK-9 守门 |
+| **构建** | `npx tsc -b tsconfig.build.json --force` 0 error（**先重建 dist 再跑测**） | SK-5 |
+| **依赖方向** | `npm run layout`（`scripts/dep-lint.mjs`）无违规（`contracts`/`core` 新增导出方向正确） | SK-K5 |
+
+### 10.4 专项风险与缓解
+| # | 风险 | 触发 | 缓解（已在设计中） | 兜底 |
+| --- | --- | --- | --- | --- |
+| **R-K1** | **串台误报**：host 并发直调另一 capability 触发拦截，被误挂到本委派 | 常驻路径无 `delegationId`，R3 窗口归因可能跨委派 | R2 精确排除（他人 `delegationId` 一律排除）+ T04 反例夹具断言"不误挂"；窗口边界用 `DelegationLedger.inWindow` 同源阈值 | shadow 一轮量化串台率，>0 即不切 `on` |
+| **R-K2** | 探针缺失/异常 | 老版 vm-service 未注入 / `approvalWait` 未实现 / 执行抛错 | SK-K1 门 3/门 4 fail-open 回退文本启发式 + warn | 终态 = 今行为，无新假成功 |
+| **R-K3** | R3 窗口过宽（把"本委派开始前已拦截、但窗口内才查询"算命中） | `createdAtMs < ctx.started` 的陈旧拦截 | 窗口**下界**用 `ctx.started`（进入时刻），只命中 `createdAtMs >= started` | R2 排除他人；shadow 观测 |
+| **R-K4** | `pendingApprovals` 长会话累积 | VM 长运行未清理 | SK-K3 点名"只含未决 + 重启即空"；清理策略列为 Q5 后续（本轮不实现） | 观测项（§7.5 ⏳），不阻塞 |
+| **R-K5** | dist 未重建导致"改了没生效"假象 | 改 src 未 `tsc -b` | T05 门禁强制 `--force` 重建 + SK-5 口令 | 回归复跑必失败，早暴露 |
+| **R-K6** | 真机 K3 专项构造不出"LLM 不说关键词" | 提示词引导 LLM 仍说关键词 | `a2a-extra.mjs k3r` 用 stub 拦截 + 提示词**显式禁止**说"等待审批"；对照 R19F `overlap` 子命令先例 | 若构造不出，退化为单测 `r19c-k3r-bridge-integ` 端点断言 |
+
+### 10.5 一键回滚操作手册（出问题时）
+```bash
+# 1) 立刻止血（无需改码、无需重建）：
+export WINVM_APPROVAL_TRUTH=off        # T03 门2 短路 ⇒ 退化为今行为
+# 重启 vm-service 进程使 env 生效（pendingApprovals 随之清空，无副作用）
+
+# 2) 若需彻底撤除（顽固场景）：
+git revert <T01> <T02> <T03>           # 三个 CL 整体消失
+npx tsc -b tsconfig.build.json --force # 重建 dist
+# 重启进程 ⇒ 回到 K3R 合入前状态，全量回归应恢复原基线
+```
+- **不可回退项**：无。`a2a-framework/src/**` 零改动（D-4），故回滚不影响 A5 修复、不影响框架。
+
+---
+
+## 附录 A：交付清单（本设计文档自身）
+- 文档路径：`docs/design/cl-k3r-silent-false-success-design.md`（**新建**，未改动任何 `packages/**`/`tests/**`/`qa/**`/`delivery/**`，未改上游三份 A5 文档）。
+- 章节与 commit（按"每节即 commit"纪律，便于增量回滚）：
+  | § | commit | 内容 |
+  | --- | --- | --- |
+  | §0 前置 + §1 问题重述/危害 | `2d2b8a1` | 口径、硬约束、偏差登记 V-1~V-5、K3> A5 定级 |
+  | §2 现状机制 + 时序图 | `497bdec` | 假成功确切产生点 `bridge.ts:616` |
+  | §3 可行性 | `4b054a3` | 5 通道 C-1~C-5、V-3 常驻缺口实证、R1/R2/R3 归因 |
+  | §4 四候选 S1~S4 | `8432b4e` | 推荐 S1 主 + S2 副 + R3 归因 |
+  | §5 根治方案 | `d842122` | 判据函数、7 门表、fail-closed、`WINVM_APPROVAL_TRUTH` 三态、类图 |
+  | §6 契约改动 C-K1/K2/K3 | `d1e504f` | 纯附加可选，非破坏 |
+  | §7 任务分解 T01~T05 | `c5ec792` | 依赖图 + 验收判据 |
+  | §8 共享知识 SK-K1~K7 | `2e4947b` | 继承 R19F SK-1~9 + 新增 K 系列 |
+  | §9 待 owner 拍板 | `72bc728` | D-1~D-3 + Q4~Q7 + 一致性声明 |
+  | §10 风险与回滚 | 本 commit | 单点回滚、分阶段验证、回归护栏、R-K1~R-K6 |
+- **核心可行性结论**：桥**可直读**服务端结构化拦截事实（`pendingApprovals` 同进程 + 哈希链），**无需新通道**；唯一缺口（常驻路径 `blocked` 恒空，V-3）由 R3 窗口归因补齐。
+- **推荐方案**：S1（直读 `pendingApprovals`）主 + S2（哈希链 `blocked` 副）+ R3（窗口归因补常驻路径），结构化优先、文本兜底，fail-closed 单向。
+- **任务数**：5 个 CL（T01 底座 / T02 服务端 / T03 桥侧 / T04 QA 红档 / T05 门禁真机），每任务 ≥3 文件。
+- **待 owner 拍板**：D-1（口径确认）、D-2（`reconcileApprovalWait` 降级 vs SK-9）、D-3（默认 `on` 还是 `shadow` 首发）。
+- **与上游冲突**：无修改；V-1~V-5 偏差已登记并回报，建议主理人据 V-3 补记 K-N1 文档（不由本设计改）。
