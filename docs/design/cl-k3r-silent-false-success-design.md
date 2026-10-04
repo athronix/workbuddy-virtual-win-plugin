@@ -394,4 +394,282 @@ owner 拍板的方向原话是「桥侧直读 MCP 结构化工具结果」。**�
 **理由**：S1 是**唯一**同时满足「权威（拦截发生地）+ 完备（含 risk）+ 零外部依赖 + 失效方向保守」的通道；
 S2 补取证与交叉验证；R3 以最小代价闭合常驻路径的归因缺口；S3/S4 的成本显著高于收益，且 S3 会引入新的外部版本依赖。
 
+---
+
+## 5. 根治方案设计
+
+### 5.1 总览：新判据插在收口链的哪一处
+
+```
+runGoalInner
+  └─ runGoalCore → runPersistent / runOneShot
+        └─ 【新增】reconcileApprovalTruth(base, finalText, deps)   ← ★ 本项插入点（maybeResume 之前）
+              ├─ 结构化优先：probe.approvalWait(...) 有未决事实 ⇒ 改判 ok:false + APPROVAL_REQUIRED（服务端权威字段）
+              └─ 结构化无事实 ⇒ 回退 reconcileApprovalWait(base, finalText)（**原文不动**，现状行为）
+        └─ maybeResume(...)                                   ← 读 base.error，未动
+  └─ reconcileDelegationTruth(...)                            ← K-N1，未动
+  └─ reconcileExecutionTruth(...)                             ← K5 + **D-1 两道门，未动**
+```
+
+**为什么放在 `maybeResume` 之前**：`maybeResume` 的 `blocked` 只读 `base.error` 的结构化字段（`:945`）。
+只有让 `base.error.code === 'APPROVAL_REQUIRED'` 且 `details.approvalId` 有值，`blocked` 才为真 ⇒ 才会 raise ⇒ 才会挂起。
+⇒ **新判据的唯一职责就是"把服务端事实翻译成 `base.error`"**，从而让**既有**的 raise/挂起/重放链路原样工作。
+
+**两处调用点的改动量**（各 1 行函数名替换 + `await`）：
+- `bridge.ts:1179`（常驻路径 `runPersistent` 的 `return { result: await this.maybeResume(reconcileApprovalWait({…}, turn.text), …) }`）
+- `bridge.ts:1365`（单次路径 `runOneShot` 的 `finish(await this.maybeResume(reconcileApprovalWait({…}, stdoutText), …))`）
+
+### 5.2 改造后的数据流（时序图）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CLI as VM 内 codebuddy CLI
+    participant MCP as vm-service /mcp
+    participant PA as pendingApprovals<br/>(同进程 Map)
+    participant LG as DelegationLedger<br/>(blockedEntries)
+    participant Probe as approvalWait 探针<br/>(vm-service 实现)
+    participant Truth as delegation-truth.ts<br/>reconcileApprovalTruth（纯逻辑）
+    participant Bridge as bridge.ts<br/>maybeResume
+    participant Coord as VmApprovalCoordinator
+    participant A2A as a2a-framework
+
+    CLI->>MCP: tools/call（高风险能力）
+    MCP->>PA: set(apr_x, {risk,capabilityId,...,hostApproved:false})
+    MCP->>LG: recordBlocked(seq, apr_x, capId)【B-3 后走窗口归因】
+    MCP-->>CLI: APPROVAL_REQUIRED（结构化，但**不上行**）
+    CLI-->>Truth: turn.text（可能不含关键词）
+
+    Truth->>Probe: approvalWait({delegationTraceId, startedAtMs, capabilities})
+    Probe->>PA: 扫描未决 entry，按 R1/R2/R3 归因
+    Probe->>LG: 交叉取 blockedEntries（副证据）
+    Probe-->>Truth: PendingApprovalFact[]（可能为空）
+
+    alt 有未决事实（★ K3 根治点）
+        Truth->>Truth: 选最早未 raise 的 fact ⇒ 改判 ok:false<br/>+ APPROVAL_REQUIRED + 服务端权威 approvalId/risk
+        Note over Truth: 与 LLM 措辞完全无关
+    else 无事实（或探针缺席/抛错/开关 off/shadow）
+        Truth->>Truth: 回退 reconcileApprovalWait(base, finalText)<br/>（**现状行为逐字不变**，fail-open）
+    end
+
+    Truth-->>Bridge: LlmGoalResult
+    Bridge->>Bridge: blocked = base.error?.code==='APPROVAL_REQUIRED' … :945
+    Bridge->>Coord: raise(req{approvalId, capabilityId, risk, taskId})
+    Coord->>A2A: waitApproval(taskId, enriched) ⇒ input-required
+    Note over Coord,A2A: 挂起 ⇒ K4 安全网命中 ⇒ 终态恒 input-required<br/>宿主批准后重放；拒绝 ⇒ :306 rejected（D-5 不变）
+```
+
+### 5.3 判据函数设计（`reconcileApprovalTruth`，纯逻辑，放 `delegation-truth.ts`）
+
+> 与 `reconcileDelegationTruth` 同文件同风格：无副作用、证据只从注入 `probe` 取、fail-open。
+> **桥侧只做接线**（`bridge.ts` 新增一个 private async 方法转发），便于 `node --test` 零进程断言。
+
+**判定表（自上而下短路）**
+
+| 门 | 条件 | 动作 | 理由 |
+| --- | --- | --- | --- |
+| **门 0** | `!base.ok` | 透传 | 已是失败态，不重复改判（与 `reconcileDelegationTruth` 门 1 同口径） |
+| **门 1** | 无 `taskId`（非委派 / 纯 MCP 直调 / 单测） | 回退文本启发式 | 旧行为逐字不变（SK-1：无归属 ⇒ 不介入） |
+| **门 2** | 灰度开关 `= off` | 回退文本启发式 | 一键回滚面（§5.4） |
+| **门 3** | 无 `probe` 或 `probe.approvalWait` 缺席 | 回退文本启发式 | 兼容旧服务端 / 单测 / degraded；**绝不 warn**（单测大量用例无 probe，warn 会刷屏） |
+| **门 4** | `probe.approvalWait(...)` 抛错 | 回退文本启发式 + **warn 恰一条** | 对齐 `delegation-truth.ts:86`–`:93` 的 fail-open 纪律 |
+| **门 5** | 探针返回 `facts.length === 0` | 回退文本启发式 | **结构化说"无未决审批"时，绝不强行改判** ⇒ 判据只做减法不做加法 |
+| **门 6** | 所有 fact 的 `approvalId` 都已在 `ctx.raised` | 回退文本启发式 | 都挂过起了 ⇒ 交既有的 `applyReceipt` 去重路径（K4 旧 token 复用防护），不二次挂起 |
+| **命中** | 存在未 raise 的未决 fact | **改判**（见下） | ★ K3 根治 |
+
+**命中时的改判产出（字段全为服务端权威值）**
+
+```ts
+{
+  ...base,
+  ok: false,
+  // 与 reconcileApprovalWait 共用**同一前缀**（保 A5 终态指纹可比对能力，SK-9），
+  // 仅以可区分后缀标记来源，便于取证归因（先例：delegation-truth.ts 的 ZERO_ACTIVITY_STEP_SUMMARY）
+  summary:
+    `等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「${base.summary}」未执行完成，` +
+    `须经宿主人工审批后经 MCP 直调通道续跑；approvalId=${fact.approvalId}` +
+    `（来源=服务端结构化判定·${fact.attribution}）`,
+  steps: base.steps.map((s) => ({ ...s, ok: false, summary: '等待审批（未执行完成·服务端结构化判定）' })),
+  error: makeError('APPROVAL_REQUIRED', '服务端结构化记录显示存在未决审批，操作未执行', {
+    details: {
+      approvalId: fact.approvalId,
+      capabilityId: fact.capabilityId,
+      risk: fact.risk,                       // ★ 服务端策略引擎权威值（顺带根治文本正则扣 risk）
+      attribution: fact.attribution,         // 'exact' | 'window'
+      source: 'server-ledger',
+      ...(rest.length ? { others: rest.map((f) => f.approvalId) } : {}),
+    },
+  }),
+}
+```
+
+**选取规则**：`facts` 按 `createdAtMs` 升序，取**第一个**不在 `ctx.raised` 中的（FIFO，最老的未决项优先）；
+其余进 `details.others`；若 `rest.length > 0` ⇒ 记一条 warn（"同一委派存在多个未决审批"，提示宿主逐条处理）。
+
+**与 `reconcileApprovalWait` 的关系（SK-9 合规论证）**
+- `APPROVAL_WAIT_PATTERN`（`:575`）、`parseApprovalBlock`（`:588`）**函数体一字不改**；
+- `reconcileApprovalWait`（`:615`–`:638`）**函数体、文案、steps 改写一字不改**，且**仍在被调用**（门 1/2/3/4/5/6 与"无事实"全走它）；
+- 变的只有它的**角色**：从"唯一判据"变为"兜底判据"。⇒ **未违反 SK-9 的字面要求**；是否越界请 owner 确认（决策点 **D-2**）。
+
+### 5.4 fail-open / fail-closed 的取舍（**本项最关键的安全论证**）
+
+**先给结论：本项把 K3 的失效方向从 fail-open 翻转为 fail-closed，且保留一键回到现状的开关。**
+
+| 情形 | 现状（R19F 后） | 改造后 | 方向 |
+| --- | --- | --- | --- |
+| 拦截发生 + LLM **说了**关键词 | 挂起（正确） | 挂起（正确，走文本兜底；结构化可能也命中，幂等） | 不变 |
+| 拦截发生 + LLM **没说**关键词（**K3**） | **`completed`（假成功）** | **挂起 `input-required`** | ✅ **fail-open → fail-closed** |
+| 拦截未发生 + LLM 没说 | `completed`（正确） | `completed`（正确；探针返回空 ⇒ 门 5 回退） | 不变 |
+| 拦截未发生 + 宿主并发直调在窗口内被拦（**串台**） | `completed`（正确） | **挂起（误报）** | ⚠ **新增 fail-closed 噪声** |
+| 探针缺席 / 抛错 / 开关 off | —— | **完全退回现状** | 不劣化 |
+
+**论证要点（三条）**
+
+1. **新判据只做单向变换**：`ok:true → ok:false`，且**仅在有结构化证据时**触发。
+   ⇒ **它在任何路径上都不可能制造新的假成功**（这是最硬的安全性质）。
+2. **误报的代价是可观测、可恢复的**：任务卡在 `input-required` ⇒ 宿主**看得见**审批卡、可批准（触发服务端重放）或拒绝
+   （⇒ `rejected`，D-5 `:306`）。而**假成功的代价是不可观测、不可恢复的**（宿主以为做完了，不会重试）。
+   ⇒ **宁可多挂一次，不可漏挂一次**。这与 K-N1「宁可放过 completed，不可错杀合法完成」看似相反，
+   实则是**两条判据的失效方向本来就应相反**：K-N1 判的是"有没有做"（缺证据 ⇒ 不应断言完成，但也不应轻易判失败）；
+   本项判的是"有没有被拦"（有证据 ⇒ 必须断言未完成）。**两者不冲突，且合成后覆盖完整**。
+3. **串台概率被三重收窄**：① R2 精确排除他人已归属项；② 能力面过滤（委派 allowlist 最窄）；③ 常驻会话 `enqueue` 串行
+   ⇒ 同一时刻只有一轮 turn。残余窗口主要是"宿主并发 MCP 直调"这一低频场景。
+
+**灰度与回滚开关（三态，先例 `resolveApprovalReplay`，`core/src/constants.ts:205`）**
+
+| 值 | 行为 | 用途 |
+| --- | --- | --- |
+| `on`（**建议默认**） | 新判据生效 | 生产常态 |
+| `shadow` | 只 `warn` 不改判（埋点对拍：结构化说有 / 文本说没有 ⇒ 记一条证据） | **上线前第一轮：量化串台率与命中率** |
+| `off` | 完全退场，行为逐字 = R19F 后现状 | 一键回滚 |
+
+> **我的默认建议：`on`**。理由：K3 是 fail-open 洞（更危险），且 R19F 真机已证「挂起」路径本身健康
+> （报告 §A8.2 ① 静默单跑 11035ms 到挂起、② 交叠 26999ms 到挂起、③ 拒绝得 `rejected`）。
+> 但**强烈建议先 `shadow` 跑一轮真机**（成本极低）再用 `on` —— 列为决策点 **D-3**。
+
+### 5.5 类图（契约 + 服务端实现 + 桥侧接线）
+
+```mermaid
+classDiagram
+    class DelegationTruthProbe {
+        <<interface>>
+        +delegationActivity(delegationTraceId) Promise~DelegationActivityCount~
+        +approvalWait(q) Promise~PendingApprovalFact[]~
+    }
+    note for DelegationTruthProbe "approvalWait? 为**可选**成员（SK-4 纯附加）\n缺席 ⇒ 桥回退文本启发式（旧行为）"
+
+    class ApprovalWaitQuery {
+        <<interface>>
+        +readonly delegationTraceId: string
+        +readonly startedAtMs: number
+        +readonly capabilities?: string[]
+    }
+
+    class PendingApprovalFact {
+        <<interface>>
+        +readonly approvalId: string
+        +readonly capabilityId: string
+        +readonly risk: RiskLevel
+        +readonly createdAtMs: number
+        +readonly attribution: "exact"|"window"
+        +readonly hostApproved: boolean
+        +readonly summary?: string
+    }
+
+    class PendingApproval {
+        <<vm-service>>
+        +readonly approvalId: string
+        +readonly capabilityId: CapabilityId
+        +readonly risk: RiskLevel
+        +readonly createdAtMs: number
+        +hostApproved: boolean
+        +readonly traceId?: string
+        +readonly delegationId?: string
+    }
+    note for PendingApproval "常驻路径 delegationId 缺席\n⇒ 走 R3 窗口归因"
+
+    class DelegationLedger {
+        <<vm-service>>
+        -blockedEntries: BlockedEntry[]
+        +recordBlocked(seq, approvalId, capabilityId)
+        +inWindow(atMs) boolean
+        +isExposed(capabilityId) boolean
+        +blockedFacts() BlockedEntry[]
+    }
+
+    class LedgerRegistry {
+        <<vm-service>>
+        -ledgers: Map~string, DelegationLedger~
+        +begin(traceId, taskId, exposed)
+        +finish(traceId)
+        +activityFor(traceId)
+        +blockedFor(q) PendingApprovalFact[]
+    }
+    note for LedgerRegistry "blockedFor = **新增**：按 R1/R2/R3 归因\n（旧 recordBlocked 只认 delegationId）"
+
+    class ApprovalWaitProbeImpl {
+        <<vm-service/server.ts>>
+        -pendingApprovals: Map~string, PendingApproval~
+        -ledgerReg: LedgerRegistry
+        +approvalWait(q) Promise~PendingApprovalFact[]~
+    }
+
+    class collectApprovalFacts {
+        <<pure / approval-replay.ts>>
+        +collectApprovalFacts(pending, q, nowMs) PendingApprovalFact[]
+    }
+
+    class reconcileApprovalTruth {
+        <<pure / delegation-truth.ts>>
+        +reconcileApprovalTruth(base, finalText, deps) Promise~LlmGoalResult~
+    }
+
+    class reconcileApprovalWait {
+        <<bridge.ts 既有>>
+        +reconcileApprovalWait(base, finalText) LlmGoalResult
+    }
+
+    class CliLlmBridge {
+        +runGoal(input, sink)
+        -runPersistent(input, sink, ctx, resume)
+        -runOneShot(input, sink, ctx, resumeArg)
+        -maybeResume(base, input, sink, ctx, mode)
+        -reconcileExecutionTruth(base, finalText, ctx)
+        -approvalTruthEnabled: boolean
+    }
+
+    class RunContext {
+        +started: number
+        +lastFinalText: string
+        +receipts: Map
+        +raised: Set
+        +replayActive: boolean
+    }
+
+    ApprovalWaitProbeImpl ..|> DelegationTruthProbe : 实现（注入 bridgeCtx.delegationProbe）
+    ApprovalWaitProbeImpl --> collectApprovalFacts : 调用纯函数
+    ApprovalWaitProbeImpl --> PendingApproval : 读令牌表（S1 主通道）
+    ApprovalWaitProbeImpl --> LedgerRegistry : 读 blocked（S2 副通道）
+    LedgerRegistry o-- DelegationLedger
+    DelegationLedger o-- PendingApproval : 归因来源（间接）
+    CliLlmBridge --> reconcileApprovalTruth : 两处调用点接线
+    reconcileApprovalTruth --> reconcileApprovalWait : 门 1-6 / 无事实 ⇒ 回退（原文不动）
+    reconcileApprovalTruth ..> DelegationTruthProbe : 经 input.probe 反查
+    CliLlmBridge --> RunContext : started / raised（归因与去重）
+    CliLlmBridge --> CliLlmBridge : maybeResume（未动）
+```
+
+### 5.6 兼容性与「不劣化」论证（逐条）
+
+| 既有行为 | 是否改变 | 依据 |
+| --- | --- | --- |
+| 纯 MCP 直调（无 `taskId`） | **不变** | 门 1（SK-1：无归属不介入） |
+| 单测中大量"无 probe / 无 coordinator"用例 | **不变** | 门 3；且新判据在 `maybeResume` 之前，`maybeResume` 的 `:946` 无 coordinator 分支仍原样生效 |
+| `k5-replay.test.js` 41 例（**D-1 红线**） | **不变** | 两道门本身零改动；且这些用例无 `probe.approvalWait` ⇒ 门 3 回退文本 ⇒ 与现状**逐字节**一致 |
+| `r19c-a5-*` 22 例（R19F 红档已转绿） | **不变** | 同上；新判据的改判产物只在"有未决事实"时出现，而这些用例注入的 stub 探针可保持不带 `approvalWait` |
+| A5 终态文案（SK-9 对照基准） | **不变** | 文本路径一字未改；新路径用**同一前缀 + 可区分后缀**，不覆盖旧文案 |
+| `rejected` 唯一置位点（D-5） | **不变** | 未新增任何 `rejected` 置位；新判据只增加"挂起"的机会 |
+| `a2a-framework/**`（D-4） | **零改动** | 本方案不需要 |
+| 委派成功路径（无拦截） | **不变** | 探针返回空 ⇒ 门 5 回退 |
+
 <!-- APPEND-MARKER -->
