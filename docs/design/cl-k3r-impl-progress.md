@@ -204,6 +204,31 @@ commit 计划：① `docs(k3r): E-2b/E-3 实施计划落盘（防中断零产出
 ② `refactor(k3r): E-2b 第三级兜底可观测（无兜底时 warn，判定逐字不变）`；
 ③ `feat(k3r): E-3 灰度开关运行时指纹（/health.provider.approvalTruth 三态可观测）`。
 
+### 8.5 E-2b/E-3 实施结果（自证留档）
+
+| # | commit | 内容 |
+|---|---|---|
+| E-2b | `c3899d4` | `refactor(k3r): E-2b 第三级兜底可观测（无兜底时 warn，判定逐字不变）` —— `delegation-truth.ts` 兜底解析拆为 `fallback`（可缺席）+ `runFallback(gate,…)`；命中第三级时按实际门（门1/门2/门3/门5/门6）emit 恰一条 warn（文案/meta 见任务书），返回值恒为 base。门4（探针异常）已有自己的 warn，按「恰一条」纪律**不叠加** E-2b warn（gate 枚举刻意不含门4）。shadow 对拍路径用 `fallbackOrIdentity`（与 E-2 语义逐字一致，恒等透传不 warn——该路径已有 `[shadow]` 指纹） |
+| E-3 | `614c6ad` | `feat(k3r): E-3 灰度开关运行时指纹（/health.provider.approvalTruth 三态可观测）` —— ① `contracts/bridge.ts` `HealthStatus` 顶层加可选字段 `approvalTruth?: { mode: 'on'\|'shadow'\|'off'; enabled: boolean; shadow: boolean }`（字面量联合，零 `@winvm/core` import，既有字段零改动）；② adapter `index.ts` 构造期一次性解析 `approvalTruthMode`（与注入 bridge 的同一解析值同源），`health()` 只读该 readonly 字段（零 `process.env` 重读） |
+
+**验收重跑（E-2b + E-3 合并后）**：
+
+```
+四道闸：r19c-k3r-approval-truth 11/11、r19c-k3r-approval-wait 10/10、
+        r19c-k3r-bridge-integ 2/2、k5-replay 41/41 —— fail 全 0
+K-N1 七文件：a-pure 76、b-bridge 23、c-session 17、d-provider 28、
+        e-shape 33、e-mutation 49、f-chain 16 —— 合计 242，fail 全 0
+tsc -b tsconfig.build.json --force → 0 error
+D-4：git diff --stat 95052d5..HEAD -- packages/a2a-framework/src/ → 0 行（空）
+SK-9：git diff 95052d5..HEAD -- bridge.ts 中 APPROVAL_WAIT_PATTERN|parseApprovalBlock|
+      function reconcileApprovalWait|return base 的 +/- 行 → 零命中（grep 退出码 1）
+E-3 三态指纹（/storage/Users/currentUser/wbtmp/e3-fingerprint.mjs，env 置 off 噪声下仍如实透出）：
+  mode=on     → approvalTruth={"mode":"on","enabled":true,"shadow":false}
+  mode=shadow → approvalTruth={"mode":"shadow","enabled":true,"shadow":true}
+  mode=off    → approvalTruth={"mode":"off","enabled":false,"shadow":false}
+  PASS: 3/3 档逐字对应（mode/enabled/shadow），三态互异，构造期解析同源。
+```
+
 ---
 
 ## 7. 实施中发现的设计偏差与环境事实（登记，不自行改设计文档）
