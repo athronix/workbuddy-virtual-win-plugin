@@ -672,4 +672,110 @@ classDiagram
 | `a2a-framework/**`（D-4） | **零改动** | 本方案不需要 |
 | 委派成功路径（无拦截） | **不变** | 探针返回空 ⇒ 门 5 回退 |
 
+---
+
+## 6. 契约改动清单（若有，按 C-1~C-6 格式）
+
+> 通用判定：**全部为「纯附加可选」类增补**（对齐 R19F 的 SK-4），**无一项破坏性变更**。
+> 改动集中在 `packages/contracts/src/bridge.ts`；`packages/core/src/constants.ts` 的 env 开关属**常量而非契约**（单列 §9-Q3）。
+
+### 6.1 C-K1｜`DelegationTruthProbe.approvalWait?`（**必改**）
+
+**落点**：`packages/contracts/src/bridge.ts`（`DelegationTruthProbe` 段，`:520` 之后）
+
+**Before（现状，`:520`–`:522`）**
+```ts
+export interface DelegationTruthProbe {
+  /** 查询该委派回合的真实活动证据（按委派 traceId） */
+  delegationActivity(delegationTraceId: string): Promise<DelegationActivityCount>;
+}
+```
+
+**After（仅追加一个**可选**方法）**
+```ts
+export interface DelegationTruthProbe {
+  /** 查询该委派回合的真实活动证据（按委派 traceId） */
+  delegationActivity(delegationTraceId: string): Promise<DelegationActivityCount>;
+
+  /**
+   * CL-K3R（**纯附加可选成员**）：反查「本委派回合内是否仍有**未决**审批」。
+   *
+   * 与 `delegationActivity` 同源：桥在收口处用它替代/补强「LLM 文本是否说等待审批」的启发式
+   * （根因 `APPROVAL_WAIT_PATTERN` 仅作兜底）。返回空集 ⇒ 桥回退文本启发式（旧行为逐字不变）。
+   *
+   * 缺席（旧服务端 / 单测 / degraded）⇒ 桥侧 `undefined` 检查后**完全退回 R19F 后现状**（fail-open），
+   * 既不影响既有实现方（不强制实现），也不影响既有调用方（`reconcileDelegationTruth` 门 3 短路）。
+   */
+  approvalWait?(q: ApprovalWaitQuery): Promise<readonly PendingApprovalFact[]>;
+}
+```
+
+**破坏性判定**：**非破坏**（可选方法；TS 结构化类型下既有实现方不实现它仍 `implements` 通过；既有消费方不调它仍合法）。
+
+**向后兼容论证**
+1. 唯一实现方 `vm-service/src/server.ts:427` `delegationProbe`（对象字面量）未实现 `approvalWait` ⇒ 仍合法；本 CL 在**同处**补上实现（§7 T02）。
+2. 既有单测桩（如 `tests/unit/r19c-kn1-a-pure.test.js` 的 probe 注入）多为 `{ delegationActivity: async () => ({...}) }` ⇒ 不实现可选成员 ⇒ 合法。
+3. 桥侧消费点（`delegation-truth.ts`）以 `'approvalWait' in probe && probe.approvalWait` 守卫 ⇒ 缺席即回退。
+
+### 6.2 C-K2｜`ApprovalWaitQuery`（**新增导出类型**）
+
+**落点**：`packages/contracts/src/bridge.ts`（`DelegationTruthProbe` 段之后；与 `DelegationActivityCount` 同级）
+
+**Before**：无。**After**
+```ts
+/** CL-K3R：未决审批反查的入参（全部为服务端可得/桥可推算的事实） */
+export interface ApprovalWaitQuery {
+  /** 本委派 traceId（= `GoalRequest.traceId`，账本/令牌表键） */
+  readonly delegationTraceId: string;
+  /** 委派回合开始时刻（ms，= `RunContext.started`）—— R3 时间窗归因下界 */
+  readonly startedAtMs: number;
+  /**
+   * 委派能力面（`LlmGoalInput.capabilities` = `GoalRequest.allowedCapabilities`）。
+   * 非空 ⇒ 只认落在能力面的未决审批（R3 收窄串台）；空/缺席 ⇒ 不按能力过滤。
+   */
+  readonly capabilities?: readonly string[];
+}
+```
+
+**破坏性判定**：**非破坏**（纯新增导出接口）。
+
+### 6.3 C-K3｜`PendingApprovalFact`（**新增导出类型**）
+
+**落点**：`packages/contracts/src/bridge.ts`（C-K2 之后）
+
+**Before**：无。**After**
+```ts
+/** CL-K3R：一条未决审批的结构化事实（服务端权威，桥据以改判「等待审批」） */
+export interface PendingApprovalFact {
+  readonly approvalId: string;
+  readonly capabilityId: CapabilityId;
+  /** 服务端策略引擎判定值（顺带根治 `parseApprovalBlock` 的文本正则扣 risk，根因 §4.3） */
+  readonly risk: RiskLevel;
+  readonly createdAtMs: number;
+  /** 归因方式：'exact' = dtid 精确（单次 -p 路径）/ 'window' = 时间窗兜底（常驻路径） */
+  readonly attribution: 'exact' | 'window';
+  /** 恒 false（探针只返回未决项；已批准/超时已被服务端 delete） */
+  readonly hostApproved: boolean;
+  /** 服务端可读摘要（preview/underlying 派生），供审批卡与日志 */
+  readonly summary?: string;
+}
+```
+
+**破坏性判定**：**非破坏**（纯新增导出接口）。
+
+### 6.4 调用点清单（`git grep` 全仓，HEAD `6dca16e`）
+
+| 类别 | 位置 | 本 CL 动作 |
+| --- | --- | --- |
+| 契约声明 | `packages/contracts/src/bridge.ts:520` `DelegationTruthProbe` | 加可选 `approvalWait?`（C-K1） |
+| 契约新增 | `packages/contracts/src/bridge.ts`（`:522` 之后） | `ApprovalWaitQuery` / `PendingApprovalFact`（C-K2/C-K3） |
+| 唯一实现 | `packages/vm-service/src/server.ts:427` `delegationProbe` | 补 `approvalWait`（读 `pendingApprovals` + 账本，§7 T02） |
+| 桥侧消费 | `packages/adapter-agent-workbuddy-llm/src/delegation-truth.ts`（新增 `reconcileApprovalTruth`） | 读 `input.probe?.approvalWait?` |
+| 桥侧接线 | `packages/adapter-agent-workbuddy-llm/src/bridge.ts:1179` / `:1365` | `reconcileApprovalWait(...)` → `await this.reconcileApprovalTruth(...)` |
+| 桥侧注入 | `packages/adapter-agent-workbuddy-llm/src/index.ts:352` 已透传 `probe: this.probe` | **不改**（probe 对象已含可选成员） |
+| 经 `LlmGoalInput` | `packages/adapter-agent-workbuddy-llm/src/bridge.ts:70` `probe?: DelegationTruthProbe` | **不改**（类型已覆盖） |
+| `packages/a2a-framework/**` | — | **零改动**（D-4 守门） |
+
+> 注：章首"无破坏性"结论与 R19F §1 一致；本 CL 不碰 `APPROVAL_WAIT_PATTERN` / `parseApprovalBlock` / `reconcileApprovalWait`（SK-9）。
+
 <!-- APPEND-MARKER -->
