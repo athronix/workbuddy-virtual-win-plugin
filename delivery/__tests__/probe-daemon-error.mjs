@@ -139,7 +139,7 @@ export async function runProbe(o) {
   const argv = [
     '--vm-host', '172.16.100.2',
     '--vm-user', 'User',
-    '--key', join(workDir, 'missing-key'), // 不提供 key ⇒ password=None/privateKey=None
+    // 不传 --key：改用环境变量 WINVM_VM_PASSWORD 走通启动路径（凭据仅经 env 传入）。
     '--local-port', '18443',
     '--remote-port', '18443',
     '--pidfile', pidfile,
@@ -182,17 +182,6 @@ export async function runProbe(o) {
   const stateAfterInject = readState(statePath);
   emit({ kind: 'state-after-inject', state: stateAfterInject });
 
-  // 优雅收尾：SIGTERM → shutdown → 清理 pidfile/state
-  let termExitCode = null;
-  const before = Date.now();
-  try {
-    process.kill(process.pid, 'SIGTERM');
-  } catch {
-    /* ignore */
-  }
-  await sleep(800);
-  termExitCode = Date.now() - before;
-
   const result = {
     inject: o.inject,
     observeMs: o.observeMs,
@@ -204,12 +193,9 @@ export async function runProbe(o) {
     stateAfterInject,
     pidfileExistedAtEnd: existsSync(pidfile),
     stateExistedAtEnd: existsSync(statePath),
-    termWaitMs: termExitCode,
     logTail: readLogTail(logPath),
   };
-
-  // 保险：若上面 SIGTERM 未生效（例如被表单 halten），强制退出
-  process.exit(0);
+  return result;
 }
 
 /** 读取日志尾部若干行（避免日志过大）。 */

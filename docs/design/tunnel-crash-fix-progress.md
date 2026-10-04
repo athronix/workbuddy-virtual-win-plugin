@@ -69,14 +69,88 @@ Emitted 'error' event on OhSshTunnel instance at:
     at file:///…/delivery/oh-tunnel.mjs:414:16
 ```
 
-### after（修复后）
+### after（修复后，已取证，2026-10-04 09:5? 本地子进程注入）
 
-> 待补 —— 见 §5 验证记录。
+三场景均**不再崩溃**，且走退避重连 / 恢复可用；守护进程层 state 文件记录原因。
+
+| 场景 | 结果 |
+|---|---|
+| `forward-out-error-no-listener` | `survived:true`、`reconnectingCount:1`、`reconnectedCount:1`、`connectCount:2`、无 `Unhandled 'error' event`、stop 干净 |
+| `client-error-no-listener` | `survived:true`、`reconnectingCount:1`、`reconnectedCount:1` —— **假活已消除**（修复前该值为 0 且 aliveAtEnd=true） |
+| `forward-out-error-with-listener` | `survived:true`、`tunnelErrorEvents:["No response from server"]`、`reconnectingCount:1` |
+
+守护进程层（`runDaemon` 注入 `deps`）：
+
+- `forward-out-error` 注入后：日志出现 `WARN 隧道错误（已内部消化，走退避重连）：No response from server`；
+  `stateAfterInject.state=RUNNING`、`lastEvent=reconnected`、`pidfile/state` 仍存在（进程存活）；
+- `client-error` 注入后：同上，`stateAfterInject.state=RUNNING`、`reconnected`。
+
+关键对照（同一注入，前后差异）：
+
+```
+BEFORE  forward-out-error-no-listener → exit 1 / Unhandled 'error' event / oh-tunnel.mjs:414:16
+AFTER   forward-out-error-no-listener → exit 0 / 退避重连 / 恢复 RUNNING / 无 Unhandled
+```
 
 ## 4. commit 清单
 
-> 逐单元追加。
+| hash | 范围 | 内容 |
+|---|---|---|
+| `d68d430` | delivery/__tests__/* + docs | 故障注入探针（before 证据）+ 进度文档（**未改产品代码**） |
+| `4d53bd9` | delivery/oh-tunnel.mjs | 核心修复：_safeEmit/_safeEmitError、错误分级重连、消除假活、teardown 兜底、giveup 终态 |
+| `ccab0b3` | delivery/tunnel-daemon.mjs | 守护进程注册 error/giveup 监听 + uncaughtException 兜底 + writeStateAtom(extra) |
+| `（末单元）` | delivery/__tests__/oh-tunnel-error-handling.test.mjs + docs | 单测 + 进度收口 |
+
+全部 commit 均**零触碰** `packages/**`、`tests/**`、`docs/test/**`、`qa/**`。
 
 ## 5. 验证记录
 
-> 逐单元追加。
+### 5.1 本地可跑（已执行，子进程取证）
+
+- 既有单测无回归（单文件跑）：
+  - `node --test tests/unit/oh-tunnel.test.mjs` → **19/19 pass**
+  - `node --test tests/unit/tunnel-daemon.test.mjs` → **10/10 pass**（QA 独占区，仅运行未改）
+- 新建崩溃修复单测（单文件跑，符合「单测绝不整批跑」）：
+  - `node --test delivery/__tests__/oh-tunnel-error-handling.test.mjs` → **8/8 pass**
+    - 分类器连接层判定（No response from server / keepalive / econnreset …）
+    - 隧道类层 forwardOut / client-error 注入：子进程不崩 + 退避重连 + 恢复
+    - 守护进程层注入：存活 + state 记录原因 + 18443 仍可用
+    - 进程内：未注册 error 监听时 forwardOut 失败只触发重连、不抛未捕获异常
+
+### 5.2 真机验证（由主理人在主会话执行，见下节口令）
+
+## 6. 真机验证口令清单（交主理人执行）
+
+> 环境事实：隧道只能跑在主理人的网络命名空间；子 agent 到 172.16.100.2 是 EHOSTUNREACH、本地 18443 是 ECONNREFUSED。故以下步骤由主理人执行并把原始输出回传。
+
+### 6.1 拉起（与现有命令一致，CLI 契约未变）
+
+```bash
+node delivery/tunnel-daemon.mjs \
+  --vm-host 172.16.100.2 --vm-user User \
+  --key /storage/Users/currentUser/.ssh/id_ed25519
+# pidfile 默认 ~/.workbuddy/winvm/tunnel.pid，state 默认 ~/.workbuddy/winvm/tunnel.state.json
+```
+
+### 6.2 注入故障 + 判定通过
+
+- **判定通过（修复生效）**：
+  - `tunnel.state.json` 在 VM 侧 sshd 抖动/断链时呈 `DEGRADED` 并带 `lastError`/`errorCount`，随后自动回到 `RUNNING`（不再整进程退出，pidfile 不消失、18443 仍监听）；
+  - 即便未捕获的单次错误也不出现进程退出；日志出现 `WARN 隧道错误（已内部消化，走退避重连）：<原因>`。
+- **注入方式（任选其一，纯真机侧）**：
+  1. 临时 kill 掉 VM 内 sshd / 断 VM 网络数秒再恢复 → 触发 keepalive 超时 `No response from server` / 通道打开失败；
+  2. 在 VM 上 `systemctl restart ssh` 或拔网卡 → 触发 `close` / 连接层 `error`；
+  3. 观察：`tail -f ~/.workbuddy/winvm/tunnel.log`，看 `WARN 隧道错误…` 与 `隧道已就绪…` 交替（自愈）。
+- **有序退出判定**：把 `maxAttempts` 压到极低（临时改 `--vm-host` 指向不可达地址 + 该实例 `maxAttempts` 注入）后，state 应落 `STOPPED` 并带 `reason`/`attempts`，pidfile 被清理，进程退出码非崩溃（不静默死）。
+
+### 6.3 回环绑定自检（安全约束未被破坏）
+
+- 确认监听仅 `127.0.0.1`：`ss -ltnp | grep 18443` 应显示 `127.0.0.1:18443`，**不得**出现 `0.0.0.0` / `:::18443`。
+- 代码中 `LOOPBACK_HOSTS` 白名单未动；`normalizeOpts` 仍拒绝非回环 `localBindHost`。
+
+## 7. 偏离与未决项
+
+- **偏离**：原 `maxAttempts` 默认 `Infinity`（永不放弃，符合「默认持续」语义）。修复保留该默认，仅当显式给上限时才会触发 `giveup` 有序退出；「连续重连失败达上限」机制已实现并通过 `giveup` 事件 + state 可诊断。若主理人希望默认也设上限（如 30 次），请裁定。
+- **未动**：启动期 VM 不可达的有序退出（2s、日志清晰、不 crash）保持原样，未触碰。
+- **进程级 uncaughtException 兜底**（daemon 内）是有意取舍：单次异常不再致命，但会写 state 保持可诊断；若主理人认为应更激进（如 N 次后退出）可再加计数门限。
+
