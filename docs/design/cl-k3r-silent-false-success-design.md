@@ -778,4 +778,123 @@ export interface PendingApprovalFact {
 
 > 注：章首"无破坏性"结论与 R19F §1 一致；本 CL 不碰 `APPROVAL_WAIT_PATTERN` / `parseApprovalBlock` / `reconcileApprovalWait`（SK-9）。
 
+---
+
+## 7. 任务分解（有序，T01…T05，每节即 commit）
+
+> 5 个任务，按依赖顺序执行。**每个 CL 单独 commit**（便于回滚）。T01 是底座（契约 + 常量 + 账本归因），
+> T02/T03 是两套可独立验证的改动面（服务端 / 桥侧），T04 是 QA 前置红档，T05 是门禁与真机终验收口。
+> **每个任务 ≥3 个相关文件**，T01 为基础设施（契约 + 常量 + 归因底座，全放一个任务）。
+
+### 7.1 T01 —— 契约与取证底座（P0，无依赖）
+
+**目标**：把 §6 的 C-K1/C-K2/C-K3 与灰度开关常量一次落齐，**不改任何行为**。
+
+| 文件 | 落点 | 动作 |
+| --- | --- | --- |
+| `packages/contracts/src/bridge.ts` | `DelegationTruthProbe`（`:520` 后）/ 其后 | C-K1 `approvalWait?` + C-K2 `ApprovalWaitQuery` + C-K3 `PendingApprovalFact`（§6 原文） |
+| `packages/core/src/constants.ts` | `ENV_APPROVAL_REPLAY`/`resolveApprovalReplay`（`:201`/`:205` 旁 | 新增 `ENV_APPROVAL_TRUTH = 'WINVM_APPROVAL_TRUTH'` + `resolveApprovalTruth(env): 'on'\|'shadow'\|'off'`（缺省 `'on'`，非法值回退 `'on'`） |
+| `packages/vm-service/src/delegation-audit.ts` | `LedgerRegistry`（`:282` 后）/ `DelegationLedger` | 新增 `LedgerRegistry.blockedFor(q): PendingApprovalFact[]`（R1/R2/R3 归因实现，经 `ApprovalWaitQuery`）、`DelegationLedger.blockedFacts(): BlockedEntry[]`；`recordBlocked` 窗口归因入口仍为 server 调用侧（§7.2 T02 接入） |
+
+**实现顺序**：contracts 类型 → core 常量 → delegation-audit 归因纯逻辑。
+
+**验收判据**
+1. `npx tsc -b tsconfig.build.json` 全量 0 error（含新增导出可解析）。
+2. `resolveApprovalTruth` 三态单测：`'on'`/`'shadow'`/`'off'` 与非法值回退（仿 R19F E-2 根级构建路径）。
+3. `blockedFor` 与 `blockedFacts` 纯单测：**尚未接入拦截点**，但逻辑可独立断言（R1 exact / R2 排除他人 / R3 窗口）。
+
+**可回滚性**：纯增补，revert 无副作用。
+
+### 7.2 T02 —— 服务端探针实现与注入（P0，依赖 T01）
+
+**目标**：把"未决审批"事实经 `DelegationTruthProbe.approvalWait` 暴露给桥，并让常驻路径的 `blocked` 真正入账本。
+
+| 文件 | 落点 | 动作 |
+| --- | --- | --- |
+| `packages/vm-service/src/approval-replay.ts` | 文件末尾（仿 `recordBlockedApprovalAudit` 在 `:64`） | 新增**纯函数** `collectApprovalFacts(pendingApprovals: Map, q: ApprovalWaitQuery, nowMs: number): PendingApprovalFact[]` —— S1 主通道事实构造（R1/R2/R3 + 只返未决项 + 能力面过滤） |
+| `packages/vm-service/src/server.ts` | `:427` `delegationProbe` 对象字面量内补 `approvalWait`；`:771` `ledger?.recordBlocked(...)` | ① `approvalWait: async (q) => [...collectApprovalFacts(this.pendingApprovals, q, Date.now()), ...ledgerReg.blockedFor(q)]`；② `recordBlocked` 窗口归因：`:771` 改为 `ledgerReg.recordBlockedWindow(seq, id, cap.id, q?)`（或复用 `blockedFor` 反向写入），使常驻路径 `blockedEntries` 不再恒空（补 V-3） |
+| `packages/vm-service/src/index.ts` | 导出表（`:16` `recordBlockedApprovalAudit` 旁） | re-export `collectApprovalFacts` / `PendingApprovalFact` |
+
+**实现顺序**：纯函数 → 探针实现 + 拦截点归因 → 导出。
+
+**验收判据**
+1. `collectApprovalFacts` 三规则单测：given 两条 `pendingApprovals`，一条 `delegationId===myTrace`（R1）、一条 `delegationId===其他`（R2 排除）、一条无 delegationId 且 `createdAtMs>=startedAtMs`（R3 命中）⇒ 返回前者 + 后者，排除中间的。
+2. 常驻路径归因：stub 一个无 `delegationId` 的 `pendingApprovals` 条目 + `ledgerReg.begin` 注册常驻委派 ⇒ `blockedFor` 返回 ≥1 ⇒ 证 `blocked` 通道在常驻路径**不再恒 0**。
+3. `git diff --stat -- packages/a2a-framework/src/` **为空**（D-4 守门）。
+
+**可回滚性**：revert 即回到"探针缺席"；桥侧门 3 自动退回文本启发式。
+
+### 7.3 T03 —— 桥侧纯逻辑判据与接线（P0，依赖 T01）
+
+**目标**：新增 `reconcileApprovalTruth`（结构化优先、文本兜底），接入两处收口点。
+
+| 文件 | 落点 | 动作 |
+| --- | --- | --- |
+| `packages/adapter-agent-workbuddy-llm/src/delegation-truth.ts` | `reconcileDelegationTruth`（`:73`）之后 | 新增导出 `reconcileApprovalTruth(base, finalText, deps)`（§5.3 判定表 7 门 + 命中改判产出；零副作用、fail-open） |
+| `packages/adapter-agent-workbuddy-llm/src/bridge.ts` | `:724` `this.replayEnabled = ...` 旁；`:1179` `runPersistent`；`:1365` `runOneShot` | ① 加 `private readonly approvalTruthEnabled: boolean`（构造自 `resolveApprovalTruth(process.env)`）；② 两处 `reconcileApprovalWait({…}, text)` → `await this.reconcileApprovalTruth({…}, text, { input, ctx, enabled: this.approvalTruthEnabled })` |
+| `packages/adapter-agent-workbuddy-llm/src/index.ts` | `:724` 同形 `resolveApprovalReplay` 引入处 | `import { resolveApprovalTruth } from '@winvm/core';` + 构造 `approvalTruthEnabled: resolveApprovalTruth(process.env)`（若 provider 需从 cfg 覆盖，走既有 `opts` 注入范式） |
+
+**实现顺序**：纯函数 → bridge 接线（2 处 + 开关）→ index 注入。
+
+**验收判据**
+1. `reconcileApprovalTruth` 判定表单测：门 0（!ok 透传）/ 门 1（无 taskId 回退文本）/ 门 2（开关 off 回退）/ 门 3（无 probe 回退）/ 门 4（探针抛错 → 回退 + warn）/ 门 5（facts 空 → 回退）/ 门 6（全在 raised → 回退）/ 命中（改判 ok:false + APPROVAL_REQUIRED + 服务端 approvalId）。
+2. 桥集成（stub 探针返回未决事实）：`runPersistent`/`runOneShot` 终态 `base.error.code==='APPROVAL_REQUIRED'` 且 `details.approvalId` 取自服务端 ⇒ `maybeResume` 走 raise ⇒ 挂起（不再 completed）。
+3. `k5-replay.test.js` **41/41 绿**（D-1 两道门未动，且这些用例无 `approvalWait` ⇒ 门 3 逐字节旧行为）。
+
+**可回滚性**：revert `bridge.ts` 接线即回到文本启发式；纯函数无副作用。
+
+### 7.4 T04 —— QA 前置红档与并发/串台夹具（P0，依赖 T02/T03，QA 独占）
+
+**目标**：在合并前把"K3 被根治"钉成红档（含**反例**：串台误报受控）。
+
+| 文件 | 动作 |
+| --- | --- |
+| `tests/unit/r19c-k3r-approval-truth.test.js` | `reconcileApprovalTruth` 判定表 7 门断言 + 归因选择（最早未 raise 优先 + `others`） |
+| `tests/unit/r19c-k3r-approval-wait.test.js` | `collectApprovalFacts` / `blockedFor` 的 R1/R2/R3 三规则 + **串台排除**（host 并发直调不误挂本委派） |
+| `tests/unit/r19c-k3r-bridge-integ.test.js` | 端到端：stub 探针返回未决事实、stub CLI 文本**不含**关键词 ⇒ 终态应 `input-required`（**不再 completed**）；对照 R19c 的双桥共享 coordinator 骨架与 `gate` 文件因果序（根因 §6.2/§8.2） |
+
+**纪律**：与 R19F 同 —— 本 CL 桥侧已是纯逻辑，可**先红档后接线**；但**改完 packages 必须同批跑绿**（避免"改了没测"假象，R19F E-1 已订正结论）。
+
+### 7.5 T05 —— 门禁、守门与真机终验收口（P0，依赖 T03/T04）
+
+**目标**：把"改完能跑"变成"改完有证据"，并在真机**验证 K3 专项**（而非仅回归 A5）。
+
+| 文件 | 动作 |
+| --- | --- |
+| `qa/r19/a2a-extra.mjs` | 新增 `k3r` 子命令：构造「LLM **不含**关键词但确有拦截」的委派（stub 已拦截 + 提示词引导 LLM 不说"等待审批"），断言终态 `input-required` 而非 `completed`（仿 `overlap` 子命令 `b01a41a`） |
+| `docs/design/a5-approval-drop-fix-impl-progress.md` | Engineer 独占：落 CL-K3R 增量进度（仿 R19F 同名文档 §0 环境事实 + 逐 T 验收） |
+| `docs/test/reports/a2a-coverage-2026-10-03.md` | QA 独占：新增 §A9 CL-K3R 终验（shadow 一轮命中率/串台率 + 切 on 后 K3 专项 + D-4/D-1 守门结论） |
+
+**动作清单（门禁）**
+1. `npx tsc -b tsconfig.build.json --force` 重建 dist（SK-5，E-2 根级路径）。
+2. 全量受影响单测：`k5-replay`(41) / `k4-approval` / `k4-p3` / `r19c-a5-*`(22) / `r19c-k3r-*` / `r19c-kn1-a-pure` / `r19c-kn1-b-bridge` / `host-a2a-bridge` / `llm-provider`。
+3. `git diff --stat -- packages/a2a-framework/src/` **空**（D-4 守门）。
+4. 源码可核：`a2a-framework/src/server.ts:306` 仍是 `rejected` 唯一置位点；`bridge.ts:575`/`parseApprovalBlock` 未改；`reconcileApprovalWait` 文案未改。
+
+**验收判据（整体「通过」定义）**
+- ✅ `r19c-k3r-*` 全绿；`k5-replay` 41/41 绿（D-1 未削弱）。
+- ✅ `tsc -b` 0 error；`a2a-framework/src/**` 守门空。
+- ✅ **真机 K3 专项**（`k3r` 子命令）：构造"LLM 不说关键词" ⇒ 终态 `input-required`（R19F 后的**新增**判定，证明 K3 假成功被结构性消除）。
+- ✅ **真机 shadow 一轮**：量化 R3 串台率（host 并发直调误报次数），供 owner 决策默认 `on`。
+- ⏳ 非门禁：VM 重启/长期运行后 `pendingApprovals` 累积观测（§9-Q5 待办）。
+
+### 7.6 任务依赖图
+
+```mermaid
+graph TD
+    T01["T01 契约与取证底座 (P0)<br/>contracts: ApprovalWaitQuery/PendingApprovalFact/approvalWait?<br/>core: WINVM_APPROVAL_TRUTH 三态<br/>delegation-audit: blockedFor/blockedFacts"]
+    T02["T02 服务端探针 (P0)<br/>approval-replay: collectApprovalFacts<br/>server: delegationProbe.approvalWait + recordBlocked 窗口归因<br/>index: 导出"]
+    T03["T03 桥侧判据与接线 (P0)<br/>delegation-truth: reconcileApprovalTruth<br/>bridge: 两处调用点 + 开关<br/>index: 注入"]
+    T04["T04 QA 前置红档 (P0)<br/>r19c-k3r-approval-truth/-wait/-bridge-integ"]
+    T05["T05 门禁与真机终验 (P0)<br/>a2a-extra.mjs:k3r 子命令<br/>impl-progress / coverage §A9"]
+
+    T01 --> T02
+    T01 --> T03
+    T02 --> T05
+    T03 --> T04
+    T03 --> T05
+    T04 --> T05
+    A2b["A2b 已证事实<br/>生产 A2A 主链路必带 taskId"] -.T03 门1 依赖.-> T03
+```
+
 <!-- APPEND-MARKER -->
