@@ -30,6 +30,7 @@
  */
 
 import type {
+  ApprovalWaitQuery,
   AuditExt,
   AuditPrincipal,
   AuditRecord,
@@ -37,6 +38,7 @@ import type {
   DelegationActivity,
   DelegationActivityCount,
   Logger,
+  PendingApprovalFact,
   RiskLevel,
   TaskState,
 } from '@winvm/contracts';
@@ -83,11 +85,36 @@ function sanitizeText(value: unknown, key: string, max: number): string {
 
 /* ============================ 1. 委派账本 ============================ */
 
-/** blocked 条目登记形状（`recordBlockedApprovalAudit` 回调携带） */
+/**
+ * blocked 条目登记形状（`recordBlockedApprovalAudit` 回调携带）。
+ *
+ * CL-K3R（**纯附加可选**）：追加归因与事实字段，供 `LedgerRegistry.blockedFor` 构造
+ * `PendingApprovalFact`（S2 副通道）。全部可选 ⇒ 既有构造点（`recordBlocked(seq, id, cap)`）行为逐字不变。
+ */
 export interface BlockedEntry {
   readonly approvalId: string;
   readonly capabilityId: string;
   readonly seq: number;
+  /** 拦截登记时刻（R3 时间窗归因的被比较值；缺席回退所属账本 `startedAtMs`） */
+  readonly createdAtMs?: number;
+  /** 服务端策略引擎风险级（缺席回退 `'L1'`；S1 主通道 `pendingApprovals` 才是权威来源） */
+  readonly risk?: RiskLevel;
+  /** 精确归因命中时的委派 traceId（R1/R2 判定依据；缺席 ⇒ 走 R3 窗口兜底） */
+  readonly delegationId?: string;
+  /** 归因方式：'exact' = dtid 精确 / 'window' = 时间窗兜底（缺席按「无 delegationId」默认 'window'） */
+  readonly attribution?: 'exact' | 'window';
+}
+
+/** CL-K3R：`DelegationLedger.recordBlocked` 的归因扩展（全部可选，缺席即旧行为） */
+export interface BlockedRecordOptions {
+  /** 拦截登记时刻（ms）；缺省 `Date.now()` */
+  readonly createdAtMs?: number;
+  /** 服务端策略引擎风险级 */
+  readonly risk?: RiskLevel;
+  /** 精确归因命中时的委派 traceId */
+  readonly delegationId?: string;
+  /** 归因方式；缺省：`delegationId` 存在 ⇒ 'exact'，否则 'window' */
+  readonly attribution?: 'exact' | 'window';
 }
 
 /** wild 条目登记形状（窗口内不可精确归因的链上活动，仅作「非零」证据） */
@@ -168,11 +195,36 @@ export class DelegationLedger {
     this.innerTraceIds.add(record.traceId);
   }
 
-  /** 登记 blocked（审批拦截「到过且未执行」也是活动证据；不污染 executed 计数） */
-  recordBlocked(seq: number, approvalId: string, capabilityId: string): void {
+  /**
+   * 登记 blocked（审批拦截「到过且未执行」也是活动证据；不污染 executed 计数）。
+   *
+   * CL-K3R（**纯附加**第 4 参）：`opts` 携带归因事实（`createdAtMs` / `risk` / `delegationId` /
+   * `attribution`），供 `blockedFor` 构造结构化 `PendingApprovalFact`。
+   * 缺席（既有调用 `recordBlocked(seq, id, cap)`）时只落基础三字段 —— 行为逐字不变。
+   */
+  recordBlocked(
+    seq: number,
+    approvalId: string,
+    capabilityId: string,
+    opts: BlockedRecordOptions = {},
+  ): void {
     if (this.closed) return;
     if (this.blockedEntries.length >= MAX_UNDERLYING_ITEMS) return;
-    this.blockedEntries.push({ approvalId, capabilityId, seq });
+    const entry: BlockedEntry = { approvalId, capabilityId, seq };
+    this.blockedEntries.push({
+      ...entry,
+      createdAtMs: opts.createdAtMs ?? Date.now(),
+      ...(opts.risk ? { risk: opts.risk } : {}),
+      ...(opts.delegationId ? { delegationId: opts.delegationId } : {}),
+      attribution: opts.attribution ?? (opts.delegationId ? 'exact' : 'window'),
+    });
+  }
+
+  /**
+   * CL-K3R：blocked 条目快照（供 `LedgerRegistry.blockedFor` 归因；**只读**，不改账本）。
+   */
+  blockedFacts(): readonly BlockedEntry[] {
+    return [...this.blockedEntries];
   }
 
   /** 登记 wild（通道 1 时间窗兜底） */
@@ -355,6 +407,92 @@ export class LedgerRegistry {
     const ledger = this.ledgers.get(delegationTraceId);
     if (ledger) return ledger.activityCount();
     return { total: 0, executed: 0, blocked: 0, wild: 0 };
+  }
+
+  /**
+   * CL-K3R：blocked 登记入口（**窗口归因**版，补 V-3「常驻路径 `blocked` 恒空」）。
+   *
+   * 与 `DelegationLedger.recordBlocked` 同名同形（多一个可选归因参），使既有调用点
+   * （`ledger?.recordBlocked(seq, id, cap)`）零改动即可升级为「账本分发」：
+   *   - `delegationId` 存在（单次 `-p` / dtid 注入路径）→ 精确落到该委派账本（R1，零歧义）；
+   *   - `delegationId` 缺席（**常驻路径**：mcp.json 会话级共享，dtid 不生效）→ 按
+   *     `inWindow(atMs) && isExposed(capabilityId)` 分发到所有存活账本（R3 窗口兜底）。
+   *
+   * 窗口边界与 `DelegationLedger.inWindow` / `isExposed` **同源**（不另写阈值）。
+   */
+  recordBlocked(
+    seq: number,
+    approvalId: string,
+    capabilityId: string,
+    opts: { readonly delegationId?: string; readonly risk?: RiskLevel; readonly atMs?: number } = {},
+  ): void {
+    const atMs = opts.atMs ?? Date.now();
+    const shared: BlockedRecordOptions = {
+      createdAtMs: atMs,
+      ...(opts.risk ? { risk: opts.risk } : {}),
+    };
+    const delegationId = opts.delegationId;
+    if (delegationId) {
+      const ledger = this.ledgers.get(delegationId);
+      if (ledger && !ledger.isClosed) {
+        ledger.recordBlocked(seq, approvalId, capabilityId, {
+          ...shared,
+          delegationId,
+          attribution: 'exact',
+        });
+      }
+      return;
+    }
+    for (const ledger of this.ledgers.values()) {
+      if (ledger.isClosed) continue;
+      if (!ledger.inWindow(atMs)) continue;
+      if (!ledger.isExposed(capabilityId)) continue;
+      ledger.recordBlocked(seq, approvalId, capabilityId, { ...shared, attribution: 'window' });
+    }
+  }
+
+  /**
+   * CL-K3R：反查「本委派回合内仍未决的审批拦截」（S2 副通道，供 `DelegationTruthProbe.approvalWait`）。
+   *
+   * 三规则**严格有序**（SK-K4）：
+   *   - **R1（精确）**：`entry.delegationId === q.delegationTraceId` ⇒ 命中（attribution='exact'）；
+   *   - **R2（精确排除）**：`entry.delegationId` 存在但属于**他人** ⇒ **排除**（防串台）；
+   *   - **R3（窗口兜底）**：`delegationId` 缺席 且 该条落在**本委派账本**内 且
+   *     `ledger.inWindow(createdAtMs)` ⇒ 命中（attribution='window'）；能力面非空时按
+   *     `capabilities` 过滤（收窄宿主并发直调的串台窗口）。
+   *
+   * 返回按 `createdAtMs` 升序（FIFO，与 S1 主通道同序）；无账本上下文 ⇒ 空数组（绝不误报）。
+   */
+  blockedFor(q: ApprovalWaitQuery): PendingApprovalFact[] {
+    const caps =
+      q.capabilities && q.capabilities.length > 0 ? new Set<string>(q.capabilities) : undefined;
+    const out: PendingApprovalFact[] = [];
+    for (const [traceId, ledger] of this.ledgers) {
+      for (const entry of ledger.blockedFacts()) {
+        let attribution: 'exact' | 'window';
+        if (entry.delegationId) {
+          if (entry.delegationId !== q.delegationTraceId) continue; // R2 精确排除（防他人拦截串台）
+          attribution = entry.attribution ?? 'exact';
+        } else {
+          // R3 窗口兜底：只认**本委派账本**内的条目（他人账本内的无主条目属串台，排除）
+          if (traceId !== q.delegationTraceId) continue;
+          if (!ledger.inWindow(entry.createdAtMs ?? ledger.startedAtMs)) continue;
+          if (!ledger.isExposed(entry.capabilityId)) continue;
+          attribution = entry.attribution ?? 'window';
+        }
+        if (caps && !caps.has(entry.capabilityId)) continue;
+        out.push({
+          approvalId: entry.approvalId,
+          capabilityId: entry.capabilityId,
+          risk: entry.risk ?? 'L1',
+          createdAtMs: entry.createdAtMs ?? ledger.startedAtMs,
+          attribution,
+          hostApproved: false,
+        });
+      }
+    }
+    out.sort((a, b) => a.createdAtMs - b.createdAtMs);
+    return out;
   }
 
   /** 按内层 traceId 关联到存活账本（dtid 缺席时 blocked/executed 的 traceId 串匹配兜底） */

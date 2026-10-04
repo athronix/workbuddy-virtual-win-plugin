@@ -206,6 +206,39 @@ export function resolveApprovalReplay(env: EnvView = process.env): boolean {
   return parseBoolean(env[ENV_APPROVAL_REPLAY], APPROVAL_REPLAY_DEFAULT);
 }
 
+/* ==================== CL-K3R · 审批真值判据（三态灰度开关） ==================== */
+
+/**
+ * CL-K3R 灰度开关 env 名：**是否启用「服务端结构化未决审批」作为「等待审批」的第一判据**。
+ *
+ * 为什么需要开关：K3R 把「是否真的在等审批」的判据从 **LLM 文本正则**升格为
+ * **服务端结构化事实**（`pendingApprovals` + 账本 `blockedFor`）。判据面变化需要一个可一键回滚的保险：
+ *   - `on`（**默认**）：结构化优先；命中即改判 `ok:false` + `APPROVAL_REQUIRED`（fail-closed）。
+ *   - `shadow`：判据照常计算，命中时**只 warn 不改判**（埋点对拍：结构化说有 / 文本说没有）。
+ *   - `off`：判据整体短路，行为逐字 = R19F 后现状（文本启发式仍是唯一判据）。
+ *
+ * 纪律（与既有 env 一致）：解析**只在此处**做；非法值/缺席一律回退默认 `on`；绝不抛错 ——
+ * 服务启动不得因一个坏 env 失败。注意 `off` 只关闭**新判据**，绝不放宽任何审批闸。
+ */
+export const ENV_APPROVAL_TRUTH = 'WINVM_APPROVAL_TRUTH';
+
+/** 审批真值判据的三态取值 */
+export type ApprovalTruthMode = 'on' | 'shadow' | 'off';
+
+/** 全部合法取值（供 CLI 帮助 / 校验 / 文档引用） */
+export const APPROVAL_TRUTH_MODES: readonly ApprovalTruthMode[] = ['on', 'shadow', 'off'];
+
+/** 默认模式：on（K3 是 fail-open 洞，默认必须补上） */
+export const APPROVAL_TRUTH_DEFAULT: ApprovalTruthMode = 'on';
+
+/** 审批真值判据开关（三态；非法值/缺席 → 'on'） */
+export function resolveApprovalTruth(env: EnvView = process.env): ApprovalTruthMode {
+  const raw = (env[ENV_APPROVAL_TRUTH] ?? '').trim().toLowerCase();
+  return (APPROVAL_TRUTH_MODES as readonly string[]).includes(raw)
+    ? (raw as ApprovalTruthMode)
+    : APPROVAL_TRUTH_DEFAULT;
+}
+
 /* ============================ tunnel-mode 通道模式 ============================
  *
  * 宿主侧「通道选择策略」的单一事实来源。插件有两条通往 VM 的通道：

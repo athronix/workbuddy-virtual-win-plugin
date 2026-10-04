@@ -520,4 +520,43 @@ export interface DelegationActivityCount {
 export interface DelegationTruthProbe {
   /** 查询该委派回合的真实活动证据（按委派 traceId） */
   delegationActivity(delegationTraceId: string): Promise<DelegationActivityCount>;
+
+  /**
+   * CL-K3R（**纯附加可选成员**）：反查「本委派回合内是否仍有**未决**审批」。
+   *
+   * 与 `delegationActivity` 同源：桥在收口处用它替代/补强「LLM 文本是否说等待审批」的启发式
+   * （根因 `APPROVAL_WAIT_PATTERN` 仅作兜底）。返回空集 ⇒ 桥回退文本启发式（旧行为逐字不变）。
+   *
+   * 缺席（旧服务端 / 单测 / degraded）⇒ 桥侧 `undefined` 检查后**完全退回 R19F 后现状**（fail-open），
+   * 既不影响既有实现方（不强制实现），也不影响既有消费方。
+   */
+  approvalWait?(q: ApprovalWaitQuery): Promise<readonly PendingApprovalFact[]>;
+}
+
+/** CL-K3R：未决审批反查的入参（全部为服务端可得/桥可推算的事实） */
+export interface ApprovalWaitQuery {
+  /** 本委派 traceId（= `GoalRequest.traceId`，账本/令牌表键） */
+  readonly delegationTraceId: string;
+  /** 委派回合开始时刻（ms，= `RunContext.started`）—— R3 时间窗归因下界 */
+  readonly startedAtMs: number;
+  /**
+   * 委派能力面（`LlmGoalInput.capabilities` = `GoalRequest.allowedCapabilities`）。
+   * 非空 ⇒ 只认落在能力面的未决审批（R3 收窄串台）；空/缺席 ⇒ 不按能力过滤。
+   */
+  readonly capabilities?: readonly string[];
+}
+
+/** CL-K3R：一条未决审批的结构化事实（服务端权威，桥据以改判「等待审批」） */
+export interface PendingApprovalFact {
+  readonly approvalId: string;
+  readonly capabilityId: CapabilityId;
+  /** 服务端策略引擎判定值（顺带根治 `parseApprovalBlock` 的文本正则扣 risk） */
+  readonly risk: RiskLevel;
+  readonly createdAtMs: number;
+  /** 归因方式：'exact' = dtid 精确（单次 -p 路径）/ 'window' = 时间窗兜底（常驻路径） */
+  readonly attribution: 'exact' | 'window';
+  /** 恒 false（探针只返回未决项；已批准/超时已被服务端 delete） */
+  readonly hostApproved: boolean;
+  /** 服务端可读摘要（preview/underlying 派生），供审批卡与日志 */
+  readonly summary?: string;
 }
