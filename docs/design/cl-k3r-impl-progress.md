@@ -150,6 +150,62 @@ node -e "const dt = await import('.../dist/delegation-truth.js'); ..."
 | **D-1** 两道门 | `reconcileExecutionTruth` 区域**零 diff**（`:1024`/`:1025` 短路顺序与语义不变） |
 | **SK-5** dist 先重建 | 每次改 `src` 后均执行 `tsc -b tsconfig.build.json --force`，再跑测 |
 
+## 8. 本次要做的事（E-2b / E-3，2026-10-05 开工即落盘，防中断零产出）
+
+权威规格：`docs/design/cl-k3r-e2b-e3-taskbook.md`。基线 HEAD：`c396b98`（任务书落盘 commit）。
+
+### 8.1 E-2b｜第三级兜底不得静默 fail-open
+
+- 落点：`packages/adapter-agent-workbuddy-llm/src/delegation-truth.ts` 第 232-234 行
+  `deps.reconcileApprovalWait ?? approvalWaitFallback ?? ((b) => b)`。
+- 改法（只加观测，判定结果逐字不变）：
+  1. 第三级「恒等透传」命中时，若 `deps.warn` 存在则 emit 恰一条可检索 warn：
+     文案 `'[k3r] 文本兜底缺席（未注入且未注册）→ 恒等透传，等同无兜底旧行为'`，
+     meta 带 `{ gate, hasTaskId: !!taskId }`，`gate` 取实际触发的门编号（门1/门2/门3/门5/门6）；
+  2. 返回值仍为 `base`，不改 `ok`、不改 error；
+  3. 重跑四道闸 + tsc 0 error。
+
+### 8.2 E-3｜灰度开关运行时指纹（`/health.provider.approvalTruth` 三态可观测）
+
+三处，均纯附加：
+1. `packages/contracts/src/bridge.ts` `HealthStatus` 加可选字段
+   `approvalTruth?: { mode: 'on'|'shadow'|'off'; enabled: boolean; shadow: boolean }`
+   （字面量联合类型，**不得** import `@winvm/core`；既有字段零改动）。
+2. `packages/adapter-agent-workbuddy-llm/src/index.ts` `health()` 返回对象补该字段；
+   三个值在**构造 bridge 那一行**一次性解析并存为 readonly 字段
+   （`approvalTruthShadow === true ⇒ 'shadow'`，否则 `approvalTruthEnabled ? 'on' : 'off'`），
+   `health()` 内**不得**二次读 `process.env`。
+3. 三态自证脚本 `/storage/Users/currentUser/wbtmp/e3-fingerprint.mjs`（不入库），
+   对 on/shadow/off 三档构造并断言字段逐字对应，必须有可复现三档 stdout
+   （允许降级两段：① `new CliLlmBridge({ approvalTruth: X })` 三档字段成立；
+   ② provider 实例字段透传，不经过 executor）。
+
+### 8.3 第三级可达性分析（E-2b 要求登记）
+
+第三级「恒等透传」仅对「**深层直接 import `delegation-truth.js` 且未加载 `bridge.js`**」的调用方可达
+（此时模块级注册 `approvalWaitFallback` 为空、`deps.reconcileApprovalWait` 未传）。
+两类生产路径均**不可达**：
+- **生产路径**：`bridge.ts` 在两处收口点（`runPersistent` / `runOneShot`）显式注入
+  `reconcileApprovalWait`（`deps.reconcileApprovalWait` 命中第一级）；
+- **包出口路径**：`index.ts:35` 值 import `bridge.js` ⇒ 加载期触发
+  `registerApprovalWaitFallback` 注册（第二级兜底命中）。
+
+结论：这是**已知且刻意保留**的降级面（纯逻辑件可独立单测），**非 K3 回归面**——
+E-2b 只为其补可检索 warn，不改变任何判定路径。
+
+### 8.4 红线与验收（同任务书）
+
+- D-4：`packages/a2a-framework/src/**` 零改动（`git diff 95052d5..HEAD` 自证为空）；
+- SK-9：`bridge.ts` 的 `APPROVAL_WAIT_PATTERN` / `parseApprovalBlock` / `reconcileApprovalWait` 函数体与文案一字不改；
+- `HealthStatus` 只加可选字段；严禁改 `tests/`；
+- 验收：四道闸（11/10/2/41）+ K-N1 七文件（合计 242）fail 全 0 + `tsc -b tsconfig.build.json --force` 0 error + E-3 三态指纹 stdout。
+
+commit 计划：① `docs(k3r): E-2b/E-3 实施计划落盘（防中断零产出）`（本节）；
+② `refactor(k3r): E-2b 第三级兜底可观测（无兜底时 warn，判定逐字不变）`；
+③ `feat(k3r): E-3 灰度开关运行时指纹（/health.provider.approvalTruth 三态可观测）`。
+
+---
+
 ## 7. 实施中发现的设计偏差与环境事实（登记，不自行改设计文档）
 
 | # | 偏差 | 处置 |
