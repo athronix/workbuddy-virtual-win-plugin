@@ -968,4 +968,45 @@ graph TD
 - **D-4**（`a2a-framework/src/**` 零改动）：T02 只在 `vm-service` 内补探针与入库；T05 用 `git diff --stat -- packages/a2a-framework/src/` 守门为空。
 - **D-5**（`rejected` 唯一置位点 `a2a-framework/src/server.ts:306`）：K3R 不引入任何新 `rejected` 写入点，`ApprovalOutcome` 判别联合一字未改。
 
+---
+
+## 9. 待 owner 拍板事项（决策点 D-1～D-3 + 待办 Q4～Q7）
+
+> 本文 STATUS=DRAFT，下列事项**不自行决断**，需主理人（owner）拍板后方可进入实施（T01）。
+> 每项给出：**现状 / 我的建议 / 影响面**，便于 owner 秒回。
+
+### 9.1 决策点（必须拍板）
+
+#### D-1｜「直读 MCP 结构化工具结果」的口径确认
+- **owner 原话（R19F §5-Q8）**：根治方向 = 桥改读 **MCP 结构化工具结果** 而非匹配 LLM 措辞。
+- **本文落实口径**：桥与 `vm-service` **同进程**（provider 注入），MCP 工具的 `structuredContent`（`ok:false` + `APPROVAL_REQUIRED` + `approvalId`）落地后产生两处**结构化事实** —— ① `pendingApprovals` Map（server 内存，含 risk/params/preview/impact/delegationId/createdAtMs）；② 哈希链 `recordBlockedApprovalAudit`（`:754`–`:771`）。本文判据**直读这两处服务端事实**（经 `DelegationTruthProbe.approvalWait` 反查，与 K-N1 同一注入范式），等价于"读 MCP 结构化结果的下游客服端权威态"。
+- **我的建议**：**认可**此口径。理由：① 不引入新通道（探针注入零新增 MCP 框架改动，守 D-4）；② 直接消费**服务端权威**值，比桥侧再解析 CLI 输出更近真相；③ `pendingApprovals` 即"MCP 工具拦截结果"的落地态，语义完全吻合 owner 原意。
+- **需要 owner 确认**：是否认可"读服务端落地的 `pendingApprovals`/哈希链"≈"读 MCP 结构化工具结果"。若 owner 的本意是"桥在 MCP 调用返回点就地读 `structuredContent`（不经过 pendingApprovals）"，则需调整方案为**在 `McpServer.callTool` 拦截处直接 push 一个仅供本委派查询的事件队列**（改动面更大、需明确生命周期），本文 §3 C-5 已论证此路不如 S1。
+- **影响面**：若否决本文口径，T02/T03 的探针形态需重写（回到 C-5「拦截点直发事件」），工期 +1～2 任务。
+
+#### D-2｜`reconcileApprovalWait` 降为「兜底」是否违反 SK-9
+- **事实**：SK-9（A5 合同 §4）列 `reconcileApprovalWait` 的**文案与 steps（`:615`–`:638`）一字不改**；本文 §5.3 把它从「唯一判据」降为「兜底判据」（T03 门 1/2/3/4/5 任一不命中才调用，**函数体零改动**）。
+- **我的判断**：**不违反 SK-9**。SK-9 约束的是**函数源码**不可变（A5 终态指纹基准）；本设计只改**调用层级**（谁先跑），未动其任何字节。降级后它仍是"真命中时产出 A5 同款终态指纹"的对照基准，指纹可比性不丢。
+- **残留分歧点（需 owner 拍板）**：降级后该函数在**常驻路径默认不再作为首判**（仅在门 1/2/3/4/5 未命中时兜底）。这是否与 R19F「保留 A5 指纹对照能力」的初衷相容？我的建议：相容（函数仍在、指纹仍在、只是触发优先级后移）。若 owner 坚持"它必须保持首判地位"，则改为**双判据并联**（结构化命中 OR 文本命中，二者任一即挂起）—— 但这会让"假成功"在结构化判据缺失时仍由文本兜底，与 §5.4 的 fail-closed 张力，**不推荐**。
+- **指纹后缀**：命中改判的 `details.source` 建议取 `'structured'`（与文本兜底的 `'text'` 区分），`base.error.code` 仍恒 `APPROVAL_REQUIRED`（保 A5 样本可比）。是否接受此后缀，请一并拍板。
+
+#### D-3｜默认开关：`on` 还是 `shadow` 首发
+- **我的建议**：**默认 `on`**（根治态），但**发布前强制走一轮 `shadow` 真机测量**（T05 §7.5 验收判据的"⏳ shadow 一轮"项）。理由（§5.4）：结构化判据**单向 fail-closed**（只 `ok:true→ok:false`，且必带证据），误报代价 = 本应 completed 的任务多一次 `input-required`（**可观测、可人工放行、零新假成功**）；而维持 `shadow` 首发 = 继续容忍一段假成功窗口，违背"根治 K3"的立项初衷。
+- **需 owner 拍板**：① 是否接受默认 `on`；② 若担心首版误报，是否改为默认 `shadow` 首发、观测 N 天串台率后再切 `on`（代价：假成功窗口延续，但更稳）。
+- **无论选哪个**：`off` 通道始终保留（SK-K2），一键回滚（§10）。
+
+### 9.2 待办项（非阻塞，建议登记但不阻塞 T01）
+
+| # | 待办 | 性质 | 本文处置 | 建议归属 |
+| --- | --- | --- | --- | --- |
+| **Q4** | S4（让常驻路径也带 `?dtid=`）是否要跟进 | 选型否决项的后续 | §4 已论证**否决**（会让常驻会话每轮重拼 mcp 配置，回归 K2 冷启动修复；且 `dtid` 只为账本 `blocked` 归因，可由 R3 窗口规则替代） | 关闭，不立项 |
+| **Q5** | `pendingApprovals` 长会话累积 / 容量上限 / 超时回收 | 既有行为的潜在膨胀 | §8.2 SK-K3 已点名"重启即空 + 只含未决"；清理策略**本轮不实现**（避免扩大改动面） | 建后续项（非 K3R 阻塞） |
+| **Q6** | V-4：`recordBlockedApprovalAudit` 的 `channel` 取 `ctx.delegationId ? 'a2a' : 'mcp'` ⇒ 常驻内层拦截被记为 `mcp` | 与 K-N1「修掉恒 mcp」同源的残留观测缺陷 | **不在 CL-K3R 范围**（不影响 K3 根治，只影响 K-N1 账本通道标注的准确性）。但 R3 归因用 `createdAtMs` 窗口而非 `channel`，故**不受影响** | 归 K-N1 后续收口 |
+| **Q7** | V-5：`LedgerRegistry.ledgerForInnerTrace()`（`delegation-audit.ts:361`）死代码（全仓无调用点） | 未完成件 / 死代码 | **不复用**（其匹配面不含被拦调用自身的 traceId，与本设计 R1/R2/R3 归因不兼容） | 清理候选（非 K3R） |
+
+### 9.3 与上游文档的一致性声明（回报主理人）
+- **未修改**上游三份 A5 文档（`a5-approval-drop-rootcause.md` / `a5-approval-drop-fix-contract.md` / `a5-approval-drop-fix-impl-progress.md`）与测试报告 §A8 任何结论。
+- 发现的 **V-1～V-5** 偏差（行号漂移 3 处 + 常驻路径 `blocked` 恒空 1 处 + 通道误标 1 处 + 死代码 1 处）已全数登记在 §0.3，**如实回报**，不自行修订上游。
+- **对外口径建议**：若 owner 认为 V-3（常驻路径 `blocked` 恒空）应在 K-N1 设计文档补记，请由对应 owner 修订 K-N1 文档；CL-K3R 已据该事实完成选型，不依赖其修订。
+
 <!-- APPEND-MARKER -->
