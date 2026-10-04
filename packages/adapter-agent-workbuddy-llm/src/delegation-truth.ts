@@ -229,20 +229,36 @@ export async function reconcileApprovalTruth(
 ): Promise<LlmGoalResult> {
   if (!base.ok) return base; // 门 0：已是失败态（含 D-1 两道门的结论）→ 绝不重复改判
 
-  // E-2：文本兜底经**依赖注入**取得（deeps 显式传入 > bridge 模块级注册 > 恒等透传）
-  const fallback: ApprovalWaitFallback =
-    deps.reconcileApprovalWait ?? approvalWaitFallback ?? ((b: LlmGoalResult) => b);
+  // E-2：文本兜底经**依赖注入**取得（deps 显式传入 > bridge 模块级注册 > 恒等透传）
+  // E-2b：第三级「恒等透传」不再静默 fail-open —— 命中时（fallback 缺席）按实际触发的门
+  // emit 恰一条可检索 warn（文案与 meta 见任务书 §E-2b），返回值仍为 base（判定逐字不变）。
+  const fallback = deps.reconcileApprovalWait ?? approvalWaitFallback;
+  const runFallback = (gate: string, b: LlmGoalResult, text: string): LlmGoalResult => {
+    if (!fallback) {
+      deps.warn?.('[k3r] 文本兜底缺席（未注入且未注册）→ 恒等透传，等同无兜底旧行为', {
+        gate,
+        hasTaskId: !!taskId,
+      });
+      return b;
+    }
+    return fallback(b, text);
+  };
+  // shadow 对拍路径复用的兜底（缺席 = 恒等透传，与 E-2 语义逐字一致）
+  const fallbackOrIdentity: ApprovalWaitFallback = fallback ?? ((b: LlmGoalResult) => b);
+  // 门4 专用：探针异常路径已有自己的 warn（恰一条纪律），兜底缺席时**不**再叠加 E-2b warn
+  // （任务书 §E-2b 的 gate 枚举为 门1/门2/门3/门5/门6，刻意不含门4）
+  const fallbackOrIdentity4: ApprovalWaitFallback = fallbackOrIdentity;
 
   const input = deps.input;
   const ctx = deps.ctx;
   const taskId = typeof input?.taskId === 'string' && input.taskId ? input.taskId : undefined;
-  if (!input || !taskId) return fallback(base, finalText); // 门 1：无归属不介入
+  if (!input || !taskId) return runFallback('门1', base, finalText); // 门 1：无归属不介入
 
-  if (deps.enabled === false) return fallback(base, finalText); // 门 2：一键回滚
+  if (deps.enabled === false) return runFallback('门2', base, finalText); // 门 2：一键回滚
 
   const probe = deps.probe ?? ctx?.delegationProbe ?? input.probe;
   const approvalWait = probe?.approvalWait;
-  if (typeof approvalWait !== 'function') return fallback(base, finalText); // 门 3：探针缺席 = 旧行为
+  if (typeof approvalWait !== 'function') return runFallback('门3', base, finalText); // 门 3：探针缺席 = 旧行为
 
   const delegationTraceId =
     (typeof ctx?.delegationId === 'string' && ctx.delegationId ? ctx.delegationId : undefined) ??
@@ -267,18 +283,18 @@ export async function reconcileApprovalTruth(
       taskId,
       error: String(e),
     });
-    return fallback(base, finalText);
+    return fallbackOrIdentity4(base, finalText);
   }
 
   const facts = raw.filter((f) => !!f && typeof f.approvalId === 'string' && f.approvalId.length > 0);
-  if (facts.length === 0) return fallback(base, finalText); // 门 5
+  if (facts.length === 0) return runFallback('门5', base, finalText); // 门 5
 
   const raised = ctx?.raised;
   const receipts = ctx?.receipts;
   const pending = facts.filter(
     (f) => !(raised?.has(f.approvalId) === true && receipts?.has(f.approvalId) !== true),
   );
-  if (pending.length === 0) return fallback(base, finalText); // 门 6
+  if (pending.length === 0) return runFallback('门6', base, finalText); // 门 6
 
   const ordered = [...pending].sort((a, b) => (a.createdAtMs ?? 0) - (b.createdAtMs ?? 0));
   const fact = ordered[0]!;
@@ -293,7 +309,7 @@ export async function reconcileApprovalTruth(
       attribution: fact.attribution,
       risk: fact.risk,
       structuredVerdict: 'waiting-approval',
-      textHeuristicVerdict: fallback(base, finalText).ok
+      textHeuristicVerdict: fallbackOrIdentity(base, finalText).ok
         ? 'not-waiting'
         : 'waiting-approval',
       others: rest.map((f) => f.approvalId),
