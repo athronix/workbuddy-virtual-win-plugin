@@ -1234,15 +1234,37 @@ export class CliLlmBridge implements LlmBridge {
     await pump.flush();
     const artifacts = await collectArtifacts(ctx.outputDir, ctx.started);
     if (!turn.ok) {
-      return {
-        result: {
-          ok: false,
-          summary: `LLM 运行时（常驻会话）未完成目标：${turn.error ?? '未知原因'}`,
-          artifacts,
-          steps: [],
-          error: makeError('EXECUTION_FAILED', 'LLM_PERSISTENT_TURN_FAILED'),
-        },
+      // CL-K3R Phase-D 修复：常驻会话 turn 失败时，先甄别「审批暂停态」vs「真执行失败」。
+      // codebuddy 安全策略会在调用 winvm 工具**之前**拦截高危操作，并以 is_error=true 的
+      // result 事件上报（含 APPROVAL_REQUIRED 文案 + apr_ token），从而 turn.ok=false。
+      // 此时若文本命中审批等待模式，应改判为 ok:false + APPROVAL_REQUIRED 并经 maybeResume
+      // 路由到 input-required；否则才视为真正的执行失败。文本启发式是既有 K3 机制（非新建
+      // 结构化探针），语义与 ok:true 路径的兜底**逐字一致**——
+      //   · on/off：结构化探针退场/缺席时本就回退文本启发式 ⇒ 此处直接套用（与 one-shot 一致）；
+      //   · shadow：结构化探针仅 warn 不改判，文本启发式也须同步**仅 warn 不改判**（G4 纪律），
+      //     故 shadow 态下保持 EXECUTION_FAILED 以「观察」修复前假失败，待切 on 才真正改判。
+      // 注：本分支不调 reconcileApprovalTruth（其「门 0：!base.ok 透传」纪律会拒绝 ok:false），
+      // 故直接复用既有的 reconcileApprovalWait 文本启发式。
+      const failedBase: LlmGoalResult = {
+        ok: false,
+        summary: `LLM 运行时（常驻会话）未完成目标：${turn.error ?? '未知原因'}`,
+        artifacts,
+        steps: [],
+        error: makeError('EXECUTION_FAILED', 'LLM_PERSISTENT_TURN_FAILED'),
       };
+      const reconciled = reconcileApprovalWait(failedBase, turn.text);
+      const isApprovalWait = reconciled.error?.code === 'APPROVAL_REQUIRED';
+      if (this.approvalTruthShadow) {
+        this.onSessionLog?.('[shadow] 常驻会话失败态命中审批等待文本模式（不改判，供对拍）', {
+          taskId: input.taskId,
+          textHeuristicVerdict: isApprovalWait ? 'waiting-approval' : 'not-waiting',
+        });
+        return { result: failedBase };
+      }
+      if (isApprovalWait) {
+        return { result: await this.maybeResume(reconciled, input, sink, ctx, 'persistent') };
+      }
+      return { result: failedBase };
     }
     return {
       result: await this.maybeResume(
