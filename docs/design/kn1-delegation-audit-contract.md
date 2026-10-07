@@ -10,12 +10,12 @@
 
 ## TL;DR
 
-K-N1 的判定层根因是：K5 回执反查 `reconcileExecutionTruth` 在「本任务从未 raise 审批」时**按设计退场**（`bridge.ts:914` 的 `raisedApprovals.size === 0` 短路），导致委派回合**零工具调用**也能静默 `completed`，且链上无一条能证伪它的记录。
+K-N1 的判定层根因是：K5 回执反查 `reconcileExecutionTruth` 在「本任务从未 raise 审批」时**按设计退场**（`bridge.ts:1095` 的 `if (ctx.raised.size === 0) return base;` 短路），导致委派回合**零工具调用**也能静默 `completed`，且链上无一条能证伪它的记录。
 
 本契约把完成判据从「审批回执反查」**升格为「委派账本反查」**，共三层：
 
 1. **委派壳双态审计**：每次 A2A 委派（`appops.workflow.run` 壳）落 **2 条** `channel="a2a"` 审计条目——`delegation.start`（受理时）与 `delegation.complete`（终态时，`ext.zeroInnerCalls` 显式记录「零工具调用」事实与内层活动清单）。哈希链结构零破坏（`AuditRecord` 只增可选 `ext` 字段）。
-2. **NO_EXECUTION_RECEIPT 无条件反查**：完成声称 + 服务端账本（窗口内 executed/blocked 条目 + 内层回连 MCP 调用）零活动 → 改判 `failed`。此分支**不受 K5 审批灰度门控**（`replayEnabled`/`k5ReplayActive` 只门控"审批回执"分支），填掉 `bridge.ts:914` 的短路盲区。
+2. **NO_EXECUTION_RECEIPT 无条件反查**：完成声称 + 服务端账本（窗口内 executed/blocked 条目 + 内层回连 MCP 调用）零活动 → 改判 `failed`。此分支**不受 K5 审批灰度门控**（`replayEnabled`/`k5ReplayActive` 只门控"审批回执"分支），填掉 `bridge.ts:1095` 的短路盲区。
 3. **disabled 显式拒绝**：`llmSession.state="disabled"` 且配置启用常驻（`persistent=true`，"disabled=故障"态）时，委派在入口即 `failed(LLM_SESSION_DISABLED)`，禁止进入降级回合；`persistent=false`（"单次 -p=设计"态）不拒绝，靠第 2 层账本反查兜底——**两种降级语义由此可区分**。
 
 配套：**S-3 推荐新增 `GET /audit/receipt?traceId=` 只读端点**（基于 `HashChainAuditSink.query`，零哈希链体积增长、零新增入链敏感面）；**L1 推荐 `POST /admin/llm-session/reset`**（重置计数并重建会话，可选 `?faultInjection=1` 支撑 K-N1 确定性回归，env 门控默认关）。
@@ -35,7 +35,7 @@ K-N1 的判定层根因是：K5 回执反查 `reconcileExecutionTruth` 在「本
 | **executed 审计在 provider 内部落**：成功路径 `adapter-agent-workbuddy/src/index.ts:345-365`（`ctx.audit.append`，`:349` 硬编码 `channel:'mcp'`）；失败路径 `fail()` `:902-914`（同样硬编码）。委派内层回连的 tools/call 走的就是这条链 → **内层真实调用确实落审计**（与报告离线复核一致） | `packages/adapter-agent-workbuddy/src/index.ts:345`、`:902` |
 | blocked 审计正常工作（R19 实证 seq179/181）；硬编码 `channel:'mcp'` | `packages/vm-service/src/server.ts:645`（调用点）、`packages/vm-service/src/approval-replay.ts:55-62` |
 | **`POLICY_DENIED` 硬拒绝零审计（S-4，对照项）** | `server.ts:490-501`（executeCapability 前置拒绝）、`:676-684`（handler 内拒绝）——无 audit 调用 |
-| K-N1 判定层根因：`reconcileExecutionTruth` 首两行短路 | `packages/adapter-agent-workbuddy-llm/src/bridge.ts:908-934`（`:913` 灰度门、`:914` `raisedApprovals.size===0` 退场）；调用点 `:712`（`runGoalInner` 最外层） |
+| K-N1 判定层根因：`reconcileExecutionTruth` 首两行短路 | `packages/adapter-agent-workbuddy-llm/src/bridge.ts:1089-1115`（`:1094` 灰度门、`:1095` `if (ctx.raised.size === 0) return base;` 退场）；调用点 `:854`（`reconcileDelegationTruth` 在 `runGoalInner`）、`:863`（`reconcileExecutionTruth` 在 `runGoalInner`） |
 | 壳步骤合成：委派成功时硬造 `steps[0]={appops.workflow.run, ok:true}`（常驻 `bridge.ts:1067-1078`、单次 `:1248-1258`），**零能力调用也造** | `bridge.ts` runPersistent / runOneShot 的 `steps` 字面量 |
 | 降级标记现状：`summary` 追加文案 `（常驻会话不可用：…已降级为单次 -p 路径）`，无结构化字段 | `bridge.ts:724`（runGoalCore 降级分支，`:716-728`） |
 | 内层 LLM 回连方式：VM 内 codebuddy CLI 经 `--mcp-config` 连本服务 `/mcp`（`url=endpoint`），**每次 tools/call 由 mcp-framework 自造 traceId**（`callTool` `newTraceId()`），与委派 traceId 无父子链 | `bridge.ts:97-105`（buildMcpConfig）、`packages/mcp-framework/src/server.ts:164-190`（callTool）、`:65-69`（newTraceId） |
@@ -46,7 +46,7 @@ K-N1 的判定层根因是：K5 回执反查 `reconcileExecutionTruth` 在「本
 | `/health` 已透出 `llmSession`（`server.ts:948` 取 `provider?.llmSessionHealth?.()`）；HTTP 仅 4 条路由（`/health` `/.well-known` `/mcp` `/a2a`），404 兜底 | `server.ts:804-863`（路由）、`:948` |
 | 服务端→桥注入面：`WorkbuddyLlmProvider` 构造 `CliLlmBridge({cliPath, endpoint, sessionConfig, onSessionLog, ...})` | `adapter-agent-workbuddy-llm/src/index.ts:151` 附近 |
 
-**盲区复述（一句话）**：`bridge.ts:913-914` 两道门都在"有审批才有参照物"的假设上；零 raise 的降级回合没有任何服务端参照物被查询 → 壳的 `steps[0].ok:true` 是 LLM 自宣的转写，不是证据。
+**盲区复述（一句话）**：`bridge.ts:1094-1095` 两道门都在"有审批才有参照物"的假设上；零 raise 的降级回合没有任何服务端参照物被查询 → 壳的 `steps[0].ok:true` 是 LLM 自宣的转写，不是证据。
 
 ---
 
@@ -160,7 +160,7 @@ reconcileDelegationTruth(base, finalText, { probe }): Promise<LlmGoalResult>
 
 ### 3.3 时序（在哪一步反查）
 
-`runGoalInner` 收口链（`bridge.ts:707-712`）改为：
+`runGoalInner` 收口链（`bridge.ts:849-863`）改为：
 
 ```
 res = runGoalCore(...)                          # 既有
@@ -172,7 +172,7 @@ res = reconcileExecutionTruth(res, ctx.lastFinalText)                 # 既有�
 
 ### 3.4 与既有 raisedAt / k5 逻辑的关系
 
-- **不动** `bridge.ts:913-914` 两道既有门——它们守护的是"审批回执反查不被 K4 灰度误杀"，语义仍然成立；`bridge.ts:634-645` 注释所述 raisedAt 集清空即退场的行为逐字保留。
+- **不动** `bridge.ts:1094-1095` 两道既有门——它们守护的是"审批回执反查不被 K4 灰度误杀"，语义仍然成立；`bridge.ts:634-645` 注释所述 raisedAt 集清空即退场的行为逐字保留。
 - **新分支只受 `taskId` 门控**（委派上下文才反查），**不受** `replayEnabled`/`k5ReplayActive` 门控（账本参照物与审批灰度无关）。
 - `approval-replay.ts:155` 注释自认"被拦的能力常是壳"：契约兑现点——blocked 条目进账本后，壳被拦（`e1r2` 现场 `tr_…-replay`）与壳零活动（K-N1 现场）在 `ext.underlying` 上第一次可区分。
 
@@ -458,7 +458,7 @@ graph LR
 
 **A. `delegation-audit.ts` 纯逻辑**
 1. `buildDelegationAuditEntry`：start/complete 两态字段齐备（channel=a2a、capabilityId=appops.workflow.run、ext.kind/…）；goal>300 截断；`ext` 内敏感键（password/token…）出 `***REDACTED***`；stepsSummary ≤10、单项 summary ≤200。
-2. `reconcileDelegationTruth` 判定表 8 例：①无 taskId→透传；②ok:false→透传；③无完成声称→透传；④完成声称+total0→failed(NO_EXECUTION_RECEIPT, details 含三计数)；⑤完成声称+executed1→透传；⑥完成声称+blocked1(无 executed)→透传（"到过且被拦"合法）；⑦改判产物 steps 全 ok:false 且保留原 steps 长度；⑧error.reason==='NO_EXECUTION_RECEIPT' 字符串与 bridge.ts:929-931 既有用法逐字一致（同一 reason 复用断言）。
+2. `reconcileDelegationTruth` 判定表 8 例：①无 taskId→透传；②ok:false→透传；③无完成声称→透传；④完成声称+total0→failed(NO_EXECUTION_RECEIPT, details 含三计数)；⑤完成声称+executed1→透传；⑥完成声称+blocked1(无 executed)→透传（"到过且被拦"合法）；⑦改判产物 steps 全 ok:false 且保留原 steps 长度；⑧error.reason==='NO_EXECUTION_RECEIPT' 字符串与 bridge.ts:1110 既有用法逐字一致（同一 reason 复用断言；真正定义见 `delegation-truth.ts:110`）。
 3. `evaluateDisabledRejection` 矩阵：{taskId 有/无} × {persistent t/f} × {state disabled/ready/stopped/starting} = 12 例；**仅 (有 taskId, true, disabled) → reject(LLM_SESSION_DISABLED)**；(有 taskId, **false**, disabled) → pass-through（§4.2 两种部署态可区分钉死）。
 
 **B. 桥收口链（`CliLlmBridge` + mock probe）**
@@ -528,7 +528,7 @@ graph LR
 
 | # | 决策点 | 结论 | 约束含义（给 Engineer / QA） |
 |---|---|---|---|
-| D-1 | `bridge.ts:913-914` 是否去短路 | **不删**。采用"只受 `taskId` 门控的先行分支"（§3.4） | K4 灰度回滚保险不可牺牲。T05 断言 B-4（既有反查不二次改判）与 A-3 矩阵必须同时成立；若实现中出现"删门"倾向即为契约违背 |
+| D-1 | `bridge.ts:1094-1095` 是否去短路 | **不删**。采用"只受 `taskId` 门控的先行分支"（§3.4） | K4 灰度回滚保险不可牺牲。T05 断言 B-4（既有反查不二次改判）与 A-3 矩阵必须同时成立；若实现中出现"删门"倾向即为契约违背 |
 | D-2 | S-3 落链 vs 端点 | **选 B**：`GET /audit/receipt?traceId=`；A-极简（`result.dataDigest`）**降级为 P2 升级位**，本轮不实现 | 哈希链体积零增长是硬约束；环形缓存必须有界（≤200）且只存脱敏副本 |
 | D-3 | §10-1「零调用 + completed 但无完成声称」是否强制改判/告警 | **维持现状：不改判、不加告警**。仅保证 `ext.zeroInnerCalls:true` 恒落审计、grep 可发现 | 文本无完成承诺时改判属过度推断，与"绝不错杀合法完成"总取向一致。「零调用+completed → 宿主侧告警」记入 **P2 backlog**，待产品口径明确再议；实现侧**不得**自行加此规则 |
 | D-4 | §9 E-3 依赖方向守卫口径（原字面「框架不得出现 `@winvm/core` import」） | **原字面废止**，改为**两层机器可判定不变量**：(a) **框架零审计符号**——框架 `src/**` 不得出现审计写入侧符号（`audit.append` / `AuditSink` 写入方法 / `buildDelegationAuditEntry` / `appendAudit`），此为 §2.4「审计写入只在 vm-service 层」的可判定形式；(b) **框架禁依赖 adapter**——grep 范围含 `src/**` **与** `package.json` 依赖表，`@winvm/adapter*` 一律禁止。`delegationObserver` 为可选的半句**保留**，并加严为「**恰 2 处**声明（`A2AServerOptions` + 类成员）且每处各自带 `?`」 | **背景与证据**：①`git show 608d4e0:packages/a2a-framework/src/server.ts:20` 的 `import { NullLogger } from '@winvm/core'` **在 T01 基线即存在**（`:96` 处消费），非 T02 引入；②`a90e54b` 对 `packages/a2a-framework/` 的 numstat 为 `server.ts +57/-0`、`index.ts +8/-1`，**纯增量、零 import 增删**（diff 内唯一 `import` 命中是 `+` 注释文本，非代码）；③同类既有 import 另有两处：`client.ts:11 import type { JsonRpcChannel }`、`task-store.ts:13 import { resolveApprovalTtlMs }`；④`packages/a2a-framework/src/index.ts:8` 包内铁律原文为「依赖铁律：仅依赖 `@winvm/contracts` 与 `@winvm/core`，**禁止依赖 adapter**」，`package.json` dependencies 亦**明列** `@winvm/core`——该包本就合法依赖 core。**理由**：字面「零 `@winvm/core` import」对未改动的正确代码必然误报，字面执行即错；真正的架构约束是「不写审计、不碰 adapter」，与 core 依赖无关。**影响面**：QA 的 E-3 断言须按两层重写（源码形态 grep，不做 import 全集判定）；**待整改项**：`a2a-framework/src/server.ts:58` 的 T02 新增注释沿用了被废止字面（「框架层不得 import `@winvm/core`（设计 §2.4）」），与 `index.ts:8` 铁律自相矛盾，**登记待改注释文案**（不改行为、不在本轮改码） |

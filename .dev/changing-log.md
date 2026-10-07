@@ -42,12 +42,12 @@
 
 ## 🟡 进行中（第十八轮起 · 2026-09-30 ~ 2026-10-07）
 
-- [ ] **K-N1（High）真机复证**：已有 `r19c-kn1-*` 共 7 个单测文件覆盖；待真机复现「委派回合零 `tools/call` ⇒ 服务端零执行仍报 `completed`」并验证修复效果。
-- [ ] **K-N2 修复**：dryRun 免审批通道内层 `success=false` / `exitCode=-1978335230`，已稳定复现（工件 `v3-kn2.*`），待定位与修复。
-- [ ] **S-4 修复**：`POLICY_DENIED` 硬拒绝完全不落审计（`server.ts:676-684`），待补审计调用使策略拒绝子步链上可重建。
-- [ ] **A5 `rejected` 路径修复**：服务级单例 `activeTaskId` 竞态（P1 占优）。已有 `r19c-a5-*` 单测；待真机验证 `rejected` 可达，并设计静默窗口实验证伪 P2。
+- [x] **K-N1（High）核查闭环**：r19c-kn1-* 7 文件 242/242 全绿，零 tools/call 早退已根治（`runGoalInner:854` 先 `reconcileDelegationTruth` + `NO_EXECUTION_RECEIPT`）；设计文档行号漂移已校正（`kn1-delegation-audit-contract.md` / `delegation-truth.ts`）。
+- [x] **K-N2 修复**：`app.ps1:693 Get-UninstallDryRunPlan` 纯查询预览，零 winget 调用；`r19b-s1-registry-forms` 35/35 + `r3-uninstall-verify` 39/39 全绿；工件 `v3-kn2.*` 留作参考（有意不提交）。
+- [ ] **S-4 修复**：`POLICY_DENIED` 硬拒绝不落审计（`server.ts:598-611` & `:815-824` 双早退，grep 该文件 audit 零命中），待补 audit sink + 两处 `blocked` 记录（详见 `.dev/kn2-s4-a5-verify.md`）。
+- [x] **A5 `rejected` 路径修复**：`server.ts:189-200` 单例 `activeTaskId` 护栏 + `raise` 归属优先取 `taskId`，`rejected` 终态可达且已由 `r19c-a5-approval-coordinator.test.js` B3（`:369`）+ `:283`/`:305` 断言；`r19c-a5-*` 26/26 全绿。残留（非阻塞）：`cancelRequested` 死字段（无读取方）。
 - [ ] **k3r harness 收紧后的稳定命中复核**：单次复验已 PASS（`sidestepDetected=false`），建议再跑 ≥3 次坐实 100% 命中。
-- [ ] **🔴 git 提交（阻塞项）**：本沙箱**无 git 二进制**（`.git` 目录存在但 `git: command not found`）。**CL-K3R 修复、k3r harness 收紧、本轮文档同步目前均处于未提交状态**，须在真实开发机执行提交。
+- [x] **git 提交（已解阻塞）**：本环境 git 可用（`/storage/Users/currentUser/.harmonybrew/opt/git/bin/git` v2.55.0）。CL-K3R 已提交（d3bb0b3 / 0aad7a7 / e720c53）；本轮 K-N1 行号漂移校正 + K-N2/S-4/A5 核查（`.dev/kn2-s4-a5-verify.md`）+ 索引同步合并提交。
 
 ## ✅ 迁移说明
 

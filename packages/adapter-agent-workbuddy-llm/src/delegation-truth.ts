@@ -3,7 +3,7 @@
  *
  * 为什么要拆（缺陷根因，见 `docs/design/kn1-delegation-audit-contract.md` §1）：
  * K5 回执反查 `reconcileExecutionTruth` 在「本任务从未 raise 审批」时**按设计退场**
- * （`bridge.ts:914` 的 `raisedApprovals.size === 0` 短路），导致委派回合**零工具调用**
+ * （`bridge.ts:1095` 的 `if (ctx.raised.size === 0) return base;` 短路；字段已由 `raisedApprovals` 改名为 `raised`），导致委派回合**零工具调用**
  * 也能静默 `completed`，且链上无一条能证伪它的记录。
  *
  * 本文件把完成判据从「审批回执反查」**升格为「委派账本反查」**：
@@ -105,7 +105,7 @@ export async function reconcileDelegationTruth(
     ok: false,
     summary: `执行回执缺失：委派回合服务端零活动记录（executed=0/blocked=0/wild=0），完成声称「${base.summary.slice(0, 200)}」不予采信`,
     steps: base.steps.map((s) => ({ ...s, ok: false, summary: ZERO_ACTIVITY_STEP_SUMMARY })),
-    // reason 逐字复用 bridge.ts:929-931 既有值（同一 reason 断言，设计 §9-A-2-⑧）
+    // reason 逐字复用 bridge.ts:1110 既有值（同一 reason 断言，设计 §9-A-2-⑧；真正定义见本文件 :110，reason 字符串本身不改）
     error: makeError('EXECUTION_FAILED', ZERO_ACTIVITY_STEP_SUMMARY, {
       reason: 'NO_EXECUTION_RECEIPT',
       details: {
