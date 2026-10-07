@@ -30,11 +30,13 @@
 | host-a2a-bridge | ✅ | ✅ 11 项单测 | **宿主 A2A 委派桥**（stdio MCP server，补齐宿主→VM 的 A2A 一跳） |
 | vm-capabilities | ✅ | ✅ e2e 真实 PS | ps-bridge 常驻（五大模块）＋ 空闲自愈（ping 探测 + 自动重启） |
 | adapter-agent-workbuddy | ✅ | ✅ | 确定性执行器（agent.provider=workbuddy-deterministic，可替换） |
-| adapter-agent-workbuddy-llm | ✅ | ✅ 10 项单测 | **LLM Agent（agent.provider=workbuddy，V1 已实现）**＋技能下发 |
+| adapter-agent-workbuddy-llm | ✅ | ✅ 10 项单测 + K3R 专项 4 项 | **LLM Agent（agent.provider=workbuddy，V1 已实现）**＋技能下发；**CL-K3R 修复**：`runPersistent` 的 `!turn.ok` 分支补 shadow 门控 `reconcileApprovalWait`，根治审批暂停态的静默假成功（灰度 `approvalTruth=on/shadow/off`，真机 `on`×3 全 `input-required`） |
 | adapter-agent-hermes | ✅ | ✅ 10 项单测 | **Hermes Agent（agent.provider=hermes-agent）**：复用确定性执行器/CLI 桥/SKILL 加载；MCP 经 `config.yaml` 预注册（`mcp-registrar.ts` 幂等 upsert + 写 `.env` token）；init 失败降级不阻断 |
 | vm-service | ✅ | ✅ e2e 双通道 | 装配 + CLI（agent.provider 总开关，3 选项：workbuddy-deterministic / workbuddy / hermes-agent） |
 
 ## 测试
+- **【最新实测 · 2026-10-07】单元测试（逐文件复核）：59 个 `tests/unit/*.test.js` ／ 1054 tests ／ 1054 pass ／ 0 fail ／ 0 skipped**。
+  相较第十七轮（51 文件 / 736 pass / 0 fail / 2 skipped）净增 **8 个文件、318 个用例**，主要来自：K-N1 专项 `r19c-kn1-*` 7 文件、K3R 专项 `r19c-k3r-*` 3 文件 + `cl-k3r-runpersistent-approval-routing.test.js`、A5 专项 `r19c-a5-*` 2 文件、以及 `r19b-*`、`r3-uninstall-verify`、`install-vm-admin-endpoint`、`cl017` 等。
 - 单元测试（逐文件复核，截至第十五轮 2026-09-29）：**636 tests / 634 pass / 0 fail / 2 skipped**（24 个 `tests/unit/*.test.js`；第十五轮新增 `k5-replay.test.js` 41 项、`k4-p3.test.js` 扩至 16 项，`k4-approval.test.js` 适配 ApprovalOutcome 契约 6 项；另含第十五轮前累计新增的 K2 预热/tunnel-mode 等测试）。历史快照曾记 214/214（第十四轮）、178 单测 + 16 e2e（分类口径不同）。
 - 审批链专项（K3/K4/P3/K5）：k5-replay 41/41、k4-approval 6/6、k4-p3 16/16 全绿；`tsc -b tsconfig.build.json` 0 error。
 - ⚠️ **运行方式硬约束**：必须**逐文件**跑（`for f in tests/unit/*.test.js; do node --test "$f"; done`）。整批 `node --test tests/unit/*.test.js` 会因 `link-workspace.test.js` 的 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`2147483651`/`0xC0000005`），共享 runner 被打崩，同进程**所有**文件被连带判死、呈假全红、且无汇总计数。单跑该文件 16/16 正常，故属环境问题非代码回归。
@@ -57,3 +59,19 @@
   - VM 产物已改为**排除法**分发（含 `psmod/`、`contracts/schemas/`），修复「远端服务起得来、自检过半，但 54 个能力一个都跑不了」
 - **workspace 软链器 `delivery/link-workspace.mjs`**：远端无 `node_modules` 时建 `@winvm/*` junction（幂等/dry-run 验证通过）。本地模拟产物树实测：修复前 `ERR_MODULE_NOT_FOUND: Cannot find package '@winvm/contracts'`，修复后 `--self-test` 完整通过（54 项能力 + ps-bridge 探针全 OK）
 - VM 服务配置 `delivery/vm-service.config.json`：含三 provider 定义（workbuddy-deterministic / workbuddy / hermes-agent），待在真实 VM 上跑一次 `--self-test` 做终验
+
+## 第十八轮起变更状态（2026-09-30 ~ 2026-10-06）
+
+| 变更 / 轮次 | 状态 | 关键结论 |
+|---|---|---|
+| **CL-021（R17）** | ✅ 条件 PASS / 路由 NoOne | 审批卡原生渲染 / 会话工具面诊断 / K6 卸载核验 / T02b 超时链；真机 5 例 BLOCKED 遗留 |
+| **R19 真机轮** | ✅ 报告已出（含新缺陷） | E1 NSIS 卸载 / E2 MSI 对照 / E3 dryRun 异常复现 PASS；E4 BLOCKED；E5 超时链 PASS |
+| **K-N1（High）** | 🟡 已有单测覆盖，待真机复证 | 委派回合零 `tools/call` 时 K5 回执反查早退 ⇒ 服务端零执行仍报 `completed`；`r19c-kn1-*` 共 7 文件覆盖 |
+| **K-N2** | 🟡 已稳定复现，待修 | dryRun 免审批通道内层 `success=false` / `exitCode=-1978335230` |
+| **S-4** | 🟡 待修 | `POLICY_DENIED` 硬拒绝完全不落审计（`server.ts:676-684`），策略拒绝子步链上不可重建 |
+| **A2A A5（`rejected`）** | ❌ FAIL → 🟡 修复中 | 单例 `activeTaskId` 竞态致 `rejected` 路径真机不可达；已有 `r19c-a5-*` 2 文件单测 |
+| **CL-K3R（K3 根治）** | ✅ 真机 T05 A~F 全过 | `on`×3 全 `input-required`（`apr_1bdd3e1e4b9e4e318b7e`）；harness 收紧后复验 PASS（`apr_7e7b60b61a0c4075b510`） |
+
+### 测试口径（硬约束复述）
+- 必须**逐文件**跑：`for f in tests/unit/*.test.js; do node --test "$f"; done`。整批 `node --test tests/unit/*.test.js` 会因 `link-workspace.test.js` 的 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`0xC0000005`），共享 runner 被打崩，同进程所有文件被连带判死呈**假全红**。
+- 本轮 2026-10-07 实测即按逐文件方式聚合，得 **1054 / 1054 / 0 fail / 0 skipped**。

@@ -36,3 +36,23 @@
 - 新增 `docs/02-design/K5-server-replay-approval.md`：K5 服务端确定性重放设计（问题取证 / 方案时序 / 4 包改动清单 / 安全纪律 / 灰度开关 `WINVM_APPROVAL_REPLAY`）。
 - 新增 `docs/test/reports/real-test-2026-09-28-k4-approval.md`：K4 审批结构化回传真机核验报告（input-required + approval-request DataPart；暴露 K5 假成功根因）。
 - 待补：`docs/test/reports/k5-fix-qa-2026-09-29.md`（QA 独立深审，进行中）。
+
+## 真机验证报告（2026-09-30 起新增 · 本轮补录）
+- `docs/test/reports/real-test-2026-09-30-r18.md` —— R18 真机轮
+- `docs/test/reports/real-test-2026-09-30-r19.md` —— **R19-B 真机轮权威报告**（E1 NSIS 真卸载 PASS / E2 MSI 对照 PASS 附缺陷 K-N2 / E3 dryRun 异常稳定复现 / E4 BLOCKED + 新缺陷 / E5 超时链 PASS）；新登记 **K-N1（High）**、**K-N2**、**S-4**
+- `docs/test/reports/r2-m4-diagnosis.md` —— R2 / M4 诊断
+- `docs/test/reports/a2a-coverage-2026-10-03.md` —— A2A「真机未覆盖 5 项」补齐验证（A1~A4 **PASS**；**A5 FAIL**：`rejected` 路径真机不可达）
+- `docs/test/reports/k3r-t05-runbook-2026-10-05.md` —— CL-K3R T05 执行序列（A~F 阶段与门禁 G0~G4）
+- `docs/test/reports/k3r-t05-phase-d-blocker-2026-10-05.md` —— Phase D 阻塞根因（`reconcileApprovalTruth` 门0 `if (!base.ok) return base` 短路）+ 修复
+- `docs/test/reports/k3r-t05-real-machine-2026-10-06.md` —— **CL-K3R T05 真机 A~F 全阶段完成报告**（`on`×3 全 `input-required`，K3 假成功根治）
+
+## 变更文档（docs/changes/）
+- `CL-015` ~ `CL-020`：既有。
+- **`CL-021`（R17）与 `CL-K3R`：本轮补建**（各含 REQUIREMENT / TECHNICAL-SOLUTION / QA-REPORT），补齐此前「已实现未入册」的缺口。
+
+## 最近变更（第十八轮起 · 2026-09-30 ~ 2026-10-06）
+- **CL-021（R17，2026-09-30）**：审批卡原生渲染（`approval-card.ts` 806 行，`show_widget` + `AskUserQuestion` 两段式，`L0_L1_NO_CARD` 独立降级码）、会话工具面诊断（`delivery/tools/diagnose-connectors.mjs` 只读诊断 + install-host 自检）、K6 能力层卸载核验（NSIS `/S` 回退 + R-0 entry 预捕获）、T02b 超时链 `capTimeoutMs ?? req.timeoutMs ?? 30_000`。QA 条件 PASS / 路由 NoOne（`tsc` EXIT=0，51 文件 736 pass / 0 fail / 2 skipped），真机 5 例 BLOCKED 遗留。
+- **R19 真机轮（2026-09-30 轮次 / 执行跨 10-02）**：新登记 **K-N1（High）**——委派回合从未发起 `tools/call` 时，K5 回执反查按 `bridge.ts:914` 早退（`raisedApprovals` 为空即 `return base`）⇒ 服务端零执行记录仍报 `completed`；**K-N2**——dryRun 通道内层 `success=false` / `exitCode=-1978335230`；**S-4**——`POLICY_DENIED` 硬拒绝完全不落审计（`server.ts:676-684`）。K-N1 已由 `r19c-kn1-*` 共 7 个单测文件覆盖。
+- **A2A 覆盖补齐（2026-10-03）**：A1 `message/stream` / A2 `tasks/list` / A3 agent card / A4 `tasks/cancel` 均 PASS；**A5 FAIL**——L2 审批闸已触发并产生 `approvalId`，但任务未挂起 `input-required`、17s 直收 `failed`，D-5 的 `rejected` 置位路径真机不可达；根因 **P1（占优）**：服务级单例 `activeTaskId`（`vm-service/src/server.ts:144`）被「已 cancel 但 runGoal 仍在飞」的上一委派 `endTask()` 清掉（`rec.cancelRequested` 全仓只写不读）。已新增 `r19c-a5-*` 单测。
+- **CL-K3R（K3 静默假成功根治，2026-10-05~10-06）**：`packages/adapter-agent-workbuddy-llm/src/bridge.ts` 的 `runPersistent` `!turn.ok` 分支补 **shadow 门控 `reconcileApprovalWait`**（shadow 仅 warn 不改判；非 shadow 命中则经 `maybeResume` 改判 `APPROVAL_REQUIRED`）；灰度开关 `approvalTruth = on | shadow | off`。T05 真机：shadow×3 观察不改（`[shadow]` warn 2/3）、**`on`×3 全 `input-required`**（`approvalId=apr_1bdd3e1e4b9e4e318b7e`、`capabilityId=app.winget.uninstall`、`risk=L2`）；宿主单测 `cl-k3r-runpersistent-approval-routing.test.js` 4/4。
+- **k3r harness 收紧（2026-10-06 收尾）**：`qa/r19/a2a-extra.mjs` 默认 goal 强制「直接调 `app.winget.uninstall`、禁止 `appops.workflow.run` 间接方式」；新增 `capabilityIdsOf` 助手与 `sidestepDetected` 断言分支，消除 T2 歧义导致的探针空转。复验 PASS（`apr_7e7b60b61a0c4075b510`，`capabilityIds=["app.winget.uninstall"]`、`sidestepDetected=false`）。

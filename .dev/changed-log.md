@@ -513,3 +513,89 @@ K4 审批结构化回传宿主真机验证（报告 `docs/test/reports/real-test
 - **SAME**：宿主插件缓存 4 件套 + a2a-bridge 六件 JS + hooks（逐字节）；VM 57 个 dist js 全 SAME；宿主 connectors 7 skills SAME（除 orchestrator 本轮新增条款）；mcp.json 三处注册一致。
 - **漂移修复**：① VM 侧 `C:/WinVMBridge/skills` + `shared-skills` 6 个 skill 停在 9/28 → 经部署管道推 9/29 门禁版（md5 校验）；② orchestrator 门禁第 5 条同步仓库→宿主 connectors→VM 三处；③ `.dev` 补记本轮。
 - 已知无害项：`a2a-bridge/package.json` 安装器改名（`@winvm/host-a2a-bridge`→`winvm-a2a-bridge`，打包转换预期）；仓库 `%LOCALAPPDATA%/` 为 gitignore 内 Windows 变量展开垃圾（9/28 服务日志误写本地，无害）。
+
+---
+
+## 第十七轮 · 2026-09-30（CL-021 / R17：审批卡 + 工具面诊断 + K6 能力层 + 超时链）
+
+### 范围
+CL-021（代号 R17）11 个 commit（`8cd5da0` → `a3308ae`），覆盖 T01/T02/§A5 回写/T03×2/T02b×2/T04×3/QA。
+
+### 交付
+- **R1（T03）宿主审批卡原生渲染**：`approval-card.ts`（806 行）`show_widget` + `AskUserQuestion` 两段式；`L0_L1_NO_CARD` 独立降级码；哨兵**刻意保留 v1 字面**（CL-016 命中数=1 依赖此字面）。
+- **R2（T04）会话工具面注入保障**：新增 `delivery/tools/diagnose-connectors.mjs`（只读诊断）+ `install-host.mjs` 末尾自检 + INSTALL-GUIDE §8.1。
+- **K6（T01/T02）能力层卸载核验**：`app.ps1` 状态机 R-0 entry 预捕获先于 winget；NSIS 判定 → `/S` 回退 → 再核验；回执 `verified` / `fallbackUsed` / `residualEvidence:string`。
+- **T02b 超时链**：`capTimeoutMs ?? req.timeoutMs ?? 30_000`（A2A metadata 仅 300s 会掐断 540s 最坏情形）。
+
+### 验证
+- QA 报告 `docs/test/reports/r17-qa-2026-09-30.md`，**条件 PASS / 路由 NoOne**：`tsc -b tsconfig.build.json` EXIT=0；全量 51 文件 **736 pass / 0 fail / 2 skipped**（修复前唯一 fail 为 `sandbox-allowwrite` 测试桩缺 `renderConnectorEntry` 导出，`d183a76` 基线即坏、非 R17 回归）。
+
+### 遗留（移交 changing-log）
+- R17 真机 BLOCKED 五例（报告 §7）：①R1 审批卡端到端闭环 + 审计 `-replay` ②R2 矩阵 M4 连续≥3 新会话 ToolSearch 命中 ③R3 企业微信 NSIS/MSI 对照 / dryRun / exit≠0 / 600s 实测 ④T02b A2A 长卸载（>300s）不被掐断 ⑤R-4 预捕获时序真机复证。
+- 非阻塞：F-2 skills 域未显式承载「success=false 如实转呈」文案（P3）；F-3 `fillApprovalCard([])` reason 码归 `MISSING_APPROVAL_ID` 而非 `NO_INPUT`（P3）。
+
+---
+
+## R19 真机轮 · 2026-09-30 轮次 / 执行跨 2026-10-02
+
+报告 `docs/test/reports/real-test-2026-09-30-r19.md`（R19 真机轮**唯一权威报告**）。
+
+| 例 | 判定 | 依据 |
+|---|---|---|
+| E1 NSIS（企业微信）真卸载 + R1 审批半程 | **PASS** | 审计 seq23 / seq149 两次 `approvedBy:"host"` 真执行；inventory 1→0 交叉印证 |
+| E2 MSI（GitHub.cli）对照 + dryRun 免审批 | **PASS**（附缺陷 K-N2） | seq156 L2 拦截未执行；seq157 `allow:dry-run-bypass` 放行但内层 `success=false` |
+| E3 dryRun 异常重验 | **PASS**（稳定复现） | seq165 与 seq157 逐字段一致 ⇒ K-N2 由「疑似」升为「坐实」 |
+| E4 exit≠0 失败路径 | **BLOCKED**（A2A）+ **PASS**（能力层控制组）+ 新缺陷 K-N1 | 委派 `completed`/`ok:true` 但零 `INPUT_REQUIRED`、审计零新增 ⇒ 内层从未被调用 |
+| E5 超时链（>300s）+ R-0 预捕获 | 超时链 **PASS**（362s、840s 两次实证）/ R-0 **PARTIAL PASS** | 限定为「回合级不掐断」；R-0 工件级证据未获取 |
+
+### 新登记缺陷
+- **K-N1（High）**：委派回合从未发起 `tools/call` 时，K5 回执反查按 `bridge.ts:914` 早退（`raisedApprovals` 为空即 `return base`）⇒ 服务端零执行记录仍能报 `completed`。已由 `r19c-kn1-*` 共 **7 个单测文件**覆盖。
+- **K-N2**：dryRun 通道内层 `success=false` / `exitCode=-1978335230`（复现工件 `v3-kn2.*`）。
+- **S-4**：`POLICY_DENIED` 硬拒绝完全不落审计（`server.ts:676-684` 无审计调用，对照 `:645-657` 审批拦截分支有）⇒ 策略拒绝子步链上不可重建。
+
+### 纠正（推翻旧疑点）
+- **OBS-D**：inventory 中文匹配**可靠**，空数组是「确已卸载」的有效负向证据（撤销旧疑点）。
+- **OBS-E**：`storage.dir.manage` / `storage.file.write` 的 `path` 本就是合法参数，`action` 被 `INVALID_PARAMS` 拒绝是正确行为（撤销旧疑点）；部署体 54 工具 schema 与交付声明一致。
+
+---
+
+## A2A 通道「真机未覆盖 5 项」补齐 · 2026-10-03
+
+报告 `docs/test/reports/a2a-coverage-2026-10-03.md`，驱动 `qa/r19/a2a-extra.mjs`。本轮**未改任何 `packages/**` 源码**。
+
+- **A1 `message/stream`（SSE）PASS**：`http=200`、`ct=text/event-stream`、`eventCount=8`、终态 `status-update final:true state:completed`、`firstFrameMs=281`。
+- **A2 `tasks/list` PASS**：`taskCount=1`、`totalSize=1`；空库基线仍 200（方法本身可用，不因空库报错）。
+- **A3 agent card PASS**：`/.well-known/agent-card.json` 200，`hasCapabilities/hasSkills=true`、`skillsCount=5`；附记 `agent/getAuthenticatedExtendedCard` 返回 `AuthenticatedExtendedCardNotConfiguredError`（如实记录，不计失败）。
+- **A4 `tasks/cancel` PASS**：`stateBeforeCancel=working` → `canceled`。首次失败属**用例设计问题**（settle 15s 而任务约 15s 已完成，框架正确报 `TaskNotCancelableError`，构成负向对照），改 `settle-ms=2500` + 更长只读目标后通过。
+- **A5 审批拒绝 → `rejected` ❌ FAIL**：审批闸已触发并产生 `approvalId=apr_a9aabfcffb5f4246b918`，但**从未进入 `input-required`**，17s 直收 `failed` ⇒ D-5 的 `rejected` 置位路径真机不可达。根因 **P1（占优）**：服务级单例 `activeTaskId`（`vm-service/src/server.ts:144`）被「已 cancel 但 `runGoal` 仍在飞」的上一委派 `endTask()` 清掉（`task-store.ts:188` `rec.cancelRequested` **全仓只写不读**）。P2（`coordinator` 未注入）概率低，待 P1 证伪后排除。已新增 `r19c-a5-*` 单测。
+
+---
+
+## CL-K3R · K3 静默假成功根治（2026-10-05 ~ 2026-10-06）
+
+### 问题
+LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文本模式 `APPROVAL_WAIT_PATTERN`（`/APPROVAL_REQUIRED|等待审批/`）判定 ⇒ 拦截已发生却报 `completed`（**静默假成功**）。
+
+### 修复（`packages/adapter-agent-workbuddy-llm/src/bridge.ts`）
+1. 结构化判据 `reconcileApprovalTruth`（服务端 pendingApprovals 事实对账）；⚠️ **门0**：`delegation-truth.ts:227` `if (!base.ok) return base;` —— 拒绝 `ok:false`，故不能在 `!turn.ok` 分支直接调用它。
+2. `runPersistent` 的 `!turn.ok` 分支补 **shadow 门控 `reconcileApprovalWait` 文本启发式**：shadow 时仅打 `[shadow]` warn 并保留 `EXECUTION_FAILED`；非 shadow 且命中时经 `maybeResume` 改判 `APPROVAL_REQUIRED`。
+3. 路径差异：`runPersistent`（stream-json）把审批挂起表现为 `is_error=true` → `turn.ok=false`；`runOneShot`（`-p text`）表现为 exit-0 正常文本 → `turn.ok=true`。Phase D 的 bug **只在 persistent 路径**。
+4. 灰度开关 `approvalTruth = on（默认治愈）| shadow（仅观察）| off`。
+
+### T05 真机验证（A~F 全过）
+报告 `docs/test/reports/k3r-t05-real-machine-2026-10-06.md`（另有 `k3r-t05-runbook-2026-10-05.md`、`k3r-t05-phase-d-blocker-2026-10-05.md`）。
+- 门禁：G0 隧道 pid 22335 / G1 `/health` 200 / G2 `tsc -b --force` 0 error / G3 310/310（4 K3R + k5-replay 41 + 7 K-N1）/ G4 E-3 指纹（`/health` **顶层** `providerApprovalTruth={mode,enabled,shadow}`，**非** `provider.approvalTruth`）。
+- shadow×3：均 `completed`（观察不改，符合 G4 纪律），`[shadow]` warn 命中 2/3。
+- **`on`×3 决定性 PASS**：全部终态 `input-required`，`approvalId=apr_1bdd3e1e4b9e4e318b7e`、`capabilityId=app.winget.uninstall`、`risk=L2`、`params={id:Microsoft.WindowsCalculator,dryRun:false}`。
+- 宿主单测 `tests/unit/cl-k3r-runpersistent-approval-routing.test.js` **4/4**（A `!ok`+审批文本→APPROVAL_REQUIRED；B `!ok`+真错→EXECUTION_FAILED；C `ok:true` 回归护栏；D shadow+审批文本→仅 warn）。
+
+### harness 收紧（2026-10-06 收尾）
+`qa/r19/a2a-extra.mjs` 的 k3r 默认 goal 改为强制「直接调 `app.winget.uninstall`、禁止 `appops.workflow.run` 间接方式」（消除 T2 歧义导致的探针空转）；新增 `capabilityIdsOf` 助手与 `sidestepDetected` 断言分支。复验 **PASS**：`apr_7e7b60b61a0c4075b510`、`capabilityIds=["app.winget.uninstall"]`、`sidestepDetected=false`。
+
+---
+
+## 文档同步轮 · 2026-10-07（DDD 场景 F：历史变更补入索引）
+
+- **背景**：`.dev/` 六大索引停留在第十七轮（2026-09-30），其后的 R19 / A2A 覆盖 / CL-K3R T05 / harness 收紧**均未入册**；`docs/changes/` 缺 `CL-021`、`CL-K3R` 两个目录。
+- **本轮动作**：更新 `docs-index.md`、`project-dev-status.md`、`project-dir-file-index.md`、`changing-log.md`、`changed-log.md` 五索引；补建 `docs/changes/CL-021/`、`docs/changes/CL-K3R/`。
+- **实测基线**：**59 个 `tests/unit/*.test.js` ／ 1054 tests ／ 1054 pass ／ 0 fail ／ 0 skipped**（逐文件方式，2026-10-07）。

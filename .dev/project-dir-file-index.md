@@ -7,11 +7,15 @@ workbuddy-virtual-win-plugin/
 ├── package.json              # workspace 根（npm workspaces，12 包）
 ├── tsconfig.base.json        # 共享 TS 配置（strict, ESM）
 ├── tsconfig.build.json       # 构建引用图（根无 tsconfig.json，构建须带此文件）
-├── docs/                     # 调研 / 设计 / 交付文档
+├── docs/                     # 调研 / 设计 / 交付文档（含 docs/changes/CL-* 与 docs/test/reports/）
 ├── packages/                 # 12 个可独立编译/发布的 npm 包
-├── skills/                   # 6 个 WorkBuddy Skill（1 总控 + 5 领域）+ 各 Skill 内的 mcps-reference 参考
-├── tests/                    # unit/ + e2e/
+├── skills/                   # 7 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 个 `winvm-mcp-reference` 部署参考）+ 各 Skill 内的 mcps-reference 参考
+├── tests/                    # unit/（59 个 *.test.js）+ e2e/ + fixtures/
+├── qa/                       # 真机验证证据与驱动脚本（r18 / r19 / harness / probes / evidence / archive）
 ├── delivery/                 # 安装器 + 部署配置
+├── v3-kn2.meta.json          # K-N2 复现元数据（2026-10-02）
+├── v3-kn2.req.json           # K-N2 复现请求体
+├── v3-kn2.resp.json          # K-N2 复现响应体
 └── .dev/                     # DDD 六大索引
 ```
 
@@ -32,9 +36,17 @@ workbuddy-virtual-win-plugin/
 | `vm-service` | 装配 | 同端口双协议服务端 + CLI 入口（agent.provider 总开关，3 选项：workbuddy-deterministic / workbuddy / hermes-agent） |
 
 ## skills/
-- `winvm-orchestrator` 总控 · `winvm-system-admin` · `winvm-app-manager` · `winvm-storage-manager` · `winvm-gui-automation` · `winvm-app-operation`（应用生产操作 appops）
+- `winvm-orchestrator` 总控 · `winvm-system-admin` · `winvm-app-manager` · `winvm-storage-manager` · `winvm-gui-automation` · `winvm-app-operation`（应用生产操作 appops）· `winvm-mcp-reference`（MCP server 部署/管理参考，独立 Skill）
 - 每个 Skill 内含 `mcps-reference.md`：各 MCP server 部署/管理参考（供 VM AI Agent 参考调用）
 - **单一真源 + symlink 部署**：各候选 VM Agent 仅通过 junction 引用 `C:/WinVMBridge/shared-skills` 下的 Skill，避免多份副本
+
+## qa/（真机验证证据与驱动，2026-09-30 起主要落点）
+- `qa/r19/` —— **R19 真机轮证据根**：`a2a-extra.mjs`（A2A 补齐驱动 + `k3r` 子命令，含 **harness 收紧**：强制直调 `app.winget.uninstall`、禁 `appops.workflow.run`，新增 `capabilityIdsOf` 与 `sidestepDetected`）、`e4*-audit-full.jsonl`（VM 审计链快照，181 条，已固化可离线复核）、`a2a-x1..x5-*`（A1~A5 证据）、`r3-a4a5-overlap.*`（A4+A5 交叠复现）、`r19-offline-checks.mjs`
+- `qa/r18/`、`qa/harness/`、`qa/probes/`、`qa/evidence/`、`qa/archive/` —— 历史轮次与探针/证据归档
+- ⚠️ 驱动脚本硬约束：证据落盘一律用**绝对路径前缀**（`--prefix=`），参数一律 `--k=v` 等号形式（空格形式会 NaN → `ERR_OUT_OF_RANGE`）；写入后**二次确认 mtime + 字节数**，避免读到未 flush 的 0B 假空文件
+
+## 根级新增（K-N2 复现工件）
+- `v3-kn2.meta.json` / `v3-kn2.req.json` / `v3-kn2.resp.json`（2026-10-02）—— K-N2（dryRun 通道内层 `success=false` / `exitCode=-1978335230`）复现工件
 
 ## delivery/
 - `setup.mjs` 双端一键部署总入口（读 `.env`：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行；VM-START 阶段轮询 VM 本机 18443 端口 ≤60s 才认定启动完成、HEALTH 阶段解析 `/health` 的 `session.interactive` 并在非交互式会话时打印 GUI 启用命令块；**第十轮修复 `reachable()`/`waitForRemotePort()` 误带 `-o BatchMode=yes` 致 `VM-START`/`VM-UNINSTALL` 偶发误判「VM 不可达」而跳过，已去除并加 1 次重试与真实 ssh 行为对齐**）

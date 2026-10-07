@@ -16,11 +16,15 @@
 ## 关键坑（改码/联调前必扫）
 - **远端 shell = Git Bash(MSYS)**：`/` 开头参数被路径转换、`$_`/`$env:` 被吞 → 远端逻辑写 `.ps1` → scp（**远端路径须 `C:/…`**）→ `powershell -NoProfile -ExecutionPolicy Bypass -File`；载荷用 ASCII 防中文乱码。杀隧道勿 `pkill -f 'ssh -N -L'`（自杀）→ 直 kill PID。
 - **PS 5.1**：`Sort-Object <裸键>` 对 `[ordered]@{}` 静默失效 → `-Property { $_.key }`；`Set-StrictMode` 下顶层变量无条件赋值。
-- **沙箱**：`/tmp` 只读（用 `$HOME/wbtmp`）；无 `git`；`rm` shim **坏**（`safe-bin/rm` shebang `#!/bin/bash`，本机只有 `/bin/sh` → bad interpreter / exit 126）→ 用 `fs.unlinkSync`/`renameSync`；`ls` 无 `--time-style`；`getcwd` 偶发异常（用绝对路径）；node 必须 `/data/storage/el1/bundle/libs/arm64/node/bin/node`。
+- **沙箱**：`/tmp` 只读（用 `$HOME/wbtmp`）；**`git` 不在 PATH（`command -v git` 为空、`git --version` 报 not found），但二进制真实存在**：`/storage/Users/currentUser/.harmonybrew/opt/git/bin/git`（v2.55.0）⇒ **用全路径即可正常 commit/log/show**（仓库任务书 `docs/design/cl-k3r-e2b-e3-taskbook.md:11` 亦记此路径）。⚠️ 曾因只搜 PATH + `/data/storage/el1/bundle` 误判「本环境无 git」，进而误判他人 commit 证据为臆造——**判定前必须搜 `.harmonybrew`**；`rm` shim **坏**（`safe-bin/rm` shebang `#!/bin/bash`，本机只有 `/bin/sh` → bad interpreter / exit 126）→ 用 `fs.unlinkSync`/`renameSync`；`ls` 无 `--time-style`；`getcwd` 偶发异常（用绝对路径）；node 必须 `/data/storage/el1/bundle/libs/arm64/node/bin/node`。
 - **单测绝不整批跑** → `node --test <单文件>`。
 - **Grep 工具对 `delivery/*.mjs` 漏匹配**（`|` 多选正则假阴性）→ 用 Read 或逐词单搜。
+- **仓库清点一律 `git ls-files`/`git grep`**，不用 FS `find`/`grep`——getcwd 失效 shell 下 FS 搜索产出假象（曾致 L8"K5 无护栏"误判，实际 52 测试文件）。`package.json test:unit` glob 只吃 `*.test.js`，`.test.mjs` 被静默跳过。
+- **裁决必须落档再引用编号**：口径权威层级=**仓库文档 > 任务板描述 > 聊天**（设计 §11 决策日志制，如 `docs/design/kn1-*.md`、`s5-*.md`）；聊天中无法溯源的"裁决引用"（如幻觉的 B1/B2/B3）一律无效，成员遇引用存疑先问主理人。文档引用锚点用**段标签为主、行号为辅**（并行改动会让行号漂移）。成员长时间压改动不提交会令并行文档失真——小步提交。
 - **隧道**：VM 掉线时旧隧道仍占监听 → TCP 通但 HTTP 黑洞（判据：ping 100% 丢）。用 `delivery/tunnel-daemon.mjs`（进程内 ssh2 + 指数退避 + 仅绑回环 + pidfile/state；**无 `--daemon`，直接跑即常驻**）。兜底 HOURLY watchdog `aaa87da4`。
 - **VM 侧 live 部署**：`.env.deploy-vm`；dist tar → scp → VM 内**从文件**解包覆盖（`tar -x` 不可走 stdin，MSYS 会截断）→ `kill-restart.ps1`。
+- **⭐ VM 侧运行态开关怎么切（2026-10-05 逐跳实测）**：VM 服务进程 = `node C:\WinVMBridge\packages\vm-service\dist\cli.js --config "C:\WinVMBridge\delivery\.generated\vm-service.runtime.json"`。改开关**走 provider options** 而非机器级环境变量：`.generated` 运行时 JSON 的 `agent.providers.<id>.options.<key>` → `packages/core/src/config/index.ts:242` provider 级**浅合并**（options 未知键原样保留）→ `:201 validateServiceConfig` **不拒未知键** → `packages/vm-service/src/cli.ts:119` `factory(entry.options ?? {})` → adapter 内 `opts.X ?? resolveX(process.env)`（显式配置优先）。**重启只用 `kill-restart.ps1`**（不重跑 install-vm ⇒ **不重新生成 `.generated/`**）；⚠ **`deploy-vm.mjs --apply` 会重新生成运行时配置 ⇒ 顺序铁律：先部署 → 后打补丁 → 再 kill-restart**。
+- **⭐ 版本指纹 > uptime**：`psBridge.uptimeMs` 只证明何时重启，不证明跑的代码；要证明版本须用**行为/字段指纹**（如 `steps[0].risk='L2'` 对旧构建硬编码 `'L1'`、或 `/health` 上的开关字段）。
 - **codebuddy CLI 自动升级**中途夭折会删坏 nvm 垫片 → 固定版本。
 
 ## 里程碑
@@ -32,6 +36,8 @@
 - **⭐ 部署关键事实**：`install-host.mjs:965-975` HOST 相位**自己会 `tunnel ensure`** → 整条总脚本里 TUNNEL 相位**永远走①复用**、看不到"无隧道"；验②③必须 `--phase TUNNEL` 隔离跑。
 - **⭐ GUI 可用性成因**：VM 任务经 **BootTrigger（无用户会话）** 启动 → 非交互 → GUI 不可用；经 **LogonTrigger（已登录会话）** 拉起 → 交互式 → GUI 可用。故 `install-vm.mjs` 须**双触发器**。
 - **Run3 终态权威 md5**：`setup.mjs`=60,345B/`cef0dcf3471809bc41f88843f1b23942`；`winvm-plugin.mjs`=`efdafd2d1e3185647b852d7be5778eb2`；`tunnel-daemon.mjs`=`4ed08c1fd63052de761423b41dc87e0b`；`oh-tunnel.mjs`=`8c397ae7eb2491626b8e398fe3b5684c`；`ssh2-resolve.mjs`=`35f1678d96144765ad50f9f439ecdcc8`；单测 `c9770f9bf8863d33e3764adec3ca654e`。
+- **⭐ CL-021 R17（2026-09-30，离线条件 PASS/NoOne，**未部署**）**：11 commit `8cd5da0`→`a3308ae`（T01/T02/§A5 回写/T03×2/T02b×2/T04×3/QA）。R1 审批卡=`approval-card.ts`（806 行）show_widget+AskUserQuestion 两段式、L0_L1_NO_CARD 独立降级码、哨兵刻意保 v1 字面（CL-016 命中数=1 依赖）；R2=`delivery/tools/diagnose-connectors.mjs` 只读诊断 + install-host 末段自检 + INSTALL-GUIDE §8.1；K6=app.ps1 状态机 **R-0 entry 预捕获先于 winget**（§A5 已勘误；NSIS 判定→`/S` 回退→再核验，回执 verified/fallbackUsed/residualEvidence:string）；T02b=adapter 超时链 `capTimeoutMs ?? req.timeoutMs ?? 30_000`（A2A metadata 仅 300s 掐断 540s 最坏情形）。真机 BLOCKED 五例见 `docs/test/reports/r17-qa-2026-09-30.md` §7。
+- **⚠️ 团队/A2A 派发纪律（本环境实测）**：后台 worker「completed 通知」与「SendMessage 结果回报」**异步分离**，续跑唤醒不可靠 → fresh Agent + 极窄任务书 + 每逻辑单元即 commit + 主理人按 HEAD 独立核验；**同任务严禁双进程并发**（曾误判零落地双派 T02b）。**分析/只读型子任务也必须指定增量落盘文件（绝对路径）+ 每节结论即 commit**——「不落文件」会让 mtime 判活彻底失效，worker 静默中断时零产出且不可恢复（2026-10-03 `software-engineer-3` 进程死亡，吃亏一次）。团队句柄跨会话易失效（`SendMessage` 报 `Not in a team`）→ 重建团队即可（`software-winvm-r19d`→`r19e`）。
 
 ## 关键口径
 - C5 三档：热态(命中)<3s｜冷启预热 ≤3s｜真采集 ≤5s。AC 时延取 `wallMs`（宿主往返），`durationMs` 留档（差 ≈330–390ms）。
