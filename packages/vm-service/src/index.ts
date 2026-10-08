@@ -15,11 +15,13 @@ export {
   collectApprovalFacts,
   deriveUnderlying,
   recordBlockedApprovalAudit,
+  recordPolicyDeniedAudit,
   toExecutedResult,
 } from './approval-replay.js';
 export type {
   BlockedAuditInput,
   PendingApprovalLike,
+  PolicyDeniedAuditInput,
   SegmentResultLike,
 } from './approval-replay.js';
 /** CL-K3R：未决审批事实的契约类型（桥侧判据与单测引用同一形状，避免类型漂移） */

@@ -44,7 +44,7 @@
 
 - [x] **K-N1（High）核查闭环**：r19c-kn1-* 7 文件 242/242 全绿，零 tools/call 早退已根治（`runGoalInner:854` 先 `reconcileDelegationTruth` + `NO_EXECUTION_RECEIPT`）；设计文档行号漂移已校正（`kn1-delegation-audit-contract.md` / `delegation-truth.ts`）。
 - [x] **K-N2 修复**：`app.ps1:693 Get-UninstallDryRunPlan` 纯查询预览，零 winget 调用；`r19b-s1-registry-forms` 35/35 + `r3-uninstall-verify` 39/39 全绿；工件 `v3-kn2.*` 留作参考（有意不提交）。
-- [ ] **S-4 修复**：`POLICY_DENIED` 硬拒绝不落审计（`server.ts:598-611` & `:815-824` 双早退，grep 该文件 audit 零命中），待补 audit sink + 两处 `blocked` 记录（详见 `.dev/kn2-s4-a5-verify.md`）。
+- [x] **S-4 修复**：`POLICY_DENIED` 硬拒绝现经 `recordPolicyDeniedAudit` 落 `blocked:policy-denied` 审计（`server.ts:605` & `:837` 双早退前注入）；账本跳过规则改用哨兵 `approval.approvalId==='policy-denied'` 判别（`delegation-audit.ts:383`），修正「真实规则名（`maxRisk:…`/`pathDenylist:…`）漏判污染 K-N1 账本」的二次缺口；`r19c-s4-policy-denied-audit.test.js` 7/7 + 回归 82/82（详见 `.dev/kn2-s4-a5-verify.md`）。
 - [x] **A5 `rejected` 路径修复**：`server.ts:189-200` 单例 `activeTaskId` 护栏 + `raise` 归属优先取 `taskId`，`rejected` 终态可达且已由 `r19c-a5-approval-coordinator.test.js` B3（`:369`）+ `:283`/`:305` 断言；`r19c-a5-*` 26/26 全绿。残留（非阻塞）：`cancelRequested` 死字段（无读取方）。
 - [ ] **k3r harness 收紧后的稳定命中复核**：单次复验已 PASS（`sidestepDetected=false`），建议再跑 ≥3 次坐实 100% 命中。
 - [x] **git 提交（已解阻塞）**：本环境 git 可用（`/storage/Users/currentUser/.harmonybrew/opt/git/bin/git` v2.55.0）。CL-K3R 已提交（d3bb0b3 / 0aad7a7 / e720c53）；本轮 K-N1 行号漂移校正 + K-N2/S-4/A5 核查（`.dev/kn2-s4-a5-verify.md`）+ 索引同步合并提交。

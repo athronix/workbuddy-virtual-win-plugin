@@ -68,7 +68,7 @@
 | **R19 真机轮** | ✅ 报告已出（含新缺陷） | E1 NSIS 卸载 / E2 MSI 对照 / E3 dryRun 异常复现 PASS；E4 BLOCKED；E5 超时链 PASS |
 | **K-N1（High）** | ✅ 已修复 + 242/242 单测 | 委派回合零 `tools/call` 时 `reconcileDelegationTruth` 先行反查 ⇒ 零账本活动报 `failed`/`NO_EXECUTION_RECEIPT`；`r19c-kn1-*` 7 文件 242 例全绿（真机复证可选，单测已闭环） |
 | **K-N2** | ✅ 已修复 + 74/74 单测 | dryRun 改宿主侧纯查询预览 `Get-UninstallDryRunPlan`（`app.ps1:693`），零 winget 调用；`r19b-s1-registry-forms` 35/35 + `r3-uninstall-verify` 39/39 全绿；真机码 `-1978335230`（0x8A150002）已断言 |
-| **S-4** | ⚠️ 仍 OPEN | `POLICY_DENIED` 硬拒绝不落审计（`server.ts:598-611` & `:815-824` 双早退无 audit；grep 该文件 audit 零命中），策略拒绝子步链不可重建 |
+| **S-4** | ✅ 已修复 | `POLICY_DENIED` 硬拒绝现经 `recordPolicyDeniedAudit` 落 `blocked:policy-denied` 审计（`server.ts:605` & `:837` 双早退前）；账本跳过规则改用哨兵 `approval.approvalId==='policy-denied'` 判别（`delegation-audit.ts:383`），避免真实规则名（`maxRisk:…`/`pathDenylist:…`）漏判污染 K-N1 账本；`r19c-s4-policy-denied-audit.test.js` 7/7 + 回归 82/82 |
 | **A2A A5（`rejected`）** | ✅ 核心已修 + 26/26 单测 | `endTask`/`raise` 加单例 `activeTaskId` 护栏（`server.ts:189-200`/`:205`），`rejected` 终态可达且已由 A5 coordinator 测试 B3（`:369`）+ `:283`/`:305` 断言；唯一残留（非阻塞）= 死字段 `cancelRequested`（`a2a-framework/task-store.ts:51/116/188` 无读取方） |
 | **CL-K3R（K3 根治）** | ✅ 真机 T05 A~F 全过 | `on`×3 全 `input-required`（`apr_1bdd3e1e4b9e4e318b7e`）；harness 收紧后复验 PASS（`apr_7e7b60b61a0c4075b510`） |
 

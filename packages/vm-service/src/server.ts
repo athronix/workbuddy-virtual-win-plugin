@@ -61,6 +61,7 @@ import {
   collectApprovalFacts,
   deriveUnderlying,
   recordBlockedApprovalAudit,
+  recordPolicyDeniedAudit,
   toExecutedResult,
 } from './approval-replay.js';
 import {
@@ -598,6 +599,25 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     if (!verdict.allowed) {
       // 重放路径理论上不会走到这里（宿主已批准）；若策略黑名单命中等硬拒绝，
       // 仍如实返回失败 → 重放回执 ok:false，桥据此改判，绝不伪装成功。
+      // S-4 取证盲区闭合：策略硬拒绝（黑名单命中/能力未注册/超 maxRisk 等）必须入审计链，
+      // 否则事后无法证明「该调用到过服务端且被策略拒绝」（与 K5 审批拦截同款落痕纪律）。
+      // best-effort：审计写失败不影响拒绝结果（拒绝语义优先）。
+      void recordPolicyDeniedAudit(
+        audit,
+        logger,
+        {
+          traceId: seg.traceId,
+          capabilityId: cap.id,
+          risk: cap.risk,
+          params,
+          startedAtMs: Date.now(),
+          matchedRule: verdict.matchedRule ?? 'policy-denied',
+          errorCode: verdict.error?.code ?? 'POLICY_DENIED',
+          ...(verdict.error?.message ? { errorMessage: verdict.error.message } : {}),
+        },
+        () => newId('aud'),
+        { channel: 'mcp' },
+      );
       return {
         isError: true,
         structuredContent: {
@@ -812,6 +832,24 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
             },
           };
         }
+        // S-4 同上：审批路径下的策略硬拒绝也必须入审计链。
+        // 它是终态拒绝而非待审批，故不登记进 ledger（onRecorded 省略）——避免被计为 blocked/wild。
+        void recordPolicyDeniedAudit(
+          audit,
+          logger,
+          {
+            traceId: ctx.traceId,
+            capabilityId: cap.id,
+            risk: cap.risk,
+            params: rest,
+            startedAtMs: Date.now(),
+            matchedRule: verdict.matchedRule ?? 'policy-denied',
+            errorCode: verdict.error?.code ?? 'POLICY_DENIED',
+            ...(verdict.error?.message ? { errorMessage: verdict.error.message } : {}),
+          },
+          () => newId('aud'),
+          { channel: ctx.delegationId ? 'a2a' : 'mcp', ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}) },
+        );
         return {
           isError: true,
           structuredContent: {

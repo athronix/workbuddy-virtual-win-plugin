@@ -376,9 +376,11 @@ export class LedgerRegistry {
     if (!record || record.capabilityId === SHELL_CAPABILITY_ID) return;
     const ext = record.ext;
     if (ext?.kind === 'delegation-start' || ext?.kind === 'delegation-complete') return;
-    // blocked 条目走 `recordBlocked` 专用通道登记（携带 approvalId）；
-    // 这里必须跳过，否则同一条拦截记录会被计两次（executed/wild + blocked）。
-    if (record.policyDecision?.matchedRule === 'approval-required') return;
+    // blocked 类记录（审批拦截 / 策略硬拒绝）走各自专用通道经 onRecorded 入账本，
+    // 这里必须跳过，否则同一条拦截/拒绝记录会被重复计为 executed/wild（设计 §2.3）。
+    // 注意：策略引擎回填的 matchedRule 是具体规则名（pathDenylist:…/maxRisk:… 等），
+    // 不能靠字面 'policy-denied' 匹配；改用我们自己写入的 approval.approvalId 哨兵做可靠判别。
+    if (record.policyDecision?.matchedRule === 'approval-required' || record.approval?.approvalId === 'policy-denied') return;
     const atMs = Date.parse(record.ts);
     const delegationId = typeof ext?.delegationId === 'string' ? ext.delegationId : undefined;
     if (delegationId) {

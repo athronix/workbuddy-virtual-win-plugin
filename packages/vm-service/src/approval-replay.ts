@@ -114,6 +114,90 @@ export async function recordBlockedApprovalAudit(
   }
 }
 
+/**
+ * S-4：策略硬拒绝（黑名单命中 / 能力未注册 / 超 maxRisk / 不在白名单等）的审计留痕入参。
+ *
+ * 与 `BlockedAuditInput` 的区别：策略硬拒绝是**终态拒绝**（不经过审批闸、不进入待审批令牌表），
+ * 故无 approvalId（用固定哨兵 `'policy-denied'` 表达「终态拒绝而非待审批」）。
+ */
+export interface PolicyDeniedAuditInput {
+  readonly traceId: string;
+  readonly capabilityId: string;
+  readonly risk: RiskLevel;
+  readonly params: Record<string, unknown>;
+  readonly startedAtMs: number;
+  /** 来自 verdict.matchedRule（如 'path-blacklist' / 'capability-not-registered' / 'max-risk' 等） */
+  readonly matchedRule: string;
+  /** 来自 verdict.error?.code ?? 'POLICY_DENIED' */
+  readonly errorCode: string;
+  readonly errorMessage?: string;
+}
+
+/**
+ * S-4：把「被策略引擎硬拒绝」（黑名单命中 / 能力未注册 / 超 maxRisk / 不在白名单等）这一事实
+ * 写入哈希链审计（`blocked:policy-denied`）。
+ *
+ * 为什么必须记：旧实现两处 `POLICY_DENIED` 早退**零审计记录** → 真机事后无法在哈希审计链上
+ * 证明「该调用到过服务端且被策略拒绝」（审批拦截路径已有 `recordBlockedApprovalAudit` 闭合，
+ * 但策略拒绝路径此前是取证盲区）。
+ *
+ * 与 `recordBlockedApprovalAudit` 的关系：结构逐字镜像（同样的 try/catch、`audit.append`、
+ * `opts.onRecorded` 纪律），关键差异在审计语义——终态拒绝而非等待审批，
+ * 故 `policyDecision.matchedRule` 为真实拒绝规则、`approval.approvalId` 为哨兵 `'policy-denied'`。
+ *
+ * 失败纪律：审计写入失败**绝不影响拒绝结果**（拒绝语义优先），只 warn。
+ */
+export async function recordPolicyDeniedAudit(
+  audit: AuditAppender,
+  logger: Logger,
+  input: PolicyDeniedAuditInput,
+  newAuditId: () => string,
+  opts: BlockedAuditOptions = {},
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const record = await audit.append({
+      ts: new Date().toISOString(),
+      traceId: input.traceId,
+      auditId: newAuditId(),
+      principal: {
+        host: 'vm-service',
+        user: process.env['USERNAME'] ?? 'unknown',
+        channel: opts.channel ?? 'mcp',
+      },
+      capabilityId: input.capabilityId,
+      risk: input.risk,
+      params: input.params,
+      policyDecision: { allowed: false, matchedRule: input.matchedRule },
+      approval: {
+        approvalId: 'policy-denied',
+        approvedBy: 'policy-engine',
+        approvedAt: new Date().toISOString(),
+        previewHash: '',
+      },
+      result: {
+        ok: false,
+        errorCode: input.errorCode,
+        summary: 'blocked:policy-denied（策略硬拒绝，未执行）',
+      },
+      durationMs: Date.now() - input.startedAtMs,
+      // K-N1：blocked 条目也带归因 ext（有 delegationId 时；无则整键缺席，旧形态逐字节不变）
+      ...(opts.delegationId
+        ? { ext: { kind: 'inner-call' as const, delegationId: opts.delegationId, channel: opts.channel ?? 'mcp' } }
+        : {}),
+    });
+    // 账本登记（best-effort：取证失败不得影响拒绝结果）
+    try {
+      opts.onRecorded?.(record);
+    } catch (e) {
+      logger.warn('policy-denied 账本登记失败（不影响拒绝结果）', { error: String(e) });
+    }
+    return { ok: true };
+  } catch (e) {
+    logger.warn('policy-denied 审计写入失败（不影响拒绝结果）', { error: String(e) });
+    return { ok: false, error: String(e) };
+  }
+}
+
 /** MCP 执行段结果的形状（只取映射需要的字段，避免依赖 mcp-framework 类型）。 */
 export interface SegmentResultLike {
   readonly isError?: boolean;
