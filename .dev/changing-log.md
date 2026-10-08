@@ -51,6 +51,14 @@
 - [ ] **k3r harness 收紧后的稳定命中复核**：单次复验已 PASS（`sidestepDetected=false`），建议再跑 ≥3 次坐实 100% 命中。
 - [x] **git 提交（已解阻塞）**：本环境 git 可用（`/storage/Users/currentUser/.harmonybrew/opt/git/bin/git` v2.55.0）。CL-K3R 已提交（d3bb0b3 / 0aad7a7 / e720c53）；本轮 K-N1 行号漂移校正 + K-N2/S-4/A5 核查（`.dev/kn2-s4-a5-verify.md`）+ 索引同步合并提交。
 
+## 📋 Owner 裁决登记（2026-10-08 晚 · 体检后拍板，对应总报告 §5）
+
+1. **U-P0-3 dry-run 旁路**：✅ 采纳架构 **A1 方案**（`CapabilityDefinition.supportsDryRun` 显式声明 + 引擎双条件 + 链上 `ext.bypass='dry-run'`），随 Phase 0 修复。
+2. **ARCH-18 `commandAllowlist`/`cmdAllowRe` 死字段**：⏸ **本轮不实现，登记留存**——作为 Phase 1 议题（实现 vs 删除改文档二选一，届时再裁）。现状事实不变：`cmdAllowRe` 编译后零消费（engine.ts:395/405），白名单整体失效。
+3. **R13 `.tmp` 仓库卫生**：✅ 已授权并执行完毕——`git rm --cached` 22 个 `tests/fixtures/cl018-logs/log-*/**/.winvm-write-probe-*.tmp`，gitignore `log-*/` 规则已在（870fab2），此后不再复发。
+4. **Phase 1 真机轮时间窗**：✅ 接受建议——**A5 `rejected` 路径真机复验为最高优先**（唯一"修了没证实"高危项），与 ARCH-06 A2/ARCH-22/ARCH-05/ARCH-07 安全批合并一次真机验收；psmod 改动须落在构建指纹（R1'）之后。
+5. **Phase 0 止血批**：✅ 开工（团队 `software-winvm-phase0`），范围=总报告 §4 Phase 0 全部条目（P0-1 路径穿越 / P0-3 dry-run A1 / P0-4 R1+R2 守卫测试 / P0-5 幽灵能力文档止血 / R3 package.json 三脚本 / R4 已随文档轮闭环）。
+
 ## ✅ 迁移说明
 
 - 第十七轮及之前的「已闭环」条目（第十五轮 K5、第十六轮、第十七轮 P4）已按 DDD 规范迁移至 `.dev/changed-log.md`，本文件不再重复承载已完成项。
