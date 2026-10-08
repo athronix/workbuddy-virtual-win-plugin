@@ -286,14 +286,30 @@ describe('S-5 · 断言5 — system.registry.read 行为逐字不变（S-5 只�
 
 /* ==================== 契约 §④-6：命名口径 ==================== */
 
-describe('S-5 · 断言6 — 测试文件命名 .test.js（.mjs 会被 test:unit glob 静默跳过）', () => {
-  test('本文件以 .test.js 结尾且被 package.json 的 test:unit glob 覆盖', () => {
+describe('S-5 · 断言6 — 测试文件命名 .test.js（会被 test:unit 口径收录）', () => {
+  test('本文件以 .test.js 结尾且被 package.json 的 test:unit 覆盖', () => {
     const self = fileURLToPath(import.meta.url);
     assert.ok(self.endsWith('.test.js'), '契约 §④-6：必须命名 .test.js');
     const pkg = JSON.parse(src('package.json'));
-    const glob = pkg.scripts['test:unit'];
-    assert.match(glob, /tests\/unit\/\*\.test\.js/, 'test:unit 的 glob 口径须与本文件后缀一致');
-    assert.ok(!/\.mjs/.test(glob), '若 glob 只匹配 .mjs，则本文件不会被跑到（L8 护栏统计须注意此口径）');
+    const runner = pkg.scripts['test:unit'];
+    // 2026-10-08 体检 §7-1/N7（QA-P0-4 · R3）：`test:unit` 原为**文档四处明令禁止**的整批 glob
+    // `node --test tests/unit/*.test.js`（link-workspace 的 junction 触发 0xC0000005 假全红），
+    // 已改为逐文件 spawn 版。故本断言从"匹配旧 glob 字面量"升级为**语义判据**（更强）：
+    //   ① 口径覆盖 tests/unit 目录；② 收录 .test.js（本文件后缀）；
+    //   ③ 不再出现会被 shell 展开的整批 `*.test.js` 字面 glob。
+    assert.match(runner, /tests[/\\]unit/, 'test:unit 须指向 tests/unit 目录');
+    assert.ok(
+      runner.includes('.test.js'),
+      'test:unit 的收录口径须含 .test.js，否则本文件被静默跳过（L8 护栏统计口径）',
+    );
+    assert.ok(
+      !/node\s+--test\s+tests\/unit\/\*\.test\.js/.test(runner),
+      'test:unit 不得回退为整批 glob（link-workspace junction ⇒ 0xC0000005 假全红，见体检 §7-1）',
+    );
+    assert.ok(
+      !/node\s+--test\s+["']?tests\/unit["']?\s*$/.test(runner) && !/^node\s+--test\s*$/.test(runner),
+      'test:unit 不得为裸 `node --test`（自动发现全部测试，同样撞 junction 崩溃坑）',
+    );
   });
 });
 

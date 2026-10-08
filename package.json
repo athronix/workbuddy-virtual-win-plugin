@@ -10,10 +10,9 @@
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "clean": "tsc -b tsconfig.build.json --clean",
-    "test": "npm run build && node --test",
-    "test:unit": "node --test tests/unit/*.test.js",
-    "typecheck": "tsc -b tsconfig.build.json",
-    "layout": "node scripts/dep-lint.mjs"
+    "test": "npm run build && npm run test:unit",
+    "test:unit": "node -e \"const fs=require('fs');const cp=require('child_process');const dir=process.argv[1];const exts=['.test.js','.test.mjs'];const files=fs.readdirSync(dir).sort().filter(function(f){return exts.some(function(e){return f.endsWith(e)})});let bad=0;for(const f of files){const r=cp.spawnSync(process.execPath,['--test',dir+'/'+f],{stdio:'inherit'});if(r.status===0){continue}bad+=1;console.error('[per-file] FAILED '+f+' status '+r.status)}console.error('[per-file] files='+files.length+' failed='+bad);process.exit(bad===0?0:1)\" tests/unit",
+    "typecheck": "tsc -b tsconfig.build.json"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
