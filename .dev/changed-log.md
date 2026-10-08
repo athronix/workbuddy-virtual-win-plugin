@@ -599,3 +599,22 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 - **背景**：`.dev/` 六大索引停留在第十七轮（2026-09-30），其后的 R19 / A2A 覆盖 / CL-K3R T05 / harness 收紧**均未入册**；`docs/changes/` 缺 `CL-021`、`CL-K3R` 两个目录。
 - **本轮动作**：更新 `docs-index.md`、`project-dev-status.md`、`project-dir-file-index.md`、`changing-log.md`、`changed-log.md` 五索引；补建 `docs/changes/CL-021/`、`docs/changes/CL-K3R/`。
 - **实测基线**：**59 个 `tests/unit/*.test.js` ／ 1054 tests ／ 1054 pass ／ 0 fail ／ 0 skipped**（逐文件方式，2026-10-07）。
+
+---
+
+## S-4 代码修复补记（漏记纠正 · 修复发生于 2026-10-07~08，commit `d5cb71a`；本条由 2026-10-08 体检轮 R4 补入）
+
+- **缺陷**（R19-B 登记，上方 :554 旧行号 `676-684` 系当时快照，现漂移）：两处 `POLICY_DENIED` 早退（重放路径 / 审批路径）完全不落审计。
+- **修复**：`recordPolicyDeniedAudit`（`approval-replay.ts:150`，经 `index.ts:18` 导出）注入 `server.ts:605/837` 两处早退前，落 `blocked:policy-denied` 条目（`matchedRule` 取真实规则名 + `verdict.error?.code` 作 errorCode）；`delegation-audit.ts:383` 账本跳过规则改用哨兵 `approval.approvalId==='policy-denied'`（修正真实规则名漏判污染 K-N1 账本的二次缺口）。
+- **回归**：`tests/unit/r19c-s4-policy-denied-audit.test.js`（7 用例）+ 装配点负向哨兵判别；纳入 1054 基线。
+- ⚠ 体检遗留（QA §2-QA-01）：现有测试直调函数、未断言 server.ts 调用点在位——守卫测试列入完善路径 Phase 0（R2）。
+
+---
+
+## 全维度体检轮 · 2026-10-08（纯分析，零源码改动）
+
+- **方法**：四专业域并行只读审计（产品/架构/实现+运维/测试+文档）+ 主理人 11 项关键结论源码级独立核验（含 dist 引擎复现路径穿越），全部成立、成员零虚报。
+- **产出**：`docs/audit/2026-10-08-comprehensive-assessment.md`（总报告）+ 四份分报告。合并定级 **P0×5 / P1×24 / P2×60+**。
+- **合并 P0**：U-P0-1 策略层 `..` 穿越（已复现）；U-P0-2 审计链基线随重启重置（freshChainOnStart）；U-P0-3 dryRun 免审批旁路（裁定 P1高并入 Phase 0）；U-P0-4 S-4/A5 装配点无守卫 + psmod 54 映射零回归；U-P0-5 幽灵能力×7 + 名实不符面向用户。
+- **核心根因**（架构 §7.2）：契约"先声明后实现"无回收机制 → 死字段群 6 处（commandAllowlist/snapshot/approvalTimeoutMs/endpointAllowlist/ToolContext.signal/AgentCard signature）；无 CI 无门禁（dep-lint 不存在）；取证面只覆盖执行轴；安全边界外包给部署形态。
+- **完善路径**：Phase 0 止血（≤1 天）→ Phase 1 安全兑现批 → Phase 2 治理门禁批 → Phase 3 卖点兑现批 → Phase 4 运维完备批 → Phase 5 功能广度（明确排在门禁之后）。待 owner 决断 4 项见总报告 §5。

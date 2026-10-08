@@ -36,6 +36,7 @@
 
 ## 测试
 - **【最新实测 · 2026-10-07】单元测试（逐文件复核）：59 个 `tests/unit/*.test.js` ／ 1054 tests ／ 1054 pass ／ 0 fail ／ 0 skipped**。
+  ⚠ 2026-10-08 体检口径修正（`docs/audit/2026-10-08-test-docs-audit.md` §1）：`tests/unit/*.test.js` 实为 **60 个**（git ls-files 证实）；另有 8 个 `*.test.mjs`（70 例）、`delivery/__tests__`（8 例）、`tests/e2e/`（17 例，本机 1 fail=pwsh ENOENT 无守卫）**均不在 1054 口径内**。1054 数字本身抽验属实无虚报。
   相较第十七轮（51 文件 / 736 pass / 0 fail / 2 skipped）净增 **8 个文件、318 个用例**，主要来自：K-N1 专项 `r19c-kn1-*` 7 文件、K3R 专项 `r19c-k3r-*` 3 文件 + `cl-k3r-runpersistent-approval-routing.test.js`、A5 专项 `r19c-a5-*` 2 文件、以及 `r19b-*`、`r3-uninstall-verify`、`install-vm-admin-endpoint`、`cl017` 等。
 - 单元测试（逐文件复核，截至第十五轮 2026-09-29）：**636 tests / 634 pass / 0 fail / 2 skipped**（24 个 `tests/unit/*.test.js`；第十五轮新增 `k5-replay.test.js` 41 项、`k4-p3.test.js` 扩至 16 项，`k4-approval.test.js` 适配 ApprovalOutcome 契约 6 项；另含第十五轮前累计新增的 K2 预热/tunnel-mode 等测试）。历史快照曾记 214/214（第十四轮）、178 单测 + 16 e2e（分类口径不同）。
 - 审批链专项（K3/K4/P3/K5）：k5-replay 41/41、k4-approval 6/6、k4-p3 16/16 全绿；`tsc -b tsconfig.build.json` 0 error。
@@ -47,8 +48,9 @@
 - 端到端委派冒烟通过：宿主桥 → A2A → VM provider → ps-bridge → PowerShell，`completed` 并回传产物
 - 空闲自愈验证通过：常驻 55s 空闲后委派仍成功（修复前必失败）
 
-## Skills（6）
-- 6/6 已写 SKILL.md（1 总控 + 5 领域，含应用生产操作 appops）
+## Skills（7）
+- 7/7 已写 SKILL.md（1 总控 + 5 领域，含应用生产操作 appops + `winvm-mcp-reference` MCP 接入参考）。
+  ⚠ 2026-10-08 体检修正：本节旧写「Skills（6）」与 skills/ 实际 7 目录、README/docs-index 7 口径矛盾（QA §5⑥）。
 
 ## 交付物
 - 安装器 `delivery/install-host.mjs`：dry-run/正式/uninstall 验证通过（**第十轮修复 `node:fs` 漏导 `cpSync` 导致的 HOST 安装运行时崩溃 `cpSync is not defined`**）；**第十二轮新增 PATH 管理**：正式安装把插件缓存根 `…/plugins/cache/winvm/winvm-bridge/0.1.0`（含 `winvm-plugin` 启动器）加入【用户 PATH】（幂等），卸载（`--yes`）精确移除（不误删含该目录名的其它路径），逻辑抽至 `delivery/path-util.mjs` 并单测覆盖（⚠️ 写入用 PowerShell 单引号字符串，JSON.stringify 会把反斜杠翻倍导致注册表路径带双反斜杠、回读匹配失败）

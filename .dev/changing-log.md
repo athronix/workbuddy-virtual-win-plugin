@@ -1,5 +1,7 @@
 # 进行中 / 待定 · changing-log
 
+> ⚠ **2026-10-08 口径对齐**（体检 R4，消除与 README §9.5「已闭环」的互斥表述）：下方「待在真实环境终验」6 项中，**VM `--self-test`、SSH 隧道端到端、codebuddy CLI 参数契约、真机 A2A 委派+共享 Skills 下发** 已在 R18/R19/CL-K3R T05 真机轮闭环（证据 `docs/test/reports/real-test-2026-09-30-r19.md`、`k3r-t05-real-machine-2026-10-06.md`）；**双连接器同生效** 部分闭环（MCP 直调+委派桥均真机跑过，"同时拉起"矩阵 M4 受会话 ToolSearch 波动 BLOCKED，见 `r2-m4-diagnosis.md`）；**hermes 真机 CLI** 仍未做（provider 已实现、离线单测覆盖）。逐项状态以 `docs/audit/2026-10-08-comprehensive-assessment.md` Phase 1-R15 为准。
+
 ## 🟡 待在真实环境终验
 - [ ] **VM 侧真机 `--self-test`**：当前 e2e 已在本地用 `vm-service` 同进程完成双通道验证；需在真实 Windows VM 上跑 `node packages/vm-service/dist/cli.js --self-test` 确认 ps-bridge 常驻进程在 VM 网络/权限上下文下稳定。
 - [ ] **`hermes` 真机 CLI 调用**：`adapter-agent-hermes` 当前仅完成 provider/registrar/shared-skills 单元验证与 `--self-test` 目录校验；需在真实环境安装 Hermes Agent 后，验证 `hermes chat -q -Q --yolo --source` 真实拉起、MCP（`config.yaml.mcp_servers` 预注册 + `.env` 的 `MCP_WINVM_API_KEY`）自动加载、并对外提供 A2A 服务。`HERMES_HOME`/`HERMES_CONFIG_PATH` 解析、junction 引用共享 Skills 均待真机确认。

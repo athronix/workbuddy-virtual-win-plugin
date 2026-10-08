@@ -68,8 +68,15 @@
 - **CL-K3R（K3 静默假成功根治，2026-10-05~10-06）**：`packages/adapter-agent-workbuddy-llm/src/bridge.ts` 的 `runPersistent` `!turn.ok` 分支补 **shadow 门控 `reconcileApprovalWait`**（shadow 仅 warn 不改判；非 shadow 命中则经 `maybeResume` 改判 `APPROVAL_REQUIRED`）；灰度开关 `approvalTruth = on | shadow | off`。T05 真机：shadow×3 观察不改（`[shadow]` warn 2/3）、**`on`×3 全 `input-required`**（`approvalId=apr_1bdd3e1e4b9e4e318b7e`、`capabilityId=app.winget.uninstall`、`risk=L2`）；宿主单测 `cl-k3r-runpersistent-approval-routing.test.js` 4/4。
 - **k3r harness 收紧（2026-10-06 收尾）**：`qa/r19/a2a-extra.mjs` 默认 goal 强制「直接调 `app.winget.uninstall`、禁止 `appops.workflow.run` 间接方式」；新增 `capabilityIdsOf` 助手与 `sidestepDetected` 断言分支，消除 T2 歧义导致的探针空转。复验 PASS（`apr_7e7b60b61a0c4075b510`，`capabilityIds=["app.winget.uninstall"]`、`sidestepDetected=false`）。
 
+## 全维度体检报告（docs/audit/ · 2026-10-08）
+- `2026-10-08-comprehensive-assessment.md` —— **综合评估与完善路径（总报告，先读这份）**：合并 P0 台账（U-P0-1…5）、六维评分、Phase 0~5 完善路径、owner 待决项。
+- `2026-10-08-product-audit.md` —— 产品功能域（PM-01…22：幽灵能力×7、快照零实现、HTTP 口径、剪贴板名实不符）。
+- `2026-10-08-architecture-audit.md` —— 架构域（ARCH-01…33 + 债务 D-1…12：dry-run 旁路、链基线重置、tasks/cancel 外观性、死字段群）。
+- `2026-10-08-implementation-ops-audit.md` —— 实现+运维域（50 条：`..` 穿越已复现、有界化缺失、告警出口缺失、鸿蒙约束三面表）。
+- `2026-10-08-test-docs-audit.md` —— 测试+文档域（基线口径修正 **60 个 .test.js**、S-4/A5 装配点守卫缺失、六索引一致性、ROI 路径 R1~R15）。
+
 ## 索引同步记录（2026-10-08 · 文档同步轮 · 场景 F）
 - 以源码地面真相裁定 S-4 冲突：初版 `.dev/kn2-s4-a5-verify.md` 称 S-4 ❌仍存（grep 臆测旧函数名零命中），但目录级 grep 证实 `recordPolicyDeniedAudit`（approval-replay.ts:150）已注入 `server.ts:605/837` 两处 POLICY_DENIED 早退前，且回归测试 `r19c-s4-policy-denied-audit.test.js` 已纳入 1054/1054 基线 ⇒ **S-4 ✅ 已修复**，索引正确、证据文件初版作废（已校正）。
-- 同步滞后概览文档：README §8 测试基线 636/634 → **1054/1054**；README §9.5「真机未验证 6 项」→ 已闭环（R18/R19/A2A 覆盖/CL-K3R T05）；`docs/06-OVERVIEW.md` 194/194 → **1054/1054**；Skill 计数统一为 7 目录（1 总控 + 5 领域 + 1 MCP 参考）。
+- 同步滞后概览文档：README §8 测试基线 636/634 → **1054/1054**（⚠ 2026-10-08 体检修正口径：测试文件实为 **60 个 `.test.js`** 非 59，且 `.mjs` 70 例 / delivery 8 例 / e2e 17 例不在 1054 内，见 `docs/audit/2026-10-08-test-docs-audit.md`）；README §9.5「真机未验证 6 项」→ 已闭环（R18/R19/A2A 覆盖/CL-K3R T05）；`docs/06-OVERVIEW.md` 194/194 → **1054/1054**；Skill 计数统一为 7 目录（1 总控 + 5 领域 + 1 MCP 参考）。⚠ 同轮体检裁定：`changing-log.md:4-9` 与 README"已闭环"表述互斥，changed-log 漏记 S-4 代码修复（d5cb71a）——列入体检报告 Phase 0 止血批（R4）统一修复。
 - 新增「逐缺陷设计稿索引（docs/design/）」导航节，纳入稳定阅读顺序。
 - 以上为纯文档同步（场景 F：历史变更已发生但未完全入索引），无代码改动。
