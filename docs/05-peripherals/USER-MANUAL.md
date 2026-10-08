@@ -11,9 +11,9 @@
 | Skill | 领域 | 典型能干的事 |
 |-------|------|--------------|
 | `winvm-orchestrator` | 总控 | 拆解目标、选通道（MCP 精确 / A2A 任务）、编排、兜底 |
-| `winvm-system-admin` | 系统 | 查系统/服务/进程/事件日志/注册表、重启服务、装更新 |
-| `winvm-app-manager` | 应用 | 列出/装/启/停应用（Winget、MSStore、EXE/MSI）、查窗口 |
-| `winvm-storage-manager` | 存储 | 磁盘/分区/卷/文件/回收站/配额/去重 的查看与整理 |
+| `winvm-system-admin` | 系统 | 查系统/服务/进程/事件日志/注册表、重启服务（Windows 更新管理当前不可用，V2 规划） |
+| `winvm-app-manager` | 应用 | 列出/安装/卸载/升级/启动应用（Winget、MSStore、EXE/MSI）；结束进程走 `system.process.terminate` |
+| `winvm-storage-manager` | 存储 | 磁盘/分区/卷/文件/回收站（查看）的查询与整理 |
 | `winvm-gui-automation` | GUI | 截屏、找窗口/控件、键鼠自动操作（UIA/Accessibility） |
 
 > 高危动作（关机、删文件、改注册表、卸应用）默认**禁用 + 需审批**，不会悄悄执行。
@@ -61,17 +61,18 @@ WorkBuddy 调用 `storage.disk.list` + `system.info.get`，返回结构化结果
 
 ## 5. 审计与回放
 
-所有操作（含被拒的）都写入 **防篡改哈希链** 审计日志：
+所有操作（含被拒的）都写入 **防篡改哈希链** 审计日志，落盘于 VM 侧
+`%LOCALAPPDATA%\WinVMBridge\audit\audit-YYYYMMDD.jsonl`。
 
-```bash
-# 查看最近 50 条（VM 侧）
-node packages/vm-service/dist/cli.js --audit tail 50
+**查看方式（当前）**：SSH 进 VM 直接读取该 jsonl（每行一条：traceId、能力 ID、
+参数〔敏感键打码〕、风险、策略判定、执行结果、前后哈希）。
 
-# 校验链完整性（任一条被改都会报错）
-node packages/vm-service/dist/cli.js --audit verify
-```
+**链完整性（当前）**：`GET /health` 响应中的 `chainValid` / `brokenAt` 字段即全链校验结果，
+任一条被篡改都会如实报出。
 
-审计条目含：traceId、能力 ID、参数（敏感键打码）、风险、策略判定、执行结果、前后哈希。
+> ⚠ `winvm-service` CLI 当前**没有** `--audit tail / --audit verify` 子命令（仅
+> `--config/--port/--host/--self-test/--help`）；内容级查询能力 `meta.audit.query` 为
+> **V2 规划·当前不可用**（见 `CAPABILITY-MODEL.md` §5），规划落地后再回补本节命令示例。
 
 ---
 

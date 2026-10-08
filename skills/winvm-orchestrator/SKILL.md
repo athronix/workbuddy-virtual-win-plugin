@@ -244,10 +244,10 @@ winvm-a2a__a2a.delegate({
 
 | 意图特征 | 路由到 |
 |---|---|
-| 服务、进程、计划任务、注册表、网络、用户、环境变量、事件日志、电源 | `winvm-system-admin` |
-| 安装、卸载、升级、启动应用、快捷方式、默认程序、UWP | `winvm-app-manager` |
-| 磁盘、分区、空间、文件、目录、搜索、压缩、回收站 | `winvm-storage-manager` |
-| 截图、键鼠、窗口、UIA、剪贴板、浏览器 | `winvm-gui-automation` |
+| 服务、进程、计划任务（查询）、注册表、网络（查询）、用户（查询）、环境变量（读取）、事件日志、电源 | `winvm-system-admin` |
+| 安装、卸载、升级、启动应用、快捷方式（读取）、UWP（查询）；"默认程序"→ 路由到此但**当前不可用**（V2，如实告知） | `winvm-app-manager` |
+| 磁盘、分区、空间、文件、目录、搜索、压缩（仅创建 zip）、回收站（查看） | `winvm-storage-manager` |
+| 截图、键鼠、窗口、UIA、剪贴板（只读）、浏览器（经 UIA+键鼠驱动；CDP 直驱 V2） | `winvm-gui-automation` |
 | 用 Photoshop/Office/浏览器/ffmpeg/IDE 等**软件把活干出来** | `winvm-app-operation` |
 | 跨域或不确定 | 先拆解，再逐域分派 |
 

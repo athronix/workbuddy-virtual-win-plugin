@@ -38,13 +38,18 @@
 
 ### 2.3 标准工具集（由能力注册表自动生成）
 
+> 数量与清单以 `packages/vm-capabilities/src/registry/definitions.ts`（**54 条**）为唯一事实源
+> （2026-10-08 对账：原列 `meta.audit.query` / `meta.policy.describe` / `meta.task.status`
+> 未注册，已摘除，「V2 规划·当前不可用」见 `CAPABILITY-MODEL.md` §5）。
+
 | 类别 | 工具 |
 |---|---|
-| `meta.*` | `meta.health.check`、`meta.capability.list`、`meta.audit.query`、`meta.policy.describe`、`meta.task.status` |
-| `system.*` | 见 `CAPABILITY-MODEL.md` §3.1（15 项） |
-| `app.*` | 见 §3.2（10 项） |
+| `meta.*` | `meta.health.check`、`meta.capability.list`、`meta.session.status`（3 项） |
+| `system.*` | 见 `CAPABILITY-MODEL.md` §3.1（14 项） |
+| `app.*` | 见 §3.2（8 项） |
 | `storage.*` | 见 §3.3（13 项，**不含** L3 分区/格式化） |
-| `gui.*` | 见 §3.4（12 项） |
+| `gui.*` | 见 §3.4（11 项） |
+| `appops.*` | 见 §3.5（5 项） |
 
 ### 2.4 统一返回结构
 
@@ -162,11 +167,11 @@ L2/L3 操作首次调用返回**待确认**（而非直接执行）：
     { "id": "system-admin",  "name": "Windows 系统管理",
       "description": "服务/进程/注册表/网络/用户/事件日志", "tags": ["system"] },
     { "id": "app-manager",   "name": "Windows 应用管理",
-      "description": "winget 安装卸载升级、启动激活、快捷方式、UWP", "tags": ["app"] },
+      "description": "winget 安装卸载升级、启动应用、快捷方式（读取）、UWP（查询）", "tags": ["app"] },
     { "id": "storage-manager","name": "Windows 存储管理",
       "description": "空间分析、文件目录操作、压缩、回收站", "tags": ["storage"] },
     { "id": "gui-automation","name": "GUI 与桌面自动化",
-      "description": "截图、键鼠、窗口、UIA、浏览器自动化", "tags": ["gui"] }
+      "description": "截图、键鼠、窗口、UIA、剪贴板（只读）、等待条件", "tags": ["gui"] }
   ],
   "securitySchemes": { "bearerToken": { "type": "http", "scheme": "bearer" } },
   "security": [{ "bearerToken": [] }]

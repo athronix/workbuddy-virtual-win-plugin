@@ -117,8 +117,13 @@ GUI 原语负责"真的点下去"。
 
 ### 浏览器（网页端生产）
 
-- 优先 `gui.browser.control`（CDP）做导航/点击/填表/取 DOM；
-- 登录态、验证码等需"看屏幕决策"的，用 `appops.gui.produce` + 周期性 `gui.screen.capture`；
+> ⚠ CDP 直驱（原设想的 `gui.browser.control`）**当前未注册、不可调用**（V2 规划）；
+> 网页操作一律用已注册能力组合完成，不要向用户承诺"取 DOM/浏览器自动化"类 CDP 特性。
+
+- 打开/导航：`app.process.launch { target: "<url>" }`；
+- 点击/填表：`gui.uia.tree` → `gui.uia.invoke`（页面 DOM 经 UIA 暴露，优先元素定位），
+  无 UIA 命中时退 `gui.input.mouse` / `gui.input.keyboard` 坐标方案；
+- 登录态、验证码等需"看屏幕决策"的，用 `appops.gui.produce` 步骤序列 + 周期性 `gui.screen.capture`；
 - 结果页 `gui.screen.capture` 截图存档（落 `out/`）。
 
 ### 音视频（ffmpeg / ImageMagick）

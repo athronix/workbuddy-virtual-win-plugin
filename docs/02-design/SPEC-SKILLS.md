@@ -27,10 +27,10 @@ Skills 是**知识层与治理层**，不是执行层。它回答三个问题：
 | # | Skill ID | 角色 | 领域 | 主要职责 |
 |---|---|---|---|---|
 | 1 | **`winvm-orchestrator`** | **总控** | 全域 | 意图识别 → 领域路由 → **通道选择** → 风险分级 → 审批闸 → 隧道就绪检查 → 结果汇总与回溯 |
-| 2 | `winvm-system-admin` | 领域 | `system` | 服务/进程/计划任务/注册表/网络/用户/环境变量/事件日志/电源与更新 |
-| 3 | `winvm-app-manager` | 领域 | `app` | 清单/winget 安装卸载升级/启动激活/快捷方式/默认程序/UWP |
-| 4 | `winvm-storage-manager` | 领域 | `storage` | 磁盘分区卷/空间分析/文件目录/搜索/压缩/链接/回收站/清理建议 |
-| 5 | `winvm-gui-automation` | 领域 | `gui` | 会话保活/截图/键鼠/窗口/UIA/剪贴板/等待策略/浏览器自动化 |
+| 2 | `winvm-system-admin` | 领域 | `system` | 服务/进程/计划任务（查询）/注册表/网络（查询）/用户（查询）/环境变量（读取）/事件日志/电源（更新管理 V2·当前不可用） |
+| 3 | `winvm-app-manager` | 领域 | `app` | 清单/winget 安装卸载升级/启动/快捷方式（读取）/UWP（查询）；默认程序 V2·当前不可用 |
+| 4 | `winvm-storage-manager` | 领域 | `storage` | 磁盘分区卷/空间分析/文件目录/搜索/压缩（创建 zip）/链接/回收站（查看）/清理建议 |
+| 5 | `winvm-gui-automation` | 领域 | `gui` | 会话保活/截图/键鼠/窗口/UIA/剪贴板（只读）/等待策略；网页操作经 UIA+键鼠（CDP 直驱 V2·当前不可用） |
 | 6 | `winvm-app-operation` | 领域 | `appops` | **操作 Windows 软件应用进行生产活动**：Photoshop/Office/浏览器/ffmpeg/IDE 等生产型工作流、CLI 调用、COM 自动化、GUI 多步生产 |
 
 ---
@@ -88,10 +88,10 @@ riskProfile:                  # 该 Skill 覆盖的风险区间
 
 | 意图特征 | 路由到 |
 |---|---|
-| 服务/进程/注册表/网络/用户/环境变量/事件日志/电源 | `winvm-system-admin` |
-| 安装/卸载/升级/启动应用/快捷方式/默认程序 | `winvm-app-manager` |
-| 磁盘/分区/空间/文件/目录/搜索/压缩/回收站 | `winvm-storage-manager` |
-| 截图/键鼠/窗口/UIA/剪贴板/浏览器 | `winvm-gui-automation` |
+| 服务/进程/注册表/网络（查询）/用户（查询）/环境变量（读取）/事件日志/电源 | `winvm-system-admin` |
+| 安装/卸载/升级/启动应用/快捷方式（读取）；"默认程序"路由到此但**当前不可用**（V2） | `winvm-app-manager` |
+| 磁盘/分区/空间/文件/目录/搜索/压缩（仅创建 zip）/回收站（查看） | `winvm-storage-manager` |
+| 截图/键鼠/窗口/UIA/剪贴板（只读）/浏览器（经 UIA+键鼠；CDP 直驱 V2） | `winvm-gui-automation` |
 | 用 Photoshop/Office/浏览器/ffmpeg/IDE 等**软件把活干出来**（生产） | `winvm-app-operation` |
 | 跨域或不确定 | 先 `winvm-orchestrator` 拆解，再分派 |
 

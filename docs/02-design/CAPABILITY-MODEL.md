@@ -3,9 +3,9 @@
 | 项 | 值 |
 |---|---|
 | 文档 ID | CAPABILITY-MODEL-winvm-bridge-v1 |
-| 版本 | v1.3（S-1：新增 §3.1.1 注册表路径形态归一化；K-N2：§3.2.1 `app.winget.uninstall` 的 dryRun 改为宿主侧纯查询预览 + 新增 `plan` 字段；R17-T01：回执语义增补 §3.2.1） |
+| 版本 | v1.4（Phase0 文档止血：§3 各域清单按 `definitions.ts` **54 条注册表现状**对齐 —— 7 条幽灵能力摘除并标「V2 规划·当前不可用」、名实不符条目如实化、「已实现待挂载」函数就地标注；v1.3：S-1 §3.1.1 注册表路径形态归一化；K-N2 §3.2.1 dryRun 预览；R17-T01 回执语义） |
 | 层 | L0 规范层（`packages/contracts`） |
-| 日期 | 2026-10-02（v1.3）；2026-08-28（v1.0） |
+| 日期 | 2026-10-08（v1.4，最后对账：以 `packages/vm-capabilities/src/registry/definitions.ts` 为准）；2026-10-02（v1.3）；2026-08-28（v1.0） |
 
 ---
 
@@ -27,7 +27,7 @@
 | `group` | 见 §3 | 域内分组 |
 | `action` | 动词或名词短语 | 具体动作 |
 
-示例：`system.service.start`、`app.winget.install`、`storage.disk.analyze`、`gui.screen.capture`、`appops.workflow.run`、`meta.health.check`
+示例：`system.service.control`、`app.winget.install`、`storage.space.analyze`、`gui.screen.capture`、`appops.workflow.run`、`meta.health.check`
 
 > `app`（应用**管理**：安装/卸载/启动）与 `appops`（应用**生产操作**：用软件把活干出来）是两个不同域，请勿混淆。
 
@@ -45,15 +45,36 @@
 | `system.service.configure` | 改启动类型/恢复策略 | L2 | `Set-Service` / `sc.exe config` |
 | `system.process.list` | 进程清单（CPU/内存/命令行） | L0 | `Get-CimInstance Win32_Process` |
 | `system.process.terminate` | 结束进程（含进程树） | L2 | `Stop-Process` / `taskkill /T` |
-| `system.task.scheduled` | 计划任务增删改查 | L2 | `*-ScheduledTask` |
+| `system.task.scheduled` | 计划任务**查询**（最近/下次运行时间；写侧 V2） | L0 | `Get-ScheduledTaskInfo` |
 | `system.registry.read` | 读注册表（路径**形态等价**，见 §3.1.1） | L0 | `Get-ItemProperty` |
 | `system.registry.write` | 写注册表（受限根键白名单；路径形态规则同 §3.1.1） | L2 | `Set-ItemProperty` |
-| `system.network.config` | 网卡/IP/DNS/路由查看与配置 | L2 | `Get/Set-NetIPAddress` 等 |
-| `system.user.manage` | 本地用户与组 | L2 | `*-LocalUser` / `*-LocalGroup*` |
-| `system.env.manage` | 环境变量读写 | L1 | `[Environment]::SetEnvironmentVariable` |
+| `system.network.config` | 网卡/IP/DNS/路由**查询**（配置侧 V2） | L0 | `Get-NetworkConfig` |
+| `system.user.manage` | 本地用户与组**查询**（改密/启停/组成员等写侧 V2） | L0 | `Get-LocalUserInfo` |
+| `system.env.manage` | 环境变量**读取**（写入侧函数 `Set-EnvironmentVariableInfo` 已实现待挂载，见 §3.1.2） | L1 | `Get-EnvironmentVariableInfo` |
 | `system.eventlog.query` | 事件日志查询 | L0 | `Get-WinEvent` |
 | `system.power.control` | 关机/重启/休眠 | **L3** | `Stop-Computer` / `Restart-Computer` |
-| `system.update.manage` | Windows 更新查看与安装 | L2 | `PSWindowsUpdate` / UsoClient |
+
+> **Windows 更新管理（原 `system.update.manage`）：V2 规划 · 当前不可用**，未在能力注册表
+> `packages/vm-capabilities/src/registry/definitions.ts` 注册，VM 侧亦无对应实现，
+> **不得作为可调用能力对外承诺**。落地建议分两阶（L0 检查可装清单先行、L2 安装含重启联动后随），
+> 见 `docs/audit/2026-10-08-product-audit.md` PM-07。
+
+#### 3.1.2 名实口径与"已实现待挂载"
+
+> 口径：**能力名实以注册表为唯一事实源**。派发严格按注册 `fn` 发送，故 `ps1` 里已实现但
+> 未挂到注册 `fn` 的函数**对外不可用**，文档不得写成"可做"。
+
+| 能力 | 文档应称 | 实际绑定 | 差集（已实现待挂载） |
+|---|---|---|---|
+| `system.env.manage` | L1 **只读**环境变量 | `Get-EnvironmentVariableInfo` | `Set-EnvironmentVariableInfo`（`system.ps1:398`） |
+| `storage.archive.manage` | L1 **仅压缩** | `New-ZipArchiveItem` | `Expand-ZipArchiveItem`（`storage.ps1:263`） |
+| `app.shortcut.manage` | L1 **只读**快捷方式 | `Get-ShortcutInfo` | `New-ShortcutItem`（`app.ps1:1070`） |
+| `gui.clipboard.manage` | L1 **只读**剪贴板文本 | `Get-ClipboardText` | `Set-ClipboardTextValue`（`gui.ps1:483`） |
+
+> 入参提示：上述四条中 `system.env.manage`（`target`）、`app.shortcut.manage`（`targetPath` 等）、
+> `gui.clipboard.manage`（`text`）的 schema 仍保留了写侧参数位。**传入这些参数不会产生写入**，
+> 回执只会返回读取结果——调用方不得据此向用户宣称"已设置/已创建/已写入"。补齐挂载属工程师范围
+> （见 PM-04 处置①），完成前一律按"只读"对外表述。
 
 #### 3.1.1 注册表路径形态归一化（S-1 · R19-B）
 
@@ -88,10 +109,14 @@
 | `app.winget.uninstall` | 卸载应用（**卸载后核验 + NSIS 静默回退**，回执语义见 §3.2.1） | L2 | `winget uninstall` + 事后磁盘/注册表核验 |
 | `app.winget.upgrade` | 升级应用（可批量） | L1 | `winget upgrade` |
 | `app.process.launch` | 启动应用/打开文件/打开 URL | L1 | `Start-Process` |
-| `app.process.activate` | 激活已运行窗口 | L0 | `AppActivate` |
-| `app.shortcut.manage` | 快捷方式增删改 | L1 | `WScript.Shell` COM |
-| `app.default.manage` | 默认程序关联 | L2 | 注册表 UserChoice |
-| `app.appx.manage` | UWP 包安装/移除 | L2 | `Add/Remove-AppxPackage` |
+| `app.shortcut.manage` | 快捷方式**读取**（`.lnk` 的 targetPath/arguments/workingDirectory；创建侧函数 `New-ShortcutItem` 已实现待挂载，见 §3.1.2） | L1 | `Get-ShortcutInfo` |
+| `app.appx.manage` | UWP 包**查询**（安装/移除 V2；移除可先试 `app.winget.uninstall`） | L0 | `Get-AppxPackageInfo` |
+
+> **已摘除条目（V2 规划 · 当前不可用）**：
+> - `app.process.activate`（激活已运行窗口）—— **未注册**。需要激活前台窗口时请用已注册能力
+>   **`gui.window.control { state: "activate" }`**（§3.4）；本文档不再单列幽灵 ID，避免误调。
+> - `app.default.manage`（默认程序关联，注册表 UserChoice）—— **未注册**，V2 规划。
+>   当前如需改默认程序，须人工在 VM 内设置，不得对用户承诺本能力。
 
 #### 3.2.1 `app.winget.uninstall` 回执语义（R17 / K6 契约）
 
@@ -134,11 +159,11 @@
 | `storage.file.delete` | 删除文件/目录（**进回收站优先**） | L2 | `Microsoft.VisualBasic.FileIO.FileSystem::DeleteFile` |
 | `storage.file.move` | 移动/重命名 | L1 | `Move-Item` |
 | `storage.file.copy` | 复制 | L1 | `Copy-Item` |
-| `storage.dir.manage` | 创建/删除目录 | L2（删）/L1（建） | `New/Remove-Item` |
+| `storage.dir.manage` | **创建**目录（幂等；删除目录请用 `storage.file.delete`） | L1 | `New-DirectoryItem` |
 | `storage.search.query` | 文件名/内容搜索 | L0 | `Get-ChildItem -Recurse` / `Select-String` |
-| `storage.archive.manage` | 压缩/解压 | L1 | `Compress/Expand-Archive` |
-| `storage.link.manage` | 符号链接/硬链接/ junction | L2 | `New-Item -ItemType SymbolicLink` |
-| `storage.recycle.manage` | 回收站查看与清空 | L2 | Shell API |
+| `storage.archive.manage` | **创建** zip 归档（解压侧函数 `Expand-ZipArchiveItem` 已实现待挂载，见 §3.1.2） | L1 | `New-ZipArchiveItem` |
+| `storage.link.manage` | 符号链接/硬链接/ junction | L2 | `New-LinkItem` |
+| `storage.recycle.manage` | 回收站**查看**（清空侧 V2；如需删除请按 `storage.file.delete` 逐项审批） | L0 | `Get-RecycleBinInfo` |
 | `storage.cleanup.analyze` | 清理建议（**只分析不执行**） | L0 | 规则引擎 |
 
 > **红线**：分区/格式化/卷删除（`storage.volume.destructive`）列为 **L3**，V1 **不注册为可用能力**，仅在文档中说明需人工在 VM 内执行。
@@ -151,14 +176,23 @@
 | `gui.screen.capture` | 截图（全屏/窗口/区域）+ Base64 回传 | L0 | `System.Drawing` + `CopyFromScreen` |
 | `gui.screen.analyze` | 黑屏/纯色检测（熵判定） | L0 | 像素方差统计 |
 | `gui.window.list` | 窗口枚举（标题/句柄/位置/进程） | L0 | `EnumWindows` P/Invoke |
-| `gui.window.control` | 置顶/最小化/最大化/关闭/移动/改尺寸 | L1 | `SetWindowPos` / `ShowWindow` |
+| `gui.window.control` | 窗口状态：最小化/最大化/还原/关闭/激活（`state` 枚举 `minimize\|maximize\|restore\|close\|activate`；**置顶/移动/改尺寸 V2**） | L1 | `Set-WindowState` |
 | `gui.input.keyboard` | 键盘输入（文本 / 组合键 / 虚拟键码） | L1 | `SendInput` P/Invoke |
 | `gui.input.mouse` | 鼠标（移动/点击/双击/右键/拖拽/滚轮） | L1 | `SendInput` P/Invoke |
 | `gui.uia.tree` | UIA 元素树（按窗口/按坐标命中） | L0 | `System.Windows.Automation` |
 | `gui.uia.invoke` | 按 AutomationId/Name/ControlType 定位并点击/设值 | L1 | UIA Patterns（Invoke/Value/Toggle） |
-| `gui.clipboard.manage` | 剪贴板读/写 | L1 | `System.Windows.Forms.Clipboard` |
-| `gui.wait.condition` | 等待条件（窗口出现/图像稳定/进程退出/元素存在） | L0 | 轮询 + 超时 |
-| `gui.browser.control` | 浏览器自动化（导航/点击/填表/截图/取 DOM） | L1 | CDP over WebSocket（Chrome/Edge DevTools Protocol） |
+| `gui.clipboard.manage` | 剪贴板文本**只读**（写入侧函数 `Set-ClipboardTextValue` 已实现待挂载，见 §3.1.2；图片/文件格式不支持） | L1 | `Get-ClipboardText` |
+| `gui.wait.condition` | 等待条件（枚举 `windowExists\|windowGone\|processExited\|screenStable`；"元素存在/图像匹配" V2） | L0 | 轮询 + 超时 |
+
+> **浏览器自动化（原 `gui.browser.control`）：V2 规划 · 当前不可用**，未在 `definitions.ts`
+> 注册，VM 侧 `psmod/gui.ps1` 亦无任何浏览器/CDP 代码。
+> **当前网页端操作的可用路径**（全部为已注册能力）：
+> `app.process.launch`（打开浏览器/URL）→ `gui.session.status` / `gui.screen.capture`（看屏）→
+> `gui.uia.tree` / `gui.uia.invoke`（元素定位，浏览器 DOM 经 UIA 暴露）→
+> `gui.input.keyboard` / `gui.input.mouse`（填表/点击）→ `gui.wait.condition`（等稳定）→
+> `gui.screen.capture`（结果存档），多步序列可封装为 `appops.gui.produce`。
+> 依赖 CDP 直驱的增强（取 DOM、精确选择器）待 `gui.browser.control` 注册后再启用
+> （实现建议见 `docs/audit/2026-10-08-product-audit.md` NP-04）。
 
 ### 3.5 `appops` —— 应用生产操作（FR-205）
 
@@ -220,9 +254,18 @@
 |---|---|---|
 | `meta.health.check` | 服务健康（含会话状态、ps-bridge 状态） | L0 |
 | `meta.capability.list` | 列出当前已注册能力（供宿主发现） | L0 |
-| `meta.audit.query` | 查询审计日志（只读） | L0 |
-| `meta.policy.describe` | 查询当前生效策略 | L0 |
-| `meta.task.status` | A2A 任务状态查询（桥接到 A2A） | L0 |
+| `meta.session.status` | Windows 交互式会话健康度（SessionId/窗口站/桌面/锁屏/黑屏） | L0 |
+
+> **已摘除条目（V2 规划 · 当前不可用）**：`meta.audit.query`、`meta.policy.describe`、
+> `meta.task.status` 三条**未在 `definitions.ts` 注册**，不得作为可调用能力对外承诺。
+> 当前替代路径：
+> - 审计回看 → SSH 进 VM 读 `%LOCALAPPDATA%\WinVMBridge\audit\audit-YYYYMMDD.jsonl`，
+>   完整性经 `GET /health` 的 `chainValid` 侧漏（内容级查询能力属 V2，见 PM-06/NP-06）；
+> - 生效策略 → 读 `packages/core/src/policy/defaults.ts` 与部署配置（查询能力属 V2）；
+> - A2A 任务状态 → 走 A2A 协议 `tasks/get`（见 `INTERFACES.md`），非能力注册表条目。
+>
+> 补齐注册（三条均为 L0 只读，成本低且直接兑现"可监管"卖点）属工程师范围，
+> 完成前本文档不恢复其"已注册"外观。
 
 ---
 

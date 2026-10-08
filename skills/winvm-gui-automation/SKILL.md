@@ -3,7 +3,8 @@ id: winvm-gui-automation
 name: Windows GUI 与桌面自动化
 description: >
   在 Windows 虚拟机内做图形化操作：截图与判读、键鼠模拟、窗口枚举与控制、
-  UIA 元素定位与点击、剪贴板、等待条件、浏览器自动化。用于"看看虚拟机屏幕"
+  UIA 元素定位与点击、剪贴板（只读）、等待条件。网页操作经 UIA+键鼠完成
+  （CDP 浏览器直驱为 V2 规划·当前不可用）。用于"看看虚拟机屏幕"
   "点开某个窗口""在虚拟机里登录某网站"等。
 version: 0.1.0
 domains: [gui]
@@ -67,7 +68,7 @@ relatedSkills:
 | `gui.input.mouse` | L1 | 移动/点击/双击/右键/滚轮/拖拽 |
 | `gui.uia.tree` | L0 | UIA 元素树 |
 | `gui.uia.invoke` | L1 | 按 AutomationId/Name/ControlType 点击/设值/切换 |
-| `gui.clipboard.manage` | L1 | 读写剪贴板 |
+| `gui.clipboard.manage` | L1 | **只读**剪贴板文本（写入不可用，见"已知陷阱"） |
 | `gui.wait.condition` | L0 | 等窗口出现/消失/进程退出/屏幕稳定 |
 
 ## 标准流程：观察—决策—操作 循环
@@ -106,13 +107,24 @@ relatedSkills:
 
 **先 `gui.uia.tree` 拿到元素树，再按 ID 定位**；坐标点击是最后手段。
 
-## 浏览器自动化
+## 浏览器操作（当前：UIA + 键鼠；CDP 直驱为 V2 规划）
 
-`gui.browser.control` 通过 CDP（Chrome DevTools Protocol）驱动 Chrome/Edge。
-能力：导航、点击、填表、截图、取 DOM。
+> ⚠ **`gui.browser.control`（CDP 直驱）当前未注册、不可调用**（V2 规划·当前不可用），
+> 不要向用户承诺"浏览器自动化/取 DOM/精确选择器"类 CDP 能力。
 
-- 优先用 CDP 的 DOM 定位，而非屏幕坐标
-- 浏览器需以可调试端口启动；若浏览器未开调试端口，退化为 UIA + 键鼠
+当前网页操作一律用**已注册能力组合**完成：
+
+```
+1. app.process.launch { target: "<url>" }              # 打开浏览器/导航
+2. gui.uia.tree { windowTitle: "…" }                   # 页面 DOM 经 UIA 暴露，优先元素定位
+3. gui.uia.invoke / gui.input.keyboard / gui.input.mouse  # 点击/填表/滚动
+4. gui.wait.condition { condition: "screenStable" }    # 等页面稳定
+5. gui.screen.capture                                  # 看图判读 / 结果存档
+```
+
+- **优先 UIA 定位，其次坐标**（与桌面应用同一策略，见上节）
+- 多步登录/填表流程可封装为 `appops.gui.produce` 步骤序列（A2A 委派，带进度与 artifact）
+- 验证码、"看屏决策"类环节按观察—决策循环逐步处理，重试 ≤5 次并逐步报告
 
 ## 高危清单
 
@@ -122,7 +134,7 @@ relatedSkills:
 |---|---|---|
 | `gui.window.control { state: "close" }` | L1（可能丢失未保存工作） | **先确认窗口内容**；关闭前截图，提示用户可能有未保存数据 |
 | 在登录/支付/权限弹窗中输入 | L1（凭据风险） | **必须先取得用户明确许可**；输入的凭据经脱敏后入审计 |
-| `gui.clipboard.manage` 写入 | L1 | 剪贴板是共享资源，操作后告知用户 |
+| `gui.clipboard.manage` 读取 | L1 | 剪贴板是共享资源，可能含敏感数据；读出内容入日志前须脱敏，不向无关方转呈 |
 
 **风险上限与跨域升级**：本域能力**最高 L1**，故 GUI 自身**不产生 L2/L3 审批卡片**。但**经 A2A 委派的多步 GUI 任务可能命中跨域 L2 步骤**（如 `appops.gui.produce` 导出并覆盖写盘），此时按模板出卡片、走审批闸。
 
@@ -164,7 +176,9 @@ relatedSkills:
 - **等待优于硬 sleep**：用 `gui.wait.condition` 代替固定延时，
   界面响应慢时尤其重要
 - **拖拽**：用 `action: "drag"` 并给 `toX/toY`，不要拆成 move+click
-- **剪贴板读到的可能是旧内容**：写入后稍等再读
+- **剪贴板当前只读**：`gui.clipboard.manage` 实际仅返回当前剪贴板文本；入参中的 `text`
+  **不生效**（写侧 `Set-ClipboardTextValue` 已实现待挂载）——不要向用户宣称"已写入剪贴板"。
+  需要"粘贴文本"时用 `gui.input.keyboard` 或先请用户手工复制
 
 ## 参考
 

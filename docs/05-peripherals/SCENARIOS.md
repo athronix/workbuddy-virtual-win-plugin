@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | A. 音视频转码 | 确定步骤（CLI） | MCP 直调 | `appops.cli.invoke` | 否 |
 | B. Office 文档生产 | 确定步骤（COM/宏） | MCP 直调 | `appops.com.automate` / `workflow.run` | 否 |
-| C. 网页端生产 | 半确定（需看屏决策） | A2A 委派 | `gui.browser.control` + `appops.gui.produce` | 否（确定性可枚举）|
+| C. 网页端生产 | 半确定（需看屏决策） | A2A 委派 | `gui.*` 原语（截图/UIA/键鼠）+ `appops.gui.produce` | 否（确定性可枚举）|
 | D. Photoshop 创意合成 | **开放意图**（大山→海洋） | A2A 委派 | LLM 规划 + `appops.*` / `gui.*` | **是（推荐）** |
 | E. 多应用协作流水线 | 混合 | A2A 委派编排 | 跨域组合 | 可选 |
 | F. 监管闭环 | 全程 | 双通道 | 策略/审批/审计 | 否 |
@@ -115,11 +115,17 @@ winvm__appops_com.automate({
   │ A2A message/send { goal:"登录后台，把 1~50 页报表逐页截图存 out/" }
   ▼
 vm-service → adapter(deterministic).runGoal(模板: 网页生产)
-  ├─ gui.browser.control(CDP): 导航登录
+  ├─ app.process.launch(target=https://backoffice…): 打开浏览器并导航
+  ├─ 登录：gui.uia.tree/gui.uia.invoke（页面 DOM 经 UIA 暴露）+ gui.input.keyboard
   ├─ loop 1..50:
-  │    waitStable → gui.screen.capture → 存 out/page_N.png（artifact 回传）
+  │    gui.wait.condition(screenStable) → gui.screen.capture → 存 out/page_N.png（artifact 回传）
+  │    翻页：gui.uia.invoke / gui.input.mouse
   └─ 进度流（working）+ 每页截图 artifact
 ```
+
+> 注：CDP 直驱（原设想的 `gui.browser.control`）**当前未注册**（V2 规划），本场景以已注册
+> `gui.*` 原语组合实现；`gui.browser.control` 落地后可无缝升级导航/填表/DOM 提取精度
+> （见 `CAPABILITY-MODEL.md` §3.4 注记）。
 
 **机制**：强 GUI + 多步 + 需"看屏决策" → A2A 委派。`ProgressSink` 把每页截图作为
 `artifact` 实时流回宿主，宿主可中途 `input-required` 挂起审批或叫停。**确定性 V1 也能做
@@ -221,7 +227,7 @@ POST /a2a
 ```
 A2A message/send { goal:"生成本周竞品动态周报（图文+短视频）" }
   │
-  ├─ ① 网页抓取：gui.browser.control 抓 3 个竞品首页 → 截图（appops.gui.produce）
+  ├─ ① 网页抓取：app.process.launch + gui.* 原语（UIA/键鼠/等待）抓 3 个竞品首页 → 截图存档
   ├─ ② 视频剪辑：appops.cli.invoke(ffmpeg) 把截图拼成 30s 快闪视频
   ├─ ③ 文档汇总：appops.com.automate(Word) 把截图+视频嵌入周报模板 → 导出 PDF
   └─ ④ 回传：周报 PDF + 视频 MP4 作为 artifact
@@ -248,7 +254,8 @@ A2A message/send { goal:"生成本周竞品动态周报（图文+短视频）" }
    │
    └─ ③ 防篡改哈希链审计（core/audit）
          每条含 traceId/能力/参数（敏感键打码）/风险/判定/结果/前后哈希
-         可 `--audit verify` 校验完整性
+         完整性经 GET /health 的 chainValid 校验；内容回看读 VM 侧 audit/*.jsonl
+         （`--audit` CLI 与 `meta.audit.query` 均为 V2 规划·当前不可用）
 ```
 
 **Demo（L2 审批闸在 A2A 的表现）**：
@@ -312,7 +319,7 @@ node delivery/install-vm.mjs --uninstall                            # 停任务 
 | `appops.workflow.run` | L1 | 预置的生产流水线（Excel 报表/视频批处理） | MCP / A2A |
 | `appops.com.automate` | L1 | Word/Excel COM 自动化导出 | MCP |
 | `appops.gui.produce` | **L2** | 多步 GUI 生产（开放意图下由 LLM 规划步骤） | A2A |
-| `gui.browser.control` | L1 | 网页端生产、CDP 导航填表 | MCP / A2A |
+| `gui.uia.tree` / `gui.uia.invoke` / `gui.input.*` | L0/L1 | 网页端生产（浏览器经 UIA+键鼠驱动；CDP 直驱 `gui.browser.control` 为 V2 规划·当前不可用） | MCP / A2A |
 | `gui.screen.capture` | L0 | 看屏核对、artifact 回传 | 任意 |
 
 > 更多通道/能力细节见 `CAPABILITY-MODEL.md`、`SPEC-SKILLS.md`、`SPEC-AGENT-SERVICE-BRIDGE.md`。

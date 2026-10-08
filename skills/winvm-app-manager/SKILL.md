@@ -3,7 +3,8 @@ id: winvm-app-manager
 name: Windows 应用管理
 description: >
   在 Windows 虚拟机内管理应用：查询已装清单、用 winget 搜索/安装/卸载/升级、
-  启动与激活应用、管理快捷方式与 UWP 包。用于"装个软件""卸载某某""升级全部应用"等。
+  启动应用（激活窗口经 gui.window.control）、读取快捷方式与 UWP 包。
+  用于"装个软件""卸载某某""升级全部应用"等。默认程序设置当前不可用（V2 规划）。
 version: 0.1.0
 domains: [app]
 triggers:
@@ -22,12 +23,15 @@ relatedSkills:
 
 ## 适用与不适用
 
-**适用**：包管理器（winget）可覆盖的安装/卸载/升级，以及应用启动、快捷方式、UWP 包查询。
+**适用**：包管理器（winget）可覆盖的安装/卸载/升级，以及应用启动、快捷方式**读取**、UWP 包查询。
 
 **不适用 / 需人工**：
 - 需要交互式安装向导的应用（改用 `gui.*` 能力驱动安装器，或走 A2A 委派）
 - 需要图形激活的序列号输入（A2A + GUI）
 - Microsoft Store 付费应用的购买环节
+- **默认程序/文件类型关联**（原设想 `app.default.manage`）→ 能力**当前未注册、不可调用**（V2 规划），需人工在 VM 内"设置→默认应用"操作
+- **快捷方式创建/删除** → 当前 `app.shortcut.manage` **只读**（创建函数 `New-ShortcutItem` 已实现待挂载），不要承诺"已创建快捷方式"
+- **激活已运行窗口** → 本域无 `app.process.activate`（未注册）；用已注册能力 **`gui.window.control { state: "activate" }`**（见 `winvm-gui-automation`）
 
 ## 前置检查
 
@@ -50,8 +54,8 @@ relatedSkills:
 | `app.winget.uninstall` | L2 | 卸载包（**需审批**） |
 | `app.winget.upgrade` | L1 | 升级指定包或全部 |
 | `app.process.launch` | L1 | 启动应用/打开文件/打开 URL |
-| `app.shortcut.manage` | L1 | 读取或创建 .lnk（`path` + `targetPath` 即创建） |
-| `app.appx.manage` | L0 | 列出 UWP 包 |
+| `app.shortcut.manage` | L1 | **只读** .lnk（返回 targetPath/arguments/workingDirectory；创建函数已实现待挂载，当前不可用） |
+| `app.appx.manage` | L0 | 列出 UWP 包（安装/移除当前不可用；移除可试 `app.winget.uninstall`） |
 
 ## 标准流程
 
@@ -82,24 +86,18 @@ relatedSkills:
 - 全部：`app.winget.upgrade { all: true }`（**建议先 `app.winget.upgrade` 不带参数预览**，
   或明确告知用户将升级全部可升级包）
 
-### 创建 / 读取快捷方式
+### 读取快捷方式（当前只读）
 
 ```
-# 创建（或覆盖）桌面快捷方式：给了 targetPath 即创建
-app.shortcut.manage {
-  path: "C:\\Users\\<user>\\Desktop\\MyApp.lnk",
-  targetPath: "C:\\Program Files\\App\\app.exe",
-  arguments: "--profile default",
-  workingDirectory: "C:\\Program Files\\App"
-}
-
-# 读取：只给 path，返回 targetPath / arguments / workingDirectory
+# 读取：返回 targetPath / arguments / workingDirectory
 app.shortcut.manage { path: "C:\\Users\\<user>\\Desktop\\MyApp.lnk" }
 ```
 
-> **契约**：`path` 必填，是 `.lnk` 文件的存放/读取路径。
-> **提供了 `targetPath` → 创建/覆盖该 `.lnk`**；未提供 `targetPath` → 按**读取**处理，
-> 返回 `targetPath`、`arguments`、`workingDirectory`。
+> **契约**：`path` 必填，是 `.lnk` 文件的读取路径。
+> ⚠ **创建/覆盖快捷方式当前不可用**：入参 `targetPath`/`arguments`/`workingDirectory`
+> 虽在 schema 中保留，但传入**不会产生写入**，回执仍只返回读取结果
+> （写侧 `New-ShortcutItem` 已实现待挂载）。用户要求"建快捷方式"时如实说明现状，
+> 可改走 `appops.cli.invoke`(powershell) 由用户审批后执行，或人工创建——不要静默声称成功。
 
 ## 高危清单（L2 强制动作）
 

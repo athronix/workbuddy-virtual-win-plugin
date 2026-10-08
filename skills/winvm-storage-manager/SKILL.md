@@ -3,7 +3,8 @@ id: winvm-storage-manager
 name: Windows 存储管理
 description: >
   在 Windows 虚拟机内管理存储：磁盘与分区查询、目录体积分析、文件读写与搜索、
-  压缩解压、符号链接、回收站查看、清理建议。用于"磁盘满了怎么办""找某个文件"
+  压缩（创建 zip）、符号链接、回收站查看、清理建议。解压与回收站清空当前不可用
+  （解压函数已实现待挂载；清空为 V2 规划）。用于"磁盘满了怎么办""找某个文件"
   "整理目录"等。
 version: 0.1.0
 domains: [storage]
@@ -65,9 +66,9 @@ relatedSkills:
 | `storage.file.copy` | L1 | 复制 |
 | `storage.dir.manage` | L1 | 创建目录（幂等） |
 | `storage.search.query` | L0 | 按文件名或内容搜索 |
-| `storage.archive.manage` | L1 | 创建/展开 zip |
+| `storage.archive.manage` | L1 | **仅创建** zip（解压当前不可用，见"已知陷阱"） |
 | `storage.link.manage` | L2 | 符号链接/硬链接/junction（**需审批**） |
-| `storage.recycle.manage` | L0 | 查看回收站 |
+| `storage.recycle.manage` | L0 | 查看回收站（**清空当前不可用**，V2） |
 | `storage.cleanup.analyze` | L0 | **只分析不执行** |
 
 ## 标准流程
@@ -126,8 +127,13 @@ relatedSkills:
 - **UNC 路径被拒**：`\\server\share` 默认在路径黑名单中
 - **`space.analyze` 深度**：`depth` 越大越慢；建议 ≤3，根目录扫描设更大超时
 - **大文件读取上限**：默认 1MB（`maxBytes`），超限会报 `FILE_TOO_LARGE`
-- **回收站清空不可逆**：`cleanup.analyze` **只分析不执行**，不要把它当清理工具；
-  真正清空回收站需用户明确要求并单独审批
+- **回收站清空当前不可用**：`storage.recycle.manage` **只读查看**（无清空函数挂载）；
+  `cleanup.analyze` **只分析不执行**，不要把它当清理工具。用户要求"清空回收站"时如实说明
+  现状（可人工在 VM 内清空，或按 `storage.file.delete` 逐项审批删除目标文件）
+- **zip 解压当前不可用**：`storage.archive.manage` 仅能**创建** zip；入参 `destination` 为
+  归档输出路径，传解压意图**不会产生展开**（解压函数 `Expand-ZipArchiveItem` 已实现待挂载）。
+  需要解压时可改走 `appops.cli.invoke`(powershell) `Expand-Archive`（用户审批）或人工操作——
+  不要静默声称已解压
 - **压缩大目录耗时长**：`storage.archive.manage` 超时上限 300s
 
 ## 参考
