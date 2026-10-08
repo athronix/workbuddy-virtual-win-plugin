@@ -1103,10 +1103,9 @@ MSYS 与 PowerShell 的双层解析就可能重演"`/End` → `C:/…/End`"那�
 仅"VM 内 PowerShell 调外部 CLI"这类跨语言场景才允许裸名。
 `sh()`/`run()` 在 `r.error`（ENOENT）时打印 `命令解释器未找到：<cmd>，请检查 PATH` 并保留原始 code。
 `install-vm.mjs` 自检改用 `process.execPath`（与计划任务同源）。
-若 `delivery/vm-service.config.json` 被手改坏（本项目运行配置是**磁盘上的 JSON**，
-MEMORY 已记录运维会在 VM 上直接改它），失败仍发生在 step 3 之后（生成
-`.generated/vm-service.runtime.json` 时，`:713-727`），
-且此时 step 1（软链）/ step 2（build）已执行完 → **半途状态**（见 DEP-03 顺序陷阱）。
+配套处置见 **OPS-11**（`WINVM_NODE` 逃生门接电）与 **§7 R8b**。
+
+---
 **建议**：`:489` 那段前移为小 preflight（复用 `preflight.mjs` 的 `Check[]` 结构），
 把"存在 + 可解析 + 关键键"三项一起断言，失败即在任何写操作前退出。
 
