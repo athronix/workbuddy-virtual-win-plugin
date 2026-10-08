@@ -172,7 +172,7 @@ CL-K3R 是 **A5（CL-R19F）的增量续作**，无独立 PRD 上游（`.dev/cha
 | **SK-K2** | `WINVM_APPROVAL_TRUTH` 三态语义 | 新增 |
 | **SK-K3** | `pendingApprovals` 内存态 caveat（重启即空 / 只含未决 / 长期累积风险） | 新增（须集体知悉） |
 | **SK-K4** | R1/R2/R3 归因严格有序；R2 必须先于 R3；窗口阈值与 `DelegationLedger.inWindow`/`isExposed` **同源** | 新增 |
-| **SK-K5** | dist 重建 + 依赖方向守卫 | 新增（注：`npm run layout`/`scripts/dep-lint.mjs` **在本仓库不存在**，见 E-4，改以人工方向核对替代） |
+| **SK-K5** | dist 重建 + 依赖方向守卫 | 新增（注：`npm run layout`/`scripts/dep-lint.mjs` **在本仓库不存在**，见 E-4，改以人工方向核对替代。**2026-10-08 闭环**：QA R3 `c10a400` 已删除 `layout` 脚本键，`dep-lint` 属 Phase 2 规划） |
 | **SK-K6** | 新判据**单向 fail-closed**；命中改判的 `error.code` 复用 `APPROVAL_REQUIRED` 前缀（保 A5 样本可比） | 新增 |
 | **SK-K7** | D-1 / D-4 / D-5 三道红线**一字不动** | 新增 |
 

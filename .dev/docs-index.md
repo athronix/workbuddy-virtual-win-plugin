@@ -60,6 +60,8 @@
 ## 变更文档（docs/changes/）
 - `CL-015` ~ `CL-020`：既有。
 - **`CL-021`（R17）与 `CL-K3R`：本轮补建**（各含 REQUIREMENT / TECHNICAL-SOLUTION / QA-REPORT），补齐此前「已实现未入册」的缺口。
+- **`phase0-docs-notes.md`（Phase 0 · P0-5 文档止血，2026-10-08）** —— PM 侧逐文件改动记录（7 幽灵能力摘除/标 V2、12 条名实不符如实化、4 条"已实现待挂载"标注、C2 layout 脚本移除连带、C6 测试基线新口径；含双侧 Skill 同步与全处可回溯原句）。
+- **`phase0-qa-notes.md`（Phase 0 · QA 域，2026-10-08）** —— R1/R2 守卫测试（psmod 契约 + S-4/A5 装配点，`tests/unit` 净增 → 62 `.js`/1092 例）与 R3 package.json 三脚本修复记录（R3 commit `c10a400`，含删除 `layout` 死入口；C2/C6 文档口径连带由 PM 承接）。
 
 ## 最近变更（第十八轮起 · 2026-09-30 ~ 2026-10-06）
 - **CL-021（R17，2026-09-30）**：审批卡原生渲染（`approval-card.ts` 806 行，`show_widget` + `AskUserQuestion` 两段式，`L0_L1_NO_CARD` 独立降级码）、会话工具面诊断（`delivery/tools/diagnose-connectors.mjs` 只读诊断 + install-host 自检）、K6 能力层卸载核验（NSIS `/S` 回退 + R-0 entry 预捕获）、T02b 超时链 `capTimeoutMs ?? req.timeoutMs ?? 30_000`。QA 条件 PASS / 路由 NoOne（`tsc` EXIT=0，51 文件 736 pass / 0 fail / 2 skipped），真机 5 例 BLOCKED 遗留。
@@ -80,3 +82,9 @@
 - 同步滞后概览文档：README §8 测试基线 636/634 → **1054/1054**（⚠ 2026-10-08 体检修正口径：测试文件实为 **60 个 `.test.js`** 非 59，且 `.mjs` 70 例 / delivery 8 例 / e2e 17 例不在 1054 内，见 `docs/audit/2026-10-08-test-docs-audit.md`）；README §9.5「真机未验证 6 项」→ 已闭环（R18/R19/A2A 覆盖/CL-K3R T05）；`docs/06-OVERVIEW.md` 194/194 → **1054/1054**；Skill 计数统一为 7 目录（1 总控 + 5 领域 + 1 MCP 参考）。⚠ 同轮体检裁定：`changing-log.md:4-9` 与 README"已闭环"表述互斥，changed-log 漏记 S-4 代码修复（d5cb71a）——列入体检报告 Phase 0 止血批（R4）统一修复。
 - 新增「逐缺陷设计稿索引（docs/design/）」导航节，纳入稳定阅读顺序。
 - 以上为纯文档同步（场景 F：历史变更已发生但未完全入索引），无代码改动。
+
+## 索引同步记录（Phase 0 · P0-5 文档止血轮 · 2026-10-08）
+- **幽灵能力止血**：`CAPABILITY-MODEL.md` 升 **v1.4**（7 条未注册能力摘除/标「V2 规划·当前不可用」、12 条名实不符如实化、新增 §3.1.2「已实现待挂载」表）；`INTERFACES.md` §2.3 工具集按 definitions.ts 54 条对账；`SCENARIOS.md` 场景 C/E 主能力改写为已注册组合路径；`USER-MANUAL.md` 假 CLI `--audit tail/verify` 摘除；README §2.2/§9.4 口径修正；7 个仓库 Skill 与 connector 侧 6 个 SKILL.md 双侧同步（diff 校验一致）。全程记录见 `docs/changes/phase0-docs-notes.md`。
+- **C2 连带（QA R3 `c10a400`）**：根 `package.json` `layout` 脚本键已删除（指向不存在的 `scripts/dep-lint.mjs`；`dep-lint` 属 **Phase 2 规划**）。全仓文档 `npm run layout` 引用已逐处标注失效并给出"人工方向核对 / `git diff --stat` 守门"替代——处置面：`docs/design/a5-approval-drop-fix-contract.md`（SK-5 行删线注记 + E-3 勘误节闭环注记）、`a5-approval-drop-fix-impl-progress.md` §6.5、`cl-k3r-silent-false-success-design.md`（SK-K5 行 + §10.3 门禁表）、`cl-k3r-impl-progress.md` E-4、`docs/changes/CL-K3R/REQUIREMENT.md` SK-K5 行。历史叙事（`.workbuddy/memory/`、docs/audit）按"历史记录不改"原则保留。
+- **C6 连带（测试基线新口径）**：**70 文件 / 1162 例（1159 pass / 0 fail / 3 skip）** = 62 `.test.js`（1092）+ 8 `.test.mjs`（70），2026-10-08 QA 全量实跑。已同步：`README.md` §8（含逐文件跑命令补 `.mjs` 通配）、`docs/06-OVERVIEW.md` 两处、`.dev/project-dev-status.md`（新口径置顶 + 1054 降为历史快照保留）、`.workbuddy/memory/MEMORY.md` 关键口径行。旧口径 1054/1054（59 文件）与体检中间口径（60 文件）均留档于历史记录处。
+- 本轮仍为纯文档同步，无代码改动、无 git 写操作。

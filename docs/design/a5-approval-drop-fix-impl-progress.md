@@ -240,5 +240,6 @@ AFTER（T03 后，`:1017` / `:1018`）：
 
 1. **`npm run layout` 不可用**：`package.json:16` 指向 `node scripts/dep-lint.mjs`，但仓库**无 `scripts/` 目录**
    ⇒ 该脚本在本 HEAD 上属**既存失效**，与本次改动无关。D-4 改用 `git diff --stat` 守门（结论：零改动）。
+   【2026-10-08 更新】QA R3（`c10a400`）已把 `layout` 键从 `package.json` **删除**——本条当时引述的 :16 定义现已不存在；`dep-lint` 属 **Phase 2 规划**，现阶段 D-4 类改动仍以人工方向核对 / `git diff --stat` 守门。
 2. QA 在本轮实施中**并发提交**了两个测试 CL：`fafa59c`（Fix-4 新增断言）与
    `3681525`（C5 归属断言改写 + 翻转协议执行）。我的 before/after 计数以 T05 收口快照为准。

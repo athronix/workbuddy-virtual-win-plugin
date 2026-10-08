@@ -956,7 +956,8 @@ graph TD
 
 #### SK-K5｜与 SK-5 同源：dist 重建 + 依赖方向守卫
 - 同 R19F `SK-5`：`packages/**` 改完 `src` 必须 `npx tsc -b tsconfig.build.json` 重建 dist，单测才测新产物。
-- 新增守卫：`npm run layout`（`scripts/dep-lint.mjs`）—— 因 T01 在 `contracts`/`core` 加导出，T02/T03 反向依赖，需确认 `vm-service`/`adapter-...` → `contracts`/`core` 方向未被破坏。
+- 新增守卫：~~`npm run layout`（`scripts/dep-lint.mjs`）~~—— 因 T01 在 `contracts`/`core` 加导出，T02/T03 反向依赖，需确认 `vm-service`/`adapter-...` → `contracts`/`core` 方向未被破坏。
+  **⚠ 2026-10-08 勘误**：`layout` 脚本指向的 `scripts/dep-lint.mjs` 从未存在（见 R19F spec 勘误 E-3 / 本文 E-4），脚本键已由 QA R3（`c10a400`）从根 `package.json` **删除**；`dep-lint` 属 **Phase 2 规划**。该守卫现阶段以**人工方向核对**替代（新增导出全落 `contracts`/`core`，上层反向依赖 ⇒ 方向未破坏）。
 
 #### SK-K6｜`reconcileApprovalWait` 不改（SK-9 合规）+ 新判据单向 fail-closed
 - **函数体一字不改**：`APPROVAL_WAIT_PATTERN`（`bridge.ts:575`）、`parseApprovalBlock`（`:588`）、`reconcileApprovalWait` 的 steps/文案（`:615`–`:638`）全部维持 A5 终态指纹基准。本设计只把它的**调用层级降为兜底**（T03 门 1/2/3/4/5 任一不命中才调用），不改其源码。
@@ -1069,7 +1070,7 @@ graph TD
 | **红线 diff** | `git diff --stat -- packages/a2a-framework/src/` **必须为空** | D-4 守门 |
 | **源码可核** | `a2a-framework/src/server.ts:306` 仍是 `rejected` 唯一置位点；`bridge.ts:575`/`parseApprovalBlock` 未改；`reconcileApprovalWait` 文案未改 | D-5 / SK-9 守门 |
 | **构建** | `npx tsc -b tsconfig.build.json --force` 0 error（**先重建 dist 再跑测**） | SK-5 |
-| **依赖方向** | `npm run layout`（`scripts/dep-lint.mjs`）无违规（`contracts`/`core` 新增导出方向正确） | SK-K5 |
+| **依赖方向** | ~~`npm run layout`~~（脚本不存在，`layout` 键已于 2026-10-08 QA R3 `c10a400` 删除；`dep-lint` 属 Phase 2）→ **人工方向核对**无违规：`contracts`/`core` 新增导出方向正确 | SK-K5（E-4 勘误后） |
 
 ### 10.4 专项风险与缓解
 | # | 风险 | 触发 | 缓解（已在设计中） | 兜底 |

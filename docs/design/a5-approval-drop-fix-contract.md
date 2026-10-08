@@ -676,7 +676,11 @@ this.logger?.warn(
 - `**/dist/` 被 `.gitignore` 排除 ⇒ `git grep` / `git ls-files` **看不到** dist，但它**在磁盘上真实存在**。
 - 单测 `import { VmApprovalCoordinator } from '@winvm/vm-service'` 解析到 `packages/vm-service/dist/server.js`（不是 src）⇒ **改完 src 不 `tsc -b` 就跑测试 = 测的是旧产物，会得出「改了没生效」的假象**。
 - 口令：`npm run build`（= `tsc -b tsconfig.build.json`，见根 `package.json`）。T05 的门禁跑测**必须**先执行它。
-- 依赖方向守卫：`npm run layout`（`scripts/dep-lint.mjs`）—— D-4 相关改动后应跑。
+- 依赖方向守卫：~~`npm run layout`（`scripts/dep-lint.mjs`）~~ —— D-4 相关改动后应跑。
+  **⚠ 2026-10-08 已失效并移除**：`layout` 脚本键已从根 `package.json` 删除（QA R3，commit `c10a400`；
+  其所指 `scripts/dep-lint.mjs` 从未存在）。`dep-lint` 属 **Phase 2 规划**；当前 D-4 类改动请
+  **人工核对包间依赖方向**（新增导出落 `contracts`/`core`，上层反向依赖），或以
+  `git diff --stat -- packages/<被禁改包>/src/` 守门（同 §E-3 处置）。详见本条 E-3。
 
 ### SK-6｜审批语义不变式（不得为了「修好吊销者」而改）
 - `raise` 返回 `approved:false` 的**三条** reason（`rejected` / `timeout` / `no-active-task`）语义与取值**一字不变**；本轮只让 `no-active-task` 不再被误命中。
@@ -844,5 +848,10 @@ npx tsc -b tsconfig.build.json --force  # 全量强制重建（门禁收口推�
 **建议**：补回 `scripts/dep-lint.mjs`，或从 `package.json` 移除该失效 script —— 属独立议题，不在本迭代范围。
 
 **证据来源**：Engineer 实施侧（T05 门禁）；主理人验收侧已确认 D-4 守门结论。
+
+> **2026-10-08 处置闭环**：QA Phase 0 R3（commit `c10a400`）已按建议之二执行 —— `layout` 脚本键
+> 从根 `package.json` **删除**（死入口比缺失更误导）；补回 `dep-lint.mjs` 归 **Phase 2 规划**。
+> 全仓文档对 `npm run layout` 的引用已同轮标注/改写（见 `docs/changes/phase0-docs-notes.md`
+> "C2/C6 连带同步"节）。
 
 

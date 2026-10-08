@@ -145,4 +145,48 @@ connector 侧 grep 复核：幽灵 ID 仅存于"⚠ 当前未注册/V2 规划"�
 - 7 幽灵处置：6 条标 V2 摘除（update/activate→改指 gui.window.control/default/browser(重写场景C/E)/audit/policy/task.status）✔
 - 名实不符 12 条如实化（owner 6 条含 clipboard + 同族 6 条）✔；写侧死代码 4 条均标"已实现待挂载"✔
 - 顺带清偿：meta.session.status 补列、INTERFACES 计数、README"5–8 工具"、USER-MANUAL/SCENARIOS 假 CLI `--audit`、示例 ID `system.service.start`。
-- **IS_PASS: YES**
+- IS_PASS: YES（本批主体；C2/C6 连带见 §13~§14）
+
+---
+
+# C2/C6 连带同步（QA R3 合入 commit `c10a400` 后，主理人 2026-10-08 追加，仍属任务 #3）
+
+## 13. C2 —— `npm run layout` 死入口移除的全仓文档对账 ✅
+
+盘点（等效 git grep，全仓 `*.md` + `package.json`）：`layout` 脚本键已确认从根 `package.json` 消失（实读 scripts 段，现仅 build/clean/test/test:unit 等）。文档命中分两类处置：
+
+**A 类：活操作指引/门禁项 —— 删线标注 + 给替代动作**（原句可回溯）：
+1. `docs/design/a5-approval-drop-fix-contract.md:679`（SK-5 行）：原句 `- 依赖方向守卫：\`npm run layout\`（\`scripts/dep-lint.mjs\`）—— D-4 相关改动后应跑。`→ 加删除线，注"已失效并移除（QA R3 c10a400）；dep-lint 属 Phase 2 规划；当前 D-4 类改动请人工核对包间依赖方向，或以 `git diff --stat` 守门"。
+2. 同文件 E-3 勘误节末尾追加"2026-10-08 处置闭环"注记（原文三条实测订正保留）：QA R3 已按"建议"之二执行删除；补回归 Phase 2。
+3. `docs/design/a5-approval-drop-fix-impl-progress.md:241`（§6.5 遗留①）：保留登记原文，追加【2026-10-08 更新】说明当时引述的 `package.json:16` 定义现已不存在。
+4. `docs/design/cl-k3r-silent-false-success-design.md:959`（SK-K5 行）：同 1 处理，注人工核对替代口径。
+5. 同文件 `:1073`（§10.3 门禁表"依赖方向"行）：原句 `` | **依赖方向** | `npm run layout`（`scripts/dep-lint.mjs`）无违规… `` → 删线 + 改"人工方向核对无违规"，标注释来源（E-4 勘误 + c10a400）。
+6. `docs/design/cl-k3r-impl-progress.md:241`（E-4 行）：owner 裁定原文保留，追加【2026-10-08 闭环】——已取"删除"分支，dep-lint 属 Phase 2，完成前一律人工核对。
+7. `docs/changes/CL-K3R/REQUIREMENT.md:175`（SK-K5 行）：原注"在本仓库不存在，见 E-4"基础上补"2026-10-08 闭环：脚本键已删（c10a400）"。
+
+**B 类：历史记录/叙事 —— 不改**（同 audit 原则）：`docs/audit/*`、`docs/changes/phase0-qa-notes.md`（QA 域自己的 notes）、`.workbuddy/memory/2026-10-04.md`。
+
+零处置命中面：`README.md` / `INSTALL-GUIDE` / `DEPLOYMENT` / `SECURITY-GOVERNANCE` / `ARCHITECTURE` / connector skills / `.dev/project-dir-file-index.md` —— grep 证实本就无 `npm run layout` 引用。
+
+## 14. C6 —— 测试基线口径 1054/59 → **70 / 1162（1159 pass / 0 fail / 3 skip）** ✅
+
+实测复核：`ls tests/unit/*.test.js | wc -l` = **62**，`*.test.mjs` = **8**，与 QA 全量实跑口径一致（62 文件 1092 例 + 8 文件 70 例 = 70 文件 1162 例）。
+
+**活文档同步（新口径 + 旧口径降为留档注记）**：
+1. `README.md:275`（主指认点）：原句 `当前测试基线（2026-10-07 逐文件实测）：**1054/1054（59 个测试文件…）**` → 改为新口径正文 + 注记"1054 为 2026-10-07 仅 .test.js 旧口径，已随 Phase 0 QA R1/R2 守卫合入过时（R3 c10a400 修脚本），体检中间口径 60 亦留档"。**同时修 §8 示例命令**：原 `for f in tests/unit/*.test.js; do node "$f"; done` 漏 8 个 `.mjs`（天然少 70 例，test-docs-audit:456 同根因）→ 补 `tests/unit/*.test.mjs` 通配 + `node --test`。
+2. `.dev/project-dev-status.md:42`（主指认点，保持原结构、追加日期注记不抹历史）：§测试 首行新增 **【当前权威口径 · 2026-10-08】**（70/1162=62×1092+8×70，含 R1/R2 增量与 R3 layout 删除说明），原 2026-10-07 行降为 **【历史快照】** 保留（59/1054 与体检"60 个"注记一字未删）；§测试口径（硬约束复述）的逐文件命令同样补 `.mjs` 通配、"本轮 1054"行改为带日期的当轮叙述 + 指向新口径。
+3. `docs/06-OVERVIEW.md:4 / :60`（顺带发现）：两处 `**1054/1054 测试通过/通过**` → 新口径（含 62/8 文件拆分与 R3 日期）。
+4. `.workbuddy/memory/MEMORY.md:33`（顺带发现；MEMORY.md 是**现行口径摘要**非日记，"关键口径"节按现行事实更新）：`测试基线 1054/1054(2026-10-07…59 文件)` → 1162/70 口径 + 旧值留档句 + layout 已删提示。日记类 `2026-10-07.md` 等未动（历史叙事）。
+
+**不改面（历史记录，grep 已确认排除）**：`docs/audit/*`（PM 主指认排除项）、`.dev/changed-log.md:601/609`（变更历史，同原则保留）、`.dev/docs-index.md:79` 与 `.workbuddy/handover/*`（历史叙事/交接快照）、`docs/changes/CL-018/TECHNICAL-SOLUTION.md:113`（`10544ms` 为数字巧合非基线）。
+
+**新增索引同步（.dev/ 索引职责）**：`.dev/docs-index.md` —— §变更文档节补 `phase0-docs-notes.md` / `phase0-qa-notes.md` 两条目；文末追加"索引同步记录（Phase 0 · P0-5 文档止血轮）"三小节（幽灵止血 / C2 连带 / C6 连带），场景 F 惯例。
+
+**connector 侧**：grep `npm run layout` / `1054` 零命中 → 不涉及，双侧无需动作（符合任务书"若涉及"前提）。
+
+## 15. C2/C6 自查
+
+- C2：`grep "npm run layout"`（排除 audit/notes/memory 历史）→ 剩余命中全部带删除线或失效标注；A 类 7 处逐处给替代动作；无任何文档仍把 `layout` 当可跑入口推荐。✔
+- C6：`grep 1054`（排除历史面）→ 活文档只剩 README/dev-status/OVERVIEW 中带"旧口径/历史快照"限定语的对照句；70/1162 与实测 62+8 文件数吻合；两处逐文件命令均补 `.mjs` 通配。✔
+- 无 git 写、无源码改动（package.json 仅只读确认）。
+- **C2/C6 IS_PASS: YES**（任务 #3 整体维持 YES）。

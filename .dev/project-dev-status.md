@@ -35,12 +35,17 @@
 | vm-service | ✅ | ✅ e2e 双通道 | 装配 + CLI（agent.provider 总开关，3 选项：workbuddy-deterministic / workbuddy / hermes-agent） |
 
 ## 测试
-- **【最新实测 · 2026-10-07】单元测试（逐文件复核）：59 个 `tests/unit/*.test.js` ／ 1054 tests ／ 1054 pass ／ 0 fail ／ 0 skipped**。
-  ⚠ 2026-10-08 体检口径修正（`docs/audit/2026-10-08-test-docs-audit.md` §1）：`tests/unit/*.test.js` 实为 **60 个**（git ls-files 证实）；另有 8 个 `*.test.mjs`（70 例）、`delivery/__tests__`（8 例）、`tests/e2e/`（17 例，本机 1 fail=pwsh ENOENT 无守卫）**均不在 1054 口径内**。1054 数字本身抽验属实无虚报。
+- **【当前权威口径 · 2026-10-08 QA 全量实跑】：70 个测试文件 ／ 1162 tests ／ 1159 pass ／ 0 fail ／ 3 skipped**
+  = `tests/unit/*.test.js` **62 文件 / 1092 例** ＋ `tests/unit/*.test.mjs` **8 文件 / 70 例**（逐文件方式）。
+  增量来源：QA Phase 0 R1/R2 新守卫测试合入 `tests/unit`（R1 psmod 54 能力契约 `psmod-contract` + R2 S-4/A5 装配点 `assembly-guard`）；R3（commit `c10a400`）修复根 `package.json` 测试脚本并删除 `layout` 死入口。
+  同轮连带口径变更：根 `package.json` 的 `layout` 脚本（指向不存在的 `scripts/dep-lint.mjs`）**已删除**，
+  依赖方向守卫 `dep-lint` 属 **Phase 2 规划**，改前请人工核对包间依赖方向。
+- **【历史快照 · 2026-10-07】单元测试（逐文件复核）：59 个 `tests/unit/*.test.js` ／ 1054 tests ／ 1054 pass ／ 0 fail ／ 0 skipped**（口径仅覆盖 `.test.js`，已被上一行取代，保留备查）。
+  ⚠ 2026-10-08 体检口径修正（`docs/audit/2026-10-08-test-docs-audit.md` §1）：`tests/unit/*.test.js` 实为 **60 个**（git ls-files 证实，现随 R3 增至 62）；另有 8 个 `*.test.mjs`（70 例）、`delivery/__tests__`（8 例）、`tests/e2e/`（17 例，本机 1 fail=pwsh ENOENT 无守卫）**均不在 1054 口径内**。1054 数字本身抽验属实无虚报。
   相较第十七轮（51 文件 / 736 pass / 0 fail / 2 skipped）净增 **8 个文件、318 个用例**，主要来自：K-N1 专项 `r19c-kn1-*` 7 文件、K3R 专项 `r19c-k3r-*` 3 文件 + `cl-k3r-runpersistent-approval-routing.test.js`、A5 专项 `r19c-a5-*` 2 文件、以及 `r19b-*`、`r3-uninstall-verify`、`install-vm-admin-endpoint`、`cl017` 等。
 - 单元测试（逐文件复核，截至第十五轮 2026-09-29）：**636 tests / 634 pass / 0 fail / 2 skipped**（24 个 `tests/unit/*.test.js`；第十五轮新增 `k5-replay.test.js` 41 项、`k4-p3.test.js` 扩至 16 项，`k4-approval.test.js` 适配 ApprovalOutcome 契约 6 项；另含第十五轮前累计新增的 K2 预热/tunnel-mode 等测试）。历史快照曾记 214/214（第十四轮）、178 单测 + 16 e2e（分类口径不同）。
 - 审批链专项（K3/K4/P3/K5）：k5-replay 41/41、k4-approval 6/6、k4-p3 16/16 全绿；`tsc -b tsconfig.build.json` 0 error。
-- ⚠️ **运行方式硬约束**：必须**逐文件**跑（`for f in tests/unit/*.test.js; do node --test "$f"; done`）。整批 `node --test tests/unit/*.test.js` 会因 `link-workspace.test.js` 的 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`2147483651`/`0xC0000005`），共享 runner 被打崩，同进程**所有**文件被连带判死、呈假全红、且无汇总计数。单跑该文件 16/16 正常，故属环境问题非代码回归。
+- ⚠️ **运行方式硬约束**：必须**逐文件**跑（`for f in tests/unit/*.test.js tests/unit/*.test.mjs; do node --test "$f"; done`，`.js`/`.mjs` 两类都覆盖才等于 70 文件权威口径）。整批 `node --test tests/unit/*.test.js` 会因 `link-workspace.test.js` 的 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`2147483651`/`0xC0000005`），共享 runner 被打崩，同进程**所有**文件被连带判死、呈假全红、且无汇总计数。单跑该文件 16/16 正常，故属环境问题非代码回归。
 - ps-bridge 真实拉起 PowerShell 5.1，五大模块加载并返回真实系统数据
 - 端到端委派冒烟通过：宿主桥 → A2A → VM provider → ps-bridge → PowerShell，`completed` 并回传产物
 - 空闲自愈验证通过：常驻 55s 空闲后委派仍成功（修复前必失败）
@@ -75,5 +80,5 @@
 | **CL-K3R（K3 根治）** | ✅ 真机 T05 A~F 全过 | `on`×3 全 `input-required`（`apr_1bdd3e1e4b9e4e318b7e`）；harness 收紧后复验 PASS（`apr_7e7b60b61a0c4075b510`） |
 
 ### 测试口径（硬约束复述）
-- 必须**逐文件**跑：`for f in tests/unit/*.test.js; do node --test "$f"; done`。整批 `node --test tests/unit/*.test.js` 会因 `link-workspace.test.js` 的 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`0xC0000005`），共享 runner 被打崩，同进程所有文件被连带判死呈**假全红**。
-- 本轮 2026-10-07 实测即按逐文件方式聚合，得 **1054 / 1054 / 0 fail / 0 skipped**。
+- 必须**逐文件**跑：`for f in tests/unit/*.test.js tests/unit/*.test.mjs; do node --test "$f"; done`（`.js`/`.mjs` 两类都覆盖才等于 §测试 节 70 文件权威口径）。整批 `node --test tests/unit/*.test.js` 会因 `link-workspace.test.js` 的 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`0xC0000005`），共享 runner 被打崩，同进程所有文件被连带判死呈**假全红**。
+- 第十七轮（2026-10-07）当时实测即按逐文件方式聚合，得 **1054 / 1054 / 0 fail / 0 skipped**（仅 `.test.js` 口径）；当前权威口径见本文 §测试 首行（70 文件 / 1162 例 / 1159 pass / 3 skip，2026-10-08）。
