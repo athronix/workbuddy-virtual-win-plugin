@@ -1,7 +1,7 @@
 # 交付概览 · WinVM 跨机 Agent 插件（1+5 双通道方案）
 
 > 让宿主机 WorkBuddy 完全操作一台 Windows 虚拟机的完整实现已交付。
-> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，**1159 pass / 0 fail / 3 skipped（70 个测试文件 / 1162 例）**（2026-10-08 QA 全量实跑基线 = `.test.js` 62 文件 1092 例 + `.test.mjs` 8 文件 70 例，覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R 等核心模块）。
+> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，**1245 pass / 0 fail / 2 skipped（71 个测试文件 / 1247 例）**（2026-10-08 Phase 0 收官全量实跑基线 = `.test.js` 63 文件 1177 例 + `.test.mjs` 8 文件 70 例，覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R 与 Phase 0 安全守卫 U-P0-1 路径穿越 / U-P0-3 dry-run A1 / psmod 契约 / 装配点）。
 > 已补齐"操作 Windows 软件应用进行生产活动"这一被遗漏的关键维度（appops 域 + winvm-app-operation Skill + LLM provider 开放任务路径）。
 > **VM 侧 AI Agent 已可经 `agent.provider` 一键切换**：`workbuddy-deterministic`（确定性，默认）/ `workbuddy`（LLM Agent，V1 已实现）/ `hermes-agent`（Nous Research Hermes Agent，MCP 预注册）。
 > **双通道已完整闭环**：简单任务 → 宿主 MCP client 直调 VM 的 MCP 工具；复杂任务 → 宿主经 A2A 委派桥（`host-a2a-bridge`）把目标交给 VM 内 AI Agent，过程与产物按 A2A 规范回流。
@@ -57,7 +57,7 @@
 | 项 | 结果 |
 |----|------|
 | 全量编译 `tsc -b` | ✅ 12/12 包通过 |
-| 单元测试 + 端到端 | ✅ **1159 pass / 0 fail / 3 skipped**（70 个测试文件 / 1162 例；2026-10-08 QA 全量实跑基线 = `.test.js` 62 文件 1092 例 + `.test.mjs` 8 文件 70 例；覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R 等核心模块，无回归） |
+| 单元测试 + 端到端 | ✅ **1245 pass / 0 fail / 2 skipped**（71 个测试文件 / 1247 例；2026-10-08 Phase 0 收官全量实跑基线 = `.test.js` 63 文件 1177 例 + `.test.mjs` 8 文件 70 例；覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R 与 Phase 0 安全守卫 U-P0-1/U-P0-3/psmod 契约/装配点，无回归） |
 | ps-bridge 真实链路 | ✅ 真实 PowerShell 5.1，五大模块加载，返回真实系统数据 |
 | 安装器 dry-run | ✅ 6 Skill / 7 文件 / 1 增量补丁 / 静态禁用 8 高危工具 |
 | VM 服务配置校验 | ✅ 0 错误 0 警告，强制回环绑定 |

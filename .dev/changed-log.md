@@ -618,3 +618,17 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 - **合并 P0**：U-P0-1 策略层 `..` 穿越（已复现）；U-P0-2 审计链基线随重启重置（freshChainOnStart）；U-P0-3 dryRun 免审批旁路（裁定 P1高并入 Phase 0）；U-P0-4 S-4/A5 装配点无守卫 + psmod 54 映射零回归；U-P0-5 幽灵能力×7 + 名实不符面向用户。
 - **核心根因**（架构 §7.2）：契约"先声明后实现"无回收机制 → 死字段群 6 处（commandAllowlist/snapshot/approvalTimeoutMs/endpointAllowlist/ToolContext.signal/AgentCard signature）；无 CI 无门禁（dep-lint 不存在）；取证面只覆盖执行轴；安全边界外包给部署形态。
 - **完善路径**：Phase 0 止血（≤1 天）→ Phase 1 安全兑现批 → Phase 2 治理门禁批 → Phase 3 卖点兑现批 → Phase 4 运维完备批 → Phase 5 功能广度（明确排在门禁之后）。待 owner 决断 4 项见总报告 §5。
+
+---
+
+## Phase 0 止血批 · 2026-10-08 晚（owner 五项裁决后开工，团队 software-winvm-phase0）
+
+- **U-P0-1 路径穿越修复**（commit `ba02fbb`）：`normalizePath` 重写为 win32 `path.resolve` 语义段消解（`foldWin32Segments`/`foldSegList`，total 不抛、幂等、UNC 锚点不误伤、`\\?\`/`\\.\` 透传、相对形态栈空 `..` 保留→白名单必然 miss fail-closed）；黑白名单**模式侧与入参侧先归一后匹配**（同一通路）；**连带发现并修复第二处独立绕过面** `extractPathTokens` 盘符正则硬编码反斜杠（`[A-Za-z]:\\`→`[A-Za-z]:[\\/]`，正斜杠盘符命令内嵌穿越此前根本不进文件系统策略视野）。守卫 `tests/unit/p0-path-traversal.test.js` 84 例（含段消解三态、逃逸 DENY/非逃逸 ALLOW 对照、声明位集合钉死、内存变异 X1-X4 判据、防注释自匹配用例）。
+- **U-P0-3 dry-run A1 服务端声明制**（同 commit，owner 裁决采纳架构 A1）：`CapabilityDefinition.supportsDryRun`（contracts + CapSpec + schema 三处）；引擎免批改双条件（dryRun 意图 **且** 注册表声明 `===true`，未声明/缺席/无注册表一律回落 approval-required fail-closed）；确凿能力标 true 共 **6 条**（power.control / winget.install / winget.uninstall / winget.upgrade / storage.file.delete 等，逐条核对 psmod `$DryRun` 分支先于副作用 return）；哨兵常量 `POLICY_DRY_RUN_BYPASS_MATCHED_RULE` 契约化；审计装饰器 `bypassTagSink` 落 `ext.bypass='dry-run'`（判据只读服务端 verdict、纯附加、ext 参与链哈希故 append 前整形）；SECURITY-GOVERNANCE 新增 §3.4.1 五条约束表。cl017 夹具同步生产同构（注入 registry）。
+- **P0-4 QA 守卫**（commit `c10a400`）：`psmod-contract`（注册表↔psmod 54 映射全量断言）7 例 + `assembly-guard`（S-4/A5 装配点源码守卫）24 例；变异验证 R1 7/7 RED、R2 24 条内存变异全 RED、R3 4/4 RED。
+- **R3 测试脚本**（同 `c10a400`）：`test:unit` 改内联逐文件 spawn（结构性根除违禁整批 glob）、收录 `.test.js`+`.test.mjs`；死入口 `layout` 删除；r19b-s5 断言6 从锁旧 glob 字面量升级为四条语义判据。
+- **P0-5 文档止血**（commit `9dd13bd`）：幽灵能力×7 摘除/标 V2（场景 C/E 重写走已注册组合）、名实不符 12 条如实化、已实现未挂载 4 函数就地标注；仓库 skills ↔ connector 双侧同步；C2/C6 连带（`0468791`）：`npm run layout` 引述 7 处标注失效、口径迁移注记。
+- **仓库卫生**（`870fab2`，owner 授权 R13）：`git rm --cached` 22 个 `.winvm-write-probe-*.tmp`。
+- **新基线口径（Phase 0 收官主理人全量实跑）**：**71 个测试文件 / 1247 例（1245 pass / 0 fail / 2 skipped）** = 63 `.test.js`（1177）+ 8 `.test.mjs`（70）；skip 3→2 因 assembly-guard dry-run 软探针随 `ba02fbb` 转硬断言通过。README/dev-status/OVERVIEW 三处已同步。
+- **主理人核验方法**：engine/contracts/audit 全量 diff 审阅；独立复跑 p0/cl017/assembly-guard；`path.win32.resolve` 权威参照逐条裁定首轮 7 红（6 断言错 + 1 实现遗漏，工程师复核结论与裁定一致）；SECURITY §3.4.1 与 definitions 标注数（6）核对；`npm run test:unit` 收官全量 failed=0。
+- **遗留登记**（Phase 1 议题，`docs/changes/phase0-engine-notes.md` R-1/R-3 同源）：R-1 注册表域不做段消解（`HKLM:\SOFTWARE\..\SAM` 字面命中 ALLOW，与 U-P0-1 同族、非本次引入，建议立 U-P0-1b 复注）；R-3 `buildPreview` 文案分叉"可预览≠可免批"，真机轮如涉旧文案断言需同步；VM 侧 `C:\WinVMBridge\shared-skills` 待重发布（隧道可达时）；skill frontmatter version bump 待发布流程统一处理。

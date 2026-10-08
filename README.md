@@ -272,14 +272,16 @@ npm run typecheck            # 同上，类型检查
 for f in tests/unit/*.test.js tests/unit/*.test.mjs; do node --test "$f"; done
 ```
 
-当前测试基线（2026-10-08 QA 全量实跑 · 逐文件方式）：**70 个测试文件 / 1162 例（1159 pass / 0 fail / 3 skipped）**
-= `tests/unit/*.test.js` **62 文件 / 1092 例** ＋ `tests/unit/*.test.mjs` **8 文件 / 70 例**，
-覆盖契约、策略、审计、双协议、审批链（K3/K4/P3/K5/A5/K-N1/K-N2/S-4/CL-K3R）等核心模块。
+当前测试基线（2026-10-08 Phase 0 收官全量实跑 · 逐文件方式）：**71 个测试文件 / 1247 例（1245 pass / 0 fail / 2 skipped）**
+= `tests/unit/*.test.js` **63 文件 / 1177 例** ＋ `tests/unit/*.test.mjs` **8 文件 / 70 例**，
+覆盖契约、策略、审计、双协议、审批链（K3/K4/P3/K5/A5/K-N1/K-N2/S-4/CL-K3R）与 Phase 0 安全守卫
+（U-P0-1 路径穿越 / U-P0-3 dry-run A1 / psmod 契约 / S-4·A5 装配点）等核心模块。
 
-> 旧口径「**1054/1054（59 个文件）**」为 2026-10-07 只统计 `*.test.js` 的快照，已随 Phase 0 QA 守卫测试
-> 合入过时（增量来源：R1 psmod 54 能力契约 + R2 S-4/A5 装配点；R3 `c10a400` 修复根 `package.json` 测试脚本）。
-> 2026-10-08 体检曾修正为"60 个 `.test.js`"（`docs/audit/2026-10-08-test-docs-audit.md` §1），
-> 现以 QA 全量实跑的 **70 / 1162（1159+3 skip）** 为权威口径。
+> 旧口径「**1054/1054（59 个文件）**」为 2026-10-07 只统计 `*.test.js` 的快照，已随 Phase 0 守卫测试
+> 合入过时（增量来源：R1 psmod 54 能力契约 + R2 S-4/A5 装配点 + U-P0 穿越/dry-run 84 例；
+> R3 `c10a400` 修复根 `package.json` 测试脚本）。2026-10-08 体检曾修正为"60 个 `.test.js`"
+> （`docs/audit/2026-10-08-test-docs-audit.md` §1）；skip 数 3→2 系 assembly-guard 的 dry-run
+> 软探针随 `ba02fbb` 落地转硬断言通过。现以 Phase 0 收官实跑的 **71 / 1247（1245+2 skip）** 为权威口径。
 > 另注：根 `package.json` 的 `layout` 脚本（曾指向不存在的 `scripts/dep-lint.mjs`）已删除 ——
 > 依赖方向守卫 `dep-lint` 属 **Phase 2 规划**，当前请人工核对包间依赖方向。
 
