@@ -91,6 +91,22 @@ export interface AuditExt {
   readonly stepsSummary?: readonly AuditStepSummary[];
   /** 内层回连调用的通道标注（通道 2） */
   readonly channel?: AuditPrincipal['channel'];
+  /**
+   * U-P0-3（**纯附加可选**）：本次放行**免除了本应触发的审批闸**时，免除依据的服务端事实。
+   *
+   * 为什么必须留痕：dry-run 免批是审批闸上唯一的放行旁路。若链上只有一条 `ok:true` 的
+   * executed 记录、而 `policyDecision.matchedRule` 承载的免批事实又无人核对，事后就
+   * **无法区分**「这次 L2/L3 免批是合法免批（能力声明 dry-run + 引擎按 A1 双条件放行）」与
+   * 「免批被绕过」。grep `ext.bypass` 即得全部免批执行清单（与 `ext.zeroInnerCalls`
+   * 「恒落供人工审视」是同一条取证纪律）。
+   *
+   * 唯一取值（当前）：`'dry-run'` —— 仅当策略引擎命中
+   * `allow:dry-run-bypass`（调用方传 `dryRun:true` **且**能力声明 `supportsDryRun===true`）
+   * 时，由**服务端**审计装饰器（`vm-service/src/delegation-audit.ts` 的 `bypassTagSink`）写入。
+   * 写入方**不得**依据调用方参数自行判定是否免批，一律以 `PolicyVerdict.matchedRule` 为唯一
+   * 判据（否则等于把免批判定权交回调用方 —— 正是 U-P0-3 的病灶）。
+   */
+  readonly bypass?: 'dry-run';
 }
 
 export interface AuditRecord {

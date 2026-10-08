@@ -30,6 +30,9 @@ export { CapabilityRegistry, DuplicateCapabilityError } from './registry/capabil
 
 /* ------------------------------ 策略引擎 ------------------------------ */
 export { CorePolicyEngine, globToRegex, collectStringValues, looksLikePath, looksLikeRegistryPath, normalizePath, normalizeRegistryPath } from './policy/engine.js';
+// U-P0-3（A1）：dry-run 免批放行规则的哨兵值（引擎产出、服务端审计装饰器与单测共用同一常量，
+// 拼写漂移不得静默使免批执行失去链上证据）。
+export { DRY_RUN_BYPASS_MATCHED_RULE } from './policy/engine.js';
 // R19-B · S-1（契约 docs/design/r19b-s1-kn2-contract.md）：归一/匹配/形态提示为策略层唯一权威，
 // 导出供 vm-capabilities 侧复用与单测断言（不得在 psmod / 其他层再实现第二份归一）。
 export { canonicalRegistryPath, matchRegistryAllowlist, describeRegistryForms, extractPathTokens } from './policy/engine.js';

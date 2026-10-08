@@ -29,18 +29,19 @@
  *   - 所有自由文本出 `redact()`（与审计侧同一脱敏口径）后截断 —— 零新增敏感面。
  */
 
-import type {
-  ApprovalWaitQuery,
-  AuditExt,
-  AuditPrincipal,
-  AuditRecord,
-  AuditSink,
-  DelegationActivity,
-  DelegationActivityCount,
-  Logger,
-  PendingApprovalFact,
-  RiskLevel,
-  TaskState,
+import {
+  POLICY_DRY_RUN_BYPASS_MATCHED_RULE,
+  type ApprovalWaitQuery,
+  type AuditExt,
+  type AuditPrincipal,
+  type AuditRecord,
+  type AuditSink,
+  type DelegationActivity,
+  type DelegationActivityCount,
+  type Logger,
+  type PendingApprovalFact,
+  type RiskLevel,
+  type TaskState,
 } from '@winvm/contracts';
 import { redact, type AppendAuditInput } from '@winvm/core';
 
@@ -758,6 +759,48 @@ export function wrapAuditSink(
         logger.warn('委派账本登记失败（不影响审计写入）', { error: String(e) });
       }
       return record;
+    },
+    verifyChain() {
+      return sink.verifyChain();
+    },
+  };
+}
+
+/* ============================ 3.5 U-P0-3 免审批取证装饰器 ============================ */
+
+/**
+ * U-P0-3（A1）：把「本次放行**经 dry-run 旁路免除了审批闸**」这一**服务端事实**补写进
+ * `ext.bypass='dry-run'`（契约字段：`contracts/src/audit.ts` 的 `AuditExt.bypass`）。
+ *
+ * 为什么落在服务端装饰器、而不是在各 provider 里拼 ext：
+ *  - 审计写入点分散（provider 成功/失败两处 + `recordBlockedApprovalAudit` +
+ *    `recordPolicyDeniedAudit` + 委派壳两处），逐点改动面大且极易漏 —— 漏一处就又是一条
+ *    「免批执行但链上无痕」的取证盲区（正是体检 §2-QA-11 点名的「兜底全是隐式约定」）。
+ *    装饰器挂在 `wrapAuditSink` 之后、`bridgeCtx.audit` 之前，**凡经桥接层落链的记录**一律经过。
+ *  - 判据必须是服务端裁决结果：本装饰器**只读** `input.policyDecision.matchedRule`
+ *    （= 策略引擎已作出的 `allow:dry-run-bypass` 命中事实），**绝不回看 `params.dryRun`** ——
+ *    把判定权交回调用方自报的参数正是 U-P0-3 的病灶。
+ *
+ * 纪律：
+ *  - **纯附加**：未命中旁路的记录**连 `ext` 键都不新增**（原 `input` 一字不改直接透传），
+ *    既有链上形态逐字节不变；
+ *  - 命中时与 K-N1 的 `ext`（`delegationId`/`channel` 等归因位）**合并而非覆盖**；
+ *  - `ext` 参与哈希（`chain.ts` 对 ext 递归 redact 后计入 canonicalJson），故必须在
+ *    `sink.append` **之前**整形，绝不能在返回的 record 上事后改写（那会破坏链一致性）。
+ *
+ * @param sink 上游 sink（通常是 `wrapAuditSink(...)` 的账本装饰器结果）
+ */
+export function bypassTagSink(sink: AuditSink): AuditSink {
+  return {
+    async append(input: AppendAuditInput): Promise<AuditRecord> {
+      if (input.policyDecision?.matchedRule !== POLICY_DRY_RUN_BYPASS_MATCHED_RULE) {
+        return sink.append(input);
+      }
+      const prevExt = input.ext as Record<string, unknown> | undefined;
+      return sink.append({
+        ...input,
+        ext: { ...(prevExt ?? {}), bypass: 'dry-run' } as AuditExt,
+      });
     },
     verifyChain() {
       return sink.verifyChain();

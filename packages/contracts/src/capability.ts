@@ -50,6 +50,24 @@ export interface CapabilityDefinition {
   readonly requiresSession: boolean;
   /** 是否强制审批。未指定时由 risk 推导（L2/L3 → true）。 */
   readonly requiresApproval?: boolean;
+  /**
+   * U-P0-3（A1 **服务端能力声明制**）：本能力的 `dryRun` 是否由**服务端实现真实支持**
+   * （只返回执行计划、绝不改动系统状态）。
+   *
+   * 为什么必须由服务端声明、而不是看调用方传了什么（体检 U-P0-3 / 测试文档审计 §2-QA-11）：
+   * 策略引擎的 dry-run 免审批旁路旧实现只判 `params.dryRun === true`，而这个参数是**调用方
+   * 自报**的 —— 任何 L2/L3 能力附带 `dryRun:true` 即可跳过人工审批真实执行，免批决策权落在
+   * 不受信的调用方手里（等同绕过审批闸）。本字段把「哪些能力可以免批」的权威收回服务端：
+   * 只有注册表里逐条标注 `supportsDryRun: true` 的能力才享受免批；未标注（`undefined`/`false`）
+   * 的能力传 `dryRun` **不再免批**，回落 `approval-required`（fail-closed）。
+   *
+   * 标注纪律（与 `REG_CANON` 根键准入清单同构 —— 表里既是映射也是准入）：
+   * 只允许给**实现体确凿返回计划而不改动状态**的能力标 true（psmod 侧必须有 `$DryRun` 分支，
+   * 如 `app.ps1` 的 `Get-UninstallDryRunPlan`、`storage.ps1` 的 `Remove-FileSystemItem` 预估、
+   * `system.ps1` 的 `Invoke-PowerControl`）。新增一条标注等于新增一条免审批通道，必须在
+   * code review / grep 中显形。
+   */
+  readonly supportsDryRun?: boolean;
   readonly destructive: boolean;
   readonly timeoutMs: number;
   readonly input: Record<string, unknown>; // JSON Schema

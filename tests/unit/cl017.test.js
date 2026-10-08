@@ -12,10 +12,23 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CorePolicyEngine, DEFAULT_POLICY, looksLikeRegistryPath, normalizeRegistryPath } from '@winvm/core';
+import { CapabilityRegistry, CorePolicyEngine, DEFAULT_POLICY, looksLikeRegistryPath, normalizeRegistryPath } from '@winvm/core';
 import { WINDOWS_CAPABILITIES } from '@winvm/vm-capabilities';
 
-const engine = () => new CorePolicyEngine();
+/*
+ * ⚠ 夹具口径修正（U-P0-3 / A1 服务端能力声明制，任务 #1）：
+ * dry-run 免批的**第二条件**读的是**能力注册表投影**（`CapabilityRegistryView.get(id).supportsDryRun`），
+ * 引擎未注入注册表时「无从核实」，按 fail-closed 一律回落审批闸。因此本文件的引擎夹具必须
+ * **与生产同构**（`vm-service/src/server.ts:383` 就是 `new CorePolicyEngine({ registry, config })`）：
+ * 旧写法 `new CorePolicyEngine()` 会让 D11「L3 先 dry-run 再确认」这条**合法链路**在测试里
+ * 假红（免批被判为不支持），而不是真回归。
+ */
+function makeRegistry() {
+  const registry = new CapabilityRegistry();
+  registry.registerAll(WINDOWS_CAPABILITIES);
+  return registry;
+}
+const engine = () => new CorePolicyEngine({ registry: makeRegistry() });
 const byId = (id) => WINDOWS_CAPABILITIES.find((c) => c.id === id);
 
 describe('CL-017 D9 · 注册表路径归一化', () => {
@@ -59,7 +72,10 @@ describe('CL-017 D9 · 注册表路径归一化', () => {
 });
 
 describe('CL-017 D11 · dry-run 免审批', () => {
-  test('L3 system.power.control {dryRun:true} 免审批放行', () => {
+  // U-P0-3（A1）：免批现在是**双条件**（调用方 dryRun:true **且** 注册表声明 supportsDryRun）。
+  // 本组用例因此同时检验两侧：power.control / file.delete 已声明（合法链路不回归），
+  // 未声明能力传 dryRun 回落审批闸（旁路不再由调用方自报参数触发）。
+  test('L3 system.power.control {dryRun:true} 免审批放行（声明位 supportsDryRun=true）', () => {
     const e = engine();
     const r = e.evaluate({
       capabilityId: 'system.power.control',
@@ -69,6 +85,9 @@ describe('CL-017 D11 · dry-run 免审批', () => {
     });
     assert.equal(r.allowed, true, r.error?.message);
     assert.equal(r.requiresApproval, false);
+    assert.equal(r.matchedRule, 'allow:dry-run-bypass');
+    // 免批的**服务端依据**必须在能力定义上（不是靠 params 自报）
+    assert.equal(byId('system.power.control')?.supportsDryRun, true);
   });
 
   test('L3 system.power.control 无 dryRun → APPROVAL_REQUIRED', () => {
@@ -92,6 +111,22 @@ describe('CL-017 D11 · dry-run 免审批', () => {
       approved: false,
     });
     assert.equal(r.allowed, false, 'dry-run 仍须受路径黑名单约束');
+  });
+
+  test('U-P0-3：未声明 supportsDryRun 的 L2 能力传 dryRun → 仍需审批（旁路收紧）', () => {
+    const e = engine();
+    // system.registry.write：L2、input schema 里**没有** dryRun、definitions 未声明 supportsDryRun
+    assert.equal(byId('system.registry.write')?.supportsDryRun, undefined, '前提：该能力未声明');
+    const r = e.evaluate({
+      capabilityId: 'system.registry.write',
+      params: { path: 'HKCU:\\Software\\WinVM', name: 'v', value: 1, dryRun: true },
+      risk: 'L2',
+      approved: false,
+    });
+    assert.equal(r.allowed, false, '仅凭调用方自报 dryRun 绝不再免批');
+    assert.equal(r.requiresApproval, true);
+    assert.equal(r.matchedRule, 'approval-required');
+    assert.equal(r.error?.code, 'APPROVAL_REQUIRED');
   });
 });
 

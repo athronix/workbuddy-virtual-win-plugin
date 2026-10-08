@@ -37,6 +37,14 @@ export class CapabilityRegistry implements CapabilityRegistryView {
     for (const d of defs) this.register(d);
   }
 
+  /**
+   * 返回**完整定义**（比契约 `CapabilityRegistryView.get` 的最小投影更多字段）。
+   *
+   * U-P0-3（A1）不需要在这里新增投影字段：`CapabilityDefinition` 本身已含
+   * `risk` / `requiresSession` / `supportsDryRun?`，结构上即满足放宽后的视图契约；
+   * 而 provider 侧（`adapter-agent-workbuddy/src/index.ts` 的 `definitionOf` 兜底分支）
+   * 依赖完整定义里的 `input` 做入参契约校验 —— 收窄返回会静默放松那道校验（安全方向劣化）。
+   */
   get(id: CapabilityId): CapabilityDefinition | undefined {
     return this.defs.get(id);
   }

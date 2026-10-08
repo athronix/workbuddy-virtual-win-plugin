@@ -39,6 +39,10 @@
       "type": "boolean",
       "description": "是否强制审批。未指定时由 risk 推导（L2/L3 → true）。"
     },
+    "supportsDryRun": {
+      "type": "boolean",
+      "description": "U-P0-3（A1 服务端能力声明制）：本能力的 dryRun 是否由服务端实现真实支持（只返回执行计划、零系统变更）。仅显式 true 的能力在传 dryRun:true 时享受免审批旁路；未声明回落审批闸（fail-closed）。"
+    },
     "destructive": { "type": "boolean" },
     "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 600000 },
     "input": { "type": "object", "description": "JSON Schema" },

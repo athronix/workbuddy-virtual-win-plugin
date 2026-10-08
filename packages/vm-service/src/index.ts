@@ -30,6 +30,7 @@ export type { ApprovalWaitQuery, PendingApprovalFact } from '@winvm/contracts';
 export {
   buildDelegationAuditEntry,
   buildReceiptResponse,
+  bypassTagSink,
   clipReceipt,
   DelegationLedger,
   DELEGATION_CAPABILITY_ID,

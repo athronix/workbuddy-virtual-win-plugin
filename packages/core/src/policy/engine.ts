@@ -18,6 +18,8 @@ import {
   type PolicyEngine,
   type RiskLevel,
   type CapabilityRegistryView,
+  POLICY_APPROVAL_REQUIRED_MATCHED_RULE,
+  POLICY_DRY_RUN_BYPASS_MATCHED_RULE,
   makeError,
   matchesCapability,
   riskAtLeast,
@@ -119,12 +121,24 @@ const COMMAND_KEY_RE = /\b(command|cmd|script|expression|powershell|shell|exec|a
  * 命中「路径不在白名单内」→ `POLICY_DENIED`，而 `HKLM\…`（无冒号）却放行：
  * 同一能力两种写法一成一败（真机 `e2-msi-verify` / `e1-post-reg` vs `e2-reg-probe1`）。
  * 加断言后 `HKLM:` 整体只由注册表模式捕获，并被 `pathCandidates` 交回注册表策略域。
+ *
+ * U-P0-1 连带修正（同一缺陷族：「写法决定成败」）：盘符正则此前**只认反斜杠**
+ * （`[A-Za-z]:\\`），于是命令串里嵌的**正斜杠盘符路径**（`node C:/Users/a/../../Windows/x.js`）
+ * 一个 token 都提不出来 ⇒ 整条命令**完全不进入**文件系统策略视野。
+ * 这不是「归一得对不对」的问题，而是**根本没走到归一**：`normalizePath` 已把
+ * `C:/…` 与 `C:\…` 视为同一形态（并统一折叠分隔符），采集层却只认一种写法，
+ * 二者语义不一致会让黑名单在参数通路生效、在命令通路失效。
+ * Windows API 对两种分隔符一律接受，`psmod` 侧原样透传，故正斜杠形态是**真实可利用**的绕过面。
+ * 现改为 `[A-Za-z]:[\\/]`。`https://` / `ftp://` 这类 scheme 因冒号**前邻是字母**
+ * 仍被左断言排除（伪盘符零出现，S-1 的既有断言不变）；
+ * 极端形态（如单字母 scheme `a://host/p`）若被提取，归一后必然撞白名单 miss ⇒ fail-closed，
+ * 方向是收紧而非放松。
  */
 export function extractPathTokens(s: string): string[] {
   const out: string[] = [];
   const patterns = [
     // 盘符路径：`X:` 前不得是字母/数字/下划线（否则会把 HKLM: / HKCU: 的尾字母当盘符）
-    /(?<![A-Za-z0-9_])[A-Za-z]:\\[^\s"'`;,|)]+/g,
+    /(?<![A-Za-z0-9_])[A-Za-z]:[\\/][^\s"'`;,|)]+/g,
     /\\\\\?\\[^\s"']+/g, // \\?\ 前缀
     /\\\\[A-Za-z0-9._$-]+\\[^\s"']+/g, // UNC
     /(?:HK[A-Z_]+|HKEY_[A-Z_]+):?\\[^\s"']+/gi, // 注册表路径
@@ -147,13 +161,130 @@ function pathMatchesAny(p: string, regexes: readonly RegExp[]): boolean {
   return regexes.some((re) => re.test(p) || re.test(`${p}\\`) || re.test(`${p}/`));
 }
 
-/** 归一化路径：统一反斜杠，去掉末尾分隔符（保留根路径） */
+/**
+ * U-P0-3（A1）：dry-run 免批放行规则的**唯一哨兵常量**。
+ *
+ * 为什么在契约层定义而不是各处写字面量：这条规则同时被三方读取 ——
+ * ① 引擎产出；② `vm-service` 审计装饰器据此在 `ext.bypass='dry-run'` 落取证位；
+ * ③ 测试与运维 grep。任一处拼写漂移都会让「免批执行」静默失去链上证据
+ * （正是体检 §2-QA-11 点名要防的「四层兜底全是隐式约定」）。
+ */
+export const DRY_RUN_BYPASS_MATCHED_RULE = POLICY_DRY_RUN_BYPASS_MATCHED_RULE;
+
+/**
+ * 路径归一（U-P0-1）：**win32 `path.resolve` 语义的段消解**，黑白名单两侧共用。
+ *
+ * 缺陷（体检 U-P0-1，P0）：旧实现只做「浅归一」（分隔符统一 + 折叠重复分隔符 + 去尾分隔符），
+ * **不解析 `.` / `..` 段**。于是
+ * `C:\Users\a\..\..\Windows\System32\evil.dll` 原样透传给 glob：
+ *   - 黑名单 `C:\Windows\**` 不匹配（串以 `C:\Users\` 起头）；
+ *   - 白名单 `C:\Users\**` 匹配 ⇒ ALLOW。
+ * 主理人已用 dist 引擎对 `appops.cli.invoke` / `storage.file.manage` 双证实在穿越串上放行 ——
+ * **一条 `..\` 同时绕过黑名单与白名单**，等价于把整个路径策略面变成可选。
+ *
+ * 现在的语义（与 `path.resolve` 在 Windows 上的一致）：
+ *   - `.` 段与空段丢弃；`..` 弹栈；
+ *   - **锚定形态**（盘符根 `C:\`、UNC `\\server\share`、根相对 `\a\b`）：栈空时多余的 `..` 直接丢弃
+ *     （根之上没有父目录，绝不逃到根外）；
+ *   - **相对形态**（无盘符无 UNC）：栈空时的 `..` **原样保留** —— 我们不知道调用方 CWD，
+ *     任何「假定 CWD 后消解」都是在替引擎编造绝对路径；保留 `..` 使这类串必然无法命中
+ *     前缀式白名单（表项一律绝对形态）⇒ 落在 `pathAllowlist:miss` **fail-closed**；
+ *   - 折叠**必须 total**：任意输入（含空串、纯分隔符、畸形 UNC、非字符串）只返回一个形态，
+ *     绝不抛异常 —— 归一抛错会被上游 catch 成「执行失败」而不是「拒绝」，等于又一个绕过面。
+ *
+ * 覆盖形态（单测逐项钉死）：正反斜杠与混合（`C:/Users/a/../..`）、大小写混杂、无盘符形态、
+ * 重复分隔符；**UNC `\\server\share` 不误伤**（server/share 两段作为锚点保留，不被 `..` 弹出，
+ * 与 win32 一致）；**设备命名空间 `\\?\` / `\\.\` 逐字节透传**（Windows 对该前缀**不做**路径归一，
+ * 消解反而与真实语义不符；默认黑名单 `\\?\**` 已整体拒绝，透传是安全方向）。
+ *
+ * 幂等：`normalizePath(normalizePath(x)) === normalizePath(x)`（段消解一次后即无 `.`/`..` 可解）。
+ */
 export function normalizePath(p: string): string {
-  let s = p.trim().replace(/\//g, '\\');
-  // 折叠重复分隔符（UNC 前缀 \\ 需保留）
-  if (!UNC_RE.test(s)) s = s.replace(/\\\\+/g, '\\');
-  if (s.length > 3 && s.endsWith('\\')) s = s.slice(0, -1);
-  return s;
+  return foldWin32Segments(p);
+}
+
+/**
+ * 段消解内核（`normalizePath` 的唯一实现，独立成函数便于「变异验证」整体替换）。
+ * 见 {@link normalizePath} 的语义说明。绝不抛。
+ */
+function foldWin32Segments(p: string): string {
+  // total 兜底：非字符串入参（调用方 params 是 `Record<string, unknown>`，运行期可能是任意值）
+  let s = '';
+  try {
+    s = (typeof p === 'string' ? p : String(p ?? '')).trim();
+  } catch {
+    return '';
+  }
+  if (s === '') return s;
+
+  // 1) 分隔符统一（正斜杠 → 反斜杠；Windows API 两种都接受，归一后 glob 只需认一种）
+  s = s.replace(/\//g, '\\');
+
+  // 2) 设备命名空间：`\\?\…` / `\\.\…` 逐字节透传（不做归一是 Windows 的语义，见 §normalizePath）
+  if (/^\\\\[?.]\\/.test(s)) return s;
+
+  // 3) UNC：`\\server\share\rest`。server+share 作为**不可弹出**的锚点。
+  if (UNC_RE.test(s)) {
+    const parts = s.slice(2).split('\\');
+    const server = parts[0] ?? '';
+    const share = parts[1] ?? '';
+    // 畸形（`\\`、`\\\a`、只有 server）：原样返回 —— 形态可疑的串绝不会被前缀白名单接纳，
+    // 由 `pathAllowlist:miss` fail-closed，而不是由我们臆造一个「解析后」形态。
+    if (server === '' || share === '') return s;
+    const anchor = `\\\\${server}\\${share}`;
+    const rest = parts.slice(2).join('\\');
+    const stack = foldSegList(rest, true);
+    return stack.length === 0 ? anchor : `${anchor}\\${stack.join('\\')}`;
+  }
+
+  // 4) 盘符绝对形态：`X:\rest`
+  if (DRIVE_RE.test(s)) {
+    const drive = s.slice(0, 1);
+    const stack = foldSegList(s.slice(2), true);
+    // 根路径保留：`C:\` 归一后仍是 `C:\`（旧实现同样保留长度 ≤3 的根形态）
+    return stack.length === 0 ? `${drive}:\\` : `${drive}:\\${stack.join('\\')}`;
+  }
+
+  // 5) 根相对形态：`\rest`（当前盘符根之下；`..` 到根即止）
+  if (s.startsWith('\\')) {
+    const stack = foldSegList(s.slice(1), true);
+    return stack.length === 0 ? '\\' : `\\${stack.join('\\')}`;
+  }
+
+  // 6) 盘符相对形态：`X:rest`（无分隔符）与 7) 纯相对形态：`rest`
+  //    rooted=false ⇒ 栈空的 `..` 保留（不知 CWD，绝不编造绝对路径 ⇒ 必然撞白名单 miss ⇒ 拒）
+  const driveRelative = /^[A-Za-z]:/.test(s);
+  const prefix = driveRelative ? s.slice(0, 2) : '';
+  const stack = foldSegList(s.slice(driveRelative ? 2 : 0), false);
+  return `${prefix}${stack.join('\\')}`;
+}
+
+/**
+ * 逐段消解（win32 `..` 语义）：`.`/空段丢弃；`..` 弹出一个**普通**段。
+ *
+ * `..` 遇栈空（或栈顶已是 `..`）时按 `rooted` 分叉：
+ *   - rooted（盘符根 / UNC share 根 / 根相对）：丢弃 —— 根之上没有父目录，绝不逃到根外；
+ *   - 非 rooted（相对形态）：**保留** `..` —— 引擎不知道调用方 CWD，把它伪造成绝对路径
+ *     等于替策略判定编造事实；保留后该串必然无法命中前缀式白名单 ⇒ `pathAllowlist:miss` 拒绝
+ *     （fail-closed，且拒绝理由如实反映「相对路径不在允许范围内」）。
+ */
+function foldSegList(body: string, rooted: boolean): string[] {
+  const stack: string[] = [];
+  for (const seg of body.split('\\')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      const last = stack[stack.length - 1];
+      if (last !== undefined && last !== '..') {
+        stack.pop();
+        continue;
+      }
+      if (rooted) continue;
+      stack.push('..');
+      continue;
+    }
+    stack.push(seg);
+  }
+  return stack;
 }
 
 /**
@@ -399,14 +530,34 @@ export class CorePolicyEngine implements PolicyEngine {
     this.cfg = base;
     this.registry = opts.registry;
     this.disablePathAllowlist = opts.disablePathAllowlist === true;
-    this.pathDenyRe = base.pathDenylist.map((p) => globToRegex(p));
-    this.pathAllowRe = base.pathAllowlist.map((p) => globToRegex(p));
+    // U-P0-1「先归一后匹配」：模式侧与入参侧必须走**同一条**归一通路，否则
+    // 「表写 `C:\Users\a\.\x`、入参写 `C:\Users\a\x`」这类形态落差会再次出现
+    // （与注册表域 `matchRegistryAllowlist` 的「两侧先归一」同一纪律）。
+    this.pathDenyRe = base.pathDenylist.map((p) => globToRegex(normalizePath(p)));
+    this.pathAllowRe = base.pathAllowlist.map((p) => globToRegex(normalizePath(p)));
     this.cmdDenyRe = base.commandDenylist.map((p) => new RegExp(p, 'i'));
     this.cmdAllowRe = base.commandAllowlist.map((p) => new RegExp(p, 'i'));
   }
 
   get config(): PolicyConfig {
     return this.cfg;
+  }
+
+  /**
+   * U-P0-3（A1）：该能力的 dry-run 是否由**服务端声明**支持（免审批旁路的第二条件）。
+   *
+   * 唯一判据 = 注册表投影里的 `supportsDryRun === true`。**严格等值 `true`**：
+   * 缺席（`undefined`）、`false`、以及「引擎未注入注册表」（无从核实）一律视为不支持 ——
+   * fail-closed，与 `riskAtLeast` / `capabilityRequiresApproval` 的保守方向一致。
+   *
+   * 为什么不在这里读 `req.params`、也不看 input schema 有没有 `dryRun` 属性：
+   * 参数是调用方自报的；schema 里的 `dryRun` 只说明「实现接得住这个开关」，
+   * **不等于**「开关为真时零系统变更」（`vm-service/src/server.ts` 的 `hasDryRunParam` 用于
+   * 审批预览文案，语义是「可预览」，不是「可免批」—— 两者刻意分离，见 U4 结论）。
+   */
+  private capabilitySupportsDryRun(capabilityId: CapabilityId): boolean {
+    if (!this.registry) return false;
+    return this.registry.get(capabilityId)?.supportsDryRun === true;
   }
 
   evaluate(req: EvaluateInput): PolicyVerdict {
@@ -440,7 +591,9 @@ export class CorePolicyEngine implements PolicyEngine {
     const values = collectStringValues(req.params);
 
     // 2. 路径黑名单（最高优先级）
-    const capPathDeny = (req.capabilityPolicy?.pathDenylist ?? []).map((p) => globToRegex(p));
+    const capPathDeny = (req.capabilityPolicy?.pathDenylist ?? []).map(
+      (p) => globToRegex(normalizePath(p)),
+    );
     for (const { key, value } of values) {
       for (const candidate of pathCandidates(key, value)) {
         const p = normalizePath(candidate);
@@ -482,7 +635,9 @@ export class CorePolicyEngine implements PolicyEngine {
 
     // 4. 路径白名单（拒绝优先）
     if (!this.disablePathAllowlist) {
-      const capPathAllow = (req.capabilityPolicy?.pathAllowlist ?? []).map((p) => globToRegex(p));
+      const capPathAllow = (req.capabilityPolicy?.pathAllowlist ?? []).map(
+        (p) => globToRegex(normalizePath(p)),
+      );
       const allowRes = [...this.pathAllowRe, ...capPathAllow];
       if (allowRes.length > 0) {
         for (const { key, value } of values) {
@@ -591,16 +746,39 @@ export class CorePolicyEngine implements PolicyEngine {
 
     // 6. 需要审批
     //
-    // D11：dry-run 免审批 —— `params.dryRun === true` 时不改变系统状态（仅返回计划），
-    // 若也拦截审批，Skill 规定的「L3 先 dry-run 再确认」流程在审批闸前就断掉、无法取得计划。
+    // D11：dry-run 免审批 —— 不改变系统状态（仅返回执行计划）时不拦审批，
+    // 否则 Skill 规定的「L3 先 dry-run 再确认」流程在审批闸前就断掉、无法取得计划。
     // 放在路径/命令/注册表等安全校验之后，故 dry-run 仍不能绕过黑名单与白名单。
+    //
+    // U-P0-3（A1 **服务端能力声明制**，体检 §2 表格 U-P0-3 / 架构审计 ARCH-02 / 测试审计 §2-QA-11）：
+    // 旧实现**只**判 `req.params['dryRun'] === true` 即放行 L2/L3 —— 该参数是**调用方自报**的，
+    // 于是「谁可以免审批」的决定权落在不受信的调用方手里：任何 L2/L3 能力附带 `dryRun:true`
+    // 即可跳过人工审批**真实执行**（psmod 侧是否真的按 dry-run 早返回、是否零变更，引擎一无所知）。
+    // 现在改为**双条件**：
+    //   ① 调用方传 `dryRun === true`（意图）；
+    //   ② 注册表里该能力声明 `supportsDryRun === true`（**服务端事实**：实现体确凿只返回计划）。
+    // 未声明的能力传 `dryRun` **不再免批**，回落 `approval-required`（fail-closed；
+    // 由于 `requiresApproval:true`，宿主侧审批流程照旧，已声明能力的合法 dryRun 调用链不受影响）。
+    //
+    // ⚠ 锚点纪律：下一行的 `if` + dryRun 严格等值判定字面量是
+    // `tests/unit/assembly-guard.test.js` 的**切片锚点**（QA 交付件，不得改），保留原样。
+    // 本注释刻意**不复现**该锚点的完整字面量（含左括号与尾空格）——
+    // QA 侧用 `indexOf` 取**首个**命中，注释里出现同样字面量会让它切到注释而非代码，
+    // 守卫静默失效（体检 §2-QA-11 点名要防的「锚点找不到/找错都不显形」）。
+    // 第二条件写在块**内**，两条都成立才放行。
     if (riskAtLeast(req.risk, 'L2') && !req.approved) {
       if (req.params['dryRun'] === true) {
-        return { allowed: true, matchedRule: 'allow:dry-run-bypass', requiresApproval: false };
+        if (this.capabilitySupportsDryRun(req.capabilityId)) {
+          return {
+            allowed: true,
+            matchedRule: POLICY_DRY_RUN_BYPASS_MATCHED_RULE,
+            requiresApproval: false,
+          };
+        }
       }
       return {
         allowed: false,
-        matchedRule: 'approval-required',
+        matchedRule: POLICY_APPROVAL_REQUIRED_MATCHED_RULE,
         requiresApproval: true,
         error: makeError('APPROVAL_REQUIRED', `风险等级 ${req.risk} 需人工审批后执行`),
       };

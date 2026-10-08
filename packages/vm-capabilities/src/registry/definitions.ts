@@ -24,6 +24,24 @@ interface CapSpec {
   readonly outputArray?: boolean;
   readonly idempotent?: boolean;
   readonly requiresSession?: boolean;
+  /**
+   * U-P0-3（A1 **服务端能力声明制**）：本能力的 `dryRun` 是否由 **psmod 实现体确凿支持**
+   * —— 传 `dryRun=true` 时只返回执行计划/预估、零系统变更。声明后策略引擎才允许
+   * 「dryRun 免审批」旁路；未声明的能力传 `dryRun` 一律回落审批闸（fail-closed）。
+   *
+   * **标注纪律**（逐条核对实现体后才可标，与 `REG_CANON`「表里既是映射也是准入」同权）：
+   * 实现体必须有 `$DryRun` 分支且在**任何副作用之前** return / 只做只读查询。
+   * 本次核对到的真实实现（`packages/vm-capabilities/psmod/`）：
+   *   - `system.ps1:470-476` `Invoke-PowerControl`（$DryRun → 返回 plan，不动电源）
+   *   - `storage.ps1:166-178` `Remove-FileSystemItem`（$DryRun → 体积预估，**先于**删除分支）
+   *   - `app.ps1:693` + `:797-812` `Uninstall-WingetPackage`（K-N2 宿主侧纯查询预览，零 winget 调用）
+   *   - `app.ps1:239/249` `Install-WingetPackage`、`app.ps1:984/989` `Update-WingetPackage`
+   *     （把 `--dry-run` 交给 winget 自身预览；两者风险 L1，本就不进审批闸）
+   * **新增一条标注 = 新增一条免审批通道**，必须在 review / grep 中显形：
+   * `grep -n "supportsDryRun: true" definitions.ts` 的条数即「服务端认可的免批能力数」，
+   * 由 `tests/unit/p0-path-traversal.test.js` 的集合断言钉死（防静默扩张）。
+   */
+  readonly supportsDryRun?: boolean;
   readonly destructive?: boolean;
   readonly timeoutMs?: number;
   readonly snapshot?: SnapshotPolicy;
@@ -61,6 +79,11 @@ function cap(spec: CapSpec): CapabilityDefinition {
     audit: { snapshot: spec.snapshot ?? 'none' },
     implementation: { kind: 'powershell', module: spec.module, function: spec.fn },
     ...(policy ? { policy } : {}),
+    // U-P0-3（A1）：仅在 spec **显式声明**时才写该位（true/false 都写、缺席不写），
+    // 于是 `grep -n "supportsDryRun" definitions.ts` 数出的条数就是免审批通道的全集。
+    ...(spec.supportsDryRun !== undefined
+      ? { supportsDryRun: spec.supportsDryRun }
+      : {}),
   };
 }
 
@@ -120,7 +143,7 @@ const SYSTEM: CapabilityDefinition[] = [
   cap({ id: 'system.user.manage', name: '查询本地用户', description: '列出本地用户与启用状态', risk: 'L0', module: 'system', fn: 'Get-LocalUserInfo', input: obj({ name: { type: 'string' } }), idempotent: true, outputArray: true }),
   cap({ id: 'system.env.manage', name: '管理环境变量', description: '读取或设置用户/系统环境变量', risk: 'L1', module: 'system', fn: 'Get-EnvironmentVariableInfo', input: obj({ name: { type: 'string' }, target: { type: 'string', enum: ['User', 'Machine'] } }), snapshot: 'after' }),
   cap({ id: 'system.eventlog.query', name: '查询事件日志', description: '按日志名/级别查询 Windows 事件', risk: 'L0', module: 'system', fn: 'Get-EventLogEntries', input: obj({ logName: { type: 'string' }, maxEvents: { type: 'integer' }, level: { type: 'string' } }), idempotent: true, outputArray: true }),
-  cap({ id: 'system.power.control', name: '电源控制', description: '关机/重启/休眠/睡眠。必须先 dry-run', risk: 'L3', module: 'system', fn: 'Invoke-PowerControl', input: obj({ action: { type: 'string', enum: ['shutdown', 'restart', 'hibernate', 'sleep'] }, delaySeconds: { type: 'integer' }, dryRun: { type: 'boolean' } }, ['action']), destructive: true, snapshot: 'before-after' }),
+  cap({ id: 'system.power.control', name: '电源控制', description: '关机/重启/休眠/睡眠。必须先 dry-run', risk: 'L3', module: 'system', fn: 'Invoke-PowerControl', input: obj({ action: { type: 'string', enum: ['shutdown', 'restart', 'hibernate', 'sleep'] }, delaySeconds: { type: 'integer' }, dryRun: { type: 'boolean' } }, ['action']), destructive: true, supportsDryRun: true, snapshot: 'before-after' }),
 ];
 
 /* ================================ app ================================ */
@@ -153,7 +176,7 @@ const APP: CapabilityDefinition[] = [
     },
   }),
   cap({ id: 'app.winget.search', name: '搜索可安装包', description: '用 winget 搜索包', risk: 'L0', module: 'app', fn: 'Search-WingetPackage', input: obj({ query: { type: 'string' }, limit: { type: 'integer' } }, ['query']), idempotent: true, timeoutMs: 60_000, outputArray: true }),
-  cap({ id: 'app.winget.install', name: '安装应用', description: '用 winget 安装包（无人值守）', risk: 'L1', module: 'app', fn: 'Install-WingetPackage', input: obj({ id: { type: 'string' }, version: { type: 'string' }, dryRun: { type: 'boolean' } }, ['id']), timeoutMs: 600_000, snapshot: 'after' }),
+  cap({ id: 'app.winget.install', name: '安装应用', description: '用 winget 安装包（无人值守）', risk: 'L1', module: 'app', fn: 'Install-WingetPackage', input: obj({ id: { type: 'string' }, version: { type: 'string' }, dryRun: { type: 'boolean' } }, ['id']), timeoutMs: 600_000, supportsDryRun: true, snapshot: 'after' }),
   cap({
     id: 'app.winget.uninstall',
     name: '卸载应用',
@@ -175,6 +198,11 @@ const APP: CapabilityDefinition[] = [
     module: 'app',
     fn: 'Uninstall-WingetPackage',
     input: obj({ id: { type: 'string' }, dryRun: { type: 'boolean' } }, ['id']),
+    // U-P0-3（A1）：K-N2 起 dryRun 是**宿主侧纯查询预览**（`app.ps1:693 Get-UninstallDryRunPlan`，
+    // 零 winget 调用、零子进程、零系统变更）—— 服务端确凿支持，故声明 supportsDryRun。
+    // 这是任务书点名的「uninstall dryRun 是真功能」的确切落点（真实能力 ID 为
+    // `app.winget.uninstall`；仓内不存在 `appops.app.manage`，见 notes U3 偏差登记）。
+    supportsDryRun: true,
     // R17-T01（K6 契约层）：回执新增 verified / fallbackUsed / residualEvidence，success 语义改为「以最终核验为准」。
     //   实现侧（psmod/app.ps1，T02）必须逐字对齐 docs/design/r17-design.md §A1.3/§A5 与
     //   tests/unit/r3-uninstall-verify.test.js 中的判定规则（NSIS 判定 / InstallLocation 反推 / 核验三态 / dryRun 语义）。
@@ -270,7 +298,7 @@ const APP: CapabilityDefinition[] = [
     timeoutMs: 600_000,
     snapshot: 'before-after',
   }),
-  cap({ id: 'app.winget.upgrade', name: '升级应用', description: '升级指定包或全部可升级包', risk: 'L1', module: 'app', fn: 'Update-WingetPackage', input: obj({ id: { type: 'string' }, all: { type: 'boolean' }, dryRun: { type: 'boolean' } }), timeoutMs: 600_000, snapshot: 'after' }),
+  cap({ id: 'app.winget.upgrade', name: '升级应用', description: '升级指定包或全部可升级包', risk: 'L1', module: 'app', fn: 'Update-WingetPackage', input: obj({ id: { type: 'string' }, all: { type: 'boolean' }, dryRun: { type: 'boolean' } }), timeoutMs: 600_000, supportsDryRun: true, snapshot: 'after' }),
   cap({ id: 'app.process.launch', name: '启动应用', description: '启动可执行文件/打开文件/打开 URL', risk: 'L1', module: 'app', fn: 'Start-AppProcess', input: obj({ target: { type: 'string' }, arguments: { type: 'string' }, workingDirectory: { type: 'string' }, wait: { type: 'boolean' } }, ['target']), timeoutMs: 120_000 }),
   cap({ id: 'app.shortcut.manage', name: '管理快捷方式', description: '读取或创建 .lnk 快捷方式', risk: 'L1', module: 'app', fn: 'Get-ShortcutInfo', input: obj({ path: { type: 'string' }, targetPath: { type: 'string' }, arguments: { type: 'string' }, workingDirectory: { type: 'string' } }, ['path']), snapshot: 'after' }),
   cap({ id: 'app.appx.manage', name: '查询 UWP 包', description: '列出 Appx 包', risk: 'L0', module: 'app', fn: 'Get-AppxPackageInfo', input: obj({ name: { type: 'string' } }), idempotent: true, outputArray: true }),
@@ -283,7 +311,7 @@ const STORAGE: CapabilityDefinition[] = [
   cap({ id: 'storage.space.analyze', name: '分析目录体积', description: '递归统计子目录体积 Top-N', risk: 'L0', module: 'storage', fn: 'Get-DirectorySize', input: obj({ path: { type: 'string' }, depth: { type: 'integer' }, top: { type: 'integer' } }, ['path']), idempotent: true, timeoutMs: 120_000 }),
   cap({ id: 'storage.file.read', name: '读文件', description: '以 UTF-8 或 base64 读取文件内容', risk: 'L0', module: 'storage', fn: 'Read-TextFileContent', input: obj({ path: { type: 'string' }, maxBytes: { type: 'integer' }, asBase64: { type: 'boolean' } }, ['path']), idempotent: true }),
   cap({ id: 'storage.file.write', name: '写文件', description: '写入或追加文件内容', risk: 'L1', module: 'storage', fn: 'Write-TextFileContent', input: obj({ path: { type: 'string' }, content: {}, append: { type: 'boolean' }, createDirectory: { type: 'boolean' } }, ['path', 'content']), idempotent: true, snapshot: 'after' }),
-  cap({ id: 'storage.file.delete', name: '删除文件/目录', description: '默认进回收站；-Permanent 需 L2 审批', risk: 'L2', module: 'storage', fn: 'Remove-FileSystemItem', input: obj({ path: { type: 'string' }, permanent: { type: 'boolean' }, dryRun: { type: 'boolean' } }, ['path']), destructive: true, destructivePath: true, snapshot: 'before-after' }),
+  cap({ id: 'storage.file.delete', name: '删除文件/目录', description: '默认进回收站；-Permanent 需 L2 审批', risk: 'L2', module: 'storage', fn: 'Remove-FileSystemItem', input: obj({ path: { type: 'string' }, permanent: { type: 'boolean' }, dryRun: { type: 'boolean' } }, ['path']), destructive: true, destructivePath: true, supportsDryRun: true, snapshot: 'before-after' }),
   cap({ id: 'storage.file.move', name: '移动/重命名', description: '移动文件或目录', risk: 'L1', module: 'storage', fn: 'Move-FileSystemItem', input: obj({ path: { type: 'string' }, destination: { type: 'string' }, force: { type: 'boolean' } }, ['path', 'destination']), snapshot: 'after' }),
   cap({ id: 'storage.file.copy', name: '复制', description: '复制文件或目录', risk: 'L1', module: 'storage', fn: 'Copy-FileSystemItem', input: obj({ path: { type: 'string' }, destination: { type: 'string' }, recurse: { type: 'boolean' }, force: { type: 'boolean' } }, ['path', 'destination']), snapshot: 'after' }),
   cap({ id: 'storage.dir.manage', name: '创建目录', description: '创建目录（已存在则幂等返回）', risk: 'L1', module: 'storage', fn: 'New-DirectoryItem', input: obj({ path: { type: 'string' } }, ['path']), idempotent: true, snapshot: 'after' }),

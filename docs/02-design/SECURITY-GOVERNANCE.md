@@ -100,8 +100,26 @@
 
 ### 3.4 关键红线
 
-- ❌ **任何情况下不得提供绕过审批闸的配置开关或代码路径**
+- ❌ **任何情况下不得提供绕过审批闸的配置开关**（`PolicyConfig` 中不存在、也不得新增「跳过审批」类字段）
 - ❌ 不得因"用户说快点"而跳过 dry-run 或审批
+
+#### 3.4.1 `dry-run` 免审批：服务端能力声明制（A1）
+
+审批闸上**唯一**存在的免批通道，是一条**由服务端声明位授权、且必须留链上证据**的窄口子，
+不是「调用方自报参数即可放行」的后门。约束（缺一不可，`engine.ts` 与单测逐条钉死）：
+
+| # | 约束 | 落点 |
+|---|---|---|
+| 1 | 免批判定为**双条件**：调用方传 `params.dryRun === true`（意图）**且** 注册表内该能力声明 `supportsDryRun === true`（服务端事实）。条件之间是 `&&`，**没有任何一条单独成立即可放行** | `packages/core/src/policy/engine.ts` 审批闸 + `CapabilityDefinition.supportsDryRun` |
+| 2 | 声明位是**显式白名单式标注**：默认（字段缺席）= **不支持**。新能力不会因为「`input` schema 里写了 `dryRun`」而自动获得免批通道 —— schema 有该键只说明实现接得住开关，**不等于**开关为真时零系统变更 | `packages/contracts/src/capability.ts` + `packages/vm-capabilities/src/registry/definitions.ts` |
+| 3 | **fail-closed**：严格等值 `=== true`；`undefined` / `false` / 引擎未注入注册表（无从核实）一律回落 `approval-required`（`requiresApproval:true`，审批流程照旧） | 同上 + `tests/unit/p0-path-traversal.test.js` |
+| 4 | 免批执行**必须**在审计链上留下 `ext.bypass='dry-run'` 取证位，判据取服务端裁决 `PolicyVerdict.matchedRule`（= 哨兵常量 `allow:dry-run-bypass`），**绝不回看调用方参数**。运维据此 grep 即可拉出全部免批执行清单 | `packages/vm-service/src/delegation-audit.ts` 的 `bypassTagSink` + `AuditExt.bypass` |
+| 5 | 免批**只**豁免审批闸，**不**豁免路径/命令/进程/注册表任何一条黑白名单（旁路位置在全部校验之后） | `engine.ts` 判定顺序 + 同上单测 |
+| 6 | 登记在案的声明能力以注册表为唯一事实源（当前为 `system.power.control`、`app.winget.install`、`app.winget.uninstall`、`app.winget.upgrade`、`storage.file.delete`）；**新增一条标注 = 新增一条免审批通道**，必须有 psmod 侧「`$DryRun` 为真即早返回、零副作用」的代码级证据，并由单测「声明位集合钉死」用例显形 | `definitions.ts` 标注注释（逐条附 psmod 行号） |
+
+> 本条是对体检 U-P0-3（原报 P0、取证后降 P1 高，架构审计 ARCH-02）的裁决落地：
+> 旧实现**只**判 `req.params['dryRun'] === true` 即放行 L2/L3，与本节第 1 条红线**文本直接冲突**且无裁决依据。
+> 若某天决定彻底删除该通道，应同时删除 `supportsDryRun` 声明位与本小节，并把第 1 条红线恢复为绝对表述。
 - ✅ 审批超时默认**拒绝**（fail-closed）。**成立方式**：未获批准一律**不执行**（MCP 侧未携带有效 `approvalId` 的 L2/L3 请求永远返回 `APPROVAL_REQUIRED`；A2A 侧任务在 VM 侧持续挂起）。**注意**：V1 **未实现**审批记录的显式 TTL 回收 / 过期作废，本项为后续变更。
 - ✅ provider 异常时服务降级为仅 `meta.*`，**绝不降级为无限制执行**
 

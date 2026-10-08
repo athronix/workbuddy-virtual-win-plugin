@@ -376,6 +376,19 @@ export interface PolicyVerdict {
   readonly error?: BridgeError;
 }
 
+/**
+ * U-P0-3（A1）：dry-run 免批放行规则的**唯一哨兵值**（`PolicyVerdict.matchedRule` 取值之一）。
+ *
+ * 为什么提为常量（而不是各处写 `'allow:dry-run-bypass'` 字面量）：这条规则被三方读取 ——
+ * ① 策略引擎产出；② 服务端审计装饰器据此落 `ext.bypass='dry-run'` 取证位；
+ * ③ 单测与运维 grep。任一处拼写漂移都会让「免批执行」静默失去链上证据，
+ * 而这条旁路正是审批闸上唯一的放行出口（体检 U-P0-3 / §2-QA-11）。
+ */
+export const POLICY_DRY_RUN_BYPASS_MATCHED_RULE = 'allow:dry-run-bypass';
+
+/** U-P0-3（A1）：审批闸拦截的哨兵值（与 `recordBlockedApprovalAudit` 写入的 matchedRule 同源） */
+export const POLICY_APPROVAL_REQUIRED_MATCHED_RULE = 'approval-required';
+
 export interface PolicyEvaluateInput {
   readonly capabilityId: CapabilityId;
   readonly params: Record<string, unknown>;
@@ -392,8 +405,23 @@ export interface PolicyEngine {
   evaluate(req: PolicyEvaluateInput): PolicyVerdict;
 }
 
+/**
+ * 能力注册表的**只读投影**（策略引擎等下游按最小面消费，不得反向依赖 L2 注册表实现）。
+ *
+ * U-P0-3（A1 **纯附加**）：`supportsDryRun?` —— dry-run 免批的**服务端声明位**
+ * （权威语义见 `capability.ts` 中 `CapabilityDefinition.supportsDryRun` 的文档）。
+ * 缺席/假一律视为「不支持」，策略引擎据此 fail-closed 回落审批闸。
+ */
 export interface CapabilityRegistryView {
-  get(id: CapabilityId): { readonly risk: RiskLevel; readonly requiresSession: boolean } | undefined;
+  get(
+    id: CapabilityId,
+  ):
+    | {
+        readonly risk: RiskLevel;
+        readonly requiresSession: boolean;
+        readonly supportsDryRun?: boolean;
+      }
+    | undefined;
   list(): readonly CapabilityId[];
   has(id: CapabilityId): boolean;
 }

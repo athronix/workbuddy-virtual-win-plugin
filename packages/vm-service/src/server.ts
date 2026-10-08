@@ -69,6 +69,7 @@ import {
   ReceiptCache,
   buildDelegationAuditEntry,
   buildReceiptResponse,
+  bypassTagSink,
   wrapAuditSink,
 } from './delegation-audit.js';
 
@@ -392,7 +393,12 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    */
   const ledgerReg = new LedgerRegistry();
   const receiptCache = new ReceiptCache();
-  const auditSink = wrapAuditSink(audit, (record) => ledgerReg.onAuditRecord(record), logger);
+  // U-P0-3（A1）：`bypassTagSink` 套在账本装饰器**之外**，使凡经桥接层落链的记录先补上
+  // `ext.bypass='dry-run'` 取证位（判据 = 策略引擎裁决的 matchedRule，不看调用方参数），
+  // 再进账本与哈希链。未命中旁路的记录连 `ext` 键都不新增，既有链上形态逐字节不变。
+  const auditSink = bypassTagSink(
+    wrapAuditSink(audit, (record) => ledgerReg.onAuditRecord(record), logger),
+  );
 
   /* ---- 桥接上下文 ---- */
   // K4：审批协调器（须先于 bridgeCtx 创建，以便注入 provider；tasks / pendingApprovals 在其
@@ -1392,7 +1398,14 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
 /* ================================ 辅助 ================================ */
 
 function buildPreview(cap: CapabilityDefinition, params: Record<string, unknown>): Record<string, unknown> {
-  const supportsDryRun = hasDryRunParam(cap);
+  // 两个概念**刻意分离**（U-P0-3 A1）：
+  //  - `hasDryRunParam(cap)`：input schema 里有 `dryRun` 属性 ⇒ 「**可以预览**」（实现接得住这个开关）；
+  //  - `cap.supportsDryRun === true`：服务端声明该能力 `dryRun=true` 时**确凿零系统变更**
+  //    ⇒ 策略引擎才允许「**免审批**」旁路（`engine.ts` 6 的双条件）。
+  // 预览文案必须按后者的真实结论书写：旧文案无条件写「免审批直接放行」，对未声明的能力是
+  // **虚假承诺**（调用方会以为传 dryRun 就能跳过审批），故按 `dryRunExempt` 分叉。
+  const dryRunPreviewable = hasDryRunParam(cap);
+  const dryRunExempt = dryRunPreviewable && cap.supportsDryRun === true;
   return {
     capabilityId: cap.id,
     risk: cap.risk,
@@ -1401,16 +1414,21 @@ function buildPreview(cap: CapabilityDefinition, params: Record<string, unknown>
     params,
     // D11：对支持 dryRun 的能力附带 dry-run 计划摘要，
     // 使 Skill 规定的「L3 先 dry-run 再确认」在审批预览里就可看到将要发生什么。
-    ...(supportsDryRun
+    ...(dryRunPreviewable
       ? {
           dryRun: {
             supported: true,
+            // U-P0-3（A1）：是否真能免审批 = 服务端声明位，而非调用方是否传了 dryRun
+            exempt: dryRunExempt,
             requested: params['dryRun'] === true,
-            plan:
-              params['dryRun'] === true
+            plan: !dryRunExempt
+              ? `本能力未在注册表声明 supportsDryRun，${cap.id} 传 dryRun 仍需人工审批（免批旁路仅对服务端声明「dryRun 零系统变更」的能力开放）`
+              : params['dryRun'] === true
                 ? `dryRun=true：仅返回 ${cap.id} 的执行计划，不改动系统状态（免审批）`
                 : `可传 dryRun:true 免审批预览 ${cap.id} 的影响后再决定是否真实执行`,
-            hint: 'params.dryRun === true 时免审批直接放行（dry-run 不改变系统状态）',
+            hint: dryRunExempt
+              ? 'params.dryRun === true 且能力声明 supportsDryRun 时免审批直接放行（dry-run 不改变系统状态）'
+              : '免审批旁路需要**服务端能力声明**（supportsDryRun）+ 调用方 dryRun 两个条件同时成立',
           },
         }
       : {}),
@@ -1421,7 +1439,14 @@ function buildPreview(cap: CapabilityDefinition, params: Record<string, unknown>
   };
 }
 
-/** 能力输入 schema 是否声明了 dryRun 参数（用于 D11 的 dry-run 免审批预览） */
+/**
+ * 能力输入 schema 是否声明了 `dryRun` 参数（用于 D11 的 dry-run 免审批预览）。
+ *
+ * ⚠ 语义边界（U-P0-3 A1）：本函数回答的是「**可以预览**」（schema 接得住这个开关），
+ * **不是**「**可以免批**」。免批的权威判据是注册表声明位
+ * `CapabilityDefinition.supportsDryRun`（由 `@winvm/core` 策略引擎消费）—— 把两者混为一谈
+ * 正是旧实现「预览文案承诺免批、实际无人校验」的病灶。
+ */
 function hasDryRunParam(cap: CapabilityDefinition): boolean {
   const props = cap.input['properties'];
   return (
