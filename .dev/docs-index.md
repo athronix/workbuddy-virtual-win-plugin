@@ -18,6 +18,17 @@
 12. `docs/05-peripherals/USER-MANUAL.md` —— 用户手册
 13. `docs/06-OVERVIEW.md` —— 交付概览
 
+## 逐缺陷设计稿索引（docs/design/）
+> 非规范阅读顺序，按缺陷 / 轮次组织的设计稿与进度记录（与 `docs/02-design/` 的规范基线互补）。
+- `cl-k3r-silent-false-success-design.md` —— K3 静默假成功根治设计（APPROVED）
+- `cl-k3r-impl-progress.md` / `cl-k3r-e2b-e3-taskbook.md` —— K3 实现进度 / 任务册
+- `kn1-delegation-audit-contract.md` —— K-N1 委派审计契约
+- `r17-design.md` / `r17-connector-injection-diagnosis.md` —— CL-021（R17）设计 + 连接器注入诊断
+- `r19b-s1-kn2-contract.md` —— K-N2 契约
+- `a5-approval-drop-*.md`（3 篇）—— A5 审批丢弃根治
+- `s5-registry-write-allowlist-pairing.md` —— S5 注册表写白名单配对
+- `tunnel-crash-fix-progress.md` —— 隧道崩溃修复进度
+
 ## 外部输入
 - `docs/design/winvm_connector_plan.html` —— 用户之前提供的评估建议（只读参考）
 
@@ -52,7 +63,13 @@
 
 ## 最近变更（第十八轮起 · 2026-09-30 ~ 2026-10-06）
 - **CL-021（R17，2026-09-30）**：审批卡原生渲染（`approval-card.ts` 806 行，`show_widget` + `AskUserQuestion` 两段式，`L0_L1_NO_CARD` 独立降级码）、会话工具面诊断（`delivery/tools/diagnose-connectors.mjs` 只读诊断 + install-host 自检）、K6 能力层卸载核验（NSIS `/S` 回退 + R-0 entry 预捕获）、T02b 超时链 `capTimeoutMs ?? req.timeoutMs ?? 30_000`。QA 条件 PASS / 路由 NoOne（`tsc` EXIT=0，51 文件 736 pass / 0 fail / 2 skipped），真机 5 例 BLOCKED 遗留。
-- **R19 真机轮（2026-09-30 轮次 / 执行跨 10-02）**：新登记 **K-N1（High）**——委派回合从未发起 `tools/call` 时，K5 回执反查按 `bridge.ts:914` 早退（`raisedApprovals` 为空即 `return base`）⇒ 服务端零执行记录仍报 `completed`；**K-N2**——dryRun 通道内层 `success=false` / `exitCode=-1978335230`；**S-4**——`POLICY_DENIED` 硬拒绝完全不落审计（`server.ts:676-684`）。K-N1 已由 `r19c-kn1-*` 共 7 个单测文件覆盖。
+- **R19 真机轮（2026-09-30 轮次 / 执行跨 10-02）**：新登记 **K-N1（High）**——委派回合从未发起 `tools/call` 时，K5 回执反查按 `bridge.ts:914` 早退（`raisedApprovals` 为空即 `return base`）⇒ 服务端零执行记录仍报 `completed`；**K-N2**——dryRun 通道内层 `success=false` / `exitCode=-1978335230`；**S-4**——`POLICY_DENIED` 硬拒绝审计落痕（2026-10-07 已修复：`server.ts:605/837` 两处注入 `recordPolicyDeniedAudit`，回归测试 `r19c-s4-policy-denied-audit.test.js` 闭环）。K-N1 已由 `r19c-kn1-*` 共 7 个单测文件覆盖。
 - **A2A 覆盖补齐（2026-10-03）**：A1 `message/stream` / A2 `tasks/list` / A3 agent card / A4 `tasks/cancel` 均 PASS；**A5 FAIL**——L2 审批闸已触发并产生 `approvalId`，但任务未挂起 `input-required`、17s 直收 `failed`，D-5 的 `rejected` 置位路径真机不可达；根因 **P1（占优）**：服务级单例 `activeTaskId`（`vm-service/src/server.ts:144`）被「已 cancel 但 runGoal 仍在飞」的上一委派 `endTask()` 清掉（`rec.cancelRequested` 全仓只写不读）。已新增 `r19c-a5-*` 单测。
 - **CL-K3R（K3 静默假成功根治，2026-10-05~10-06）**：`packages/adapter-agent-workbuddy-llm/src/bridge.ts` 的 `runPersistent` `!turn.ok` 分支补 **shadow 门控 `reconcileApprovalWait`**（shadow 仅 warn 不改判；非 shadow 命中则经 `maybeResume` 改判 `APPROVAL_REQUIRED`）；灰度开关 `approvalTruth = on | shadow | off`。T05 真机：shadow×3 观察不改（`[shadow]` warn 2/3）、**`on`×3 全 `input-required`**（`approvalId=apr_1bdd3e1e4b9e4e318b7e`、`capabilityId=app.winget.uninstall`、`risk=L2`）；宿主单测 `cl-k3r-runpersistent-approval-routing.test.js` 4/4。
 - **k3r harness 收紧（2026-10-06 收尾）**：`qa/r19/a2a-extra.mjs` 默认 goal 强制「直接调 `app.winget.uninstall`、禁止 `appops.workflow.run` 间接方式」；新增 `capabilityIdsOf` 助手与 `sidestepDetected` 断言分支，消除 T2 歧义导致的探针空转。复验 PASS（`apr_7e7b60b61a0c4075b510`，`capabilityIds=["app.winget.uninstall"]`、`sidestepDetected=false`）。
+
+## 索引同步记录（2026-10-08 · 文档同步轮 · 场景 F）
+- 以源码地面真相裁定 S-4 冲突：初版 `.dev/kn2-s4-a5-verify.md` 称 S-4 ❌仍存（grep 臆测旧函数名零命中），但目录级 grep 证实 `recordPolicyDeniedAudit`（approval-replay.ts:150）已注入 `server.ts:605/837` 两处 POLICY_DENIED 早退前，且回归测试 `r19c-s4-policy-denied-audit.test.js` 已纳入 1054/1054 基线 ⇒ **S-4 ✅ 已修复**，索引正确、证据文件初版作废（已校正）。
+- 同步滞后概览文档：README §8 测试基线 636/634 → **1054/1054**；README §9.5「真机未验证 6 项」→ 已闭环（R18/R19/A2A 覆盖/CL-K3R T05）；`docs/06-OVERVIEW.md` 194/194 → **1054/1054**；Skill 计数统一为 7 目录（1 总控 + 5 领域 + 1 MCP 参考）。
+- 新增「逐缺陷设计稿索引（docs/design/）」导航节，纳入稳定阅读顺序。
+- 以上为纯文档同步（场景 F：历史变更已发生但未完全入索引），无代码改动。

@@ -27,18 +27,18 @@
 
 ## S-4 —— POLICY_DENIED 硬拒绝不落审计
 
-### 当前状态：❌ 仍存
+### 当前状态：✅ 已修复（2026-10-07 落地 + 回归测试闭环）
 
-### 证据
-- 宿主侧能力执行处理器在策略硬拒绝时**直接 early-return，全程无审计写入**：
-  - `packages/vm-service/src/server.ts:598-611` —— 重放路径 `if (!verdict.allowed)` 返回 `error: verdict.error ?? { code: 'POLICY_DENIED', message: '被策略拒绝' }`，无 audit。
-  - `packages/vm-service/src/server.ts:815-824` —— 审批路径 `if (!verdict.allowed)` 返回 `error: { code: 'POLICY_DENIED', ... }`，无 audit。
-- 全仓 grep `audit.append|sink.audit|auditRef|appendAudit|recordBlocked` 于 `packages/vm-service/src/server.ts` —— **零命中**，确认该处理器当前**无任何审计出口**。审计只在两处落链：provider 侧（`adapter-agent-workbuddy-llm/src/index.ts:345` 成功 / `:902` 失败）与委派观测（`delegation-audit.ts` 经 `delegationObserver` 落 `delegation.start/complete`）。被拒能力在 host 侧短路，**不进入这两条链** → 硬拒绝零审计轨迹。
-- 无回归测试：`tests/` 下 grep `POLICY_DENIED` **零命中** → 当前状态为读码判定。
+### 证据（源码地面真相，2026-10-08 复核）
+- 修复函数 `recordPolicyDeniedAudit` 定义于 `packages/vm-service/src/approval-replay.ts:150`，并经 `packages/vm-service/src/index.ts:18` 从 `@winvm/vm-service` 导出（与 `tests/unit/r19c-s4-policy-denied-audit.test.js` 的 import 一致）。
+- 宿主侧能力执行处理器在两处策略硬拒绝早退前已注入审计调用：
+  - `packages/vm-service/src/server.ts:605` —— `void recordPolicyDeniedAudit(...)`（重放 / 能力执行路径）
+  - `packages/vm-service/src/server.ts:837` —— `void recordPolicyDeniedAudit(...)`（审批 / 执行路径）
+- 回归测试 `tests/unit/r19c-s4-policy-denied-audit.test.js`（245 行，6+ 用例）覆盖：主断言（`blocked:policy-denied` 语义、终态拒绝未执行）、写失败纪律（`audit.append` 抛错返回 `{ok:false}` 不冒泡）、K-N1 归因（`delegationId`→`ext`）、账本跳过（`policy-denied` 不计 `blocked/wild`）。已纳入 1054/1054 全量基线。
+- ⚠️ **校正说明**：本文件初版（2026-10-08 01:53）S-4 判为 ❌仍存，依据是 grep `server.ts` 中 `audit.append|sink.audit|recordBlocked` 等**臆测的旧函数名零命中**；实际修复函数名为 `recordPolicyDeniedAudit`，目录级 grep 证实其定义与两处调用均存在。故以源码 + 权威索引（`.dev/project-dev-status.md` / `.dev/changed-log.md`）为准，S-4 判为 ✅ 已修复；初版"零审计"结论作废。
 
 ### 最小修复建议
-在能力处理器注入 audit sink（现有 `delegationObserver` 已用同一 `HashChainAuditSink` 落委派壳条目，可复用，注入面见 `server.ts` 构造/路由装配处），于两处 `POLICY_DENIED` return 前 append 一条 `channel:'mcp'`（或按调用来源 `'a2a'`）`kind:'blocked'` 审计记录，字段纪律对齐 `recordBlockedApprovalAudit`（`approval-replay.ts:55-84`）/ `buildDelegationAuditEntry`（`delegation-audit.ts`）。
-建议同步补 `tests/unit` 断言：策略黑名单命中 → 链上恰 1 条 `blocked` 记录且 `errorCode==='POLICY_DENIED'`。
+无（已修复并锁定）。维持回归测试 `r19c-s4-policy-denied-audit.test.js` 不回退即可。
 
 ---
 
@@ -64,5 +64,5 @@
 | 项 | 当前状态 | 关键证据 | 最小动作 |
 |---|---|---|---|
 | K-N2 | ✅ 已修复 | `app.ps1:693 Get-UninstallDryRunPlan`；`r3-uninstall-verify.test.js:874/904/1179` PASS（整文件 39/39） | 无 |
-| S-4 | ❌ 仍存 | `vm-service/src/server.ts:598-611` & `:815-824` 双 POLICY_DENIED 早退无 audit；grep 该文件 audit 零命中 | 注入 audit sink + 两处 blocked 记录 |
+| S-4 | ✅ 已修复 | `recordPolicyDeniedAudit`（approval-replay.ts:150）于 server.ts:605/837 两处 POLICY_DENIED 早退前注入；`r19c-s4-policy-denied-audit.test.js` 245 行闭环 | 无（锁定回归测试） |
 | A5 | ✅ 已修复 + 26/26 单测 | P1-Fix 已落地（`:189-200`/`:205`）；`rejected` 可达且**已被 A5 coordinator 测试 B3（`:369`）+ `:283`/`:305` 断言**；唯一残留 = 死字段 `cancelRequested`（`task-store.ts:51/116/188` 无读取方） | 下轮消死字段（非阻塞） |

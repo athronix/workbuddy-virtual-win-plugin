@@ -1,7 +1,7 @@
 # 交付概览 · WinVM 跨机 Agent 插件（1+5 双通道方案）
 
 > 让宿主机 WorkBuddy 完全操作一台 Windows 虚拟机的完整实现已交付。
-> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，194/194 测试通过（178 单测 + 16 e2e）。
+> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，**1054/1054 测试通过**（2026-10-07 逐文件实测基线，覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R 等核心模块）。
 > 已补齐"操作 Windows 软件应用进行生产活动"这一被遗漏的关键维度（appops 域 + winvm-app-operation Skill + LLM provider 开放任务路径）。
 > **VM 侧 AI Agent 已可经 `agent.provider` 一键切换**：`workbuddy-deterministic`（确定性，默认）/ `workbuddy`（LLM Agent，V1 已实现）/ `hermes-agent`（Nous Research Hermes Agent，MCP 预注册）。
 > **双通道已完整闭环**：简单任务 → 宿主 MCP client 直调 VM 的 MCP 工具；复杂任务 → 宿主经 A2A 委派桥（`host-a2a-bridge`）把目标交给 VM 内 AI Agent，过程与产物按 A2A 规范回流。
@@ -31,7 +31,7 @@
      vm-capabilities    ps-bridge 常驻进程 + system/app/storage/gui/appops 五大 PowerShell 模块
      adapter-agent-workbuddy → VM 内确定性执行器（实现桥接 SPI，可替换）
 [装配] vm-service        同端口双协议服务端 + CLI（agent.provider 总开关）
-[知识] skills×6          1 总控 + 5 领域（含应用生产操作 appops）
+[知识] skills×7          1 总控 + 5 领域 + 1 MCP 参考（含应用生产操作 appops）
 [VM Agent] adapter-agent-workbuddy       确定性执行器（agent.provider=workbuddy-deterministic）
           adapter-agent-workbuddy-llm     LLM Agent（agent.provider=workbuddy，V1 实现）
           adapter-agent-hermes           LLM Agent（agent.provider=hermes-agent，Nous Research Hermes Agent，MCP 预注册）
@@ -57,7 +57,7 @@
 | 项 | 结果 |
 |----|------|
 | 全量编译 `tsc -b` | ✅ 12/12 包通过 |
-| 单元测试 + 端到端 | ✅ **194/194 通过**（178 单测 + 16 e2e；新增 hermes provider / registrar / 共享 Skills 规划 3 个测试文件，合计 31 用例；远程分发链路修复新增 link-workspace 16 单测 + setup-env 4 单测；既有测试无回归） |
+| 单元测试 + 端到端 | ✅ **1054/1054 通过**（2026-10-07 逐文件实测基线；覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R 等核心模块，无回归） |
 | ps-bridge 真实链路 | ✅ 真实 PowerShell 5.1，五大模块加载，返回真实系统数据 |
 | 安装器 dry-run | ✅ 6 Skill / 7 文件 / 1 增量补丁 / 静态禁用 8 高危工具 |
 | VM 服务配置校验 | ✅ 0 错误 0 警告，强制回环绑定 |
@@ -79,7 +79,7 @@
 
 **代码（packages/ 12 包）**：contracts · core · mcp-framework · a2a-framework · host-sdk · adapter-host-workbuddy · **host-a2a-bridge（宿主 A2A 委派桥）** · vm-capabilities · adapter-agent-workbuddy · **adapter-agent-workbuddy-llm（LLM Agent）** · **adapter-agent-hermes（Hermes Agent）** · vm-service
 
-**Skills（skills/ 6）**：winvm-orchestrator + system/app/storage/gui + **app-operation（应用生产操作）**
+**Skills（skills/ 7 目录）**：winvm-orchestrator（总控）+ system/app/storage/gui + **app-operation（应用生产操作）** + winvm-mcp-reference（MCP 参考）
 
 **交付（delivery/）**：`setup.mjs`（双端一键：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行，读 `.env`）· `install-host.mjs` / `install-vm.mjs`（幂等/增量/dry-run/--provider/--cli/--skills-root/--skip-skills/--skip-install/--skip-links/uninstall）· `link-workspace.mjs`（VM 侧 @winvm workspace junction 软链，免 npm ci/免联网，修复远程分发链路缺 node_modules 的根因）· `deploy-shared-skills.mjs`（共享 Skills 发布 + 各候选 Agent symlink 规划，可 `--apply`）· `vm-service.config.json`（含三 provider 定义：`workbuddy-deterministic` / `workbuddy` / `hermes-agent`）· `.env.example`
 
@@ -87,10 +87,12 @@
 
 ---
 
-## 六、下一步（待真机终验）
+## 六、下一步
 
-1. 真实 Windows VM 上 `node packages/vm-service/dist/cli.js --self-test` 验证 ps-bridge 常驻进程在网络/权限上下文稳定。
-2. 建立 `ssh -f -N -L 18443:127.0.0.1:18443 vmadmin@<vm-ip>` 后，从宿主机 WorkBuddy 实际调用一次工具，闭环双通道。
-3. （可选）扩充能力广度、加其他宿主/VM Agent 适配器。
+> 真机终验已于 R18 / R19 / A2A 覆盖补齐 / CL-K3R T05 多轮完成（详见 `docs/test/reports/` 与 `.dev/changing-log.md`）：`--self-test`、SSH 隧道端到端闭环、双连接器同生效、`codebuddy`/`hermes` CLI、A2A 委派 + 共享 Skills 下发、GUI 自动化均已落地；CL-K3R（K3 静默假成功根治）经 `on` 模式 3/3 真机委派验证通过。
+
+1. （可选）扩充能力广度、加其他宿主/VM Agent 适配器（见 Roadmap §9.4）。
+2. （可选）多 VM 联邦编排（V1 未做，当前单 VM）。
+3. 维护：每次交付后同步 `.dev/` 六大索引（文档驱动纪律）。
 
 详见 `docs/05-peripherals/DEPLOYMENT.md` 与 `.dev/changing-log.md`。

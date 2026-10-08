@@ -3,7 +3,7 @@
 > 一套**分层解耦、标准协议驱动、强监管**的宿主 AI Agent 插件体系，使宿主机 AI Agent（V1 = WorkBuddy）能够安全、可控、可审计地**完全操作一台 Windows 虚拟机**——覆盖系统管理、应用管理、存储管理、GUI 自动化与图形化生产操作。
 
 - **版本**：`0.1.0`（V1 基线）
-- **形态**：npm workspaces 单仓，12 个可独立编译/发布的包 + 6 个 WorkBuddy Skill + 双端一键部署器
+- **形态**：npm workspaces 单仓，12 个可独立编译/发布的包 + 7 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 MCP 参考）+ 双端一键部署器
 - **状态**：核心链路与审批链已真机验收（详见 §10 文档导航与 `.dev/` 索引）
 - **License**：私有（当前为单一项目仓库）
 
@@ -43,7 +43,7 @@
 | **GUI 自动化** `gui` | 截图（全屏/窗口/区域）、键鼠模拟、窗口枚举与置顶、UIA 元素树与点击、剪贴板、浏览器自动化 |
 | **应用生产操作** `appops` | 用 Photoshop/Office/ffmpeg/IDE 等软件**把活干出来**（应用状态/CLI 调度/工作流/COM 自动化/GUI 生产） |
 
-### 2.3 六 Skill（1 总控 + 5 领域）
+### 2.3 七 Skill（1 总控 + 5 领域 + 1 MCP 参考）
 
 | Skill | 职责 |
 |-------|------|
@@ -53,6 +53,7 @@
 | `winvm-storage-manager` | 存储管理（空间分析、安全清理边界、不可逆操作清单） |
 | `winvm-gui-automation` | GUI 自动化（会话保活、坐标 vs UIA、截图判读、等待策略） |
 | `winvm-app-operation` | 应用生产操作领域知识（"用哪个软件、按什么生产逻辑出成品"） |
+| `winvm-mcp-reference`（MCP 参考） | WinVM MCP 服务部署与接入参考（端点 / 鉴权 / VM Agent 选型接入 / 注册验证 / 常见故障） |
 
 ### 2.4 强监管内核（NFR 落点）
 
@@ -75,12 +76,12 @@
 
 ## 3. 技术方案
 
-### 3.1 架构总览（三层解耦 + 双通道 + 六 Skill）
+### 3.1 架构总览（三层解耦 + 双通道 + 七 Skill）
 
 ```
 ┌─────────────────────────────── 宿主机（Host） ───────────────────────────────┐
 │  ┌──────────────────────── 宿主机 Agent（V1 = WorkBuddy） ─────────────────┐ │
-│  │   ┌──────────────── 知识层：6 Skills（1+5） ────────────────┐          │ │
+│  │   ┌─────────────── 知识层：7 Skills（1+5+1 MCP 参考） ──────────────┐      │ │
 │  │   │  winvm-orchestrator   ← 总控：路由 / 通道选择 / 风控    │          │ │
 │  │   │  winvm-system-admin   │  winvm-app-manager              │          │ │
 │  │   │  winvm-storage-manager│  winvm-gui-automation           │          │ │
@@ -180,7 +181,7 @@ workbuddy-virtual-win-plugin/
 ├── tsconfig.build.json       # 构建引用图（注意：根目录无 tsconfig.json，须用此文件构建）
 ├── docs/                     # 调研 / 设计 / 交付文档（01-investigation / 02-design / test/reports）
 ├── packages/                 # 12 个可独立编译/发布的 npm 包（见 §3.2）
-├── skills/                   # 6 个 WorkBuddy Skill（1 总控 + 5 领域）+ 各 Skill 内 mcps-reference
+├── skills/                   # 7 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 MCP 参考）+ 各 Skill 内 mcps-reference
 ├── tests/                    # unit/（逐文件运行）+ e2e/
 ├── delivery/                 # 安装器 + 部署配置（见 §5/§6）
 └── .dev/                     # DDD 文档驱动开发六大索引（开发治理入口）
@@ -251,7 +252,7 @@ node delivery/winvm-plugin.mjs uninstall --vm   # 卸载（宿主 / VM 侧）
 
 ## 7. 使用（在 WorkBuddy 中）
 
-1. 插件与 6 个 Skill 安装后，宿主连接器写 `mcp.json` 暴露两个连接器：`connector:winvm`（MCP 直调）与 `connector:winvm-a2a`（A2A 委派桥）。
+1. 插件与 7 个 Skill 安装后，宿主连接器写 `mcp.json` 暴露两个连接器：`connector:winvm`（MCP 直调）与 `connector:winvm-a2a`（A2A 委派桥）。
 2. 直接用自然语言下达 Windows 操作指令即可，例如：
    - "看看 VM 的 C 盘还剩多少空间" → 总控路由到 `storage` 域，MCP 直调。
    - "在虚拟机里把 Photoshop 导出的图批量转成 webp" → 路由到 `appops`，A2A 委派长任务，流式回传进度与产物。
@@ -271,7 +272,7 @@ npm run typecheck            # 同上，类型检查
 for f in tests/unit/*.test.js; do node "$f"; done
 ```
 
-当前测试基线（第十五轮，2026-09-29）：**636 tests / 634 pass / 0 fail / 2 skipped**，覆盖契约、策略、审计、双协议、审批链（K3/K4/P3/K5）等核心模块。
+当前测试基线（2026-10-07 逐文件实测）：**1054/1054（59 个测试文件，全量逐文件 PASS / 0 fail / 0 skipped）**，覆盖契约、策略、审计、双协议、审批链（K3/K4/P3/K5/A5/K-N1/K-N2/S-4/CL-K3R）等核心模块。
 
 ---
 
@@ -301,7 +302,9 @@ for f in tests/unit/*.test.js; do node "$f"; done
 
 ### 9.5 真机终验遗留（Backlog）
 
-- VM 侧真机 `--self-test`、`hermes` 真机 CLI 调用、SSH 隧道端到端闭环、双连接器在宿主侧同时生效、`codebuddy` CLI 参数契约、A2A 委派 + 共享 Skills 下发——详见 `.dev/changing-log.md`「待在真实环境终验」。
+> 历史上登记的「真机未验证 6 项」（codebuddy CLI 契约 / hermes 真机 CLI / SSH 隧道闭环 / 双连接器宿主侧生效 / A2A 委派 + 共享 Skills / 真实 GUI 点击回归）已于 **R18（2026-09-30）/ R19（2026-09-30 ~ 10-02）/ A2A 覆盖补齐（2026-10-03）/ CL-K3R T05（2026-10-05~06）** 多轮真机验证中基本闭环；当前仅剩「真实 GUI 自动化点击回归」受远端锁屏环境限制为 P2 待补，详见 `.dev/changing-log.md`「待在真实环境终验」。
+
+- 当前开放 Backlog（P2 级）：真实 GUI 自动化点击端到端回归（远端锁屏 / 非 WinSta0 环境限制，属预期环境约束，非部署故障）。
 
 ---
 
