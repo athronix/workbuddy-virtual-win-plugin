@@ -63,6 +63,7 @@
 - **`phase0-docs-notes.md`（Phase 0 · P0-5 文档止血，2026-10-08）** —— PM 侧逐文件改动记录（7 幽灵能力摘除/标 V2、12 条名实不符如实化、4 条"已实现待挂载"标注、C2 layout 脚本移除连带、C6 测试基线新口径；含双侧 Skill 同步与全处可回溯原句）。
 - **`phase0-qa-notes.md`（Phase 0 · QA 域，2026-10-08）** —— R1/R2 守卫测试（psmod 契约 + S-4/A5 装配点，`tests/unit` 净增 → 62 `.js`/1092 例）与 R3 package.json 三脚本修复记录（R3 commit `c10a400`，含删除 `layout` 死入口；C2/C6 文档口径连带由 PM 承接）。
 - **`phase0-engine-notes.md`（Phase 0 · 引擎域，2026-10-08）** —— U-P0-1 normalizePath win32 段消解 + U-P0-3 dry-run A1 服务端声明制全过程（U1-U8 结论、首轮 7 红修复裁定表[6 断言错/1 实现遗漏 extractPathTokens]、变异验证 X1-X4+行为级 A/B/C、偏差登记、遗留 R-1 注册表域消解待裁/R-3 buildPreview 文案分叉）。commit `ba02fbb`。
+- **`phase0-delivery-summary.md`（Phase 0 · 交付总结，2026-10-08）** —— 止血批全子项状态×提交对照表、质量关卡记录（看门狗/主理人核验/变异三域）、Phase 1 五项输入登记、下一步建议（含部署生效顺序）。
 
 ## 最近变更（第十八轮起 · 2026-09-30 ~ 2026-10-06）
 - **CL-021（R17，2026-09-30）**：审批卡原生渲染（`approval-card.ts` 806 行，`show_widget` + `AskUserQuestion` 两段式，`L0_L1_NO_CARD` 独立降级码）、会话工具面诊断（`delivery/tools/diagnose-connectors.mjs` 只读诊断 + install-host 自检）、K6 能力层卸载核验（NSIS `/S` 回退 + R-0 entry 预捕获）、T02b 超时链 `capTimeoutMs ?? req.timeoutMs ?? 30_000`。QA 条件 PASS / 路由 NoOne（`tsc` EXIT=0，51 文件 736 pass / 0 fail / 2 skipped），真机 5 例 BLOCKED 遗留。
