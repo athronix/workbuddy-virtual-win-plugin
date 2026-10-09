@@ -14,6 +14,7 @@
 import type {
   ApprovalUnderlying,
   ApprovalWaitQuery,
+  ArchiveVerification,
   AuditRecord,
   AuditSink,
   ExecutedResult,
@@ -313,7 +314,6 @@ function summarizeParams(params: Record<string, unknown>): string | undefined {
 }
 
 /* ==================== CL-K3R · 未决审批事实采集（S1 主通道，纯函数） ==================== */
-
 /**
  * 未决审批令牌的最小形状（`VmApprovalCoordinator.pendingApprovals` 的条目；
  * 只取本函数需要的字段，避免让纯逻辑件反向依赖 `server.ts`）。
@@ -379,4 +379,248 @@ export function collectApprovalFacts(
   }
   out.sort((a, b) => a.createdAtMs - b.createdAtMs);
   return out;
+}
+
+/* ==================== ARCH-05 · 审批否定决策入链（T4，纯函数） ==================== */
+
+/**
+ * 一次审批的**决策**（设计 §1.2-1）。`'approved'` 为枚举预留（ARCH-09 previewHash 批次复用），
+ * **本批不落链**（§5 第 2 条裁断：批准后重放段天然已有一条 executed 记录，双写语义重叠且胀链）。
+ */
+export type ApprovalDecision = 'approved' | 'rejected' | 'timeout' | 'canceled';
+
+/**
+ * 协调器的**决策取证出口**形状（`VmApprovalCoordinator.setDecisionSink` 注入）。
+ *
+ * 为什么做成注入回调而不是让协调器直接吃 sink：
+ * - **依赖方向**：协调器住在 `server.ts`，但它被大量单测**脱离服务**直接实例化
+ *   （`k4-approval` / `k4-p3` / `k5-replay` / `r19c-a5`）⇒ 若构造期强依赖 sink/服务闭包，
+ *   这些既有用例全数打红。注入 + 缺席即 no-op 是既有四例同范式
+ *   （`bind` / `setReplay` / `setReplayEnabled` / `noteTimeout`）。
+ * - **取证面/执行面分离**：本回调的异常绝不得影响决策返回值（O-5），故签名返回 `void`
+ *   （实现内部自 catch + warn）。
+ */
+export type ApprovalDecisionSink = (input: {
+  readonly traceId: string;
+  readonly approvalId: string;
+  readonly capabilityId: string;
+  readonly risk: RiskLevel;
+  readonly decision: ApprovalDecision;
+  /**
+   * **责任主体**（不是执行主体）：`'host'` / `'approval-ttl'` / `'cancel-request'` /
+   * `'mcp-ttl-sweep'` —— ARCH-05 病灶「谁拒的」的解药，必须一路带到链上
+   * （落 `approval.approvedBy`）。缺它整条取证失去意义 ⇒ 必选。
+   */
+  readonly actor: string;
+  /**
+   * **可选**（与 `ApprovalDecisionAuditInput.taskId?` 同源同形）：MCP 直调
+   * （无 active task）与令牌表 TTL 清扫两条决策路径本就无 taskId；落链时走
+   * 条件展开 ⇒ 缺席即整键不落（纯附加纪律，禁显式 undefined）。
+   */
+  readonly taskId?: string;
+  readonly delegationId?: string;
+  readonly hostApproved?: boolean;
+  readonly startedAtMs: number;
+  readonly ttlMs?: number;
+  readonly params?: Record<string, unknown>;
+}) => void;
+
+/**
+ * 决策审计入参（服务端 `raise` 的否定分支 / `onApprovalTimeout` 兜底 / 令牌表 TTL 清扫三处构造）。
+ *
+ * 字段口径与设计 §1.2-1 逐字对齐：`actor` 必须是**责任主体**而不是执行主体 ——
+ * `'host'`（宿主显式否决）/ `'approval-ttl'`（TTL 到点）/ `'cancel-request'`（宿主取消）/
+ * `'mcp-ttl-sweep'`（MCP 令牌表清扫器，ENG-01）。四值可 grep 区分四条真实路径，
+ * 这正是 ARCH-05 的病灶（「谁拒的」不可证）的解药。
+ */
+export interface ApprovalDecisionAuditInput {
+  readonly traceId: string;
+  readonly approvalId: string;
+  readonly capabilityId: string;
+  readonly risk: RiskLevel;
+  readonly decision: ApprovalDecision;
+  readonly actor: string;
+  readonly taskId?: string;
+  readonly delegationId?: string;
+  /** `decision === 'approved'` 时为 true（本批不落链，字段随枚举预留）。 */
+  readonly hostApproved?: boolean;
+  /** `decision === 'timeout'` 时给生效 TTL（毫秒）。 */
+  readonly ttlMs?: number;
+  readonly startedAtMs: number;
+  /**
+   * 参数快照（**已脱敏**由 sink 侧 `redactParams` 负责，与本文件另两函数同口径）。
+   * 缺席 ⇒ 落 `{}`（与 blocked 条目一致的最小信息量；决策证据的主键是 approvalId 而非参数）。
+   */
+  readonly params?: Record<string, unknown>;
+}
+
+/**
+ * ARCH-05：把「一次审批否定决策」（rejected / timeout / canceled）写入哈希链审计。
+ *
+ * 为什么必须记（设计 §1.2 病灶）：三条决策路径（宿主拒绝、TTL 超时、挂起中被取消）
+ * 在框架层**零 sink**（框架不依赖审计是纪律，不改），结论只进 `logger` ⇒
+ * 链上「谁拒的、拒哪个 approvalId、何时拒」不可证，且 timeout 与普通 failed 折叠成一条。
+ *
+ * 条目形态（设计 §1.2-1 的**唯一权威定义**，逐字段实现）：
+ * - `policyDecision = { allowed:false, matchedRule:'approval-decision:<decision>' }`
+ * - `approval       = { approvalId, approvedBy:actor, approvedAt:<ISO now>, previewHash:'' }`
+ * - `result         = { ok:false, errorCode:'APPROVAL_'+DECISION, summary:'approval-decision:<decision>（未执行）' }`
+ * - `ext            = { kind:'approval-decision', decision, taskId?, delegationId?, channel }`（条件展开）
+ *
+ * 失败纪律（O-5）：审计写入失败**绝不回改**拒绝/超时/取消结论（决策语义优先），只 warn。
+ * 返回值供调用方/测试断言（best-effort）。
+ *
+ * ★ 落链目标必须是**原始 sink**（O-7）：调用点传 `audit` 而非 `wrapAuditSink(audit,…)` 的
+ * 包装件 —— 决策条目是**壳/内部证据**，若经账本装饰器会自我登记成「本回合有活动」，
+ * 把取证面变成活动面（防审计自证，与 `delegation.start/complete` 同一纪律，
+ * `server.ts` 的 K-N1 注释块已申此则）。本函数不关心 sink 来源（形参是 `AuditAppender`），
+ * 该纪律由调用点与 `phase1-t4-assembly` 探针共同守住。
+ */
+export async function recordApprovalDecisionAudit(
+  audit: AuditAppender,
+  logger: Logger,
+  input: ApprovalDecisionAuditInput,
+  newAuditId: () => string,
+  opts: BlockedAuditOptions = {},
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const channel = opts.channel ?? 'mcp';
+    const decision = input.decision;
+    const record = await audit.append({
+      ts: new Date().toISOString(),
+      traceId: input.traceId,
+      auditId: newAuditId(),
+      principal: {
+        host: 'vm-service',
+        user: process.env['USERNAME'] ?? 'unknown',
+        channel,
+      },
+      capabilityId: input.capabilityId,
+      risk: input.risk,
+      params: input.params ?? {},
+      policyDecision: { allowed: false, matchedRule: `approval-decision:${decision}` },
+      approval: {
+        approvalId: input.approvalId,
+        approvedBy: input.actor,
+        approvedAt: new Date().toISOString(),
+        previewHash: '',
+      },
+      result: {
+        ok: false,
+        errorCode: `APPROVAL_${decision.toUpperCase()}`,
+        summary: `approval-decision:${decision}（未执行）`,
+      },
+      durationMs: Date.now() - input.startedAtMs,
+      // 决策条目恒带 ext（kind+decision 是本体），内部可选成员一律条件展开
+      //（纯附加纪律：禁止显式 undefined —— canonicalJson 会把显式 undefined 序列化成
+      //  null 参与哈希，而 JSON.stringify 落盘时丢键 ⇒ 重算哈希不一致，假断链。
+      //  chain.ts:284-298 的历史教训，§8 共享知识逐字遵守）。
+      ext: {
+        kind: 'approval-decision' as const,
+        decision,
+        ...(input.taskId ? { taskId: input.taskId } : {}),
+        ...(input.delegationId ? { delegationId: input.delegationId } : {}),
+        channel,
+      },
+    });
+    // 账本登记（best-effort：取证失败不得影响决策结果）
+    try {
+      opts.onRecorded?.(record);
+    } catch (e) {
+      logger.warn('approval-decision 账本登记失败（不影响决策结果）', { error: String(e) });
+    }
+    return { ok: true };
+  } catch (e) {
+    logger.warn('approval-decision 审计写入失败（不影响决策结果）', { error: String(e) });
+    return { ok: false, error: String(e) };
+  }
+}
+
+/* ==================== ARCH-06 A2 · 启动归档校验条目（T4，纯函数） ==================== */
+
+/**
+ * 归档校验条目入参。
+ *
+ * ⚠ `shardsTotal` 与 `ArchiveVerification[]` 长度**不同源**：`verifyArchive` 有界
+ * （`ARCHIVE_VERIFY_MAX_SHARDS`，默认 30），超出部分**只计数不校验**。若把
+ * `archive.shardsVerified` 写成 `results.length` 而总数取自同一次调用返回，
+ * 读者会把「30 片完好」误读成「全部历史完好」——这正是设计 §1.3-1 点名要防的假证据。
+ */
+export interface ChainArchiveVerifyAuditInput {
+  readonly traceId: string;
+  readonly startedAtMs: number;
+  /** `verifyArchive()` 的逐片结论（永不抛，`[]` = 无归档片或读盘失败）。 */
+  readonly results: readonly ArchiveVerification[];
+  /** 目录下**全部**分片数（取自 `verifyChain().shardsTotal`，与有界结果集分源）。 */
+  readonly shardsTotal: number;
+}
+
+/**
+ * ARCH-06 A2：构造 `ext.kind:'chain-archive-verify'` **壳条目**（设计 §1.3-3 权威字段表）。
+ *
+ * 为什么落链而不是只进日志：`/health.audit.scope='session'` 明说了「本轮结论只覆盖本轮分片」，
+ * 那么跨轮历史的证据**必须由某条链上条目提供**，否则范围限定语只是将错就错的免责声明。
+ *
+ * 与 `buildDelegationAuditEntry` 同款纪律：本函数**只造条目、不写链**（可脱服务单测）；
+ * 写入用**原始 sink**（O-7，不经 `wrapAuditSink` ⇒ 壳条目不得自成活动证据），
+ * 异常只 `logger.warn`、绝不影响启动（fire-and-forget 由调用方挂 `void`）。
+ *
+ * `result.ok` = 已校验范围内**无断裂**；`broken` 清单进 `ext.archive`（只记片名与聚合，
+ * 不记逐片明细 ⇒ 防单条体积随分片数线性膨胀）。
+ */
+export function buildChainArchiveVerifyAuditEntry(
+  input: ChainArchiveVerifyAuditInput,
+  newAuditId: () => string,
+): {
+  ts: string;
+  traceId: string;
+  auditId: string;
+  principal: { host: string; user: string; channel: 'internal' };
+  capabilityId: string;
+  risk: RiskLevel;
+  params: Record<string, unknown>;
+  policyDecision: { allowed: true; matchedRule: 'internal:chain-archive-verify' };
+  result: { ok: boolean; summary: string; errorCode?: string };
+  durationMs: number;
+  ext: { kind: 'chain-archive-verify'; archive: { shardsTotal: number; shardsVerified: number; broken: string[] } };
+} {
+  const ts = new Date().toISOString();
+  const broken = input.results.filter((r) => r.valid !== true).map((r) => r.shard);
+  const ok = broken.length === 0;
+  const shardsVerified = input.results.length;
+  const notVerified = Math.max(input.shardsTotal - shardsVerified, 0);
+  return {
+    ts,
+    traceId: input.traceId,
+    auditId: newAuditId(),
+    principal: {
+      host: 'vm-service',
+      user: process.env['USERNAME'] ?? 'unknown',
+      // internal：服务端自发条目（与委派壳同口径），不是任何外部主体的请求
+      channel: 'internal',
+    },
+    // 设计 §1.3-3 权威值：meta.audit.chain（审计子系统自证属 meta 能力域，不占业务面）
+    capabilityId: 'meta.audit.chain',
+    risk: 'L0',
+    params: { shardsTotal: input.shardsTotal, shardsVerified, notVerified },
+    policyDecision: { allowed: true, matchedRule: 'internal:chain-archive-verify' },
+    result: {
+      ok,
+      ...(ok ? {} : { errorCode: 'ARCHIVE_CHAIN_BROKEN' }),
+      // 范围诚实化（设计 §1.3-2 注释）：无断裂 ≠ 全部历史完好，越界片只计数
+      summary: ok
+        ? `chain-archive-verify：已校验 ${shardsVerified}/${input.shardsTotal} 片无断裂` +
+          (notVerified > 0 ? `（${notVerified} 片超出上界未校验）` : '')
+        : `chain-archive-verify：${broken.length} 片断裂（已校验 ${shardsVerified}/${input.shardsTotal}）`,
+    },
+    durationMs: Math.max(0, Date.now() - input.startedAtMs),
+    ext: {
+      kind: 'chain-archive-verify',
+      archive: {
+        shardsTotal: input.shardsTotal,
+        shardsVerified,
+        broken,
+      },
+    },
+  };
 }

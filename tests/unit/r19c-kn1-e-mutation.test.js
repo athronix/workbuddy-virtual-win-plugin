@@ -177,6 +177,21 @@ const GUARDS = {
   /** E-6 (D-5)：terminalState 以变量实参透传（不得写死） */
   d5_terminal_state_passthrough: (s) =>
     /\n\s*terminalState,\n/.test(s.SERVER) && !/terminalState:\s*'failed',/.test(s.SERVER),
+  /**
+   * E-6 (T4 判据⑦ / O-3 三分支)：**canceled 优先直取**必须在场，且取消的 errorCode
+   * 固定 `'TASK_CANCELED'`（不得被 result.error.reason 的通用码顶替）。
+   *
+   * 【守卫更新 · Phase1-T4 / D-23】原 d5_observer_rewrite 的判据（failed→rejected 回改）
+   * 只覆盖两分支形态；T4 按设计 §7.4 判据⑦把 observer 收口成三分支后，"取消"这条
+   * 真实路径的证据面不再被任何守卫保护 ⇒ 本守卫补位（判据零放宽，只加不减）。
+   * 三条件同时钉：取消判据源（`canceledTerminal`）、三分支终态式、errorCode 前置分支。
+   */
+  d5_observer_canceled: (s) =>
+    /const canceledTerminal = snap\.state === 'canceled' \|\| storedState === 'canceled';/.test(s.SERVER) &&
+    /const terminalState = canceledTerminal\n {8}\? 'canceled'\n {8}: snap\.state === 'failed' && storedState === 'rejected' \? 'rejected' : snap\.state;/.test(
+      s.SERVER,
+    ) &&
+    /: canceledTerminal\n {12}\? 'TASK_CANCELED'/.test(s.SERVER),
   /** E-4：env 门控默认关 → 404 */
   e4_env_gate: (s) => /process\.env\['WINVM_ADMIN_ENDPOINT'\] !== '1'/.test(ADMIN(s)),
   /** E-4：门控早于任何 provider 调用（关态零副作用） */
@@ -463,9 +478,56 @@ const MUTATIONS = [
     name: 'E-6 observer 的 failed→rejected 回改被摘（宿主拒绝语义无处透出）',
     guard: 'd5_observer_rewrite',
     mutate: (s) => {
+      // 【守卫更新 · Phase1-T4 / D-23】源串随实现体三分支形态同步（从 server.ts 复制字节串）。
+      // 替换体保持原样 —— 把三分支整体摘成 `snap.state` 同时打掉 rejected 回改与 canceled 直取，
+      // 两个守卫（d5_observer_rewrite / d5_observer_canceled）应同时红。
       s.SERVER = s.SERVER.replace(
-        "const terminalState =\n        snap.state === 'failed' && storedState === 'rejected' ? 'rejected' : snap.state;",
+        "const terminalState = canceledTerminal\n        ? 'canceled'\n        : snap.state === 'failed' && storedState === 'rejected' ? 'rejected' : snap.state;",
         'const terminalState = snap.state;',
+      );
+    },
+  },
+  {
+    name: 'E-6 observer 的 canceled 直取被摘（真取消写成 failed/rejected · T4 判据⑦）',
+    guard: 'd5_observer_canceled',
+    mutate: (s) => {
+      // 只摘三分支里的 canceled 分支（保留后两分支逐字不动）⇒ 复现"取消语义丢失"这一具体缺陷，
+      // 而不是靠整体替换蒙混（那样 d5_observer_rewrite 也会红，无法分辨是哪条判据起作用）。
+      s.SERVER = s.SERVER.replace(
+        "const terminalState = canceledTerminal\n        ? 'canceled'\n        : snap.state === 'failed'",
+        "const terminalState = snap.state === 'failed'",
+      );
+    },
+  },
+  {
+    name: 'E-6 取消判据源被挪出（storedState 不再参与 canceled 判定）',
+    guard: 'd5_observer_canceled',
+    mutate: (s) => {
+      s.SERVER = s.SERVER.replace(
+        "const canceledTerminal = snap.state === 'canceled' || storedState === 'canceled';",
+        "const canceledTerminal = snap.state === 'canceled';",
+      );
+    },
+  },
+  {
+    name: 'E-6 errorCode 的 TASK_CANCELED 前置分支被摘（取消被通用码顶替 · T4 判据⑦）',
+    guard: 'd5_observer_canceled',
+    mutate: (s) => {
+      s.SERVER = s.SERVER.replace(
+        "          : canceledTerminal\n            ? 'TASK_CANCELED'\n            : (result?.error?.reason ??",
+        '          : (result?.error?.reason ??',
+      );
+    },
+  },
+  {
+    name: 'E-6 terminalState 三分支被换成"rejected 优先"（O-4 顺序倒置 · T4）',
+    guard: 'd5_observer_canceled',
+    mutate: (s) => {
+      // "塞"方向：canceled 分支仍在场，但被排到 rejected 之后 —— 取消（用户显式意图）
+      // 被宿主拒绝语义顶替，正是 O-4「canceled > timeout > rejected」要防的倒置。
+      s.SERVER = s.SERVER.replace(
+        "const terminalState = canceledTerminal\n        ? 'canceled'\n        : snap.state === 'failed' && storedState === 'rejected' ? 'rejected' : snap.state;",
+        "const terminalState = snap.state === 'failed' && storedState === 'rejected'\n        ? 'rejected'\n        : canceledTerminal ? 'canceled' : snap.state;",
       );
     },
   },

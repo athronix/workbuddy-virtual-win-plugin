@@ -33,6 +33,7 @@ import {
   type PolicyVerdict,
   type ProgressSink,
   type RiskLevel,
+  type SecurityHealth,
   makeError,
   riskAtLeast,
 } from '@winvm/contracts';
@@ -46,6 +47,7 @@ import {
   newId,
   newTraceId,
   resolveApprovalReplay,
+  resolveApprovalTtlMs,
   resolveNetCfgTtlMs,
   resolveNetCfgPrewarmTimeoutMs,
   resolveServiceConfig,
@@ -58,12 +60,25 @@ import { McpServer, type McpTool, type McpToolResult } from '@winvm/mcp-framewor
 import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime } from '@winvm/vm-capabilities';
 import { raceHealthSubProbes, resolveHealthProbeTimeoutMs, resolvePsBridgeHealthState } from './health-probe.js';
 import {
+  buildChainArchiveVerifyAuditEntry,
   collectApprovalFacts,
   deriveUnderlying,
+  recordApprovalDecisionAudit,
   recordBlockedApprovalAudit,
   recordPolicyDeniedAudit,
   toExecutedResult,
+  type ApprovalDecision,
+  type ApprovalDecisionAuditInput,
+  type ApprovalDecisionSink,
 } from './approval-replay.js';
+import { PendingApprovalRegistry, type ApprovalTokenMap } from './pending-approvals.js';
+import {
+  BEARER_UNAUTHORIZED_BODY,
+  buildSecurityHealth as buildSecurityHealthSnapshot,
+  createBearerGuard,
+  resolveBearerToken,
+  type GuardableRequest,
+} from './http-guard.js';
 import {
   LedgerRegistry,
   ReceiptCache,
@@ -107,6 +122,16 @@ export interface PendingApproval {
   readonly delegationId?: string;
 }
 
+/**
+ * ENG-08：TaskStore 有界化在本装配层的**显式声明值**（与 `a2a-framework` 缺省逐字相同：
+ * 200 条 / 1h 驻留）。框架侧的 `DEFAULT_MAX_TASKS` / `DEFAULT_TERMINAL_TTL_MS` 是刻意
+ * 未导出的私有常量（T3 notes §3：导出会把内部裁断变成对外契约），而 `/health.tasks`
+ * 必须如实报出「本次运行生效的上限」⇒ 在构造点把值显式写出来，比在透出侧凭记忆复写
+ * 更诚实（漂移即说谎），且行为与缺省零差异（T3 notes §6-3 明示「T4 不显式传也有界」）。
+ */
+const TASK_STORE_MAX_TASKS = 200;
+const TASK_STORE_TERMINAL_TTL_MS = 3_600_000;
+
 export interface ServiceRuntime {
   readonly server: Server;
   readonly registry: CapabilityRegistry;
@@ -140,8 +165,16 @@ export interface ServiceRuntime {
  */
 export class VmApprovalCoordinator implements ApprovalCoordinator {
   private activeTaskId: string | undefined;
-  private tasks: TaskStore | undefined;
-  private pendingApprovals: Map<string, PendingApproval> | undefined;
+  /**
+   * ARCH-05：判据走 `TaskStore.isCancelled()`（T3 唯一权威入口）⇒ `bind` 形参与本字段
+   * 同步放宽为所需三成员的 `Pick`（真实 TaskStore 天然满足；调用文本零改动）。
+   */
+  private tasks: Pick<TaskStore, 'waitApproval' | 'tryGet' | 'isCancelled'> | undefined;
+  /**
+   * ENG-01：字段类型放宽为窄 `ApprovalTokenMap`（原 `Map`）⇒ 装配层可注入
+   * `PendingApprovalRegistry`；既有单测传裸 `Map` 仍逐字可用（结构同构）。
+   */
+  private pendingApprovals: ApprovalTokenMap<PendingApproval> | undefined;
   /** K5：服务端重放函数（由 createService 注入；缺席即不重放，行为退回 K4）。 */
   private replay: ReplayFn | undefined;
   /** K5：重放开关（默认 on；由 createService 从 env 解析后注入，便于单测覆盖）。 */
@@ -152,8 +185,91 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
    */
   private readonly timedOutApprovals = new Set<string>();
 
-  /** 注入 A2A 任务存储与 MCP 续跑令牌表（createService 内二者就绪后调用一次） */
-  bind(tasks: TaskStore, pendingApprovals: Map<string, PendingApproval>): void {
+  /**
+   * ARCH-05（**纯附加**）：**已决策**审批集合 —— 决策是一次性事实，同一 `approvalId`
+   * 的第二条到达路径（TTL 回调已落、`raise` 随后收口；清扫器已落、宿主随后应答）
+   * 一律**判存即返回**，绝不二次落链（顺序纪律 **O-6**；判据①「一次超时只一条」的实现点）。
+   *
+   * 与 `timedOutApprovals` 同风格、同生命周期；规模由 ENG-01 清扫器一并限界
+   * （`pruneDecided`：令牌表里已不存在的 id 随 TTL 清扫摘除，避免长跑单调增长）。
+   * 重放完成后**不清**（决策一次性，天然幂等）。
+   */
+  private readonly decidedApprovals = new Set<string>();
+
+  /**
+   * ARCH-05：决策取证出口（由 `createService` 注入；**缺席即 no-op** ⇒
+   * `k4-*` / `k5-replay` / `r19c-a5` 既有用例脱离服务直接实例化协调器时零副作用）。
+   */
+  private decisionSink: ApprovalDecisionSink | undefined;
+
+  /** ARCH-05：注入决策取证出口（`setLogger` / `setReplay` / `bind` 同范式）。 */
+  setDecisionSink(sink: ApprovalDecisionSink): void {
+    this.decisionSink = sink;
+  }
+
+  /**
+   * ARCH-05：登记一次审批决策并交取证出口落链（**O-6 去重** + **O-5 best-effort**）。
+   *
+   * - 判存即返回：同一 `approvalId` 只落一条链上决策条目；
+   * - 出口异常一律吞掉并 warn —— 取证失败**绝不回改**拒绝/超时/取消结论（O-5，
+   *   与 `recordBlockedApprovalAudit` / `verifyArchive` 同纪律）；
+   * - 公开（非 private）：ENG-01 令牌表清扫器（无 `ApprovalRequest` 上下文）复用同一入口，
+   *   使「MCP 直调令牌过期」与 `raise` 收口两条路共享去重，不产生双写。
+   */
+  recordDecision(input: ApprovalDecisionAuditInput): void {
+    if (this.decidedApprovals.has(input.approvalId)) return;
+    this.decidedApprovals.add(input.approvalId);
+    // 设计 §5 第 2 条（owner 默认裁断）：**approved 不落链** —— 批准后重放段天然已有一条
+    // executed 条目，再落决策条会语义重叠并胀链。本处仍登记决策（幂等：批准后该令牌
+    // 若被 TTL 清扫二次触达，不会再冒出一条假 timeout 决策）。
+    // 函数签名与枚举**预留** 'approved'，供 ARCH-09（previewHash）批次复用。
+    if (input.decision === 'approved') return;
+    if (!this.decisionSink) return;
+    try {
+      this.decisionSink(input);
+    } catch (e) {
+      this.logger?.warn('审批决策取证失败（不影响决策结果）', {
+        approvalId: input.approvalId,
+        decision: input.decision,
+        error: String(e),
+      });
+    }
+  }
+
+  /**
+   * ENG-01 配套限界：摘除**已不在令牌表**的决策登记项（由清扫器按拍调用）。
+   * 返回摘除数，仅用于日志/测试断言。
+   */
+  pruneDecided(liveApprovalIds: Iterable<string>): number {
+    const live = new Set(liveApprovalIds);
+    let removed = 0;
+    for (const id of [...this.decidedApprovals]) {
+      if (live.has(id)) continue;
+      this.decidedApprovals.delete(id);
+      removed++;
+    }
+    return removed;
+  }
+
+  /** 当前决策登记规模（可观测面；不入链）。 */
+  get decidedSize(): number {
+    return this.decidedApprovals.size;
+  }
+
+  /**
+   * 注入 A2A 任务存储与 MCP 续跑令牌表（createService 内二者就绪后调用一次）。
+   *
+   * ARCH-05 / O-4：`tasks` 的**取消判据**（`isCancelled`）由本类读取，使「挂起中被取消」
+   * 与「宿主拒绝」在决策取证上可分辨 —— 判据必须走 `TaskStore.isCancelled()`
+   * （T3 提供的唯一权威入口），**不得**自行读任务状态字段或标志位（同源事实、单点判据）。
+   * 形参放宽为 `Pick<TaskStore, 'waitApproval' | 'tryGet' | 'isCancelled'>`：
+   * 既有调用点（真实 `TaskStore`、`bind(a2a.tasks, pendingApprovals)`）**逐字不变**，
+   * 单测替身（只提供必要成员）也因此无需扩面。
+   */
+  bind(
+    tasks: Pick<TaskStore, 'waitApproval' | 'tryGet' | 'isCancelled'>,
+    pendingApprovals: ApprovalTokenMap<PendingApproval>,
+  ): void {
     this.tasks = tasks;
     this.pendingApprovals = pendingApprovals;
   }
@@ -249,11 +365,53 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
       const timedOut =
         this.timedOutApprovals.delete(req.approvalId) ||
         (meta?.['approvalTimedOut'] === true && meta?.['approvalTimeoutApprovalId'] === req.approvalId);
+      // ARCH-05（**判据顺序写死**，顺序纪律 O-4）：`canceled` > `timeout` > `rejected`。
+      // 为什么 canceled 必须最先判：宿主 `tasks/cancel` 会 `requestCancel` →
+      // `pendingApproval.resolve(false)`，于是**同一条 resolve(false)** 既可能被读成
+      // 「宿主拒绝」也可能被读成「取消」——把它记成 rejected 等于把「我们自己的取消」
+      // 伪装成「人工否决」，取证方向性错误（设计 §1.2-3）。
+      // 判据**只走** `TaskStore.isCancelled()`（T3 提供的唯一权威入口，同源含终态与标志位），
+      // 不在本层另读任务状态字段（单点判据 ⇒ 无第二份真相）；可选调用 + 严格等值
+      // 使既有单测替身（未提供该成员）逐字退回旧路径。
+      const canceled = this.tasks.isCancelled?.(taskId) === true;
+      const decision: ApprovalDecision = canceled ? 'canceled' : timedOut ? 'timeout' : 'rejected';
+      // ARCH-05 决策入链（best-effort，**绝不回改**下面的返回值 —— O-5）。
+      // actor 三值即三条真实路径的可 grep 归因（设计 §1.2-1 表）。
+      this.recordDecision({
+        traceId: token?.traceId ?? '',
+        approvalId: req.approvalId,
+        capabilityId: req.capabilityId,
+        risk: req.risk,
+        decision,
+        actor: canceled ? 'cancel-request' : timedOut ? 'approval-ttl' : 'host',
+        taskId,
+        ...(token?.delegationId ? { delegationId: token.delegationId } : {}),
+        // 生效 TTL 取自 TaskStore 固化进 metadata 的事实（`approvalTimeoutTtlMs`），
+        // 不在本层另读配置 ⇒ 链上报的 TTL 与真实收口用的 TTL 同源（无第二份真相）。
+        ...(typeof meta?.['approvalTimeoutTtlMs'] === 'number' ? { ttlMs: meta['approvalTimeoutTtlMs'] } : {}),
+        startedAtMs: token?.createdAtMs ?? Date.now(),
+        ...(token ? { params: token.params } : {}),
+      });
       return { approved: false, reason: timedOut ? 'timeout' : 'rejected' };
     }
 
     // 宿主批准：token 置为「已批准」——保留 K4 语义，`/mcp` 人工显式续跑路径仍可用
     if (token) token.hostApproved = true;
+    // ARCH-05：**登记**批准决策（判存即返回，令该 approvalId 此后不再被 TTL 清扫二次
+    // 落成假 timeout）；但**不落链**（设计 §5 第 2 条 owner 默认裁断 —— 重放段已天然
+    // 产出一条 executed 条目，双写会语义重叠并胀链）。
+    this.recordDecision({
+      traceId: token?.traceId ?? '',
+      approvalId: req.approvalId,
+      capabilityId: req.capabilityId,
+      risk: req.risk,
+      decision: 'approved',
+      actor: 'host',
+      hostApproved: true,
+      taskId,
+      ...(token?.delegationId ? { delegationId: token.delegationId } : {}),
+      startedAtMs: token?.createdAtMs ?? Date.now(),
+    });
     // token 已消失（超时清理 / 异常）：决议虽为 true 但无留存参数可重放 → 不放行
     if (!token) return { approved: false, reason: 'rejected' };
 
@@ -490,6 +648,67 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     void provider.warmup?.();
   }
 
+  /* ---- ARCH-06 A2：启动期**历史归档分片**校验（fire-and-forget，§7.2 区 2） ----
+   *
+   * 问题：`freshChainOnStart:true`（上方 :378 区，本批**不动其值**）使 `verifyChain()` 在
+   * 每轮只读本轮活跃分片 ⇒ 历史分片永久退出判定面。`/health.audit` 若只报 `chainValid`，
+   * 读者会把「本轮完好」误读成「全部历史证据完好」（体检 U-P0-2 点名「权衡未登记」）。
+   * `/health.audit.scope='session'` 把范围显式化（区 9），而**跨轮事实**由本条启动校验
+   * 落的一条 `ext.kind:'chain-archive-verify'` 链上条目提供 —— 免责句此才有证据支撑。
+   *
+   * 纪律：
+   *  - **不阻塞启动**（`void` 异步）：`verifyArchive` 内部已全程 try/catch 绝不抛（T2），
+   *    且有界 `ARCHIVE_VERIFY_MAX_SHARDS`（O-8，默认 30，超出只计数不校验）⇒ 无长阻塞面；
+   *  - **写原始 `audit`**（顺序纪律 **O-7**）：不经 `auditSink`（= `bypassTagSink(wrapAuditSink(…))`）
+   *    —— 壳/内部条目若经账本装饰器会把自己登记成「本回合有活动」= 审计自证，
+   *    与 `delegation.start/complete` 同一纪律（见下方 observer 的 K-N1 注释块）；
+   *  - 失败只 `logger.warn`，绝不影响服务可用性（取证面/执行面分离）。
+   */
+  void (async () => {
+    const startedAtMs = Date.now();
+    try {
+      const results = await audit.verifyArchive();
+      // 总数与有界结果集**分源**：verifyArchive 最多回 30 片，若不另取 shardsTotal，
+      // 读者会把「30 片完好」当成「全部历史完好」（假证据形态，设计 §1.3-2 明令防）。
+      const chain = await audit.verifyChain();
+      const entry = buildChainArchiveVerifyAuditEntry(
+        {
+          traceId: newTraceId(),
+          startedAtMs,
+          results,
+          shardsTotal: chain.shardsTotal ?? results.length,
+        },
+        () => newId('aud'),
+      );
+      await audit.append(entry);
+      logger.info('启动归档校验完成', {
+        shardsVerified: entry.ext.archive.shardsVerified,
+        shardsTotal: entry.ext.archive.shardsTotal,
+        broken: entry.ext.archive.broken.length,
+      });
+    } catch (e) {
+      logger.warn('启动归档校验失败（不影响服务，跨轮历史证据缺席）', { error: String(e) });
+    }
+  })();
+
+  /* ---- ARCH-07 / ENG-05：bearer 守卫的生效事实（§7.2 区 8 的判据源） ----
+   *
+   * 在**构造期**一次求值（部署期注入的凭据在进程生命周期内不重排），并把同一结论
+   * 同时喂给守卫与 `/health.security.authMode` ⇒ 事实面与执行面同源，杜绝
+   * 「health 报 bearer-enforced 而守卫其实停用」的自相矛盾（体检 U-P0-2 的病根之一）。
+   *
+   * 现网默认（`delivery/vm-service.config.json` 未写 `enforceBearer`）⇒
+   * `resolveBearerToken ⇒ undefined` ⇒ `guardActive=false` ⇒ 守卫恒 pass ⇒
+   * **路由逐字旧行为**（判据⑤关键回归）。
+   */
+  const bearerToken = resolveBearerToken(cfg.security.enforceBearer, cfg.security.tokenEnv);
+  const guardActive = bearerToken !== undefined;
+  const bearerGuard = createBearerGuard({
+    enforceBearer: cfg.security.enforceBearer,
+    tokenEnv: cfg.security.tokenEnv,
+    logger,
+  });
+
   /* ---- CL-018 C5：网络配置进程内缓存（启动异步预热） ----
    *
    * 问题：`system.network.config`（Get-NetworkConfig）冷调用 5–8s（WMI/CIM 首次装载 + DNS 枚举），
@@ -531,8 +750,18 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     }
   })();
 
-  /* ---- 审批闸登记（MCP 侧） ---- */
-  const pendingApprovals = new Map<string, PendingApproval>();
+  /* ---- 审批闸登记（MCP 侧） ----
+   * ENG-01（§7.2 区 3）：裸 Map ⇒ **有界登记表**。TTL 复用既有旋钮
+   * `WINVM_APPROVAL_TTL_MS`（`resolveApprovalTtlMs()`），与 A2A 审批等待（下方 TaskStore
+   * 的默认 TTL）**同一旋钮、同一语义** —— 不新造同义 env 旋钮（§8 硬纪律），也不用
+   * `policy.approvalTimeoutMs`（默认 120s 远短于人工审批等待，§5 第 1 条已登记为死字段）。
+   * `PendingApprovalRegistry` 实现窄 Map 面 ⇒ 下方三处调用点（`set`/`get`/`delete`）与
+   * `collectApprovalFacts(ReadonlyMap)` 形参**签名与文本逐字不变**。
+   */
+  const pendingApprovals = new PendingApprovalRegistry<PendingApproval>({
+    ttlMs: resolveApprovalTtlMs(),
+    logger,
+  });
 
   /**
    * P3-3：A2A 审批等待（`input-required` 挂起）加 TTL 护栏（默认 30 分钟，env
@@ -540,12 +769,42 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    * 挂起 Promise resolve(false) → 桥保持 K3 旧行为（ok=false，绝不自批）→ 任务转 `failed`
    * （原因 approval timeout）。令牌清理由本侧负责（TaskStore 不知道 pendingApprovals）：
    * 超时回调里删掉残留 token，使 `/mcp` 续跑闸（`hostApproved === true`）永无放行可能。
+   *
+   * ARCH-05（§7.2 区 4）：回调同时经 `recordDecision('timeout')` 把**超时决策入链**
+   * （设计 §1.2-3 表末行）。本回调在 `TaskStore.finish()` 内先于 `resolve(false)` 触发
+   * ⇒ 它会先落链，随后 `raise` 的否定分支同一 approvalId 被 **O-6 判存即返回**去重
+   * ⇒ 一次超时**只落一条**（判据①）。两处都落正是为了「任一路径先到也不漏证」，
+   * 去重集合保证不会双写。
+   *
+   * ENG-08（T3 已交付有界化）：`maxTasks` / `terminalTtlMs` 在此**显式声明**为框架缺省值
+   * （`200` / `1h`）—— 二者在 `a2a-framework` 侧是刻意未导出的私有常量（T3 notes §3），
+   * 而 `/health.tasks` 要如实报出「本次运行生效的上限」⇒ 与其在透出侧凭猜测复写数字
+   * （漂移即说谎），不如在构造点把值钉成装配层的单一可见来源（行为与缺省逐字相同）。
+   * **不新造 env 旋钮**（§8）；`service.limits` 配置面本批未开（设计 §1.6-2 列为可选）。
    */
   const taskStore = new TaskStore({
+    maxTasks: TASK_STORE_MAX_TASKS,
+    terminalTtlMs: TASK_STORE_TERMINAL_TTL_MS,
     onApprovalTimeout: ({ taskId, approvalId, timedOutAfterMs, ttlMs }) => {
       // K5：登记超时事实，使协调器把 raise 的 false 细分成 'timeout'
       //（区别于宿主显式拒绝 'rejected'）；二者一律不放行、绝不重放。
       approvalCoordinator.noteTimeout(approvalId);
+      // ARCH-05：超时决策入链（best-effort；取证失败绝不改拒绝收口 —— O-5）。
+      // 令牌此刻仍在表中 ⇒ 取 capabilityId/risk/traceId/delegationId 丰富证据面。
+      const stale = pendingApprovals.get(approvalId);
+      approvalCoordinator.recordDecision({
+        traceId: stale?.traceId ?? '',
+        approvalId,
+        capabilityId: stale?.capabilityId ?? 'unknown',
+        risk: stale?.risk ?? 'L2',
+        decision: 'timeout',
+        actor: 'approval-ttl',
+        taskId,
+        ttlMs,
+        ...(stale?.delegationId ? { delegationId: stale.delegationId } : {}),
+        startedAtMs: stale?.createdAtMs ?? Date.now() - timedOutAfterMs,
+        ...(stale ? { params: stale.params } : {}),
+      });
       const removed = pendingApprovals.delete(approvalId);
       logger.warn('审批等待超时，任务按拒绝收口', {
         taskId,
@@ -717,6 +976,12 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       capabilityId: p.capabilityId,
       traceId,
     });
+    /* ARCH-05（§7.2 区 5 · **仅注释，零行为改动**）：本行 `approved: true` 是宿主批准后的
+     * 唯一执行入口，`executeCapability` 内部策略段天然产出**一条** `executed` 条目 ⇒
+     * 「批准」决策本身**不再单独落链**（设计 §5 第 2 条 owner 默认裁断：双写语义重叠且胀链）。
+     * `ApprovalDecision` 枚举仍**预留** `'approved'`，供 ARCH-09（`previewHash` 绑定）批次
+     * 复用；届时若要落链，落点在本函数**之外**的协调器 `recordDecision` 出口，不在这里内联。
+     */
     const result = await executeCapability(cap, p.params, {
       traceId,
       approved: true,
@@ -931,20 +1196,38 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       const ok = snap.state === 'completed' && result?.ok === true;
       // 宿主显式拒绝时 TaskStore 已置 rejected —— 终态如实透出（设计 §2.1 列了 rejected）
       const storedState = taskStore.tryGet(taskId)?.task.status.state;
-      const terminalState =
-        snap.state === 'failed' && storedState === 'rejected' ? 'rejected' : snap.state;
-      // errorCode：completed 无；**failed** 取 result.error.reason（领域码，如 NO_EXECUTION_RECEIPT /
-      // LLM_SESSION_DISABLED），缺席退回契约码，异常路径取 error 上的码。
+      /* ---- O-3 三分支：canceled 优先直取（ARCH-22 / 判据⑦） ----
+       *
+       * 病灶：A2A 协作式取消后框架给的快照 `state` 可能是 `'failed'`（取消以 error 形态收口）,
+       * 而 `TaskStore` 里的权威状态是 `'canceled'`。原两分支写法会把真实取消写成 `failed`
+       * 或 `rejected` —— 链上终态与用户意图不符（取证面撒谎）。
+       * 判据**顺序不可调换**：canceled 必须先于 failed→rejected 归正（O-4 同源纪律：
+       * 取消 > 超时 > 拒绝 —— 取消是用户显式意图，权重最高）。
+       * `storedState === 'canceled'` 一并前插：覆盖「快照 failed + 存储 canceled」组合。
+       */
+      const canceledTerminal = snap.state === 'canceled' || storedState === 'canceled';
+      // ⚠ 排版纪律：下面三元式的**后两分支**（stored 为 rejected 时把 failed 回改）必须与
+      // 判据源保持同一行连续 —— `r19c-kn1-e-shape` / `kn1-e-mutation` 对该段是正则文本匹配，
+      // 折行即红。注释刻意不复述该表达式原文：复述会让判据在代码被摘除后仍命中注释而恒真
+      //（变异检验的教训：T4 首版正是如此，被 E-6 变异检验当场抓出）。
+      const terminalState = canceledTerminal
+        ? 'canceled'
+        : snap.state === 'failed' && storedState === 'rejected' ? 'rejected' : snap.state;
+      // errorCode：completed 无；**canceled** 固定 `'TASK_CANCELED'`（判据⑦：取消不是执行失败，
+      // 不得被 result.error.reason 的通用码顶替）；**failed** 取 result.error.reason（领域码，如
+      // NO_EXECUTION_RECEIPT / LLM_SESSION_DISABLED），缺席退回契约码，异常路径取 error 上的码。
       // input-required（审批挂起）**不是执行错误** —— 不落 errorCode，避免把「等待人工」写成失败。
       const snapError = snap.error as { code?: string; reason?: string } | undefined;
       const errorCode =
         ok || snap.state === 'input-required'
           ? undefined
-          : (result?.error?.reason ??
-              result?.error?.code ??
-              snapError?.reason ??
-              snapError?.code ??
-              'EXECUTION_FAILED');
+          : canceledTerminal
+            ? 'TASK_CANCELED'
+            : (result?.error?.reason ??
+                result?.error?.code ??
+                snapError?.reason ??
+                snapError?.code ??
+                'EXECUTION_FAILED');
       // 降级标记（T03 结构化；运行时经 LlmGoalResult 携带，缺席即 undefined → ext 不落该键）
       const degraded = (result as { degraded?: { reason: string } } | undefined)?.degraded;
 
@@ -1060,12 +1343,109 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   approvalCoordinator.setReplay(replay);
   approvalCoordinator.setReplayEnabled(resolveApprovalReplay());
 
+  /* ---- ARCH-05（判据①②）：审批否定决策的取证装配 ----
+   *
+   * 协调器只负责**决策**（哪个 approvalId 被谁判成什么），落链由装配层注入 sink 完成
+   * —— 框架/协调器不依赖审计是既有纪律（`a2a-framework` 零审计 import），补取证只能
+   * 靠回调注入，否则依赖方向反转。
+   *
+   * ★ O-7：写**原始 `audit`**（不是 `auditSink`）。决策条目是服务端内部证据，经
+   * `wrapAuditSink` 会被登记成「本委派回合有活动」= 审计自证；`bypassTagSink` 同理
+   * 会给否定决策误贴 `ext.bypass` 位。判据②要求 sink 抛错时决策结果不变，故此处
+   * 整段再包一层 try/catch + warn（双保险：协调器 `recordDecision` 内已有一层，
+   * 本层兜住 `recordApprovalDecisionAudit` 自身返回 `{ok:false}` 的情形 —— 它内部
+   * 已捕获链写异常，不会 reject，但 `logger` 之外的任何同步抛都要有归宿）。
+   *
+   * `approved` 决策在设计 §5 第 2 条裁断为**不落链**（批准本身不是"发生过的动作"，
+   * 真正发生的是紧随其后的 `executed` 重放条目；落它只会把链体积翻倍）。协调器
+   * `recordDecision` 已在入口拦掉 `approved`，这里的早退是第二道闸（防未来有人绕过
+   * 协调器直接调 sink）。
+   *
+   * 通道归因：MCP 拦截令牌带 `delegationId`（委派内层回连）⇒ 归 `'a2a'`；
+   * 纯宿主直调 ⇒ `'internal'`（服务端自身事实，不是宿主终端）。
+   */
+  approvalCoordinator.setDecisionSink((input) => {
+    if (input.decision === 'approved') return;
+    try {
+      void recordApprovalDecisionAudit(
+        audit,
+        logger,
+        input,
+        () => newId('aud'),
+        {
+          channel: input.delegationId ? 'a2a' : 'internal',
+          ...(input.delegationId ? { delegationId: input.delegationId } : {}),
+        },
+      ).then((r) => {
+        if (!r.ok) logger.warn('审批决策审计未落链（不影响决策结果）', { approvalId: input.approvalId, error: r.error ?? '' });
+      });
+    } catch (e) {
+      logger.warn('审批决策审计装配异常（不影响决策结果）', { error: String(e) });
+    }
+  });
+
+  /* ---- ENG-01（判据⑥）：MCP 续跑令牌表的 TTL 清扫器 ----
+   *
+   * `WINVM_APPROVAL_TTL_MS`（`resolveApprovalTtlMs()`，缺省 30 分钟）—— 与 A2A 审批
+   * 等待**同一旋钮、同一语义**；不新造 env 名（§8 硬纪律），也不用
+   * `policy.approvalTimeoutMs`（120s 死字段，语义是"人工审批等待"，会在真人反应之前
+   * 批量误逐 —— 设计 §5 第 1 条）。
+   *
+   * 被逐条目的取证落点 = `timeout` 决策（actor `'mcp-ttl-sweep'`），使"令牌消失"
+   * 这件事在链上可归因；否则只有 logger 一行，宿主侧「我申请的审批呢」无从查证。
+   * `pruneDecided` 顺带回收去重集合里已不存在的 approvalId（防 `decidedApprovals`
+   * 自身成为新的无界增长点 —— ENG-01 的有界性必须递归成立）。
+   */
+  pendingApprovals.startTimer(undefined, (swept) => {
+    for (const [approvalId, token] of swept) {
+      approvalCoordinator.recordDecision({
+        traceId: token.traceId ?? '',
+        approvalId,
+        capabilityId: token.capabilityId,
+        risk: token.risk,
+        decision: 'timeout',
+        actor: 'mcp-ttl-sweep',
+        ...(token.delegationId ? { delegationId: token.delegationId } : {}),
+        ttlMs: pendingApprovals.ttl,
+        startedAtMs: token.createdAtMs,
+        params: token.params,
+      });
+    }
+    approvalCoordinator.pruneDecided(pendingApprovals.keys());
+  });
+
   /* ================================ HTTP ================================ */
 
   const server = createServer((req, res) => {
     void (async () => {
       const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
       const path = url.pathname;
+
+      /* ---- ARCH-07（判据⑤）：HTTP 入口 Bearer 守卫 —— 唯一插入点 ----
+       *
+       * 位置纪律：必须挂在**所有路由分发之前**（`path` 解析后、方法白名单前），
+       * 否则 `/admin/llm-session/reset` 这类"写在 405 判断之后"的端点会被绕过。
+       * 豁免表（`/health`、`/.well-known/agent-card.json` 的 GET）由 `http-guard`
+       * 内部判定，不在装配层重复实现 —— 装配层只负责"拒绝时怎么回"。
+       *
+       * O-9 双条件：`security.enforceBearer` **且** `tokenEnv` 指向的 env 有值
+       * 才真正生效。缺任一件 ⇒ `resolveBearerToken` 返回 undefined ⇒ `guardActive`
+       * 为 false ⇒ **本块整体跳过**，路由逐字保持旧行为（零回归，判据⑤）。
+       * 这也是"配了开关却忘了发 token"这种半开状态的唯一安全解释：不静默放行任何
+       * 已声明要保护的端点，而是**根本不进入守卫语义**（与 `validateServiceConfig`
+       * 的双条件告警文案同源，见 `core/config`）。
+       *
+       * 取证面纪律：拒绝只写 `logger.warn`（由 `http-guard` 内部完成），**不进审计链**
+       * —— 未授权的探测请求不该获得写链配额（否则 DoS 面直接映射成账本膨胀面）。
+       * `/health.security.authMode` 负责把"守卫是否在位"这一事实透出给运维。
+       */
+      if (guardActive) {
+        const verdict = bearerGuard(req as GuardableRequest);
+        if (verdict.verdict === 'deny') {
+          sendJson(res, 401, BEARER_UNAUTHORIZED_BODY);
+          return;
+        }
+      }
 
       // 仅允许 POST/GET
       if (req.method !== 'POST' && req.method !== 'GET') {
@@ -1258,6 +1638,34 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    * 既有字段不缺失，/health JSON 契约不变）；provider 为 undefined（非 workbuddy）时
    * 保持既有「provider 未加载」行为。
    */
+  /**
+   * `/health.security` 快照（ARCH-07，判据⑤的**事实面**）。
+   *
+   * 刻意抽成独立函数而不是内联：`authMode` 必须与守卫的生效判据**逐字同源**
+   * （都经 `resolveBearerToken` 的 O-9 双条件），内联复制条件就是未来漂移的入口。
+   *
+   * - `loopbackOnly` —— V1 恒 `true`：`validateServiceConfig` 对非回环绑定**恒定 error**，
+   *   不再看 `security.requireLoopbackBind`（该开关自 Phase 1 起失效）。把它报成
+   *   可配事实就是谎言，故按「不可关」的约束本身来写。
+   * - `boundLoopback` —— 读**实际** `server.address()`；listen 之前（或 address 缺席）
+   *   回落配置值 ⇒ 保守不谎报。
+   * - `endpointAllowlist` —— 契约类型是 `never`（负空间）：本实现**不**产出该键。
+   */
+  function buildSecurityHealth(): SecurityHealth {
+    // 实际监听地址优先；`server.address()` 在 listen 前返回 null ⇒ 回落配置值（保守不谎报）。
+    const actualAddress = server.address();
+    const boundHost =
+      typeof actualAddress === 'object' && actualAddress !== null
+        ? actualAddress.address
+        : cfg.server.host;
+    // 纯函数在 `http-guard`（可脱服务单测）；本处只负责喂「实测地址」这一服务闭包事实。
+    return buildSecurityHealthSnapshot({
+      enforceBearer: cfg.security.enforceBearer,
+      tokenEnv: cfg.security.tokenEnv,
+      boundHost,
+    }) as SecurityHealth;
+  }
+
   async function buildHealth(): Promise<HealthStatus & { degradedReason?: string; exposed: number }> {
     const probeTimeoutMs = resolveHealthProbeTimeoutMs();
     const activeProvider = provider;
@@ -1340,11 +1748,39 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       psBridge,
       capabilities: { count: registry.size(), available: exposedIds.size },
       // D30：透出断裂定位与原因（向后兼容：entries / chainValid 字段保留）
+      // ARCH-06（判据③）：追加**校验范围**四字段。`freshChainOnStart:true` ⇒ `scope:'session'`，
+      // 即本处 `chainValid` 只担保「本轮运行期分片完好」；跨轮历史的证据由启动期
+      // `chain-archive-verify` 条目提供。`chainValid` 的既有语义与取值路径**逐字不变**
+      // （只是旁边多说了实话），`cl019`/既有断言不受影响。四字段皆 `?:` 纯附加：
+      // 旧 AuditSink 实现（未回吐 scopeInfo）⇒ 字段整体缺席 ⇒ 读者退回旧理解。
       audit: {
         entries: chain.entries,
         chainValid: chain.valid,
         ...(chain.brokenAt !== undefined ? { brokenAt: chain.brokenAt } : {}),
         ...(chain.reason ? { reason: chain.reason } : {}),
+        ...(chain.scope !== undefined ? { scope: chain.scope } : {}),
+        ...(chain.shardsVerified !== undefined ? { shardsVerified: chain.shardsVerified } : {}),
+        ...(chain.shardsTotal !== undefined ? { shardsTotal: chain.shardsTotal } : {}),
+        ...(chain.shardsArchived !== undefined ? { shardsArchived: chain.shardsArchived } : {}),
+      },
+      /* ---- ARCH-07（判据⑤事实面）+ ENG-08：信任边界与有界化的运行时事实 ----
+       *
+       * `authMode` 与守卫的生效判据**同源**（都走 `resolveBearerToken` 的双条件 O-9），
+       * 杜绝「health 说 enforced、守卫其实停用」的自相矛盾。`bearer-configured-missing`
+       * 是必须显形的降级态（配置意图开了、生效事实没开）——不得静默当 enforced。
+       *
+       * `boundLoopback` 读**实际** `server.address()` 而不是配置值：配置正确但被
+       * 反向代理/改写的场景只有实测值能证。`server` 在 `buildHealth` 定义之前创建，
+       * 而 `bridgeCtx.healthSnapshot` 只在请求期回调 ⇒ 无 TDZ 风险（listen 前
+       * `address()` 返回 undefined ⇒ 回落配置值，保守不误报 true）。
+       */
+      security: buildSecurityHealth(),
+      // ENG-08：TaskStore 有界化事实（纯附加）。`live` 是内存驻留量，
+      // 配合 `maxTasks` 让运维能看出「快到顶了」而不是等驱逐发生。
+      tasks: {
+        live: taskStore.size(),
+        maxTasks: TASK_STORE_MAX_TASKS,
+        terminalTtlMs: TASK_STORE_TERMINAL_TTL_MS,
       },
       // CL-018 C1：常驻会话态（纯附加）。取自 provider 的**同步** SPI 成员，
       // 而不是 providerHealth —— 后者可能被短超时守卫替换为不含 llmSession 的降级快照。
@@ -1385,6 +1821,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     exposedCapabilities,
     async close() {
       sessionMonitor.stop();
+      // ENG-01（判据⑥）：先停 TTL 清扫定时器，使收尾竞态里不再有"边关边扫"的写链；
+      // `unref()` 已保证未决审批不拖住退出，`close()` 再保证关闭后定时器不复活。
+      pendingApprovals.close();
       if (provider) await provider.shutdown().catch(() => undefined);
       await runtime.bridge.stop().catch(() => undefined);
       await new Promise<void>((resolve) => server.close(() => resolve()));

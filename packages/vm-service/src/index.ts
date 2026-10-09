@@ -17,13 +17,58 @@ export {
   recordBlockedApprovalAudit,
   recordPolicyDeniedAudit,
   toExecutedResult,
+  /** ARCH-05 / ARCH-06（T4）：审批决策取证件 + 启动归档校验条目构造器 */
+  buildChainArchiveVerifyAuditEntry,
+  recordApprovalDecisionAudit,
 } from './approval-replay.js';
 export type {
   BlockedAuditInput,
+  BlockedAuditOptions,
   PendingApprovalLike,
   PolicyDeniedAuditInput,
   SegmentResultLike,
+  /** ARCH-05 决策枚举与出口形状（桥/单测引用同一形状，避免类型漂移） */
+  ApprovalDecision,
+  ApprovalDecisionAuditInput,
+  ApprovalDecisionSink,
+  ChainArchiveVerifyAuditInput,
 } from './approval-replay.js';
+/**
+ * ARCH-07 / ENG-05（T4）—— 服务端 bearer 守卫（**纯函数模块**，豁免表硬编码不可配）。
+ * 再导出的唯一目的是让判据可脱 ps-bridge 直测：本沙箱内 `createService` 会 spawn
+ * PowerShell 桥并触发 V8 fatal ⇒ 装配层入口不是可用测试面（与 `approval-replay` /
+ * `health-probe` / `delegation-audit` 同一纪律）。
+ */
+export {
+  BEARER_UNAUTHORIZED_BODY,
+  buildSecurityHealth,
+  createBearerGuard,
+  DEFAULT_EXEMPT_PATHS,
+  isLoopbackHost,
+  resolveAuthMode,
+  resolveBearerToken,
+} from './http-guard.js';
+export type {
+  BearerGuardOptions,
+  GuardableRequest,
+  GuardDenyReason,
+  GuardVerdict,
+  GuardWarnSink,
+  HealthAuthMode,
+} from './http-guard.js';
+/**
+ * ENG-01（T4）—— MCP 续跑令牌表的**有界化**登记处（裸 `Map` 的窄同签名替身 + TTL 清扫器）。
+ * 同样为纯数据结构，零审计依赖（被逐条目回传调用方，由装配层落 `timeout` 决策）。
+ */
+export { PendingApprovalRegistry } from './pending-approvals.js';
+export type {
+  ApprovalTokenMap,
+  PendingApprovalRegistryOptions,
+  RegistryTimerHandle,
+  SweeperEntry,
+  TimerClear,
+  TimerFactory,
+} from './pending-approvals.js';
 /** CL-K3R：未决审批事实的契约类型（桥侧判据与单测引用同一形状，避免类型漂移） */
 export type { ApprovalWaitQuery, PendingApprovalFact } from '@winvm/contracts';
 /** K-N1：委派层审计真实性的服务端纯逻辑件（账本 / 壳双态条目 / 回执缓存 / sink 装饰器；可脱离 HTTP 服务与 ps-bridge 单测） */
