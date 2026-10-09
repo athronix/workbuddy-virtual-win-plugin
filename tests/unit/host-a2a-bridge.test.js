@@ -265,6 +265,42 @@ describe('其它委派工具', () => {
     assert.ok(res.content[0].text.includes('取消未生效'), `实测：${res.content[0].text}`);
   });
 
+  // T5 收官小修（QA 裁定：分层是有意设计，只澄清呈现）：`ok:true`/`isError:false` = 传输层
+  // 「取消请求被服务端处理成功」，**不等于**业务层取消生效；生效只看 `cancelObserved`。
+  // 该口径必须同时出现在**工具注册表 description**（宿主 Agent 唯一稳定读到的说明书）与
+  // **cancelObserved:false 的实测回包文本**里 —— 只改其一等于没改。
+  test('T5 cancel ok 语义澄清：description 与 false 态回包文本均声明「传输层≠业务生效」', async () => {
+    const cancelTool = findTool(toolsFor(mockClient()), 'a2a.task.cancel');
+    assert.ok(cancelTool.description.includes('ok:true'), 'description 须点名 ok 字段的语义边界');
+    assert.ok(
+      cancelTool.description.includes('isError:false') && cancelTool.description.includes('传输层'),
+      `description 须写清 ok/isError 属传输层，实测：${cancelTool.description}`,
+    );
+    assert.ok(
+      cancelTool.description.includes('以 `cancelObserved` 为准'),
+      'description 须把业务生效判据指到 cancelObserved（不得让宿主读 ok）',
+    );
+
+    const client = mockClient([], {
+      async cancelTask(id) {
+        return { kind: 'task', id, contextId: 'ctx_1', status: { state: 'completed' }, artifacts: [] };
+      },
+    });
+    const res = await findTool(toolsFor(client), 'a2a.task.cancel').handler({ taskId: 'task_9' }, CTX);
+    // 呈现分层**不变**：请求成功 ⇒ ok:true / isError:false（不得因未生效而谎报失败）
+    assert.equal(res.structuredContent.ok, true, 'ok 仍表传输层成功（本小修不改取值逻辑）');
+    assert.equal(res.isError, false, '取消未生效不得升级成 isError');
+    assert.equal(res.structuredContent.cancelObserved, false);
+    assert.ok(
+      res.content[0].text.includes('仅表示取消请求已被服务端处理（传输层成功）'),
+      `false 态文本须自带分层口径，实测：${res.content[0].text}`,
+    );
+    assert.ok(
+      res.content[0].text.includes('以 `cancelObserved` 为准'),
+      `false 态文本须指向业务生效判据，实测：${res.content[0].text}`,
+    );
+  });
+
   test('a2a.health 返回 Agent Card 技能清单', async () => {
     const res = await findTool(toolsFor(mockClient()), 'a2a.health').handler({}, CTX);
     assert.equal(res.isError, false);

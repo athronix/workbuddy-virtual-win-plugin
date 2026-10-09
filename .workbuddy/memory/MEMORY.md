@@ -45,3 +45,5 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - 预热会话 idle 回收(5min)后深度空闲首调仍付冷启动(K2 只覆盖重启后紧随委派)。
 - `SessionHealth` 无法表达「未知」(interactive 等必填，超时被迫填假值)→先做文档级注明"仅 state==='healthy' 才有意义"。
 - 真实 GUI 自动化点击端到端回归受远端锁屏限制(P2)。
+- **R4 根治=B3 实测(2026-10-10, commit 7e5e6c1)**：误开 enforceBearer(双条件齐)实况=VM 内回连 401 打在工具面⇒委派**零副作用虚假完成**(completed+zeroInnerCalls:true，CL-K3R 不采信兜住)，非"当场 401"；文档六处已订正。Phase 2 补 **bearer 生效自检**(开守卫后主动探测 VM 内回连并拒绝静默退化)+回连凭据分发通路。QA 收官小修：`a2a.task.cancel` ok 语义(传输层成功≠业务生效，与 zeroInnerCalls 同源口径)。
+- 教训：警告块"危害形态"须实证方向；"未实证危害形态≠危害形态已写对"。

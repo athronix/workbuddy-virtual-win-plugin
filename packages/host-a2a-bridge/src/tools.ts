@@ -689,7 +689,10 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
       '取消 VM 侧正在执行的 A2A 任务（用户要求中止时使用）。' +
       '注意：取消是**协作式**的（只到能力调用边界），已发起的操作可能已经真实改动虚拟机 —— ' +
       '宿主须用 a2a.task.get 核对 artifacts 并逐项向用户确认，**不得**据此宣称"未执行任何变更"。' +
-      '返回体 `cancelObserved` 表示 VM 侧回包状态是否确为 canceled。',
+      '返回体 `cancelObserved` 表示 VM 侧回包状态是否确为 canceled。' +
+      '⚠ 分层口径：`ok:true` / `isError:false` 仅表示**取消请求被服务端处理成功（传输层）**，' +
+      '不代表取消在业务上生效 —— 是否生效一律以 `cancelObserved` 为准；' +
+      '该位为 `false` 时任务可能已自行结束（对已终态任务发 cancel 会回原终态）。',
     inputSchema: {
       type: 'object',
       required: ['taskId'],
@@ -731,7 +734,11 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
                 `任务 ${task.id} 已请求取消，状态：${task.status.state}` +
                 (cancelObserved
                   ? '（VM 侧已确认取消；取消点之前的操作可能已改动虚拟机，请核对 artifacts）'
-                  : '（VM 侧回包状态并非 canceled ⇒ 取消未生效，任务可能已自行结束）'),
+                  : '（VM 侧回包状态并非 canceled ⇒ 取消未生效，任务可能已自行结束）') +
+                // 分层口径（T5 收官小修）：`ok`/`isError` 是**传输层**事实（取消请求被服务端处理成功），
+                // 业务层是否真的停下来了只看 `cancelObserved`。只澄清呈现，不改任何字段取值逻辑。
+                '。口径：本次 `ok:true` 仅表示取消请求已被服务端处理（传输层成功），' +
+                '取消是否在业务上生效以 `cancelObserved` 为准。',
             },
           ],
         };
