@@ -15,6 +15,7 @@
 - PS 5.1：`Sort-Object <裸键>` 对 `[ordered]@{}` 静默失效→`-Property { $_.key }`。
 - 沙箱：`/tmp` 只读(用 `$HOME/wbtmp`)；**git 不在 PATH 但二进制真实存在** `/storage/Users/currentUser/.harmonybrew/opt/git/bin/git`(v2.55.0)→用全路径 commit/log/show；`rm` shim 坏→用 `fs.unlinkSync`/`renameSync`；node 必须 `/data/storage/el1/bundle/libs/arm64/node/bin/node`；`getcwd` 偶发异常(用绝对路径)。
 - **单测绝不整批跑**→`node --test <单文件>`（`link-workspace.test.js` 的 junction 整批触发 `0xC0000005` 假全红）。
+- **注释文本也是静态守卫输入面**（Phase1 T1 D-5）：`r19c-a5` C3 全仓扫源码含注释的标识符计数——写病灶注释引用被守卫的字段名前，先 grep 同名静态断言。
 - **Grep 工具对大文件/多词 `|` 搜索假阴性**→用目录级 grep / Read / Glob；仓库清点用 `git ls-files`/`git grep` 而非 FS find/grep（getcwd 失效下 FS 搜索产假象）。
 - **版本指纹 > uptime**：`psBridge.uptimeMs` 只证明重启时间，证明版本须用**行为/字段指纹**（如 `/health` 开关字段、`steps[0].risk`）。
 - **VM 侧运行态开关切法**：走 provider options（`.generated/vm-service.runtime.json` 的 `agent.providers.<id>.options.<key>`，provider 级浅合并、未知键保留）→ adapter 内 `opts.X ?? resolveX(process.env)`。重启只用 `kill-restart.ps1`（不重跑 install-vm）；⚠ `deploy-vm.mjs --apply` 重新生成运行时配置⇒顺序铁律：先部署→后打补丁→再 kill-restart。
@@ -39,6 +40,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 后台 worker「completed 通知」与「SendMessage 结果回报」异步分离→fresh Agent+极窄任务书+每逻辑单元即 commit+主理人按 HEAD 独立核验；**同任务严禁双进程并发**；分析/只读子任务也须指定增量落盘文件(绝对路径)+每节结论即 commit（不落文件⇒worker 静默中断零产出不可恢复）。团队句柄跨会话易失效→重建团队即可。
 
 ## backlog（未修·P2）
+- **D-3（Phase 1 T1 发现）**：`capability.schema.json` 的 `domain.enum`/`id.pattern` 缺 `appops` 且**全仓无运行期校验器消费该 schema**（`additionalProperties:false` 拒止能力从未兑现）→ Phase 2 死配置/漂移清扫族，或裁断"schema 接入运行期校验"。
 - K3 遗留：兜底是启发式(依赖 LLM 措辞)，根治=bridge 直读 MCP 结构化结果(更大改造)；建议补 reconcileApprovalWait 直接单测。
 - 预热会话 idle 回收(5min)后深度空闲首调仍付冷启动(K2 只覆盖重启后紧随委派)。
 - `SessionHealth` 无法表达「未知」(interactive 等必填，超时被迫填假值)→先做文档级注明"仅 state==='healthy' 才有意义"。
