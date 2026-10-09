@@ -1,0 +1,83 @@
+%% Phase 1 安全边界兑现批 —— 关键调用流程（四条链合于一图）
+%% ★ = Phase 1 新增/变更步骤；顺序纪律编号 O-1..O-11 对应设计文档 §4 表
+sequenceDiagram
+    autonumber
+    participant H as 宿主 a2a-bridge<br/>host/tools.ts
+    participant AS as A2AServer<br/>a2a-framework/server.ts
+    participant TS as TaskStore<br/>a2a-framework/task-store.ts
+    participant P as Provider(runner)<br/>adapter-*
+    participant OB as DelegationAuditObserver<br/>vm-service/server.ts:908
+    participant AC as VmApprovalCoordinator<br/>vm-service/server.ts:141
+    participant PR as PendingApprovalRegistry<br/>pending-approvals.ts (新)
+    participant AR as approval-replay.ts<br/>recordApprovalDecisionAudit (新)
+    participant CH as HashChainAuditSink<br/>core/audit/chain.ts
+    participant RT as HTTP 路由 + BearerGuard<br/>server.ts:1065 / http-guard.ts (新)
+    participant CFG as validateServiceConfig<br/>core/config/index.ts
+    participant TR as establishTransport<br/>core/transport/index.ts
+    participant HK as buildHealth<br/>server.ts:1261
+
+    %% ============ S1 · ARCH-22 真取消端到端（协作式，非抢占） ============
+    Note over H,CH: S1 · ARCH-22 tasks/cancel 外观性 → 协作式真取消
+    H->>AS: POST /a2a  tasks/cancel(id)
+    AS->>TS: requestCancel(id)
+    TS->>TS: rec.cancelRequested = true
+    TS->>TS: pendingApproval?.resolve(false)（审批等待即时解锁，不再空等 TTL）
+    TS->>TS: ★cancelController.abort('canceled')【O-1 先 abort】
+    TS->>TS: ★updateStatus('canceled') → subscribers emit + terminalAtMs
+    TS-->>AS: true
+    Note over P: 执行体在「可安全中断边界」主动退出（确定性 step():395 / LLM turn 边界）
+    P->>TS: ★sink.isCancelled()（ProgressSink 附加成员）
+    TS-->>P: true
+    P->>P: ★abortActiveTurn(reason) / cancellationSignal → kill 子进程
+    P-->>AS: GoalResult{ok:false, error.code:'TASK_CANCELED'}
+    AS->>TS: ★isCancelled(id) === true ⇒ 取消收口分支【O-2】
+    AS->>TS: 不落 artifacts（addArtifact 终态守卫亦返 false）
+    AS->>OB: ★observe(onGoalTerminal, {state:'canceled', result})【O-2 只回调，不改状态】
+    OB->>OB: ★terminalState = 'canceled'（三分支优先直取）【O-3】
+    OB->>OB: ★errorCode = 'TASK_CANCELED'（不被 EXECUTION_FAILED 兜底覆盖）【O-3】
+    OB->>CH: ★append(壳条目 terminalState:'canceled') 原始 sink【O-7】
+    H->>H: ★文案两态事实化 + structuredContent.executedBeforeCancel
+    H->>H: ★a2a.task.cancel 返回体 + cancelObserved
+
+    %% ============ S2 · ARCH-05 审批否定决策落链 ============
+    Note over P,CH: S2 · ARCH-05 rejected / timeout / canceled 三态入链（服务端落，框架不动）
+    P->>AC: raise(approvalReq)（经 sink.onApprovalRequired → MCP 审批）
+    AC->>AC: 等待：宿主回复 / TTL 到 / 任务被取消
+    AC->>AC: ★判据顺序 canceled > timeout > rejected【O-4】
+    AC->>TS: ★tryGet(taskId)?.task.status.state === 'canceled'?（bind 注入读）
+    AC->>AC: ★recordDecision(approvalId, decision, actor)
+    AC->>AC: ★decidedApprovals.has(id)? ⇒ return（一次决策一条）【O-6】
+    AC->>AR: ★input{traceId, approvalId, capabilityId, risk, decision, actor, ttlMs?, taskId?}
+    AR->>CH: ★append(entry) 原始 sink，不经 wrapAuditSink【O-7】
+    Note right of CH: entry: policyDecision.allowed=false<br/>matchedRule='approval-decision:'+decision<br/>approval.approvedBy=actor<br/>ext.kind='approval-decision'
+    AR-->>AC: {ok}（异常吞掉只 warn，不回改结论）【O-5】
+    AC-->>P: {approved:false, reason}
+    Note over PR,CH: MCP 直调令牌通路兜底（ENG-01）
+    PR->>PR: ★sweepExpired(now)（timer unref'd；跳过 hostApproved=true 在途重放）【O-10】
+    PR->>AR: ★被逐出条目 ⇒ decision='timeout', actor='mcp-ttl-sweep'
+    AR->>CH: ★append（与 A2A TTL 共用去重集，不双写）
+
+    %% ============ S3 · ARCH-07 / ENG-05 / ENG-23 信任边界兑现 ============
+    Note over CFG,HK: S3 · 服务端信任边界：启动硬拦 + 运行期可选守卫 + 客户端凭据通路
+    CFG->>CFG: ★!isLoopback(bind.host) ⇒ 恒定 errors（不再看 requireLoopbackBind 值）
+    CFG->>CFG: ★requireLoopbackBind=false ⇒ warnings（开关已无效）
+    CFG->>CFG: ★tokenEnv 有名但 env 无值 ⇒ warning（防「以为开了」）
+    CFG-->>RT: 启动期失败 ⇒ createService 拒绝启动（部署事实升格为代码不变量）
+    RT->>RT: ★createBearerGuard(cfg.security, env)
+    RT->>RT: ★生效双条件：enforceBearer===true 且 env[tokenEnv] 非空【O-9】
+    RT->>RT: ★authorization 严格 'Bearer &lt;token&gt;' + timingSafeEqual（长度不等先拒）
+    RT->>RT: ★豁免 GET /health 与 /.well-known/agent-card.json；/admin 不豁免
+    RT-->>H: ★401 {error:'unauthorized', code:'AUTH_REQUIRED'} + logger.warn(remoteAddress)
+    TR->>TR: ★applyBearerHeader(headers, tokenEnv) 单一实现，ssh-tunnel 与 streamable-http 共用（ENG-23）
+    HK->>CH: ★verifyChain() → scope/shardsVerified/shardsTotal/shardsArchived
+    HK->>HK: ★audit 块透出 4 字段 + security{loopbackOnly, boundLoopback, authMode}
+    Note over CH: 启动期 fire-and-forget（createService :489 warmup 同风格）
+    CH->>CH: ★verifyArchive(maxShards=30) 逐片【仅片内】seq/prevHash【O-8】
+    CH->>CH: ★append(ext.kind:'chain-archive-verify', archive{shardsTotal, shardsVerified, broken[]}) 原始 sink【O-7】
+
+    %% ============ S4 · ENG-08 / ENG-01 资源有界化（长跑不涨） ============
+    Note over TS,TS: ENG-08 驱逐只在 create() 尾部触发【O-11】
+    TS->>TS: create(newGoal)
+    TS->>TS: ★evictIfNeeded(): 候选 = 终态 && 无 pendingApproval，按 terminalAtMs 最旧
+    TS->>TS: ★超 maxTasks(200) 或 超 terminalTtlMs(1h) ⇒ tasks.delete(id) + subscribers.clear()
+    TS->>TS: ★maxTasks=0 或未给 ⇒ 完全不驱逐（旧行为逐字保留）

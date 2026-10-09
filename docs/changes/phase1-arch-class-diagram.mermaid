@@ -1,0 +1,318 @@
+%% Phase 1 安全边界兑现批 —— 数据结构与接口（增量）
+%% ★ = Phase 1 新增/变更成员；(−) = 删除；归属包写在类注释里
+%% 基线：1e1d867（Phase 0）
+classDiagram
+    direction LR
+
+    %% ================= L0 contracts =================
+    class ProgressSink {
+        <<interface, contracts/bridge.ts:315>>
+        +onStatus(state, message?) void
+        +onArtifact(artifact) void
+        +onApprovalRequired(req) Promise~boolean~
+        +★isCancelled?() boolean
+        +★cancellationSignal AbortSignal
+    }
+
+    class ApprovalCoordinator {
+        <<interface, contracts/bridge.ts:335>>
+        +raise(req) Promise~ApprovalOutcome~
+    }
+
+    class ApprovalOutcome {
+        <<type, contracts/bridge.ts:235>>
+        +approved boolean
+        +reason? string
+    }
+
+    class AuditSink {
+        <<interface, contracts/bridge.ts:366>>
+        +append(record) Promise~void~
+        +verifyChain() Promise~ChainVerification~
+        +★verifyArchive?() Promise~ArchiveVerification[]~
+    }
+
+    class AuditExt {
+        <<interface, contracts/audit.ts:73>>
+        +kind string
+        +★decision? 'approved'|'rejected'|'timeout'|'canceled'
+        +★archive? ArchiveSummary
+        +bypass? 'dry-run'
+    }
+
+    class ChainVerification {
+        <<interface, core/audit/chain.ts:87>>
+        +valid boolean
+        +entries number
+        +brokenAt? string
+        +reason? string
+        +★scope? 'session'|'full'
+        +★shardsVerified? number
+        +★shardsTotal? number
+        +★shardsArchived? number
+    }
+
+    class ArchiveVerification {
+        <<interface, 新增 core/audit/chain.ts>>
+        +shard string
+        +entries number
+        +valid boolean
+        +brokenAt? number
+        +reason? string
+    }
+
+    class HealthStatus {
+        <<interface, contracts/bridge.ts:131>>
+        +status string
+        +audit AuditHealth
+        +★security? SecurityFacts
+        +★tasks? TaskLimits
+    }
+
+    class SecurityConfig {
+        <<interface, core/config/index.ts:65>>
+        +tokenEnv? string
+        +requireLoopbackBind boolean
+        +★enforceBearer? boolean
+    }
+
+    class SecurityFacts {
+        <<type, /health 透出>>
+        +loopbackOnly boolean
+        +boundLoopback boolean
+        +authMode 'loopback-only'|'bearer-enforced'|'bearer-configured-missing'
+    }
+
+    class CapabilityPolicy {
+        <<interface, contracts/capability.ts:20>>
+        +pathAllowlist? string[]
+        +commandDenylist? string[]
+        +(−)commandAllowlist
+        +maxRisk? string
+    }
+
+    class PolicyConfig {
+        <<interface, core/policy/defaults.ts>>
+        +pathAllowlist string[]
+        +pathDenylist string[]
+        +commandDenylist string[]
+        +(−)commandAllowlist
+        +approvalTimeoutMs number
+    }
+
+    class SshTunnelTransport {
+        <<interface, contracts/transport.ts:11>>
+        +kind 'ssh-tunnel'
+        +endpoint string
+        +★tokenEnv? string
+    }
+
+    class StreamableHttpTransport {
+        <<interface, contracts/transport.ts:31>>
+        +kind 'streamable-http'
+        +tokenEnv? string
+    }
+
+    class TaskStoreOptions {
+        <<interface, a2a-framework/task-store.ts>>
+        +★maxTasks? number
+        +★terminalTtlMs? number
+    }
+
+    %% ================= L1a core =================
+    class PolicyEngine {
+        <<class, core/policy/engine.ts>>
+        -cmdDenyRe RegExp
+        -(−)cmdAllowRe
+        -pathAllowRes RegExp[]
+        +evaluate(req) PolicyDecision
+        -★expandPolicyPathPattern(p) string
+    }
+
+    class HashChainAuditSink {
+        <<class, core/audit/chain.ts>>
+        -freshChain boolean
+        -activeShards string[]
+        +doAppend(rec) Promise~void~
+        +verifyChain() ChainVerification
+        +★verifyArchive(maxShards?) ArchiveVerification[]
+        +listShards() string[]
+    }
+
+    class ConfigValidation {
+        <<fn, core/config/index.ts:201>>
+        +★validateServiceConfig() 非回环恒 error
+        +★tokenEnv 有名无值 warning
+    }
+
+    class TransportSetup {
+        <<fn, core/transport/index.ts>>
+        +establishTransport(decl) Channel
+        +★applyBearerHeader(headers, tokenEnv) void
+    }
+
+    class EnvPathExpand {
+        <<fn, core/constants.ts（自 config 下沉）>>
+        +expandEnvPath(p) string
+    }
+
+    %% ================= L1b a2a-framework =================
+    class InternalTask {
+        <<class, a2a-framework/task-store.ts:40>>
+        +cancelRequested boolean
+        +★cancelController AbortController
+        +★terminalAtMs? number
+        +pendingApproval? Deferred~boolean~
+        +subscribers Set~Queue~
+    }
+
+    class TaskStore {
+        <<class, a2a-framework/task-store.ts>>
+        -tasks Map~string_InternalTask~
+        +★isCancelled(id) boolean
+        +★cancellationSignal(id) AbortSignal
+        +requestCancel(id) boolean
+        +addArtifact(id, a) ★boolean
+        +updateStatus(id, state) void
+        +★evictIfNeeded() void
+        +createProgressSink(id) ProgressSink
+        +waitApproval(id, req) Promise~boolean~
+    }
+
+    class A2AServer {
+        <<class, a2a-framework/server.ts>>
+        +runGoalWithLifecycle(id) Promise~GoalResult~
+        +cancelTask(id) void
+        +★observe state:'canceled' 支路
+    }
+
+    class DelegationObserver {
+        <<interface, a2a-framework/server.ts:61>>
+        +onGoalStart?()
+        +onGoalTerminal(snapshot)
+    }
+
+    class DelegationTerminalSnapshot {
+        <<type, a2a-framework/server.ts:62>>
+        +state 'completed'|'failed'|'input-required'|★'canceled'
+        +result? GoalResult
+    }
+
+    %% ================= L2 adapters（执行体消费）=================
+    class WorkbuddyDeterministicProvider {
+        <<adapter, adapter-agent-workbuddy/index.ts>>
+        +runGoal(goal, sink) GoalResult
+        -★step() 入口 isCancelled 轮询咽喉:395
+    }
+
+    class LlmBridge {
+        <<adapter, adapter-agent-workbuddy-llm/bridge.ts>>
+        -runGoalCore() turn 循环
+        +★abortActiveTurn(reason) void
+        -buildMcpConfig() 无 token 回连:159
+    }
+
+    class HostA2ABridgeTools {
+        <<host, host-a2a-bridge/tools.ts>>
+        +a2a_delegate() stream 消费:330
+        +a2a_task_cancel() ★cancelObserved:618
+        +★executedBeforeCancel 文案两态:415
+    }
+
+    %% ================= L3 vm-service（装配）=================
+    class VmApprovalCoordinator {
+        <<class, vm-service/server.ts:141>>
+        -timedOutApprovals Set~string~
+        +★decidedApprovals Set~string~
+        +raise(req) Promise~ApprovalOutcome~
+        +★recordDecision(approvalId, decision, actor) void
+        +bind(store) void
+        +noteTimeout(id) void
+    }
+
+    class PendingApprovalRegistry {
+        <<new class, vm-service/pending-approvals.ts>>
+        -map Map~string_PendingApproval~
+        -ttlMs number
+        +set/get/delete/entries/forEach
+        +★sweepExpired(now) PendingApproval[]
+        +★startTimer(interval) void
+        +★close() void
+    }
+
+    class BearerGuard {
+        <<new fn, vm-service/http-guard.ts>>
+        +★createBearerGuard(opts) GuardFn
+        +★check(req) verdict_reason
+    }
+
+    class ApprovalDecisionAudit {
+        <<new fn, vm-service/approval-replay.ts>>
+        +★recordApprovalDecisionAudit(input) Promise~ok_error~
+    }
+
+    class DelegationAuditObserver {
+        <<vm-service/server.ts:908>>
+        +★onGoalTerminal 三分支终态反推:933
+        +errorCode canceled→TASK_CANCELED:940
+    }
+
+    class HealthAssembly {
+        <<vm-service/server.ts:1261>>
+        +buildHealth() audit★4字段 + security + tasks
+    }
+
+    %% ================= 关系 =================
+    ProgressSink <|.. TaskStore : createProgressSink 实现
+    ProgressSink <|.. A2AServer : 包装后交给 provider
+    ProgressSink <-- WorkbuddyDeterministicProvider : ★轮询 isCancelled
+    ProgressSink <-- LlmBridge : ★轮询 + signal kill
+
+    TaskStore *-- InternalTask : 持有
+    TaskStore --> TaskStoreOptions : 构造参数★
+    TaskStore ..> A2AServer : 取消/收口
+    A2AServer --> DelegationObserver : observe（框架不 import 审计）
+    DelegationObserver ..> DelegationTerminalSnapshot : ★+canceled
+    DelegationObserver <|.. DelegationAuditObserver : L3 实现（唯一合法审计通道）
+
+    ApprovalCoordinator <|.. VmApprovalCoordinator
+    VmApprovalCoordinator --> ApprovalOutcome
+    VmApprovalCoordinator ..> TaskStore : ★读 canceled（bind 注入）
+    VmApprovalCoordinator ..> PendingApprovalRegistry : set/get/delete
+    VmApprovalCoordinator ..> ApprovalDecisionAudit : ★落三态（best-effort）
+    PendingApprovalRegistry o-- InternalTask : 挂起审批对应
+    PendingApprovalRegistry ..> ApprovalDecisionAudit : ★TTL 清扫落 timeout
+
+    AuditSink <|.. HashChainAuditSink
+    HashChainAuditSink --> ChainVerification : ★scope/shards*
+    HashChainAuditSink --> ArchiveVerification : ★verifyArchive
+    HealthAssembly --> ChainVerification : ★透传 audit 范围
+    HealthAssembly --> SecurityFacts : ★authMode
+    HealthAssembly --> HealthStatus
+    HealthStatus *-- SecurityFacts : ★附加可选
+    HealthStatus *-- ChainVerification : audit 块
+
+    BearerGuard --> SecurityConfig : enforceBearer+tokenEnv
+    BearerGuard ..> HealthAssembly : 事实透出对齐
+    ConfigValidation --> SecurityConfig : ★非回环恒 error
+    ConfigValidation ..> BearerGuard : 生效条件同构（双条件）
+
+    PolicyEngine --> CapabilityPolicy : 读（★模式侧 env 展开）
+    PolicyEngine --> PolicyConfig : 读默认（★收紧 pathAllowlist）
+    PolicyEngine --> EnvPathExpand : ★expandPolicyPathPattern
+    EnvPathExpand <-- ConfigValidation : 同函数下沉复用
+
+    TransportSetup --> SshTunnelTransport : ★消费 tokenEnv
+    TransportSetup --> StreamableHttpTransport : 既有 tokenEnv
+    TransportSetup ..> HostA2ABridgeTools : --token-env 生效
+    LlmBridge ..> TransportSetup : 回连不带凭据（R4）
+
+    WorkbuddyDeterministicProvider ..> A2AServer : handler.runGoal
+    LlmBridge ..> ApprovalCoordinator : await raise（取消已即时解锁）
+    HostA2ABridgeTools ..> A2AServer : tasks/cancel + SSE
+
+    CapabilityPolicy ..> ApprovalDecisionAudit : risk/capabilityId 入条目
+    ApprovalDecisionAudit --> AuditExt : ★kind:'approval-decision'
+    ApprovalDecisionAudit --> AuditSink : 原始 sink（O-7）
+    ArchiveVerification --> AuditExt : ★kind:'chain-archive-verify'
+    SecurityConfig --> SshTunnelTransport : 同名 tokenEnv 约定
