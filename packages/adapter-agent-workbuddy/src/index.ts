@@ -392,11 +392,28 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     const artifacts: Artifact[] = [];
     const started = Date.now();
 
+    /**
+     * 步骤咽喉点（ARCH-22 §1.1-4，T5）。
+     *
+     * **取消优先于执行**：`sink.isCancelled?.() === true` 时在 `this.execute` **之前**返回
+     * 取消哨兵 —— 本方法是五个目标模板唯一的执行闸口，因此「取消后零新能力调用」这一
+     * 安全性质在此处一次成立，无需各模板重复判定（模板只需把哨兵转成收口形状）。
+     * 哨兵不 push steps、不 push artifacts、不调 onArtifact（框架 `addArtifact` 另有
+     * 终态二次闸门，此处不重复推送，避免 canceled 后仍有 artifact 流出的观测矛盾）。
+     *
+     * 返回值新增**纯附加可选**字段 `canceled`：模板据此走 `goalCanceled()`（契约码
+     * `TASK_CANCELED`）而非 `goalFail()`（`EXECUTION_FAILED`）。两者不可混用 ——
+     * LLM provider 的 `shouldDegrade` 会把「EXECUTION_FAILED 且零 artifact」回落成
+     * 确定性执行器**重跑**，用错码等于把用户已叫停的任务再执行一遍。
+     */
     const step = async (
       capabilityId: string,
       params: Record<string, unknown>,
       summary: string,
-    ): Promise<{ ok: boolean; data?: unknown; error?: string }> => {
+    ): Promise<{ ok: boolean; data?: unknown; error?: string; canceled?: boolean }> => {
+      if (sink.isCancelled?.() === true) {
+        return { ok: false, canceled: true, error: '任务已取消，未发起该能力调用' };
+      }
       const traceId = newTraceId();
       sink.onStatus('working', `执行 ${capabilityId}：${summary}`);
       const res = await this.execute({
@@ -418,12 +435,31 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         summary,
         ...(res.error ? { error: res.error } : {}),
       });
+      // 执行**期间**被取消（长能力调用跑到一半宿主叫停）：该次调用已真实发生，故 steps 照常
+      // 记账（呈现面据此事实化）。产物采取**双闸分叉口径**（T3 移交第 7 条 + §8 O-2）：
+      //   · 本地 `artifacts` 仍如实收纳 —— 取消收口的 `GoalResult.artifacts` 是宿主文案计数
+      //     与 QA 反查唯一可读的事实源（框架 O-2 快照里 `result` 在场，`task.artifacts` 只保持
+      //     取消前既有内容，不会替 provider 补记），抹掉它等于把「确实产出了这张截图」这一
+      //     可证事实从账上删除；
+      //   · 流出面 `sink.onArtifact` 一律不再调用 —— 外推通道必须为 0，框架 `TaskStore.addArtifact`
+      //     另有终态二次闸门，两侧口径一致才不会产生「宿主收到已取消任务的产物」的观测矛盾。
+      // 因此本地的产物数可以大于宿主观测到的产物数，这是设计意图而非缺陷。
+      if (sink.isCancelled?.() === true) {
+        for (const a of res.artifacts ?? []) artifacts.push(a);
+        return { ok: res.ok, canceled: true, data: res.data, ...(res.error ? { error: res.error.message } : {}) };
+      }
       for (const a of res.artifacts ?? []) {
         artifacts.push(a);
         sink.onArtifact(a);
       }
       return { ok: res.ok, data: res.data, ...(res.error ? { error: res.error.message } : {}) };
     };
+
+    /**
+     * 取消收口（五个模板共用）。文案只陈述**可证事实**：调用了几次能力、产出了几个
+     * artifact（由 steps/artifacts 数组长度得出），不宣称「未执行任何变更」。
+     */
+    const canceledReturn = (): GoalResult => this.goalCanceled(steps, artifacts, started);
 
     const text = goal.goal;
 
@@ -432,6 +468,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     if (installMatch && this.allowed(goal, 'app.winget.install')) {
       const query = installMatch[1]!.trim();
       const found = await step('app.winget.search', { query, limit: 5 }, `搜索「${query}」`);
+      if (found.canceled) return canceledReturn();
       if (!found.ok) return this.goalFail(steps, artifacts, `搜索失败：${found.error ?? '未知原因'}`, started);
 
       const list = (found.data as Array<{ id?: string; name?: string }> | undefined) ?? [];
@@ -443,6 +480,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         return this.goalFail(steps, artifacts, '搜索结果缺少包 ID，请改用 MCP 指定确切包 ID', started);
       }
       const installed = await step('app.winget.install', { id: target }, `安装 ${target}`);
+      if (installed.canceled) return canceledReturn();
       return {
         ok: installed.ok,
         summary: installed.ok ? `已安装 ${target}` : `安装失败：${installed.error ?? '未知原因'}`,
@@ -455,6 +493,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     /* ---- 模板 2：磁盘空间分析（只分析，不删除 —— 安全默认） ---- */
     if (/(磁盘|空间|容量|占满|清理建议)/.test(text) && this.allowed(goal, 'storage.cleanup.analyze')) {
       const r = await step('storage.cleanup.analyze', { topLargeFiles: 30 }, '分析磁盘占用与清理建议');
+      if (r.canceled) return canceledReturn();
       return {
         ok: r.ok,
         summary: r.ok
@@ -469,6 +508,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     /* ---- 模板 3：系统信息 ---- */
     if (/(系统信息|系统状态|配置|版本)/.test(text) && this.allowed(goal, 'system.info.get')) {
       const r = await step('system.info.get', {}, '获取系统信息');
+      if (r.canceled) return canceledReturn();
       return {
         ok: r.ok,
         summary: r.ok ? '已获取系统信息' : `获取失败：${r.error ?? '未知原因'}`,
@@ -481,6 +521,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     /* ---- 模板 4：截图 ---- */
     if (/(截图|截屏|看看屏幕|当前屏幕)/.test(text) && this.allowed(goal, 'gui.screen.capture')) {
       const r = await step('gui.screen.capture', { asBase64: true }, '截取当前屏幕');
+      if (r.canceled) return canceledReturn();
       return {
         ok: r.ok,
         summary: r.ok ? '已截取当前屏幕（见 artifact）' : `截图失败：${r.error ?? '未知原因'}`,
@@ -508,6 +549,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         { workflow: 'generic_production', params: { goal: text, preferredApp }, outputDirectory: '%USERPROFILE%\\WinVMWorkspace\\out' },
         '调度应用生产工作流',
       );
+      if (r.canceled) return canceledReturn();
       if (r.ok) {
         return {
           ok: true,
@@ -952,6 +994,38 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       artifacts,
       steps,
       error: makeError('EXECUTION_FAILED', summary),
+    };
+  }
+
+  /**
+   * 取消收口（ARCH-22 T5，设计 §1.1-4）。
+   *
+   * 与 `goalFail` 的三点区别，缺一不可：
+   *   1. **契约码用 `TASK_CANCELED`**（不是 `EXECUTION_FAILED`）。LLM provider 的
+   *      `shouldDegrade` 会把「EXECUTION_FAILED 且 artifacts 为空」判定为可降级并
+   *      回落确定性执行器**重跑** —— 用错码等于把用户已叫停的任务再执行一遍。
+   *   2. **文案只陈述可证事实**（已发起的能力调用次数 = steps.length、已产出 artifact
+   *      数 = artifacts.length）。steps 里最多包含取消判定**之前**已真实完成的调用，
+   *      故绝不能宣称「未执行任何变更」。
+   *   3. `retryable:false`（由 `DEFAULT_RETRYABLE` 决定）—— 重跑必须重新发起委派、
+   *      重新过审批闸，而不是对同一任务自动重试。
+   *
+   * artifacts / steps 原样透出（O-2：取消收口不改写既有内容，框架侧亦不再落新产物）。
+   */
+  private goalCanceled(
+    steps: GoalStep[],
+    artifacts: Artifact[],
+    started: number,
+  ): GoalResult {
+    const summary =
+      `任务已取消：取消判定生效前共发起 ${steps.length} 次能力调用、产出 ${artifacts.length} 个 artifact` +
+      '；此后未再发起任何能力调用（如需继续，请重新发起委派并重新过审批）';
+    return {
+      ok: false,
+      summary: `${summary}（耗时 ${Date.now() - started}ms）`,
+      artifacts,
+      steps,
+      error: makeError('TASK_CANCELED', summary),
     };
   }
 }

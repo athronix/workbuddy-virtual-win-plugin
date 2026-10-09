@@ -155,6 +155,16 @@ export function appendDtid(endpoint: string | undefined, dtid: string | undefine
  * VM 内 CLI 的 streamableHttp 客户端原样使用该 URL 回连 `/mcp`，服务端解析 dtid 注入
  * ToolContext → provider 审计落 `channel:'a2a'` + `ext.delegationId`（精确归因）。
  * 缺席时输出与旧实现**逐字节一致**（设计 §9-B-5 回归护栏）。
+ *
+ * ⚠ **Phase 1 安全兑现批 T5 登记的启用前置条件（设计 §10 R4，本批不实现该通路）**：
+ * 本函数产出的 `winvm.url` 是 VM 内 CLI **回连**宿主侧 `/mcp` 的端点，配置里
+ * **没有任何凭据字段** —— 回连凭据通路目前不存在。因此：
+ *   服务侧一旦把 `enforceBearer` 置真（VM 侧 `/mcp`、`/a2a` 要求 Bearer 头），
+ *   这里生成的配置就带不上凭据 ⇒ **委派执行必 401**（且失败形态是 CLI 侧
+ *   「MCP server 连接失败」，不易归因）。
+ * 开启 enforceBearer 之前必须先补齐：① 凭据如何进入 VM 内进程环境（注入面与
+ * 保留期），② 本配置如何承载该凭据（新增字段须走契约评审），③ 401 的可观测归因。
+ * 见 `docs/changes/CL-022/TECHNICAL-SOLUTION.md` 与 `docs/02-design/SECURITY-GOVERNANCE.md` §7。
  */
 export function buildMcpConfig(endpoint: string | undefined, delegationId?: string): string {
   if (!endpoint) return JSON.stringify({ mcpServers: {} });
@@ -460,10 +470,23 @@ async function collectArtifacts(outputDir: string, sinceMs: number): Promise<Art
  *  - `windowsVerbatimArguments=true` —— 命令行已自行转义，禁止 Node 再次加引号
  *    （Node 默认把含引号参数转义为 `\"`，而 cmd.exe 不认 → 真机报「找不到指定路径」）。
  */
+/**
+ * `launchCliProcess` 第 4 参（ARCH-22 T5，**纯附加可选**，缺席即旧行为逐字节不变）。
+ *
+ * 为什么走 `AbortSignal` 而不是让调用方自己 `child.kill()`：委派取消是「先标记终态、
+ * 再打断执行体」的顺序纪律（O-1），signal 由框架 `cancellationSignal` 单一来源驱动，
+ * 两个调用点（单次 `-p` 与常驻会话）无需各自维护 kill 时机，也不会漏掉一条路径。
+ *
+ * 注意 **win32 cmd 包装路径**：`spawn('cmd.exe', …)` 时 kill 的是 cmd.exe 本身，
+ * 孙子进程（真正的 CLI）由 Node 的 `signal` 语义 + 上层 `killChild` 兜底处理；
+ * 两条 spawn 分支都必须透传 signal，否则「.cmd/.bat 场景取消无效」会成为一个
+ * 只在真机暴露的静默缺陷（本批判据③的覆盖点）。
+ */
 export function launchCliProcess(
   cli: CliResolveResult,
   args: readonly string[],
   env: NodeJS.ProcessEnv = process.env,
+  signal?: AbortSignal,
 ): CliChild {
   if (process.platform === 'win32' && cli.isScript) {
     const cmdExe = env['ComSpec'] ?? 'cmd.exe';
@@ -473,12 +496,14 @@ export function launchCliProcess(
       windowsVerbatimArguments: true,
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
+      ...(signal ? { signal } : {}),
     }) as unknown as CliChild;
   }
   return spawn(cli.path, args.slice(), {
     windowsHide: true,
     env,
     stdio: ['pipe', 'pipe', 'pipe'],
+    ...(signal ? { signal } : {}),
   }) as unknown as CliChild;
 }
 
@@ -1201,6 +1226,11 @@ export class CliLlmBridge implements LlmBridge {
     ctx: RunContext,
     resume?: ResumeTurn,
   ): Promise<{ result: LlmGoalResult } | { unavailable: string }> {
+    // ARCH-22 T5 判据②：委派入口前置闸 —— 取消若发生在「上一轮结束 ~ 本轮开始」的
+    // 窗口内，这里直接收口，连常驻会话都不碰（不新建、不复活、不注入新一轮）。
+    if (sink.isCancelled?.() === true) {
+      return { result: this.canceledResult(input, '委派入口取消闸（常驻会话未注入新一轮）') };
+    }
     const mcpConfigPath = await this.prepareMcpConfig(ctx.outputDir);
     if (!mcpConfigPath) return { unavailable: 'MCP 配置文件落盘失败（产物目录不可写）' };
 
@@ -1208,12 +1238,46 @@ export class CliLlmBridge implements LlmBridge {
     const pump = createArtifactPump(ctx.outputDir, ctx.started, sink, this.artifactScanIntervalMs);
     sink.onStatus('working', `复用 codebuddy 常驻会话（state=${session.sessionState}）`);
 
+    let turnAborted = false;
     const turnSink = {
       onStatus: (state: TaskState, message?: string): void => {
+        // ARCH-22 T5 判据②（turn 边界轮询）：常驻会话的每一次状态上报即一次「轮内取消检查点」。
+        // 命中则调用 `abortActiveTurn` 真正打断当前轮（内部走既有 activeAbort ⇒ 该轮 promise
+        // 以不可用态落终态，runTurn 随即返回），并置位 turnAborted 供下方收口分流。
+        // 为何挂在 onStatus 而不是别的回调：onStatus 是常驻会话**唯一**的逐事件出口，
+        // 无需改 session 的事件协议即可拿到轮询时机，属**纯附加**消费（框架零改动）。
+        //
+        // 命中取消后**不再将任何状态上报转发给宿主**（含打断之后 CLI 残留输出）：
+        // 任务已是 canceled 终态，继续流出 `working` 进度会与终态自相矛盾（观测面失真）。
+        if (sink.isCancelled?.() === true) {
+          if (!turnAborted) {
+            turnAborted = true;
+            session.abortActiveTurn('任务已取消（宿主 a2a.task.cancel 或超时收口）');
+          }
+          return;
+        }
         pump.maybePump();
         sink.onStatus(state, message);
       },
     };
+
+    /**
+     * ARCH-22 T5 判据②（**事件驱动**打断，与上方 onStatus 轮询互为补充）：
+     * 常驻会话在「一轮里长时间不上报状态」时（真机常见：CLI 思考期无输出），
+     * 单靠 onStatus 轮询会让取消最多拖延到下一个状态事件。故这里同时订阅框架的
+     * `cancellationSignal`（与 `isCancelled()` 同源，T3 移交第 6 条），信号一到即打断。
+     * 监听器必须在本轮结束后移除：常驻会话跨多次委派复用，残留监听会把**后续任务**
+     * 的取消误打到已结束的会话轮次上（泄漏 + 错杀双重风险）。
+     */
+    const cancelSignal = sink.cancellationSignal;
+    const onAbort = (): void => {
+      if (turnAborted) return;
+      turnAborted = true;
+      session.abortActiveTurn('任务已取消（取消信号到达，常驻会话当前轮被打断）');
+    };
+    if (cancelSignal && !cancelSignal.aborted) {
+      cancelSignal.addEventListener('abort', onAbort, { once: true });
+    }
 
     let turn: TurnResult;
     try {
@@ -1225,7 +1289,20 @@ export class CliLlmBridge implements LlmBridge {
         input.timeoutMs,
       );
     } catch (e) {
+      // 取消打断路径也可能从 runTurn 抛出（会话被判定为异常退出）。
+      // 此时**不得**按「不可用 ⇒ 降级重跑」处理，否则等于把已叫停的任务再跑一遍。
+      if (turnAborted || sink.isCancelled?.() === true) {
+        return { result: this.canceledResult(input, `常驻会话取消打断：${(e as Error).message}`) };
+      }
       return { unavailable: `常驻会话异常：${(e as Error).message}` };
+    } finally {
+      // 本轮结束（无论成功/失败/取消）即摘除取消监听 —— 见上方注释的泄漏与错杀纪律。
+      if (cancelSignal) cancelSignal.removeEventListener('abort', onAbort);
+    }
+    // 取消优先于一切后续判定（不可用/审批续跑/成功回执）：一旦打断成立就以
+    // TASK_CANCELED 收口，避免 turn.unavailable=true 被上层 shouldDegrade 拉回降级重跑。
+    if (turnAborted || sink.isCancelled?.() === true) {
+      return { result: this.canceledResult(input, '常驻会话当前轮被取消打断') };
     }
     if (turn.unavailable) return { unavailable: turn.error ?? '常驻会话不可用' };
     // K5：记录本轮最终文本（供最外层回执反查；续跑轮后写 → 留下的是最后一轮）
@@ -1300,6 +1377,36 @@ export class CliLlmBridge implements LlmBridge {
     };
   }
 
+  /**
+   * 取消收口（ARCH-22 T5 判据②③，LLM 执行体侧）。
+   *
+   * 三条纪律：
+   *   1. 契约码 **必须**是 `TASK_CANCELED`。`reconcileDelegationTruth`（门 1）与
+   *      `reconcileExecutionTruth`（`!base.ok` 透传）都会原样透传 `ok:false`，
+   *      所以本结果是最终回包；更关键的是 provider 的 `shouldDegrade` 只匹配
+   *      `PROVIDER_UNAVAILABLE` / （`EXECUTION_FAILED` 且零 artifact）⇒ 用 `TASK_CANCELED`
+   *      天然**不会被降级重跑**（用错码＝把用户已叫停的任务再执行一遍）。
+   *   2. 同理**不能**返回 `{ unavailable }` 形状 —— 那会被 `runGoalCore` 当作
+   *      「常驻不可用」并回退到单次 `-p` 冷启动，等于取消后**又跑了第二遍**。
+   *      这是本方法存在的核心理由：取消必须绕开降级通道直接落终态。
+   *   3. `artifacts` / `steps` 返回空数组：取消收口**不做新的磁盘扫描**（O-5 取证
+   *      best-effort 的边界是「不得为取证再引入一次可挂死的 IO」）。宿主看到的
+   *      「取消前既有产物」来自此前 `sink.onArtifact` 已流出的部分（框架侧已按
+   *      artifacts 数量事实化，见 host-a2a-bridge tools.ts），与本返回值无关。
+   */
+  private canceledResult(input: LlmGoalInput, reason: string): LlmGoalResult {
+    const summary =
+      `任务已取消：${reason}；此后未再发起新的能力调用` +
+      (input.taskId ? `（如需继续请重新发起委派并重新过审批）` : '');
+    return {
+      ok: false,
+      summary,
+      artifacts: [],
+      steps: [],
+      error: makeError('TASK_CANCELED', summary, { reason: 'LLM_TURN_CANCELED' }),
+    };
+  }
+
   /** 选择续跑轮文案：有回执=K5「系统已执行」；仅 token=K4「请重发」（灰度 off 路径）。 */
   private resumeTurnText(resume: ResumeTurn): string {
     return 'executed' in resume ? this.executionSuffix(resume.executed) : this.resumeSuffix(resume);
@@ -1314,6 +1421,11 @@ export class CliLlmBridge implements LlmBridge {
     ctx: RunContext,
     resume?: ResumeTurn,
   ): Promise<LlmGoalResult> {
+    // ARCH-22 T5 判据③：单次 -p 路径的取消闸（两条执行路径都要有，否则「常驻关闭/
+    // CLI 未解析」场景下取消只能等超时，宿主侧表现为挂死）。
+    if (sink.isCancelled?.() === true) {
+      return this.canceledResult(input, '委派入口取消闸（单次 -p 未启动子进程）');
+    }
     const { outputDir, started, cli } = ctx;
     const pump = createArtifactPump(outputDir, started, sink, this.artifactScanIntervalMs);
     // K4/K5：续跑时把续跑指令追加到完整系统提示之后，重新拉起一次 codebuddy。
@@ -1393,7 +1505,7 @@ export class CliLlmBridge implements LlmBridge {
       }, input.timeoutMs);
 
       try {
-        child = launchCliProcess(cli, args, process.env);
+        child = launchCliProcess(cli, args, process.env, sink.cancellationSignal);
       } catch (e) {
         clearTimeout(timer);
         finish({
@@ -1404,6 +1516,39 @@ export class CliLlmBridge implements LlmBridge {
           error: makeError('PROVIDER_UNAVAILABLE', 'LLM_RUNTIME_MISSING'),
         });
         return;
+      }
+
+      /**
+       * ARCH-22 T5 判据③：取消信号驱动子进程终止 + **promise 落终态**。
+       *
+       * 为何两件事都要做：`spawn({signal})` 只负责杀进程，**不保证**本 promise 以可归因
+       * 的形状结束（Node 在 abort 时抛的 `error` 事件文案是 `AbortError: The operation
+       * was aborted`，会被下方 `child.on('error')` 归成 `PROVIDER_UNAVAILABLE` ⇒
+       * 触发 provider 降级**重跑**）。故显式注册 abort 监听并**先**以 `TASK_CANCELED`
+       * 调用 `finish`（`settled` 闸使后续 error/close 事件全部空转）。
+       * `once: true` + 在 finish 后移除：长委派 + 多次降级路径不得泄漏监听器。
+       */
+      const cancelSignal = sink.cancellationSignal;
+      if (cancelSignal) {
+        const onAbort = (): void => {
+          clearTimeout(timer);
+          finish({
+            ok: false,
+            summary:
+              `任务已取消：已终止 LLM 运行时子进程（单次 -p 路径），此后未再发起新的能力调用` +
+              `（如需继续请重新发起委派并重新过审批）`,
+            artifacts: [],
+            steps: [],
+            error: makeError('TASK_CANCELED', 'LLM_ONE_SHOT_CANCELED', {
+              reason: 'LLM_CHILD_PROCESS_KILLED',
+            }),
+          });
+        };
+        if (cancelSignal.aborted) {
+          onAbort();
+          return;
+        }
+        cancelSignal.addEventListener('abort', onAbort, { once: true });
       }
 
       child.stdout?.on('data', (d: Buffer) => {
@@ -1422,8 +1567,30 @@ export class CliLlmBridge implements LlmBridge {
         if (t) sink.onStatus('working', `stderr: ${t.slice(0, 240)}`);
       });
 
+      /**
+       * ARCH-22 T5 判据③（**归因优先级**修正）：`spawn({signal})` 在 abort 时由 Node 自身
+       * 在 child 上抛 `AbortError`，而 Node 注册的 abort 监听**早于**本文件的 `onAbort`
+       * （它在 `spawn(...)` 内部登记）⇒ 实测事件顺序是 `child.on('error')` **先于** `onAbort`。
+       * 若不在此处判取消，取消会被归成 `PROVIDER_UNAVAILABLE` —— 而 `shouldDegrade` 恰好
+       * 匹配该码 ⇒ 被打断的任务**回落确定性执行器重跑**（安全红线，比误报更严重）。
+       * 故 error 分支必须先问「这是不是取消造成的」，是则以 TASK_CANCELED 落终态。
+       */
       child.on('error', (e: Error) => {
         clearTimeout(timer);
+        if (cancelSignal?.aborted === true || sink.isCancelled?.() === true) {
+          finish({
+            ok: false,
+            summary:
+              `任务已取消：已终止 LLM 运行时子进程（单次 -p 路径），此后未再发起新的能力调用` +
+              `（如需继续请重新发起委派并重新过审批）`,
+            artifacts: [],
+            steps: [],
+            error: makeError('TASK_CANCELED', 'LLM_ONE_SHOT_CANCELED', {
+              reason: 'LLM_CHILD_PROCESS_KILLED',
+            }),
+          });
+          return;
+        }
         finish({
           ok: false,
           summary: `LLM 运行时错误：${e.message}`,

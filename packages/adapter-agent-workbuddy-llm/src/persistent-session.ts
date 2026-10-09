@@ -223,6 +223,14 @@ export class PersistentCliSession {
   private initWaitTimedOut = false;
   private activeHandler: ((ev: Record<string, unknown>) => void) | undefined;
   private activeAbort: ((reason: string) => void) | undefined;
+  /**
+   * ARCH-22 T5：本会话**当前轮**是否被 `abortActiveTurn` 打断过（由该公开方法置位，
+   * `runTurn` 主体开始时清零）。存在的唯一理由是「取消后绝不同轮重建重试」：
+   * 打断走的是既有 `unavailable=true` 形状，而 `runTurn` 的既有语义对 unavailable 会
+   * **杀掉再重建并重投本轮** —— 那是崩溃恢复路径，对取消而言等于把用户已叫停的活
+   * 再跑一遍（安全红线）。故必须在重建分支之前把「取消打断」与「崩溃不可用」分流。
+   */
+  private turnAbortedByCancel = false;
   /** K2：预热进行中（单飞；避免 fire-and-forget 重入重复 spawn / 重复写消息） */
   private warmupInFlight: Promise<boolean> | undefined;
   /**
@@ -556,6 +564,36 @@ export class PersistentCliSession {
   }
 
   /**
+   * ARCH-22 T5 判据②：打断常驻会话**当前轮**（由 `CliLlmBridge` 在委派取消时调用）。
+   *
+   * 复用既有 `activeAbort` 内部钩子（execTurn / 预热各挂接一次），**不新增任何状态语义**：
+   *   1. `activeAbort(reason)` → 当前轮 promise 以既有形状落终态（`settled` 闸保证与
+   *      超时/result/退出互斥，不会二次履行）；
+   *   2. `killChild()` → **这一步才是取消的实质**。只 resolve promise 而留 CLI 活着，
+   *      VM 内的 agent 会继续自行发起工具调用（真实写入/删除照旧发生），取消就成了
+   *      假动作。杀掉 CLI 进程才真正止血；常驻会话随后按既有 `ensureReady` 路径
+   *      在下次委派时重建（代价 = 一次冷启动，远小于「已叫停却仍在改机器」）；
+   *   3. 顺序上先 abort 后 kill：与 O-1（先标记终态再动执行体）一致，且 `killChild`
+   *      先清 `child` 引用 ⇒ 后续 exit 事件被 `wasAlive=false` 门卫拦截，不会把取消
+   *      记成 `lastError`（取消不是故障，不得污染 /health 的历史信号面）。
+   *
+   * 无在飞轮次时返回 false 且**不动子进程**（空闲期杀进程属无谓抖动，且会误伤预热）。
+   * `killChild` 后把 state 归到 `stopped`：`childAlive()` 已为 false，快照不得再呈现
+   * 「ready 但无 pid」的自相矛盾态（与 D11「state 只反映当前」纪律一致）。
+   */
+  abortActiveTurn(reason: string): boolean {
+    const abort = this.activeAbort;
+    if (!abort) return false;
+    this.turnAbortedByCancel = true;
+    this.log('LLM 常驻会话当前轮被取消打断', { reason, pid: this.pid });
+    abort(reason);
+    this.killChild();
+    if (this.state === 'ready' || this.state === 'degraded') this.state = 'stopped';
+    this.lastUsedMs = this.now();
+    return true;
+  }
+
+  /**
    * 投喂一轮目标。
    *
    * `unavailable=true` 表示「常驻会话不可用」，调用方应回退单次 `-p`（AC1.5）。
@@ -568,6 +606,9 @@ export class PersistentCliSession {
   ): Promise<TurnResult> {
     return this.enqueue(async () => {
       const started = this.now();
+      // ARCH-22 T5：本轮开始即清「取消打断」标志（串行链保证一次只有一轮在飞，
+      // 标志的生命周期因此与「本轮」严格对齐）。
+      this.turnAbortedByCancel = false;
       if (this.disposed) return this.unavailableResult(started, '会话已关闭（shutdown）');
       if (this.state === 'disabled') return this.unavailableResult(started, this.lastError ?? '常驻会话已停用');
 
@@ -582,6 +623,13 @@ export class PersistentCliSession {
       // init 有界等待上界 = min(readyTimeoutMs, 本轮剩余预算)，R2 预算语义不变。
       const first = await this.execTurn(prompt, sink, timeoutMs, Math.max(0, timeoutMs - (this.now() - started)));
       if (!first.unavailable) return first;
+
+      // ARCH-22 T5（取消 ≠ 崩溃）：本轮被 `abortActiveTurn` 打断 ⇒ **绝不进入同轮重建重试**。
+      // 下面的重建是既有「进程崩溃至多恢复一次」路径，对取消而言等于把用户已叫停的
+      // 目标重新投喂给新 CLI 进程再跑一遍 —— 那是安全红线，不是性能问题。
+      // 返回 `unavailable` 的既有语义由上层保留；但 `CliLlmBridge.runPersistent` 会先以
+      // `sink.isCancelled()` 判定取消并直接以 TASK_CANCELED 收口，**不会**降级单次 -p 重跑。
+      if (this.turnAbortedByCancel) return first;
 
       // init 有界等待超时 → 直接走既有降级（上报 unavailable → 上层回退单次 -p），**不进入
       // 同轮重建**：init 是懒事件，立即重建再等大概率再次超时且重复消耗预算；对齐 R2 既有

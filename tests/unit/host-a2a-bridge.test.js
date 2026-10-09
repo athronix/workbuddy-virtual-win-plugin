@@ -247,6 +247,22 @@ describe('其它委派工具', () => {
   test('a2a.task.cancel 返回 canceled', async () => {
     const res = await findTool(toolsFor(mockClient()), 'a2a.task.cancel').handler({ taskId: 'task_1' }, CTX);
     assert.equal(res.structuredContent.state, 'canceled');
+    // T5 §1.1-6：VM 侧回包确为 canceled ⇒ 取消成立（cancelObserved 一等公民，宿主无需自比字符串）
+    assert.equal(res.structuredContent.cancelObserved, true);
+    assert.ok(res.content[0].text.includes('VM 侧已确认取消'), '文本须同步呈现取消已确认');
+  });
+
+  test('T5 cancelObserved：回包非 canceled（任务已自行结束）⇒ false 且文本如实说明未生效', async () => {
+    const client = mockClient([], {
+      async cancelTask(id) {
+        return { kind: 'task', id, contextId: 'ctx_1', status: { state: 'completed' }, artifacts: [] };
+      },
+    });
+    const res = await findTool(toolsFor(client), 'a2a.task.cancel').handler({ taskId: 'task_9' }, CTX);
+    assert.equal(res.isError, false, '请求本身成功 ⇒ 不因取消未生效而报错');
+    assert.equal(res.structuredContent.state, 'completed');
+    assert.equal(res.structuredContent.cancelObserved, false, '取消未生效必须如实报 false（不得恒真）');
+    assert.ok(res.content[0].text.includes('取消未生效'), `实测：${res.content[0].text}`);
   });
 
   test('a2a.health 返回 Agent Card 技能清单', async () => {
@@ -411,15 +427,60 @@ describe('CL-016 三终止文案', () => {
     assert.ok(!sc.summary.includes('委派等待超时'));
   });
 
-  test('canceled：取消文案明确审批通道已关闭', async () => {
+  // T5 判据⑥（§10 R3）：本用例原断「审批通道已关闭，未执行任何变更」旧句。
+  // 旧句是不实陈述（取消是协作式的，取消点之前的调用可能已真实改动 VM），
+  // T5 已改为**事实化两态** ⇒ 同步适配（改断言而非改实现；口径见 §1.1-6）。
+  // 原负向守卫（不得暗示默认批准 / 不得混入超时文案）**逐条保留**。
+  test('canceled：取消文案事实化（零执行痕迹态 ⇒ 不宣称变更、不附加计数字段）', async () => {
     const client = mockClient([statusUpdate('canceled', '已取消', { final: true })]);
     const res = await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX);
     const sc = res.structuredContent;
     assert.equal(sc.state, 'canceled');
-    assert.ok(sc.summary.includes('任务已取消（canceled）'));
-    assert.ok(sc.summary.includes('审批通道已关闭'));
+    assert.equal(res.isError, true, 'canceled 必须 isError:true（ok 计算含 canceled）');
+    assert.ok(sc.summary.includes('任务已取消（canceled）'), '应保留 canceled 状态词');
+    assert.ok(sc.summary.includes('取消点之前的操作未执行'), '零痕迹态须按 §1.1-6 明示未执行');
+    assert.ok(!sc.summary.includes('未执行任何变更'), '不实陈述「未执行任何变更」须已退场');
+    assert.equal('executedBeforeCancel' in sc, false, '零痕迹态不得附加该键（判据③：两态可分）');
     assert.ok(!sc.summary.includes('默认批准'));
     assert.ok(!sc.summary.includes('委派等待超时'));
+  });
+
+  test('canceled：有执行痕迹态文案事实化 N 操作/M 产物并附加 executedBeforeCancel', async () => {
+    const client = mockClient([
+      statusUpdate('working', '执行 gui.screen.capture：截取当前屏幕'),
+      artifactUpdate('shot.png'),
+      statusUpdate('canceled', '已取消', { final: true }),
+    ]);
+    const sc = (await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX)).structuredContent;
+    assert.equal(sc.state, 'canceled');
+    assert.ok(sc.summary.includes('取消前已有 1 个操作执行、1 个产物'), `实测文案：${sc.summary}`);
+    assert.ok(sc.summary.includes('请逐项核对 artifacts'), '须引导用户核对，不得撤销核对信号');
+    assert.ok(!sc.summary.includes('未执行任何变更'), '有痕迹态绝不宣称未执行');
+    assert.deepEqual(sc.executedBeforeCancel, { steps: 1, artifacts: 1 }, '判据③：有痕迹态必须附加该键');
+  });
+
+  test('canceled：steps 权威源为 execution-steps artifact（优先于进度文本，载体不计产物）', async () => {
+    const carrier = {
+      kind: 'artifact-update',
+      taskId: 'task_1',
+      contextId: 'ctx_1',
+      artifact: {
+        artifactId: 'a_steps',
+        name: 'execution-steps',
+        parts: [{ kind: 'data', data: { steps: [{ index: 0 }, { index: 1 }, { index: 2 }] } }],
+      },
+    };
+    const client = mockClient([
+      statusUpdate('working', '执行 system.info.get：获取系统信息'),
+      carrier,
+      statusUpdate('canceled', '已取消', { final: true }),
+    ]);
+    const sc = (await findTool(toolsFor(client), 'a2a.delegate').handler({ goal: 'x' }, CTX)).structuredContent;
+    assert.deepEqual(
+      sc.executedBeforeCancel,
+      { steps: 3, artifacts: 0 },
+      'steps 取 artifact 内数组长度；execution-steps 载体本身不得计入「产物数」',
+    );
   });
 
   test('挂起审批仍保留「任务挂起等待审批」语义', async () => {

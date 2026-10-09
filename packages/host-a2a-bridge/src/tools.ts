@@ -294,6 +294,68 @@ function readStringArray(v: unknown): string[] | undefined {
   return out.length ? out : undefined;
 }
 
+/**
+ * ARCH-22 T5（设计 §1.1-6）：**取消前执行痕迹**的事实源派生。
+ *
+ * 病灶：旧 canceled 文案恒称「审批通道已关闭，未执行任何变更」—— 这是**不实陈述**。
+ * 取消是协作式的（只到能力调用边界，见 §10 R10），取消点之前的能力调用**可能已经
+ * 真实改动了虚拟机**；宿主把「未执行任何变更」呈现给用户，等于撤销了用户唯一
+ * 可用的核对信号（用户会以为不用检查了）。
+ *
+ * 口径（只陈述可证事实）：
+ *   - `steps`：优先取 `execution-steps` artifact（`kind:'steps'` / parts 内
+ *     `data.steps` 数组）的条目数 —— 这是 provider 逐步执行记录的权威源；
+ *     取不到时退回进度文本里的**确定性 step 标记**（`执行 <capabilityId>：<摘要>`，
+ *     见 adapter-agent-workbuddy `step()` 的 onStatus 文案）。
+ *   - `artifacts`：已收到的 artifact 总数，**扣除** steps 载体本身（它是执行记录，
+ *     不是产物；计入会让「M 个产物」虚高）。
+ *   - 两者皆 0 ⇒ 返回 `null`（走「取消点之前未执行」文案，且**不**附加字段）；
+ *     任一非 0 ⇒ 返回计数并附加 `executedBeforeCancel`（判据③：两态可分即以此字段
+ *     的有/无为判据）。
+ *
+ * ⚠ O-2 的必然结果（T3 移交第 7 条）：框架侧取消收口**不落 artifacts、不 updateStatus**，
+ * 故 `execution-steps` 在取消路径上通常缺席 ⇒ steps 多半来自进度文本，纯 LLM 委派
+ * 甚至两源皆空而只剩中间产物（M>0, N=0）。此时仍走事实化分支（M 是硬事实），
+ * 文案里两个数字按实际值呈现，不做任何「至少执行了 N 步」的推断。登记偏差 D-32。
+ */
+const STEPS_CARRIER_NAME = 'execution-steps';
+const DETERMINISTIC_STEP_MARK = /^执行\s+[A-Za-z0-9_.\-]+\s*[：:]/;
+
+function deriveExecutedBeforeCancel(
+  artifacts: readonly A2A.Artifact[],
+  progress: readonly { state: string; message: string }[],
+): { steps: number; artifacts: number } | null {
+  let carrier: A2A.Artifact | undefined;
+  for (const a of artifacts) {
+    if (a.name === STEPS_CARRIER_NAME) {
+      carrier = a;
+      break;
+    }
+  }
+  const stepsFromCarrier = ((): number => {
+    if (!carrier) return -1;
+    for (const p of carrier.parts) {
+      const data = (p as { data?: unknown }).data;
+      if (data && typeof data === 'object' && Array.isArray((data as { steps?: unknown }).steps)) {
+        return ((data as { steps: readonly unknown[] }).steps).length;
+      }
+    }
+    return -1;
+  })();
+  const steps = stepsFromCarrier >= 0 ? stepsFromCarrier : progress.filter((m) => DETERMINISTIC_STEP_MARK.test(m.message)).length;
+  const artifactCount = artifacts.length - (carrier ? 1 : 0);
+  if (steps === 0 && artifactCount === 0) return null;
+  return { steps, artifacts: artifactCount };
+}
+
+/** 取消文案两态（§1.1-6 原文口径；`executed` 为 null 即「无执行痕迹」态）。 */
+function canceledSummaryText(executed: { steps: number; artifacts: number } | null): string {
+  return executed
+    ? `任务已取消（canceled）；**取消前已有 ${executed.steps} 个操作执行、${executed.artifacts} 个产物**，请逐项核对 artifacts。` +
+      '（如需继续，请重新发起并重新确认审批）'
+    : '任务已取消（canceled），取消点之前的操作未执行。如需继续，请重新发起并重新确认审批。';
+}
+
 export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
   const defaultMaxRisk = opts.defaultMaxRisk ?? 'L1';
   const defaultTimeoutMs = opts.defaultTimeoutMs ?? 600_000;
@@ -415,6 +477,8 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
       const ok = state !== 'failed' && state !== 'rejected' && state !== 'canceled' && !timedOut;
       const lastMsg = progress.length ? progress[progress.length - 1]!.message : '';
       const timeoutSec = Math.round(timeoutMs / 1000);
+      // ARCH-22 T5：取消态的事实化计数（其余分支不用，判空即 null ⇒ 走「未执行」文案）
+      const executedBeforeCancel = state === 'canceled' ? deriveExecutedBeforeCancel(artifacts, progress) : null;
       // CL-016：分级终止文案，优先级 timedOut → rejected → canceled → approval(挂起) → lastMsg → 状态
       // 红线：三处终止文案均不得出现「超时默认批准/继续/放行」类暗示；
       //      亦**严禁**「已修复 / 已解决」类承诺措辞（CL-018 C2 AC2.2）。
@@ -430,7 +494,7 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
           : state === 'rejected'
             ? '任务已终止：审批被拒绝（rejected），未执行任何变更。如需继续，请重新发起该操作并再次确认。'
             : state === 'canceled'
-              ? '任务已取消（canceled），审批通道已关闭，未执行任何变更。已产出的 artifact 仍可读取；如需继续，请重新发起。'
+              ? canceledSummaryText(executedBeforeCancel)
               : approval
                 ? `任务挂起等待审批：${approval.message}` +
                   // K5：卡片信息量 —— 有真实意图（underlying）时把「真实目标」并入呈现文本，
@@ -473,6 +537,9 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
           state,
           summary,
           ...(timedOut ? { timedOut: true } : {}),
+          // ARCH-22 T5 §1.1-6（**纯附加**）：取消态且有可证执行痕迹时才出现本字段 ⇒
+          // 判据③「宿主文案两态可分（有/无 executedBeforeCancel）」即以此键的有无为判据。
+          ...(executedBeforeCancel ? { executedBeforeCancel } : {}),
           progress,
           artifacts: artifacts.map(summarizeArtifact),
           ...(approvalOut ? { approval: approvalOut } : {}),
@@ -618,7 +685,11 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
   const cancel: McpTool = {
     name: 'a2a.task.cancel',
     title: '取消 A2A 任务',
-    description: '取消 VM 侧正在执行的 A2A 任务（用户要求中止时使用）。',
+    description:
+      '取消 VM 侧正在执行的 A2A 任务（用户要求中止时使用）。' +
+      '注意：取消是**协作式**的（只到能力调用边界），已发起的操作可能已经真实改动虚拟机 —— ' +
+      '宿主须用 a2a.task.get 核对 artifacts 并逐项向用户确认，**不得**据此宣称"未执行任何变更"。' +
+      '返回体 `cancelObserved` 表示 VM 侧回包状态是否确为 canceled。',
     inputSchema: {
       type: 'object',
       required: ['taskId'],
@@ -638,10 +709,31 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
       }
       try {
         const task = await client.cancelTask(taskId);
+        // ARCH-22 T5（§1.1-6）：`cancelObserved` = VM 侧回包的 task.status.state 是否 canceled。
+        // 与「请求已送达」区分开：服务端对已终态任务的 cancel 会回原终态（如 completed/failed），
+        // 此时取消实际**没有生效**（没有任何东西被停）。旧返回体只有 state 一个字段，
+        // 宿主 Agent 需要自己比较字符串；显式布尔位把「取消是否成立」变成一等公民，
+        // SKILL 侧可据此决定是否提示用户核对产物。纯附加字段，既有字段语义不变。
+        const cancelObserved = task.status.state === 'canceled';
         return {
           isError: false,
-          structuredContent: { ok: true, traceId: ctx.traceId, taskId: task.id, state: task.status.state },
-          content: [{ type: 'text', text: `任务 ${task.id} 已请求取消，状态：${task.status.state}` }],
+          structuredContent: {
+            ok: true,
+            traceId: ctx.traceId,
+            taskId: task.id,
+            state: task.status.state,
+            cancelObserved,
+          },
+          content: [
+            {
+              type: 'text',
+              text:
+                `任务 ${task.id} 已请求取消，状态：${task.status.state}` +
+                (cancelObserved
+                  ? '（VM 侧已确认取消；取消点之前的操作可能已改动虚拟机，请核对 artifacts）'
+                  : '（VM 侧回包状态并非 canceled ⇒ 取消未生效，任务可能已自行结束）'),
+            },
+          ],
         };
       } catch (e) {
         return {
