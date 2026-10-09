@@ -297,6 +297,8 @@ TOTAL  files=75 tests=1400 pass=1398 fail=0 skipped=2 nonzeroExit=0   SCRIPT_EXI
 | **D-28** | 改 `src` 后必须 `tsc -b tsconfig.build.json --force` 重建 `dist`，否则 `r19c-a5` 的 **A0 可信度守卫**红（`dist mtime < src mtime ⇒ dist 陈旧，A/B/C 行为断言不可信） | 构建/验证纪律（非代码偏差） | 本轮实际命中一次 ⇒ 重建后 22/22 绿。**非实现缺陷**，但会让"只跑 `tsc -b` 增量"的同事踩到 ⇒ 登记以便 QA 复现时照做 |
 | **D-29** | 跑测留档脚本改为**末尾一次性 `writeFileSync`**（原逐行 `appendFileSync` 在本文件系统上丢写 ⇒ 留档只剩 9 行） | 工具/取证纪律 | 残缺留档 = 假绿证据（"没记到"与"没跑到"无法区分）。同时保留 stdout 双份 `t4-full-run.stdout.txt` 互证；`COLLECT_ERROR` 显式标记逻辑不变 |
 
+| **D-30** | 环境异常（**非代码缺陷**）：文件系统**读数漂移**（无编辑时同一文件两次读到不同行数/字节）+ 逐行 `appendFileSync` **丢写** ⇒ 跑测留档脚本加固为 `fsync` + 读回逐字节比对、不合则重写 ≤5 次并打 `# ARCHIVE_VERIFIED` | 取证工具加固（`$HOME/wbtmp/t4-run-all.mjs`，非仓库文件） | 详见 §17 末段。残缺留档会被读成「没记到 = 没问题」，属假绿证据 ⇒ 必须在脚本层自证，不靠人工核对 |
+
 **未登记即未做**：`delegation-audit.ts` 零 diff；`core/src/policy/engine.ts` 零 diff；`freshChainOnStart` 值未动；`buildPreview/hasDryRunParam/collectImpact` 与 `executeCapability` 策略段未触；**未新造任何 env 旋钮**（`WINVM_[A-Z_]*(PENDING|SWEEP|TOKEN_TTL|BEARER_TOKEN_TTL)[A-Z_]*` 在 T4 全部改动面上零命中，TTL 复用既有 `WINVM_APPROVAL_TTL_MS`，`TaskStore` 上界用模块级常量而非 env）。
 
 ## §14 移交 T5 / QA
@@ -350,6 +352,30 @@ TOTAL  files=75 tests=1400 pass=1398 fail=0 skipped=2 nonzeroExit=0   SCRIPT_EXI
 
 **零 diff（本批刻意不动）**：`packages/vm-service/src/delegation-audit.ts`（889 行，§10-4）、`packages/core/src/policy/engine.ts`、`packages/contracts/src/*`、`packages/a2a-framework/src/*`。
 
-**git 纪律**：本批未执行任何 `git add` / `git commit` / `git checkout`；工作区改动面即上表。`git status` 中另有 `.workbuddy/**`、`v3-kn2.*` 等**非本批产物**（主理人侧/历史遗留），请勿与 T4 混提。
+**git 纪律**：本批我未执行任何 `git add` / `git commit` / `git checkout`；工作区改动面即上表。
+
+## §17 提交后复验（主理人已提交 T4）
+
+主理人在本笔记落盘后完成提交：`HEAD = 90db1ad`（`feat(phase1-T4): vm-service 装配层…`），13 文件 `+3595 / -17`，含上表全部改动（`server.ts +469`、`approval-replay.ts +246`、`http-guard.ts +294`、`pending-approvals.ts +277`、`index.ts +45`、`r19c-kn1-e-mutation +64/-1`、三个 `phase1-t4-*.test.js` 1131/391/321 行、本笔记 355 行）⇒ §16 的"untracked"分类自该刻起失效，实数以 `git show --stat 90db1ad` 为准。
+
+**提交后 `git status --porcelain` 对本批文件 = 空**（仅剩 `.workbuddy/**`、`v3-kn2.*`、`winvm-dist.tgz` 等非本批产物）。
+
+**提交态复跑（逐文件，9 个 T4 关键文件）**：
+
+```
+phase1-t4-http-guard        40/40 fail=0 exit=0
+phase1-t4-pending-approvals 28/28 fail=0 exit=0
+phase1-t4-assembly          45/45 fail=0 exit=0
+r19c-kn1-e-mutation         54/54 fail=0 exit=0
+r19c-kn1-e-shape            33/33 fail=0 exit=0
+assembly-guard              24/24 fail=0 exit=0
+r19c-a5-approval-coordinator 22/22 fail=0 exit=0
+k5-replay                   41/41 fail=0 exit=0
+r19c-kn1-a-pure             76/76 fail=0 exit=0
+```
+
+`tsc -b tsconfig.build.json` 于提交后复跑 **exit 0**。⇒ T4 在 HEAD `90db1ad` 上编译与测试双绿，§12 的全量口径（75 文件 / 1400 例）对应工作区 = 该提交（其前）态，差值仅本节的文档追加。
+
+**本文件系统异常（QA 复现须知，登记为 D-30）**：本轮观测到同一文件的**读数漂移**（`http-guard.ts` 在无编辑情况下先后读到 316 行/16323B 与 294 行/15136B）与 `appendFileSync` **丢写**（留档只剩 9 行）。两者都不是代码缺陷，但都会制造"残缺留档 = 假绿"。已在 `$HOME/wbtmp/t4-run-all.mjs` 内加**读回自证**（`fsync` + `readFileSync` 逐字节比对，不合则重写 ≤5 次，末行打 `# ARCHIVE_VERIFIED attempt=N bytes=N`），本轮最终留档 = 79 行 / 5170B、`ARCHIVE_VERIFIED attempt=1`。若 QA 在别处复现出计数不一致，先查留档是否被截，不要先怀疑测试。
 
 IS_PASS: YES
