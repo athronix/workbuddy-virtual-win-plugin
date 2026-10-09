@@ -452,7 +452,7 @@ New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' `
 >
 > - **回环约束不可关**：`bind` 非回环（如 `0.0.0.0`）⇒ 校验恒 **error** 且**启动被拒**；`security.requireLoopbackBind=false` 自 Phase 1 起**不再能放宽**该约束，只会额外产生一条 warning。因此"非回环直连"这种部署形态在本系统里**不存在**，跨机访问的唯一受支持形态就是本节讲的 `ssh -L` 隧道。
 > - **bearer 是可选加固，默认不校验**：`security.enforceBearer` 默认 `false`；要生效需**双条件**（`enforceBearer===true` **且** `tokenEnv` 指向的 env 有值，缺一即逐字旧行为），是否真挂载由 `/health.security.authMode` 三态显形（`loopback-only` / `bearer-enforced` / `bearer-configured-missing`）。走回环隧道时默认**不需要**任何 bearer 配置。
-> - ⚠ **开 `enforceBearer` 前必须先补齐 VM 内回连凭据通路（本批未实现）**：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目不含凭据，误开会让**委派执行主链路当场 401**（宿主侧 `--token-env` 只覆盖宿主→服务这一段）。残留登记见 `docs/changes/phase1-arch-design.md` §10 R4 与 `SECURITY-GOVERNANCE.md` §2.1（启用前置条件）/ §6.4（两项权衡）。
+> - ⚠ **开 `enforceBearer` 前必须先补齐 VM 内回连凭据通路（本批未实现）**：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目不含凭据。误开（双条件齐）后危害分两段（2026-10-10 B3 真机演练实测订正）：宿主不带凭据 ⇒ **HTTP 层当场 401**（可见，`--token-env` 覆盖此段）；VM 内回连段 401 打在**工具面** ⇒ 委派不报错、退化为**零副作用的虚假完成**（终态 `completed` + 链上 `zeroInnerCalls:true`「完成声称不予采信」，由 CL-K3R 真值层兜住）。⇒ 演练/排障时**不得**以"任务显示成功"推断守卫未生效；运维自查看 `/health.security.authMode` 与服务日志 `bearer 守卫拒绝请求` warn（拒绝不入审计链）。残留登记见 `docs/changes/phase1-arch-design.md` §10 R4 与 `SECURITY-GOVERNANCE.md` §2.1（启用前置条件）/ §6.4（两项权衡）。
 
 ### 8.2 SSH 通道怎么认证：用密钥，不用密码
 

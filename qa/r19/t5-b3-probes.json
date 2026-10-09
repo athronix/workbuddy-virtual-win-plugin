@@ -1,0 +1,43 @@
+{
+  "at": "2026-10-09T19:43:55.965Z",
+  "probes": {
+    "health_noAuth": {
+      "status": 200,
+      "security": {
+        "loopbackOnly": true,
+        "boundLoopback": true,
+        "authMode": "bearer-enforced"
+      }
+    },
+    "noAuth": {
+      "status": 401,
+      "body": {
+        "error": "unauthorized",
+        "code": "AUTH_REQUIRED"
+      }
+    },
+    "wrongToken": {
+      "status": 401,
+      "body": {
+        "error": "unauthorized",
+        "code": "AUTH_REQUIRED"
+      }
+    },
+    "rightToken": {
+      "status": 200,
+      "body": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "result": {
+          "tasks": [],
+          "nextPageToken": "",
+          "pageSize": 50,
+          "totalSize": 0
+        }
+      }
+    },
+    "mcp_noAuth": {
+      "note": "见 log_401_lines / 委派结果，构造方式与 R4 登记一致"
+    }
+  }
+}

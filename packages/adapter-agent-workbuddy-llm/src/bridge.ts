@@ -160,8 +160,11 @@ export function appendDtid(endpoint: string | undefined, dtid: string | undefine
  * 本函数产出的 `winvm.url` 是 VM 内 CLI **回连**宿主侧 `/mcp` 的端点，配置里
  * **没有任何凭据字段** —— 回连凭据通路目前不存在。因此：
  *   服务侧一旦把 `enforceBearer` 置真（VM 侧 `/mcp`、`/a2a` 要求 Bearer 头），
- *   这里生成的配置就带不上凭据 ⇒ **委派执行必 401**（且失败形态是 CLI 侧
- *   「MCP server 连接失败」，不易归因）。
+ *   这里生成的配置就带不上凭据 ⇒ VM 内 CLI 回连全 401。⚠ 失败形态**不是**
+ *   "委派当场失败"（2026-10-10 B3 真机演练实测订正）：401 打在**工具面**，
+ *   LLM 会话无工具可用仍会"口头收尾"⇒ 委派终态 `completed` + 零能力产物，
+ *   由 CL-K3R 真值层 `zeroInnerCalls:true`「完成声称不予采信」兜住。
+ *   即：危害是**静默的零副作用虚假完成**，比当场失败更隐蔽，判据不可移除。
  * 开启 enforceBearer 之前必须先补齐：① 凭据如何进入 VM 内进程环境（注入面与
  * 保留期），② 本配置如何承载该凭据（新增字段须走契约评审），③ 401 的可观测归因。
  * 见 `docs/changes/CL-022/TECHNICAL-SOLUTION.md` 与 `docs/02-design/SECURITY-GOVERNANCE.md` §7。

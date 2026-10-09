@@ -104,7 +104,9 @@ export interface SecurityConfig {
    *
    * ⚠ 开启动作的前置条件（R4，必须在文档写黑）：VM 内 codebuddy 回连 `/mcp?dtid=` 的
    * mcpServers 条目**目前不含凭据**（`adapter-agent-workbuddy-llm/src/bridge.ts` 的
-   * `buildMcpConfig`）⇒ 直接开 `enforceBearer` 会让委派执行主链路当场 401。
+   * `buildMcpConfig`）⇒ 直接开 `enforceBearer` 会让 VM 内回连全 401。B3 真机实测（2026-10-10）
+   * 订正失败形态：401 打在工具面 ⇒ 委派不当场失败，而是退化为零副作用虚假完成
+   * （`completed` + 链上 `zeroInnerCalls:true`，CL-K3R 真值层不予采信兜住）；宿主不带凭据段则当场 401。
    * 回连凭据分发通路属部署契约（设计 §5 第 3 条：本批不实现）。
    */
   readonly enforceBearer?: boolean;

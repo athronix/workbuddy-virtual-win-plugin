@@ -62,9 +62,9 @@
 
 | # | 项 | 为何 BLOCKED | 归属 |
 |---|---|---|---|
-| B1 | §7.4-T5 **①②③真机端到端**（真实 codebuddy CLI + 真实委派途中取消） | 需 VM=172.100.2 部署 T5 码后执行；**未提交代码禁止部署**，且真机操作由主理人执行 | 主理人部署后复跑（判据 S1：宿主 `tasks/cancel` → provider 边界退出 → 框架收口 → 链上 canceled → 宿主事实化文案） |
-| B2 | win32 `cmd.exe` 包装路径的 signal 透传**实跑** | 本仓跑测环境为 POSIX，无法真起 `cmd /c` 子进程；改以形态计数钉 + 变异自证覆盖 | 真机回归（`.cmd/.bat` 形态的 codebuddy 取消一次即可证） |
-| B3 | `enforceBearer=true` 时委派**必 401** 的正向复现 | 需真机开守卫（且当前无回连凭据通路 = R4 已知） | 主理人决定是否在验收环境演练一次并留证 |
+| B1 | §7.4-T5 **①②③真机端到端**（真实 codebuddy CLI + 真实委派途中取消） | ~~需 VM 部署 T5 码后执行~~ **已完成（2026-10-09/10 主理人+成员真机）**：deploy-vm 五阶段绿后 task `cde70b18` 取消 ⇒ `/health.llmSession` pid 4536→stopped/restarts 0（CLI 真杀+重建闸守住）+ 链上 `TASK_CANCELED` | ✅ PASS，证据 `qa/r19/t5-b1-evidence.md` / `t5-b1-cancel.out.json`（commit 6792413）；晚取消态（`executedBeforeCancel` 有态）QA 收官可按 notes §10-3 两趟口径补跑 |
+| B2 | win32 `cmd.exe` 包装路径的 signal 透传**实跑** | 本仓 POSIX 无法真起 `cmd /c` ⇒ 已改 VM 实测 | ✅ PASS：VM 内 `resolveCliPath('codebuddy.cmd')` isScript=true；launch+50ms abort ⇒ AbortError→SIGTERM exit/close 全序实证（`qa/r19/t5-b2-cmdsignal.result.txt`） |
+| B3 | `enforceBearer=true` 的失败形态演练（原表述"委派必 401"已被实测订正） | 需双条件齐（enforceBearer+env 值），单开开关守卫不挂 | ✅ 已完成（2026-10-10 成员真机演练+复原复验）：宿主无凭据段当场 401 `{error:'unauthorized',code:'AUTH_REQUIRED'}`；VM 内回连段 401 打在工具面 ⇒ 委派退化为**零副作用虚假完成**（`completed`+`zeroInnerCalls:true`，CL-K3R 兜住）。证据 `$HOME/wbtmp/b3/b3-probes.json`/`b3-delegate.json`；措辞订正已随本次提交入 SECURITY/DEPLOYMENT/ARCHITECTURE/TECHNICAL-SOLUTION/源码注释 |
 | B4 | TaskStore 驱逐在真实长会话中的宿主可见行为（R5：旧 `taskId` 查不到） | 需 ≥200 任务或 1h 驻留窗口 | 未记录（框架层 T3 已离线证驱逐规则） |
 | B5 | QA 独立复跑与智能路由判定 | 团队任务 #4 / QA 收官批统一执行 | **本栏留空待 QA 填写** |
 | B6 | 测试基线数字对外口径（1247→1400→1456 的表述） | 属 QA 收官批统一口径，工程侧不动 | QA |

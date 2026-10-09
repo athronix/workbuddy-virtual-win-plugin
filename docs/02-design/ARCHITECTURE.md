@@ -290,7 +290,7 @@ skills/<name>/
 | 白名单 / 拒绝优先 | `core/policy`（路径/进程/注册表白名单 + 路径/命令/进程黑名单；**命令面只有黑名单**，`commandAllowlist` 已删除，ARCH-18） |
 | 审批闸 | `core/policy` 判定 → MCP 侧返回待确认 / A2A 侧置 `input-required` |
 | 哈希链审计 | `core/audit`（append-only，每条含 `prevHash`）。⚠ **校验范围限定语**：`vm-service` 装配为 `freshChainOnStart:true` ⇒ `verifyChain()`（= `/health.audit.chainValid`）**只覆盖本轮运行的分片**，跨轮历史改由启动 `verifyArchive()` 落的 `chain-archive-verify` 条目提供证据；范围本身机器可读（`audit.scope='session'|'full'` + `shardsVerified/shardsTotal/shardsArchived`）。详见 `SECURITY-GOVERNANCE.md` §4.3.1 与 §6.4 权衡一 |
-| 信任边界 | **回环绑定 + SSH 隧道 + 审批闸**，服务端不承担身份鉴权；非回环 ⇒ 启动 `error`（`requireLoopbackBind=false` 已无法放宽，ARCH-07 B 基线）。`security.enforceBearer` 为**可选加固**（默认 false；双条件才挂载守卫；`/health.security.authMode` 三态透出）——**开启前须先补齐 VM 内回连凭据通路，否则委派主链路必 401**（见 §10 与本表下方说明） |
+| 信任边界 | **回环绑定 + SSH 隧道 + 审批闸**，服务端不承担身份鉴权；非回环 ⇒ 启动 `error`（`requireLoopbackBind=false` 已无法放宽，ARCH-07 B 基线）。`security.enforceBearer` 为**可选加固**（默认 false；双条件才挂载守卫；`/health.security.authMode` 三态透出）——**开启前须先补齐 VM 内回连凭据通路，否则宿主不带凭据当场 401、VM 内回连全 401 使委派退化为零副作用虚假完成（`completed`+`zeroInnerCalls:true`，B3 真机实测，见 §10 R4 与本表下方说明）** |
 | 任务取消（真取消） | 契约 `ProgressSink.isCancelled()/cancellationSignal` → 框架 `TaskStore.cancelController` + `addArtifact` 终态守卫 → 服务端 `onGoalTerminal` 三分支（`canceled` 入链、`errorCode:'TASK_CANCELED'`）→ 执行体消费（确定性 `step()` 咽喉 / LLM turn 边界 + CLI 子进程 kill）→ 宿主两态事实化。**协作式、非抢占**（见 `SECURITY-GOVERNANCE.md` §2.2） |
 | 宿主侧静态禁用 | `adapter-host-workbuddy` 生成 `mcp.json` 时写入 `disabledTools` |
 | traceId 全链路 | `core` 注入，贯穿 MCP/A2A/能力执行/审计 |

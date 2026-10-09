@@ -88,7 +88,7 @@ EXECUTION_FAILED && artifacts.length === 0 → 降级到确定性执行器
 
 ### B.4 VM 内回连凭据通路 = 本批**刻意不做**（**R4 中危残留**）
 
-`buildMcpConfig()`（`adapter-agent-workbuddy-llm/src/bridge.ts:159-175`）下发给 VM 内 agent CLI 的 `mcpServers` 条目回连本服务 `/mcp?dtid=…`，**不含凭据**。故误开 `enforceBearer` ⇒ 委派主链路当场 401。本批动作**只有两项**：源码处注释登记启用前置条件；SECURITY §2.1/§6.1、ARCHITECTURE §7/§10、DEPLOYMENT §8.1 三处文档写黑。宿主侧 `--token-env` 只覆盖"宿主→服务"这一段，覆盖不到"VM 内→服务"这一段 —— 这是两条通路，别混。
+`buildMcpConfig()`（`adapter-agent-workbuddy-llm/src/bridge.ts:159-175`）下发给 VM 内 agent CLI 的 `mcpServers` 条目回连本服务 `/mcp?dtid=…`，**不含凭据**。故误开 `enforceBearer` ⇒ VM 内回连全 401。⚠ 失败形态已由 B3 真机演练（2026-10-10）实测订正：不是"委派主链路当场 401"，而是 401 打在**工具面** ⇒ LLM 无工具可用仍"口头收尾"⇒ 委派退化为**零副作用的虚假完成**（终态 `completed` + 链上 `zeroInnerCalls:true`「完成声称不予采信」，CL-K3R 真值层兜住）；宿主不带凭据发起则 HTTP 层当场 401（该段 fail-loud 成立）。本批动作**只有两项**：源码处注释登记启用前置条件；SECURITY §2.1/§6.1、ARCHITECTURE §7/§10、DEPLOYMENT §8.1 三处文档写黑。宿主侧 `--token-env` 只覆盖"宿主→服务"这一段，覆盖不到"VM 内→服务"这一段 —— 这是两条通路，别混。
 
 ---
 
@@ -230,7 +230,7 @@ canceledSummaryText(executed)                     // null ⇒ 「…取消点之
 |---|---|---|---|
 | 取消折叠成 `EXECUTION_FAILED` 触发降级重跑 | **高**（安全性） | `TASK_CANCELED` 收口 + `canceledResult()` 不走 `{unavailable}` + 两条对照守卫（含"降级通路是活的"证伪用例） | 不可回滚（回滚即恢复安全缺陷） |
 | `abortActiveTurn` 未杀子进程 ⇒ 取消成假动作 | **高** | 三步顺序 + 重建红线，`phase1-t5-llm-cancel` 断 `abortActiveTurn` 恰一次 | 不可回滚 |
-| 误开 `enforceBearer` ⇒ 委派主链路 401（R4） | **中** | 默认 false；双条件挂载；`authMode` 三态显形；四处文档写黑 + 源码注释登记前置条件 | 可回滚（关掉即回旧行为）——这正是"默认关"的设计意图 |
+| 误开 `enforceBearer` ⇒ VM 内回连全 401、委派退化为零副作用虚假完成（R4；B3 真机实测形态，非"当场失败"） | **中** | 默认 false；双条件挂载；`authMode` 三态显形；四处文档写黑 + 源码注释登记前置条件；CL-K3R `zeroInnerCalls` 不采信兜住虚假完成 | 可回滚（关掉即回旧行为）——这正是"默认关"的设计意图 |
 | 白名单收紧打断既有跨账户工作流（B-1） | **中** | `mergePolicy` 并集 ⇒ 运维可显式追加；DENY 带 `matchedRule:'pathAllowlist:miss'` 可定位 | 半可回滚：可加条目，**不可**把默认值改回去 |
 | 旧配置写 `commandAllowlist` 被 schema 拒（B-2） | **低→中** | schema 当前未接运行期校验（D-3 已登记）；升级前删键即可；报错信息可定位 | 可回滚（删键） |
 | 非回环部署起不来（B-3） | **中** | 唯一受支持形态 = `ssh -L` 隧道；error 文案含原因 | **刻意不可回滚**（可关即等于第 0 层可消失） |
@@ -292,6 +292,6 @@ T5 代码面终局实跑（工程侧，留档 `$HOME/wbtmp/t5-full-run.txt`）�
 ```
 # 取消真语义：委派长任务中 a2a.task.cancel → VM 内 CLI 子进程消失（Get-Process 反查）→ 链上 canceled + TASK_CANCELED
 # 常驻打断：LLM 委派思考期取消 → abortActiveTurn 生效 → 同一 CLI 不再发起后续工具调用
-# 误开 enforceBearer：真机复现委派 401（R4 证据，用于确认"文档警告"与真机行为一致）
+# 误开 enforceBearer：真机复现（B3，2026-10-10 已完成）——实测形态=VM 内回连全 401 ⇒ 委派零副作用虚假完成（completed+zeroInnerCalls:true），宿主无凭据段当场 401；证据 $HOME/wbtmp/b3/
 # 跨账户 DENY：%USERPROFILE% 实际值下 ALLOW / 其他账户 DENY 的端到端各一例（T2/T4 部署验收已跑通 ①②）
 ```
