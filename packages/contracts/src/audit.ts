@@ -70,7 +70,22 @@ export interface AuditStepSummary {
  * 账本聚合；内层回连条目带 `{kind:'inner-call', delegationId, channel}`（通道 2 精确归因）。
  */
 export interface AuditExt {
-  readonly kind?: 'delegation-start' | 'delegation-complete' | 'inner-call';
+  readonly kind?:
+    | 'delegation-start'
+    | 'delegation-complete'
+    | 'inner-call'
+    /**
+     * ARCH-05（**纯附加枚举成员**）：一次审批**否定决策**（rejected / timeout / canceled）
+     * 的链上取证。病灶：三条决策路径（宿主拒绝、TTL 超时、挂起中被取消）过去只进 `logger`，
+     * 链上「谁拒的、拒哪个 approvalId、何时拒」不可证，且 timeout 与普通 failed 折叠成一条。
+     */
+    | 'approval-decision'
+    /**
+     * ARCH-06 A2（**纯附加枚举成员**）：服务启动期对**历史归档分片**的校验结论条目。
+     * 由 `vm-service` 经**原始 sink**（不经 `wrapAuditSink`）落一条，
+     * 用于把「本轮 chainValid 只覆盖 session 范围」这件事补成跨轮可查的证据。
+     */
+    | 'chain-archive-verify';
   /** 委派 traceId（= A2A goal.traceId），与内层回连调用建立归因链 */
   readonly delegationId?: string;
   readonly taskId?: string;
@@ -91,6 +106,33 @@ export interface AuditExt {
   readonly stepsSummary?: readonly AuditStepSummary[];
   /** 内层回连调用的通道标注（通道 2） */
   readonly channel?: AuditPrincipal['channel'];
+  /**
+   * ARCH-05（**纯附加可选**）：审批决策本身。仅当 `kind === 'approval-decision'` 时有意义。
+   *
+   * 判据顺序**写死**在服务端 `raise` 内：`canceled` > `timeout` > `rejected`
+   * —— 取消导致的 `resolve(false)` 不是宿主拒绝，把它记成 rejected 会把「我们自己的取消」
+   * 伪装成「人工否决」，取证方向性错误（§4 O-4）。
+   *
+   * `'approved'` 成员**本批不落链**（批准后重放段天然已有一条 executed 记录，双写会语义重叠
+   * 并胀链 —— 设计 §5 第 2 条默认取值），但枚举预留，供 ARCH-09（previewHash）批次复用。
+   */
+  readonly decision?: 'approved' | 'rejected' | 'timeout' | 'canceled';
+  /**
+   * ARCH-06 A2（**纯附加可选**）：启动期归档校验的**聚合摘要**。
+   * 仅当 `kind === 'chain-archive-verify'` 时有意义。
+   *
+   * 只记聚合与**断裂分片名清单**、不记逐片明细（防单条体积随分片数线性膨胀）；
+   * `broken` 为空数组即「已校验范围内无断裂」—— 注意它是「已校验 subset 内无断裂」，
+   * 超出 `maxShards` 未校验的分片**只计数**，不得被读成「全部历史完好」。
+   */
+  readonly archive?: {
+    /** 目录下全部分片数 */
+    readonly shardsTotal: number;
+    /** 实际逐片校验的分片数（受 maxShards 上界约束） */
+    readonly shardsVerified: number;
+    /** 校验发现断裂的分片文件名（空数组 = 无断裂） */
+    readonly broken: readonly string[];
+  };
   /**
    * U-P0-3（**纯附加可选**）：本次放行**免除了本应触发的审批闸**时，免除依据的服务端事实。
    *

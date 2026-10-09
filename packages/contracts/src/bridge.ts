@@ -122,6 +122,48 @@ export interface CacheHealth {
   };
 }
 
+/** `/health.security` 增量（ARCH-07 A2 **纯附加**）。让「信任模型是什么」成为机器可读事实。 */
+export type AuthMode = 'loopback-only' | 'bearer-enforced' | 'bearer-configured-missing';
+
+/**
+ * `/health.security` 增量（ARCH-07）。纯附加：缺席即旧行为（旧服务端不报）。
+ *
+ * 为什么必须透出（体检 U-P0-2 / D-10）：V1 的安全推理大量**以部署形态为公理**
+ * （「仅回环 + SSH 隧道 + 审批闸」），而代码过去不保证其中任何一项。本块把生效事实
+ * 而不是配置意图如实报出，运维与宿主可据此判断当前信任边界，而不是读文档猜测。
+ *
+ * 三态 `authMode` 判据（与 `enforceBearer` 生效条件同构，见 §8 O-9 双条件纪律）：
+ * - `loopback-only` —— 未开 `enforceBearer`（默认）⇒ 服务端**不承担身份鉴权**，
+ *   信任边界 = 回环绑定 + SSH 隧道（SECURITY-GOVERNANCE §2 已声明）。
+ * - `bearer-enforced` —— `enforceBearer===true` **且** `process.env[tokenEnv]` 非空 ⇒ 守卫真生效。
+ * - `bearer-configured-missing` —— 开了 `enforceBearer` 或配了 `tokenEnv`，但**环境无值**
+ *   ⇒ 守卫不生效（"以为开了"）。这是一个**必须显形**的降级态，不得静默当作 enforced。
+ */
+export interface SecurityHealth {
+  /** 服务端是否只允许回环绑定（V1 恒 true —— 该约束已不可关） */
+  readonly loopbackOnly: boolean;
+  /** 本次运行**实际**绑定的地址是否回环 */
+  readonly boundLoopback: boolean;
+  /** 当前生效的鉴权模式（事实，不是配置意图） */
+  readonly authMode: AuthMode;
+  /**
+   * 类型级负空间标记：V1 **没有**端点白名单配置（豁免清单硬编码 `/health` 与
+   * `/.well-known/agent-card.json` 两项并在文档中声明）。声明为 `never` ⇒ 任何实现
+   * 试图经 `/health` 报出「可配端点白名单」即编译失败，防止承诺漂移。
+   */
+  readonly endpointAllowlist?: never;
+}
+
+/** `/health.tasks` 增量（ENG-08 **纯附加**）。长跑资源有界性的可观测面。 */
+export interface TasksHealth {
+  /** 当前 TaskStore 内存活任务数（= `size()`） */
+  readonly live: number;
+  /** 生效上限（`0` / 缺席 ⇒ 不设限，即旧行为） */
+  readonly maxTasks?: number;
+  /** 终态任务的驻留 TTL（毫秒；缺席 ⇒ 未启用过期驱逐） */
+  readonly terminalTtlMs?: number;
+}
+
 export interface HealthStatus {
   readonly ok: boolean;
   readonly provider: { readonly id: string; readonly state: ProviderState; readonly detail?: string };
@@ -135,6 +177,25 @@ export interface HealthStatus {
     readonly brokenAt?: number;
     /** D30：断裂原因（SEQ_DUP / SEQ_GAP / HASH_MISMATCH / CHAIN_BREAK） */
     readonly reason?: string;
+    /**
+     * ARCH-06 A2（**纯附加可选**）：本次 `chainValid` 结论**校验了什么范围**。
+     *
+     * 病灶：服务端硬编码 `freshChainOnStart: true`，而 `verifyChain` 在该模式下**只读本轮
+     * `activeShards`** ⇒ 历史分片永久退出校验面，但 `/health.audit` 只报一个 `chainValid`
+     * 布尔，把「校验了什么」藏起来了（体检 U-P0-2：权衡未登记、结论易被误读为
+     * 「全部历史证据有效」）。本字段把这个范围差**变成显式事实**：
+     * - `'session'` = 仅本轮运行期（freshChain 模式）；
+     * - `'full'`    = 目录下全部分片。
+     * 跨轮历史的证据由启动期归档校验条目（`ext.kind:'chain-archive-verify'`）提供，
+     * 而不是由 `chainValid` 冒充。
+     */
+    readonly scope?: 'session' | 'full';
+    /** 参与本次判定的分片数 */
+    readonly shardsVerified?: number;
+    /** 目录下全部分片数 */
+    readonly shardsTotal?: number;
+    /** 未参与本次判定的分片数（= shardsTotal − shardsVerified，恒 ≥0） */
+    readonly shardsArchived?: number;
   };
   /** CL-018 C1：LLM 常驻会话状态（纯附加，非 LLM provider 时缺席） */
   readonly llmSession?: LlmSessionHealth;
@@ -142,6 +203,10 @@ export interface HealthStatus {
   readonly logging?: LoggingHealth;
   /** CL-018 C5：进程内缓存状态（纯附加） */
   readonly cache?: CacheHealth;
+  /** ARCH-07：信任边界事实（纯附加；旧服务端不报 ⇒ 缺席） */
+  readonly security?: SecurityHealth;
+  /** ENG-08：TaskStore 有界化事实（纯附加；未启用驱逐时 `maxTasks` 缺席） */
+  readonly tasks?: TasksHealth;
   /**
    * CL-K3R E-3：审批真值判据运行时模式（纯附加；非 LLM provider 缺席）。
    *
@@ -317,6 +382,32 @@ export interface ProgressSink {
   onArtifact(artifact: Artifact): void;
   /** 阻塞式审批；返回 false 表示拒绝，实现必须中止 */
   onApprovalRequired(req: ApprovalRequest): Promise<boolean>;
+  /**
+   * ARCH-22（**纯附加可选**）：宿主是否已请求取消本任务。
+   *
+   * 背景（病灶）：`tasks/cancel` 过去只置任务记录上的**取消标志位**，而该标志位
+   * **全仓零读取**（静态守卫 `r19c-a5-approval-coordinator.test.js` C3 钉死其出现点，
+   * 本注释刻意不复述该字段名以免污染该判据）⇒ 取消是外观性的：执行体照跑到底，
+   * 宿主 UI 却显示「未执行任何变更」。
+   * 本成员把取消从「抢占」改为**协作式**：框架提供信号，执行体在**每个可安全中断的能力边界**
+   * 主动轮询并退出（框架不拥有执行体，provider 可替换 ⇒ 只能走契约化通路，
+   * 与 `DelegationObserver` / `bypassTagSink` 的回调注入范式同构）。
+   *
+   * 缺席即旧行为（第三方 provider 不实现 ⇒ 退回外观性取消）；但框架层的 artifact 终态守卫
+   * 与链上 `canceled` 终态**无条件生效**（证据面矛盾即被消除，不依赖 provider 是否配合）。
+   * 消费纪律：判定用严格等值（`sink.isCancelled?.() === true`），返回真值即应停止后续副作用，
+   * 并以 `makeError('TASK_CANCELED', …)`（`ok:false`）收口，**不得**静默返回成功。
+   */
+  isCancelled?(): boolean;
+  /**
+   * ARCH-22（**纯附加可选**）：取消信号，供**能 kill 子进程**的执行体消费
+   * （常驻 LLM 会话的 `abortActiveTurn` / 单次 `-p` 子进程的 `ChildProcess` signal）。
+   *
+   * 与 `isCancelled()` 同源（同一个 `AbortController`）：`isCancelled` 面向「轮询」，
+   * 本字段面向「事件」。二者都可选 ⇒ 旧 provider 一个都不实现也不破坏编译。
+   * 缺席即旧行为。**禁止**用 `undefined` 显式写入任何 sink 字面量（附加成员一律条件展开）。
+   */
+  cancellationSignal?: AbortSignal;
 }
 
 /**
@@ -363,10 +454,62 @@ export interface ApprovalCoordinator {
   raise(req: ApprovalRequest): Promise<ApprovalOutcome>;
 }
 
+/**
+ * ARCH-06 A2（**契约层新增**）：单个**历史归档分片**的片内链校验结论。
+ *
+ * 为什么定义在 `contracts`（L0）而不是设计图标注的 `core/audit/chain.ts`（L1a）：
+ * `AuditSink.verifyArchive()` 是本契约的成员，其返回形状若引用 L1a 类型就形成
+ * contracts → core 的反向依赖（违反 §8「依赖方向不可逆」铁律）。登记为实现偏差 D-4；
+ * `core` 侧（T2）以 `export type { ArchiveVerification }` 从本包**再导出**同一类型，
+ * 全仓保持**单一权威定义**，不得出现第二份同形结构。
+ */
+export interface ArchiveVerification {
+  /** 分片文件名（相对审计目录） */
+  readonly shard: string;
+  /** 该片记录条数 */
+  readonly entries: number;
+  /** 片内链是否完整 */
+  readonly valid: boolean;
+  /** 断裂处 seq（valid=false 时有值） */
+  readonly brokenAt?: number;
+  /** 断裂原因（与 `verifyChain` 的 reason 同一取值集：SEQ_DUP / SEQ_GAP / HASH_MISMATCH / CHAIN_BREAK） */
+  readonly reason?: string;
+}
+
 export interface AuditSink {
   append(record: Omit<AuditRecord, 'hash' | 'prevHash' | 'seq'>): Promise<AuditRecord>;
-  /** D30：reason 为断裂原因（SEQ_DUP / SEQ_GAP / HASH_MISMATCH / CHAIN_BREAK），valid=false 时有值 */
-  verifyChain(): Promise<{ valid: boolean; brokenAt?: number; reason?: string; entries: number }>;
+  /**
+   * D30：reason 为断裂原因（SEQ_DUP / SEQ_GAP / HASH_MISMATCH / CHAIN_BREAK），valid=false 时有值。
+   *
+   * ARCH-06 A2（**纯附加可选**）：`scope` / `shardsVerified` / `shardsTotal` / `shardsArchived`
+   * 四字段透出「本次结论校验了什么范围」，与 `HealthStatus.audit` 同名同义（服务端直接透传）。
+   * 缺席即旧行为；**判定逻辑不因这些字段改变**（只是将既有事实显式化，非行为变更）。
+   */
+  verifyChain(): Promise<{
+    valid: boolean;
+    brokenAt?: number;
+    reason?: string;
+    entries: number;
+    /** ARCH-06 A2：'session' = 仅本轮运行期分片；'full' = 目录下全部分片 */
+    scope?: 'session' | 'full';
+    /** 参与判定的分片数 */
+    shardsVerified?: number;
+    /** 目录下全部分片数 */
+    shardsTotal?: number;
+    /** 未参与判定的归档分片数（= shardsTotal − shardsVerified） */
+    shardsArchived?: number;
+  }>;
+  /**
+   * ARCH-06 A2（**纯附加可选**）：对**历史归档分片**逐片做「片内 seq 单调 + 片内 prevHash 链式」
+   * 校验，返回每片结论。跨片首条 prevHash **不比对**（历史片与新片本无链关系 ⇒ 比对必全红）。
+   *
+   * 为什么是可选成员而不是必选：框架/消费方不得假设服务端一定具备归档校验能力
+   * （旧 sink / 内存 sink / 单测桩实现无须补齐）。缺席即「未实现」，调用方**必须**用
+   * `sink.verifyArchive?.()` 取值并按 `undefined` 如实处理，**不得**当作「校验通过」。
+   * 实现侧纪律：有界（最多处理 `maxShards`，默认 30，超出只计数不校验）、全程 try/catch、
+   * **绝不抛**（`/health` 与启动链路都可能经它，取证不得拖垮执行）。
+   */
+  verifyArchive?(maxShards?: number): Promise<readonly ArchiveVerification[]>;
 }
 
 export interface PolicyVerdict {

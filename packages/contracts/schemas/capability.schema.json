@@ -49,9 +49,9 @@
     "output": { "type": "object", "description": "JSON Schema" },
     "policy": {
       "type": "object",
+      "description": "能力级策略覆盖。命令面**只有**黑名单（ARCH-18 裁断：commandAllowlist 为死配置，已从契约与本 schema 删除；解释器准入由注册表枚举 + 登记期校验把守）。本对象 additionalProperties=false ⇒ 再写 commandAllowlist 会被 schema 直接拒绝（R9 要求核实的严格性已确认成立）。",
       "additionalProperties": false,
       "properties": {
-        "commandAllowlist": { "type": "array", "items": { "type": "string" } },
         "commandDenylist": { "type": "array", "items": { "type": "string" } },
         "pathAllowlist": { "type": "array", "items": { "type": "string" } },
         "pathDenylist": { "type": "array", "items": { "type": "string" } },

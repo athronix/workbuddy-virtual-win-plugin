@@ -3,7 +3,9 @@
  *
  * 安全红线：
  *   - server.host 默认 127.0.0.1（VM 对外零端口暴露，NFR-510）
- *   - 绑定到非回环地址必须显式 requireLoopbackBind=false，且启动时会告警
+ *   - 非回环绑定 = **恒定 error**（ARCH-07 B 基线：V1 服务端只允许回环绑定，
+ *     `requireLoopbackBind` 自 Phase 1 起**不再能放宽**，置 false 只会得到一条 warning）
+ *   - 服务端身份鉴权是可选项：`enforceBearer`（默认 false）+ `tokenEnv` 有值 ⇒ 双条件才生效
  */
 
 import { readFile } from 'node:fs/promises';
@@ -63,10 +65,48 @@ export interface SessionConfig {
 }
 
 export interface SecurityConfig {
-  /** bearer token 的环境变量名（HTTP 模式）。禁止明文配置。 */
+  /**
+   * bearer token 的**环境变量名**（禁止明文配置，NFR-511）。默认约定 `WINVM_BEARER_TOKEN`。
+   *
+   * ARCH-07 / ENG-23 后的真实语义（旧事实：全仓唯一读取点只是回环检查的文案，值从未被消费）：
+   * - 服务端：与 `enforceBearer` **双条件**共同决定是否挂 bearer 守卫（§4 O-9，与 dry-run
+   *   bypass 双条件同构，防「以为开了」）；
+   * - 客户端：`streamable-http` 与 `ssh-tunnel` 两条远程传输分支经同一个 `applyBearerHeader`
+   *   消费同名变量（T2 落地）；有名无值 ⇒ **fail-loud 抛错**，不静默降级成裸请求。
+   */
   readonly tokenEnv?: string;
-  /** 强制回环绑定。默认 true —— 关掉等于把 VM 服务暴露出去。 */
+  /**
+   * ARCH-07（B 基线，**刻意破坏性收紧**）：本字段自 Phase 1 起**不再能放宽**。
+   *
+   * V1 服务端只允许回环绑定：`validateServiceConfig` 里「非回环」已升级为**恒定 error**
+   * （不看本字段取值），把 `requireLoopbackBind:false` 也判为配置无效并给出 warning。
+   * 字段本身**保留**（不删）—— 删除会打断 `delivery/vm-service.config.json:59` 与既有文档，
+   * 破坏性更大（设计 §1.4-1 择一 ①）；旧配置仍可解析、不会因解析失败而启动不了。
+   *
+   * 为什么要收紧：过去安全推理的公理是**部署形态**（「仅回环 + SSH 隧道」），而代码不保证它
+   * （审计 D-10 / ARCH-07）。把回环约束变成代码不变量后，「配置漂移导致裸 HTTP 对外可达」
+   * 这一更大的风险被关掉；服务端身份鉴权（bearer）另由 `enforceBearer` 作为可选加固承接。
+   */
   readonly requireLoopbackBind: boolean;
+  /**
+   * ARCH-07 A 形态（**纯附加可选，默认 false**）：是否对非豁免端点强制校验 bearer。
+   *
+   * `false`（默认）⇒ 现网行为逐字节不变，信任边界由「回环绑定 + SSH 隧道 + 审批闸」承担，
+   * 服务端**不承担身份鉴权**（SECURITY-GOVERNANCE §2 已如实声明；把「文档说有防护、
+   * 实际裸奔」的旧承诺诚实化，本身就是修复）。
+   *
+   * `true` ⇒ 生效还**必须**满足第二条件 `process.env[tokenEnv]` 非空（双条件同构 O-9）；
+   * 生效后端点校验 `authorization: Bearer <token>`，用 `crypto.timingSafeEqual` 常时比较
+   * （长度不等先拒），豁免清单 = `GET /health` 与 `GET /.well-known/agent-card.json`，
+   * `/admin/llm-session/reset` **不豁免**（它有能力效果）。失败响应
+   * `401 { error:'unauthorized', code:'AUTH_REQUIRED' }`，不入审计链（HTTP 层属传输事实）。
+   *
+   * ⚠ 开启动作的前置条件（R4，必须在文档写黑）：VM 内 codebuddy 回连 `/mcp?dtid=` 的
+   * mcpServers 条目**目前不含凭据**（`adapter-agent-workbuddy-llm/src/bridge.ts` 的
+   * `buildMcpConfig`）⇒ 直接开 `enforceBearer` 会让委派执行主链路当场 401。
+   * 回连凭据分发通路属部署契约（设计 §5 第 3 条：本批不实现）。
+   */
+  readonly enforceBearer?: boolean;
 }
 
 export interface ServiceConfig {
@@ -197,23 +237,54 @@ export interface ConfigIssues {
   warnings: string[];
 }
 
-/** 配置安全校验。errors 必须阻断启动；warnings 需显式提示。 */
-export function validateServiceConfig(cfg: ServiceConfig): ConfigIssues {
+/**
+ * 配置安全校验。errors 必须阻断启动；warnings 需显式提示。
+ *
+ * @param cfg 待校验配置
+ * @param env 环境变量视图（默认 `process.env`）。ARCH-07 起需要读 env 才能判定
+ *   「tokenEnv 有名无值」这类**生效事实**，故把它做成可注入的第二个参数（**附加可选** ⇒
+ *   既有单参调用点逐字不变，`vm-service/server.ts:337` 无须改）。
+ */
+export function validateServiceConfig(cfg: ServiceConfig, env: EnvView = process.env): ConfigIssues {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (cfg.security.requireLoopbackBind && !isLoopback(cfg.server.host)) {
+  // ARCH-07（B 基线）**不可关**：非回环 ⇒ 恒定 error，**不再看** `requireLoopbackBind` 取值。
+  // 为什么从「可关的开关」升级为「代码不变量」：V1 的服务端不做身份鉴权（见下 tokenEnv 注释），
+  // 整套安全推理的公理是「仅回环 + SSH 隧道」；只要这个公理能被一个配置项静默放宽，
+  // 得到的是「文档说有防护、实际裸 HTTP 零鉴权」的服务（审计 ARCH-07 / D-10）。
+  // 语义单调（更严），旧配置文件仍可解析：默认值为 true 的部署零变化。
+  if (!isLoopback(cfg.server.host)) {
     errors.push(
-      `server.host="${cfg.server.host}" 不是回环地址，而 security.requireLoopbackBind=true。` +
-        `这会违反"VM 对外零端口暴露"（NFR-510）。请改回 127.0.0.1，或显式关闭该开关并自行承担风险。`,
+      `server.host="${cfg.server.host}" 不是回环地址，违反「V1 服务端只允许回环绑定」这条代码不变量` +
+        `（NFR-510：VM 对外零端口暴露）。请把 server.host 改回 127.0.0.1，` +
+        `外部访问一律经 SSH 隧道映射到本机回环；security.requireLoopbackBind=false 不能放宽本约束。`,
     );
   }
-  if (!cfg.security.requireLoopbackBind && !isLoopback(cfg.server.host)) {
+  if (cfg.security.requireLoopbackBind === false) {
     warnings.push(
-      `server.host="${cfg.server.host}" 为非回环地址，服务将对外可达。` +
-        `必须同时启用 TLS 与鉴权，且不得暴露到公网。`,
+      `security.requireLoopbackBind=false 已失效：该开关自 Phase 1 起不再能放宽回环约束` +
+        `（非回环绑定一律按 error 阻断启动）。字段保留只为兼容既有配置文件，建议删除本项或改回 true。`,
     );
   }
+
+  // ENG-05：tokenEnv「有名无值」必须显形 —— 否则运维以为鉴权开了，实际任何请求都不带凭据。
+  const tokenEnvName = cfg.security.tokenEnv?.trim();
+  const tokenValue = tokenEnvName ? env[tokenEnvName]?.trim() : undefined;
+  if (tokenEnvName && !tokenValue) {
+    warnings.push(
+      `security.tokenEnv="${tokenEnvName}" 已配置，但环境变量 ${tokenEnvName} 无值 ⇒ bearer 鉴权不会生效` +
+        `（服务端守卫需「enforceBearer===true 且 tokenEnv 有值」双条件；客户端发请求时同样会 fail-loud 抛错）。` +
+        `未开 enforceBearer 时信任边界仍由「回环 + SSH 隧道 + 审批闸」承担（SECURITY-GOVERNANCE §2），这是设计选择而非故障。`,
+    );
+  }
+  if (cfg.security.enforceBearer === true && !tokenEnvName) {
+    warnings.push(
+      `security.enforceBearer=true 但未配置 security.tokenEnv ⇒ 无 token 可比对，守卫不会生效` +
+        `（/health.security.authMode 将报 "loopback-only"，而非 "bearer-enforced"）。请补 tokenEnv 或关掉 enforceBearer。`,
+    );
+  }
+
   if (!cfg.agent.providers[cfg.agent.provider]) {
     errors.push(
       `agent.provider="${cfg.agent.provider}" 未在 agent.providers 中定义。` +

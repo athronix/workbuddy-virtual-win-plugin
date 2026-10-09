@@ -26,6 +26,24 @@ export interface SshTunnelTransport {
   /** 隧道保活参数 */
   readonly serverAliveInterval?: number;
   readonly serverAliveCountMax?: number;
+  /**
+   * ENG-23（**纯附加可选**）：经本隧道访问服务端 HTTP 端点时携带的 bearer token 的
+   * **环境变量名**（禁止明文落盘，NFR-511），与 `StreamableHttpTransport.tokenEnv` 同名同义、
+   * 默认约定同一变量（`WINVM_BEARER_TOKEN`）。
+   *
+   * 为什么需要（病灶）：`ssh-tunnel` 分支过去**完全不消费** tokenEnv（只有
+   * `streamable-http` 分支拼 `authorization` 头），于是服务端一旦启用 `enforceBearer`
+   * （ARCH-07 A 形态），走隧道的宿主委派会**当场 401**。本字段把客户端凭据通路补齐，
+   * 使「配置即生效」在两条远程传输分支上一键可用；两条分支必须复用**同一个**
+   * `applyBearerHeader` 实现（`core/src/transport/index.ts`），不得各写一份导致语义漂移。
+   *
+   * 语义（缺席即旧行为）：
+   * - 未配置 ⇒ **不发** `authorization` 头（现网部署零变化：信任边界 = 回环 + SSH 隧道）；
+   * - 配置了且环境有值 ⇒ 每次请求带 `authorization: Bearer <token>`；
+   * - 配置了但**环境无值** ⇒ **抛错**（fail-loud，与 `streamable-http` 分支既有语义一致，
+   *   绝不静默降级成裸请求 —— 静默会让运维「以为开了」）。
+   */
+  readonly tokenEnv?: string;
 }
 
 export interface StreamableHttpTransport {

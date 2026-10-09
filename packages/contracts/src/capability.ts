@@ -22,10 +22,28 @@ export const CAPABILITY_DOMAINS: readonly CapabilityDomain[] = [
 /** 能力 ID，形如 `system.service.control`。支持通配匹配 `system.*`。 */
 export type CapabilityId = string;
 
+/**
+ * 能力级策略覆盖（与全局 `PolicyConfig` 同族字段，经 `mergePolicy` 并集后生效）。
+ *
+ * ARCH-18 裁断（owner 已终裁 = **删除**）：本类型**不再有** `commandAllowlist`。
+ * 原字段（正则字符串数组，「未命中即拒绝」）自始至终是**死配置** ——
+ * `core/src/policy/engine.ts` 把它编译成 `cmdAllowRe` 之后**零消费**（Phase 0 审计已证实，
+ * 全仓 grep `cmdAllowRe` 除声明与赋值外无任何读取点），于是「命令面有白名单」成了一个
+ * **沉默的虚假安全感**（体检 D-3 列为最危险的一类）。
+ *
+ * 为什么删而不实现：① 判据只能落在「命令式字符串」上，而引擎识别命令式参数是启发式
+ * （`COMMAND_KEY_RE` + `looksLikeCommandValue`），同一张网既漏又误；② 白名单一旦非空即
+ * 「未命中 → 硬 DENY」，而命中面覆盖 `arguments`/`script`/`goal` 等所有 commandish 串
+ * ⇒ 巡检/卸载/生产三域现有流程面临随机 DENY，误杀只能在真机暴露；③ 解释器准入**已有更强
+ * 机制**（`appops.cli.invoke` 的 `input.app` JSON Schema enum + provider `validateParams`
+ * 早于执行），运行时正则反而是降级。
+ *
+ * 兑现后的口径：**命令面只有黑名单**（`commandDenylist`，优先级最高、命中即拒）；
+ * 解释器/脚本准入由**注册表枚举 + 登记期静态校验**把守，不进运行时字符串正则
+ * （文档口径同步：`docs/02-design/CAPABILITY-MODEL.md`、SECURITY §3.2，属 T5）。
+ */
 export interface CapabilityPolicy {
-  /** 命令白名单（正则字符串）。未命中即拒绝（拒绝优先）。 */
-  readonly commandAllowlist?: readonly string[];
-  /** 命令黑名单（正则字符串）。优先级最高，命中即拒。 */
+  /** 命令黑名单（正则字符串）。优先级最高，命中即拒。命令面**只有**黑名单（ARCH-18）。 */
   readonly commandDenylist?: readonly string[];
   /** 路径白名单（glob 前缀）。 */
   readonly pathAllowlist?: readonly string[];

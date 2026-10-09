@@ -412,7 +412,12 @@ const APPOPS: CapabilityDefinition[] = [
     timeoutMs: 600_000,
     snapshot: 'after',
     policy: {
-      commandAllowlist: ['^node\\b', '^python\\b', '^pwsh\\b', '^powershell\\b', '^cmd\\b', '^ffmpeg\\b', '^magick\\b', '^soffice\\b', '^pandoc\\b'],
+      // ARCH-18（已裁断＝删除）：此处原为 `commandAllowlist: ['^node\\b', '^python\\b', …]`
+      // 共 9 个解释器正则。它是**全仓唯一**写入点，而引擎把 `commandAllowlist` 编译成
+      // `cmdAllowRe` 后**零消费** ⇒ 这串白名单从未影响过一次判定（死配置）。
+      // 解释器准入的**真实**机制是 `appops.cli.invoke` 的 `input.app` enum（登记期 + 入参校验，
+      // 早于执行）；`workflow.run` 的脚本首行解释器校验属登记期静态校验（Phase 2/3 小项，
+      // 设计 §1.7）。保留 pathAllowlist（引擎确实读取该字段）。
       pathAllowlist: ['%USERPROFILE%\\WinVMWorkspace', 'C:\\WinVMWorkspace'],
     },
   }),

@@ -56,6 +56,7 @@
     "probeIntervalMs": 15000
   },
   "security": {
+    "comment": "T1 契约核对（Phase 1 / ARCH-07 B 基线）：① requireLoopbackBind=true 已**不再是可关开关** —— validateServiceConfig 对「server.host 非回环」恒判 error，本项写 false 也不会放宽（只会多一条 warning），保留字段仅为兼容既有配置文件与文档；② tokenEnv 是 bearer token 的**环境变量名**（禁止明文落盘，NFR-511），有名无值时 validateServiceConfig 报 warning（「以为开了」必须显形）；③ 服务端 bearer 校验默认**关**（本文件未写 enforceBearer ⇒ 等价 false），现网信任边界 = 仅回环 + SSH 隧道 + 审批闸，事实经 /health.security.authMode='loopback-only' 机器可读透出。开 enforceBearer 前必须先补齐 VM 内回连（/mcp?dtid=）的凭据通路，否则委派执行会 401 —— 见 docs/02-design/SECURITY-GOVERNANCE.md §2 与 phase1-arch-design.md §5 第 3 条。",
     "requireLoopbackBind": true,
     "tokenEnv": "WINVM_BEARER_TOKEN"
   }
