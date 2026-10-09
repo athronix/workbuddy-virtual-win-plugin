@@ -1,0 +1,5 @@
+B2 真机（VM win32，2026-10-09T19:2xZ）：
+- 前提：VM 上 codebuddy = nvm shim（C:\Users\User\AppData\Local\Author Software\nvm\installs\v24.21.0\codebuddy.cmd）⇒ resolveCliPath isScript=true ⇒ 走 cmd.exe 包装分支
+- launchCliProcess(cli, ['--version'], env, ctrl.signal) + 50ms abort
+- events: ["error:AbortError","abort()","exit:code=null:sig=SIGTERM","close:code=null:sig=SIGTERM"]
+- B2=PASS：cmd 包装进程被 signal 真实终止；且事件顺序实证 bridge.ts 归因优先级修正（Node 内部 AbortError 先于自建 onAbort）
