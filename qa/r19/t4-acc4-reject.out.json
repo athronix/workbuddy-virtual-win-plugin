@@ -1,0 +1,345 @@
+{
+  "case": "A5-approval-reject",
+  "pkg": "QA.T4ACC.Nonexistent.99998",
+  "goal": "卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）",
+  "at": "2026-10-09T17:00:44.687Z",
+  "preflight": {
+    "taskCount": 1,
+    "totalSize": 1,
+    "states": [
+      {
+        "id": "479e8eab-dda4-4b3f-bdb6-0f6d75f577ab",
+        "state": "canceled"
+      }
+    ],
+    "note": "tasks/list 全终态仅说明状态已收口，不证明其 runGoal 已返回（cancelRequested 只写不读）；金标准为「服务重启后首发」，次选为全终态 + 距上一终态 ≥60s"
+  },
+  "send": {
+    "kind": "task",
+    "id": "64597dfe-872f-4486-a98e-63faf67f861f",
+    "contextId": "622c8f5c-029f-4388-97fa-6e704f9a047c",
+    "status": {
+      "state": "working",
+      "timestamp": "2026-10-09T17:00:45.217Z",
+      "message": "WinVM WorkBuddy LLM Agent 接管目标：卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）"
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mv17oud8",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_mv17oud8",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "taskId": "64597dfe-872f-4486-a98e-63faf67f861f",
+  "lastTask": {
+    "kind": "task",
+    "id": "64597dfe-872f-4486-a98e-63faf67f861f",
+    "contextId": "622c8f5c-029f-4388-97fa-6e704f9a047c",
+    "status": {
+      "state": "input-required",
+      "timestamp": "2026-10-09T17:01:01.349Z",
+      "message": {
+        "kind": "message",
+        "role": "agent",
+        "messageId": "1d5780e8-75eb-4545-be06-e0eb5ccd32af",
+        "taskId": "64597dfe-872f-4486-a98e-63faf67f861f",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "需要人工审批（风险 L2）后才能继续。\n操作：app.winget.uninstall\n真实目标：能力 app.winget.uninstall · 参数 id=QA.T4ACC.Nonexistent.99998 · dryRun=false\n说明：卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_701720b0676f48749239\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+          },
+          {
+            "kind": "data",
+            "data": {
+              "type": "approval-request",
+              "approvalId": "apr_701720b0676f48749239",
+              "capabilityId": "app.winget.uninstall",
+              "risk": "L2",
+              "preview": {
+                "capabilityId": "app.winget.uninstall",
+                "risk": "L2",
+                "destructive": true,
+                "requiresSession": false,
+                "params": {
+                  "id": "QA.T4ACC.Nonexistent.99998",
+                  "dryRun": false
+                },
+                "dryRun": {
+                  "supported": true,
+                  "exempt": true,
+                  "requested": false,
+                  "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+                  "hint": "params.dryRun === true 且能力声明 supportsDryRun 时免审批直接放行（dry-run 不改变系统状态）"
+                },
+                "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+              },
+              "impact": [
+                "id=QA.T4ACC.Nonexistent.99998",
+                "dryRun=false"
+              ],
+              "expiresAtMs": 1791567061349,
+              "underlying": {
+                "capabilityId": "app.winget.uninstall",
+                "paramsSummary": "id=QA.T4ACC.Nonexistent.99998 · dryRun=false"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mv17oud8",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_mv17oud8",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "taskAtInputRequired": {
+    "kind": "task",
+    "id": "64597dfe-872f-4486-a98e-63faf67f861f",
+    "contextId": "622c8f5c-029f-4388-97fa-6e704f9a047c",
+    "status": {
+      "state": "input-required",
+      "timestamp": "2026-10-09T17:01:01.349Z",
+      "message": {
+        "kind": "message",
+        "role": "agent",
+        "messageId": "1d5780e8-75eb-4545-be06-e0eb5ccd32af",
+        "taskId": "64597dfe-872f-4486-a98e-63faf67f861f",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "需要人工审批（风险 L2）后才能继续。\n操作：app.winget.uninstall\n真实目标：能力 app.winget.uninstall · 参数 id=QA.T4ACC.Nonexistent.99998 · dryRun=false\n说明：卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_701720b0676f48749239\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+          },
+          {
+            "kind": "data",
+            "data": {
+              "type": "approval-request",
+              "approvalId": "apr_701720b0676f48749239",
+              "capabilityId": "app.winget.uninstall",
+              "risk": "L2",
+              "preview": {
+                "capabilityId": "app.winget.uninstall",
+                "risk": "L2",
+                "destructive": true,
+                "requiresSession": false,
+                "params": {
+                  "id": "QA.T4ACC.Nonexistent.99998",
+                  "dryRun": false
+                },
+                "dryRun": {
+                  "supported": true,
+                  "exempt": true,
+                  "requested": false,
+                  "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+                  "hint": "params.dryRun === true 且能力声明 supportsDryRun 时免审批直接放行（dry-run 不改变系统状态）"
+                },
+                "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+              },
+              "impact": [
+                "id=QA.T4ACC.Nonexistent.99998",
+                "dryRun=false"
+              ],
+              "expiresAtMs": 1791567061349,
+              "underlying": {
+                "capabilityId": "app.winget.uninstall",
+                "paramsSummary": "id=QA.T4ACC.Nonexistent.99998 · dryRun=false"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mv17oud8",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_mv17oud8",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "reachedInputRequired": true,
+  "approvalData": {
+    "type": "approval-request",
+    "approvalId": "apr_701720b0676f48749239",
+    "capabilityId": "app.winget.uninstall",
+    "risk": "L2",
+    "preview": {
+      "capabilityId": "app.winget.uninstall",
+      "risk": "L2",
+      "destructive": true,
+      "requiresSession": false,
+      "params": {
+        "id": "QA.T4ACC.Nonexistent.99998",
+        "dryRun": false
+      },
+      "dryRun": {
+        "supported": true,
+        "exempt": true,
+        "requested": false,
+        "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+        "hint": "params.dryRun === true 且能力声明 supportsDryRun 时免审批直接放行（dry-run 不改变系统状态）"
+      },
+      "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+    },
+    "impact": [
+      "id=QA.T4ACC.Nonexistent.99998",
+      "dryRun=false"
+    ],
+    "expiresAtMs": 1791567061349,
+    "underlying": {
+      "capabilityId": "app.winget.uninstall",
+      "paramsSummary": "id=QA.T4ACC.Nonexistent.99998 · dryRun=false"
+    }
+  },
+  "replyRpc": {
+    "kind": "task",
+    "id": "64597dfe-872f-4486-a98e-63faf67f861f",
+    "contextId": "622c8f5c-029f-4388-97fa-6e704f9a047c",
+    "status": {
+      "state": "rejected",
+      "timestamp": "2026-10-09T17:01:02.409Z"
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mv17oud8",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      },
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mv17p7mq",
+        "taskId": "64597dfe-872f-4486-a98e-63faf67f861f",
+        "parts": [
+          {
+            "kind": "data",
+            "data": {
+              "approvalId": "apr_701720b0676f48749239",
+              "approved": false
+            }
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_mv17oud8",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ]
+    }
+  },
+  "stateAfterReply": "rejected",
+  "pollSeen": [
+    {
+      "atMs": 17799,
+      "state": "rejected"
+    }
+  ],
+  "final": {
+    "kind": "task",
+    "id": "64597dfe-872f-4486-a98e-63faf67f861f",
+    "contextId": "622c8f5c-029f-4388-97fa-6e704f9a047c",
+    "status": {
+      "state": "rejected",
+      "timestamp": "2026-10-09T17:01:02.409Z"
+    },
+    "artifacts": [],
+    "history": [
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mv17oud8",
+        "parts": [
+          {
+            "kind": "text",
+            "text": "卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）"
+          }
+        ]
+      },
+      {
+        "kind": "message",
+        "role": "user",
+        "messageId": "msg_mv17p7mq",
+        "taskId": "64597dfe-872f-4486-a98e-63faf67f861f",
+        "parts": [
+          {
+            "kind": "data",
+            "data": {
+              "approvalId": "apr_701720b0676f48749239",
+              "approved": false
+            }
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "traceId": "tr_ax_mv17oud8",
+      "maxRisk": "L2",
+      "timeoutMs": 600000,
+      "allowedCapabilities": [
+        "app.winget.uninstall"
+      ],
+      "goalSummary": "等待审批：高危操作被宿主审批闸拦截（APPROVAL_REQUIRED），目标「LLM 运行时（常驻会话）完成目标：卸载 VM 上的软件包 QA.T4ACC.Nonexistent.99998（该包 id 故意不存在，勿改动其它任何软件）」未执行完成，须经宿主人工审批后经 MCP 直调通道续跑；approvalId=apr_701720b0676f48749239（来源=服务端结构化判定·window）",
+      "stepCount": 1
+    }
+  },
+  "finalState": "rejected",
+  "finalTerminalStateExt": null
+}
