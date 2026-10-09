@@ -26,6 +26,7 @@ import {
 } from '@winvm/contracts';
 
 import { type PolicyConfig, DEFAULT_POLICY, mergePolicy } from './defaults.js';
+import { type EnvView, expandEnvPath } from '../constants.js';
 
 /* ------------------------------ glob → regex ------------------------------ */
 
@@ -201,6 +202,30 @@ export const DRY_RUN_BYPASS_MATCHED_RULE = POLICY_DRY_RUN_BYPASS_MATCHED_RULE;
  */
 export function normalizePath(p: string): string {
   return foldWin32Segments(p);
+}
+
+/**
+ * **模式侧**编译通路（ARCH-17）：先展开 `%ENV%` 占位符，再走与入参侧**同一条**归一通路。
+ *
+ * 为什么模式侧必须展开：默认白名单自 Phase 1 起写的是 `%USERPROFILE%\**`（收紧到「VM 当前
+ * 用户目录」，不再给全体账户开口），能力级策略里也有 `%USERPROFILE%\WinVMWorkspace\out`
+ * 这类写法。旧实现只做 `normalizePath`，占位符按字面进 glob ⇒ 该模式**恒不匹配**：
+ *   - 默认表里那条等于静默失效（收紧不生效，且 `C:\Users\**` 一旦删除就是「谁能写」直接由
+ *     剩余条目决定）；
+ *   - `appops.cli.invoke` 的 `outputDir` 白名单同样恒 miss ⇒ 合法生产目录被误拒。
+ * 两者都是「写法决定成败」同族缺陷（与 S-1 伪盘符、U-P0-1 浅归一同源）。
+ *
+ * 顺序纪律：**先展开后归一**。反过来（先归一再展开）会把展开出来的真实值里的 `.`/`..`
+ * 留在字面上不消解，展开结果与运维在配置里手写实际路径不再等价。
+ * `normalizePath` 幂等（见其文档），故调用点外层再套一次归一不改变结论 —— 外层保留
+ * 归一是为了「模式侧必经 normalizePath」这条静态守卫（`p0-path-traversal` §2 判据 1/2）
+ * 继续对**四个编译点**逐字成立。
+ *
+ * `env` 为可选注入位（默认 `process.env`），便于离线直测展开语义（POSIX 上模拟
+ * `%USERPROFILE%` 实际值），不影响生产装配。
+ */
+export function expandPolicyPathPattern(p: string, env?: EnvView): string {
+  return normalizePath(expandEnvPath(p, env));
 }
 
 /**
@@ -523,7 +548,6 @@ export class CorePolicyEngine implements PolicyEngine {
   private readonly pathDenyRe: readonly RegExp[];
   private readonly pathAllowRe: readonly RegExp[];
   private readonly cmdDenyRe: readonly RegExp[];
-  private readonly cmdAllowRe: readonly RegExp[];
 
   constructor(opts: PolicyEngineOptions = {}) {
     const base = mergePolicy(DEFAULT_POLICY, opts.config);
@@ -533,10 +557,12 @@ export class CorePolicyEngine implements PolicyEngine {
     // U-P0-1「先归一后匹配」：模式侧与入参侧必须走**同一条**归一通路，否则
     // 「表写 `C:\Users\a\.\x`、入参写 `C:\Users\a\x`」这类形态落差会再次出现
     // （与注册表域 `matchRegistryAllowlist` 的「两侧先归一」同一纪律）。
-    this.pathDenyRe = base.pathDenylist.map((p) => globToRegex(normalizePath(p)));
-    this.pathAllowRe = base.pathAllowlist.map((p) => globToRegex(normalizePath(p)));
+    // ARCH-17 在同一通路上补**模式侧 env 展开**（先展开后归一）：默认白名单改为
+    // `%USERPROFILE%\**` 之后，不展开就等于该条恒不匹配 —— deny 侧同批加上，
+    // 否则运维把 `%USERPROFILE%` 写进黑名单会静默失效（那是新的漏，不是修漏）。
+    this.pathDenyRe = base.pathDenylist.map((p) => globToRegex(normalizePath(expandPolicyPathPattern(p))));
+    this.pathAllowRe = base.pathAllowlist.map((p) => globToRegex(normalizePath(expandPolicyPathPattern(p))));
     this.cmdDenyRe = base.commandDenylist.map((p) => new RegExp(p, 'i'));
-    this.cmdAllowRe = base.commandAllowlist.map((p) => new RegExp(p, 'i'));
   }
 
   get config(): PolicyConfig {
@@ -592,7 +618,7 @@ export class CorePolicyEngine implements PolicyEngine {
 
     // 2. 路径黑名单（最高优先级）
     const capPathDeny = (req.capabilityPolicy?.pathDenylist ?? []).map(
-      (p) => globToRegex(normalizePath(p)),
+      (p) => globToRegex(normalizePath(expandPolicyPathPattern(p))),
     );
     for (const { key, value } of values) {
       for (const candidate of pathCandidates(key, value)) {
@@ -636,7 +662,7 @@ export class CorePolicyEngine implements PolicyEngine {
     // 4. 路径白名单（拒绝优先）
     if (!this.disablePathAllowlist) {
       const capPathAllow = (req.capabilityPolicy?.pathAllowlist ?? []).map(
-        (p) => globToRegex(normalizePath(p)),
+        (p) => globToRegex(normalizePath(expandPolicyPathPattern(p))),
       );
       const allowRes = [...this.pathAllowRe, ...capPathAllow];
       if (allowRes.length > 0) {

@@ -37,6 +37,7 @@ import {
   CorePolicyEngine,
   DEFAULT_POLICY,
   DRY_RUN_BYPASS_MATCHED_RULE,
+  expandPolicyPathPattern,
   extractPathTokens,
   normalizePath,
 } from '@winvm/core';
@@ -45,6 +46,24 @@ import { WINDOWS_CAPABILITIES } from '@winvm/vm-capabilities';
 import { bypassTagSink } from '@winvm/vm-service';
 
 /* ============================ 夹具 ============================ */
+
+/**
+ * ARCH-17（Phase 1 刻意的破坏性收紧）：默认路径白名单从「全体账户」收紧为「当前 VM 用户
+ * 目录」，写法是 `%USERPROFILE%\**`，由 `CorePolicyEngine` 在**模式侧**编译时展开。
+ * 展开读 `process.env`，而模式表在**构造时**编译 ⇒ 必须在任何 `new CorePolicyEngine(...)`
+ * 之前把 `USERPROFILE` 钉成确定值，本文件的结论才在 POSIX 开发机与 Windows 真机上**一致**
+ * （不钉则 POSIX 上占位符保持字面 ⇒ 该条永不匹配 ⇒ 所有 Users 路径一律
+ * `pathAllowlist:miss`，红的是「夹具前提」而不是「策略行为」——那是噪音，不是证据）。
+ *
+ * 钉死值 `C:\Users\vmuser` = 本文件的「当前用户」基准，与 §7.4-T2 ② 的判据口径一致：
+ *   - `C:\Users\vmuser\**` ⇒ ALLOW（当前用户目录，收紧后仍然放行）
+ *   - `C:\Users\other\**` ⇒ DENY(`pathAllowlist:miss`)（跨账户，收紧的靶心）
+ * ⚠ 基准一旦钉成**具体用户目录**，本文件所有「Users 树内 ⇒ ALLOW」的既有用例就必须
+ *   用该基准账户书写（旧夹具里的 `C:\Users\a` / `alice` 现在都是**跨账户** ⇒ DENY）。
+ *   归一方向的判据（「归一是收敛而非收紧」）不受影响 —— 它比对的是**落点是否仍在允许
+ *   集合内**，样例换成基准账户后钉的仍是同一件事。
+ */
+process.env.USERPROFILE = 'C:\\Users\\vmuser';
 
 const REPO = join(import.meta.dirname, '..', '..');
 const ENGINE_TS = join(REPO, 'packages', 'core', 'src', 'policy', 'engine.ts');
@@ -91,7 +110,7 @@ function engineWith(defs, opts = {}) {
 const view = (v) => ({ allowed: v.allowed, matchedRule: v.matchedRule, requiresApproval: v.requiresApproval });
 
 /** 主理人实机复现用的那条串（必测） */
-const TRAVERSAL = 'C:\\Users\\a\\..\\..\\Windows\\System32\\evil.dll';
+const TRAVERSAL = 'C:\\Users\\vmuser\\..\\..\\Windows\\System32\\evil.dll';
 const TRAVERSAL_RESOLVED = 'C:\\Windows\\System32\\evil.dll';
 
 /**
@@ -100,18 +119,24 @@ const TRAVERSAL_RESOLVED = 'C:\\Windows\\System32\\evil.dll';
  * ⚠ 入集合前先算段数（team-lead 裁定第 3 条，本文件曾因此误判一条为红）：
  * `..` 的数量必须**大于**起点目录的深度，才真的越出白名单前缀。
  * 反例 `C:\Users\Public\Documents\..\..\Windows\System32\evil.dll` 只弹两级 ⇒
- * `C:\Users\Windows\System32\evil.dll`，**仍在 `C:\Users\**` 白名单之内**、
- * 未进入 `C:\Windows\**` 黑名单区 ⇒ ALLOW 才是正确结论
- * （真实执行只可能作用于 Users 下的字面路径，不构成逃逸；见 §2「非逃逸对照」）。
- * 弹三级（`..\..\..\`）才抵达 `C:\Windows\…`。
+ * `C:\Users\Windows\System32\evil.dll`，未进入 `C:\Windows\**` 黑名单区 ⇒ 落点是
+ * `C:\Users\**` 之下的**字面路径**（真实执行只可能作用于它，不构成跨目录逃逸）。
+ * 弹三级（`..\..\..\`）才抵达 `C:\Windows\…` ⇒ 那才是逃逸。
+ *
+ * ⚠ ARCH-17 收紧后的口径注记（Phase 1）：本集合里那条 `C:\Users\Public\...` 三级弹的
+ * 逃逸串结论仍是 DENY，但**命中原因**是黑名单（`pathDenylist`）—— 集合里所有样例的
+ * 断言都只依赖黑名单可见性，所以收紧前后方向一致。而「弹两级 ⇒ ALLOW」的对照样例
+ * 不能再用 `C:\Users\Windows\…` 形态（收紧后那一串不在白名单内、会变 miss 而非 ALLOW，
+ * 那测的是**授权面范围**不是本条要钉的**落点判据**），故 §2 的非逃逸对照改用
+ * 「弹两级后确实落在 `%USERPROFILE%`（`C:\Users\vmuser`）之内」的同族形态。
  */
 const TRAVERSALS = [
   TRAVERSAL,
-  'C:/Users/a/../../Windows/System32/evil.dll',
-  'C:\\Users\\a/../../Windows\\System32/evil.dll',
-  'C:\\Users\\a\\.\\..\\..\\Windows\\System32\\evil.dll',
+  'C:/Users/vmuser/../../Windows/System32/evil.dll',
+  'C:\\Users\\vmuser/../../Windows\\System32/evil.dll',
+  'C:\\Users\\vmuser\\.\\..\\..\\Windows\\System32\\evil.dll',
   'c:\\USERS\\a\\..\\..\\windows\\SYSTEM32\\evil.dll',
-  'C:\\Users\\a\\..\\..\\..\\Windows\\System32\\kernel32.dll',
+  'C:\\Users\\vmuser\\..\\..\\..\\Windows\\System32\\kernel32.dll',
   'C:\\Users\\Public\\Documents\\..\\..\\..\\Windows\\System32\\evil.dll',
   'C:\\Temp\\x\\..\\..\\Windows\\System32\\evil.dll',
   'C:\\WinVMWorkspace\\out\\..\\..\\Windows\\System32\\evil.dll',
@@ -125,20 +150,20 @@ describe('U-P0-1 · normalizePath 段消解语义', () => {
   });
 
   test('`.` 段与重复分隔符丢弃，`..` 弹栈', () => {
-    assert.equal(normalizePath('C:\\Users\\a\\notes.txt'), 'C:\\Users\\a\\notes.txt', '无穿越串不变（不回归）');
-    assert.equal(normalizePath('C:\\Users\\a\\.\\notes.txt'), 'C:\\Users\\a\\notes.txt', '`.` 丢弃');
-    assert.equal(normalizePath('C:\\Users\\a\\dir\\..\\notes.txt'), 'C:\\Users\\a\\notes.txt', '`..` 弹一层');
-    assert.equal(normalizePath('C:\\Users\\a\\..\\..\\Windows\\System32'), 'C:\\Windows\\System32');
-    assert.equal(normalizePath('C:\\Users\\a\\..\\..\\..\\Windows'), 'C:\\Windows', '多余 `..` 到根即止，绝不逃到根外');
+    assert.equal(normalizePath('C:\\Users\\vmuser\\notes.txt'), 'C:\\Users\\vmuser\\notes.txt', '无穿越串不变（不回归）');
+    assert.equal(normalizePath('C:\\Users\\vmuser\\.\\notes.txt'), 'C:\\Users\\vmuser\\notes.txt', '`.` 丢弃');
+    assert.equal(normalizePath('C:\\Users\\vmuser\\dir\\..\\notes.txt'), 'C:\\Users\\vmuser\\notes.txt', '`..` 弹一层');
+    assert.equal(normalizePath('C:\\Users\\vmuser\\..\\..\\Windows\\System32'), 'C:\\Windows\\System32');
+    assert.equal(normalizePath('C:\\Users\\vmuser\\..\\..\\..\\Windows'), 'C:\\Windows', '多余 `..` 到根即止，绝不逃到根外');
     assert.equal(normalizePath('C:\\\\Users\\\\a\\\\..\\\\..\\\\Windows'), 'C:\\Windows', '重复分隔符与穿越混用同样消解');
   });
 
   test('正斜杠 / 混合分隔符 / 尾分隔符形态等价（写法不影响成败）', () => {
     for (const form of [
-      'C:/Users/a/../../Windows/System32/evil.dll',
-      'C:\\Users/a/../../Windows\\System32/evil.dll',
-      'C:/Users\\a\\..\\..\\Windows/System32\\evil.dll',
-      'C:\\Users\\a\\..\\..\\Windows\\System32\\evil.dll\\',
+      'C:/Users/vmuser/../../Windows/System32/evil.dll',
+      'C:\\Users/vmuser/../../Windows\\System32/evil.dll',
+      'C:/Users\\vmuser\\..\\..\\Windows/System32\\evil.dll',
+      'C:\\Users\\vmuser\\..\\..\\Windows\\System32\\evil.dll\\',
     ]) {
       assert.equal(normalizePath(form), TRAVERSAL_RESOLVED, `形态 ${JSON.stringify(form)} 必须收敛到同一串`);
     }
@@ -146,16 +171,16 @@ describe('U-P0-1 · normalizePath 段消解语义', () => {
     assert.equal(normalizePath('C:\\\\Users\\\\a\\\\..\\\\..\\\\Windows'), 'C:\\Windows',
       '重复分隔符不影响消解结论');
     // ⚠ 反例（team-lead 裁定第 1 条）：`dir` 多占一层，两连 `..` 只弹到 `C:\Users`，
-    // **不**等价于上面的形态。权威参照 `path.win32.normalize('C:/Users/a/dir/../../Windows/System32/evil.dll')`
+    // **不**等价于上面的形态。权威参照 `path.win32.normalize('C:/Users/vmuser/dir/../../Windows/System32/evil.dll')`
     // = `C:\Users\Windows\System32\evil.dll` —— 实现与标准库一致，是**期望串曾写错**。
     // 保留此例的价值：钉死「弹栈不足时绝不越过实际存在的层」（与「多余 `..` 到根即止」是一对镜像语义）。
     assert.equal(
-      normalizePath('C:/Users/a/dir/../../Windows/System32/evil.dll'),
+      normalizePath('C:/Users/vmuser/dir/../../Windows/System32/evil.dll'),
       'C:\\Users\\Windows\\System32\\evil.dll',
       '两级 `..` 只弹两级 ⇒ 停在 C:\\Users 下（非逃逸形态，见 §2 非逃逸对照）',
     );
     assert.equal(
-      normalizePath('C:/Users/a/dir/../../../Windows/System32/evil.dll'),
+      normalizePath('C:/Users/vmuser/dir/../../../Windows/System32/evil.dll'),
       TRAVERSAL_RESOLVED,
       '同一起点补到三级 `..` 才真正逃逸 ⇒ 与必测串收敛一致',
     );
@@ -186,8 +211,8 @@ describe('U-P0-1 · normalizePath 段消解语义', () => {
    */
   test('无盘符形态：弹无可弹的 `..` 原样保留（绝不伪造成绝对路径 ⇒ 必然白名单 miss ⇒ 拒）', () => {
     // 弹尽 ⇒ 无 `..` 残留
-    assert.equal(normalizePath('Users\\a\\..\\..\\Windows'), 'Windows', '两级 `..` 恰好弹掉 a 与 Users');
-    assert.equal(normalizePath('Users\\a\\..\\b'), 'Users\\b', '可弹出的正常弹出（只弹 a，留 Users）');
+    assert.equal(normalizePath('Users\\vmuser\\..\\..\\Windows'), 'Windows', '两级 `..` 恰好弹掉 vmuser 与 Users');
+    assert.equal(normalizePath('Users\\vmuser\\..\\b'), 'Users\\b', '可弹出的正常弹出（只弹 vmuser，留 Users）');
     assert.equal(normalizePath('a/b/../c'), 'a\\c', '`.` 段与正斜杠同样先统一再消解');
     // 弹无可弹 ⇒ 逐个保留（个数 = `..` 数 − 可弹段数）
     assert.equal(normalizePath('..\\..\\Windows'), '..\\..\\Windows', '栈从头为空 ⇒ 两个 `..` 全保留');
@@ -200,7 +225,7 @@ describe('U-P0-1 · normalizePath 段消解语义', () => {
       'posix 风格相对穿越保留（引擎不知 CWD，绝不编造绝对路径）',
     );
     // 锚定形态与之对照：根之上没有父目录 ⇒ 多余 `..` 丢弃（rooted=true）
-    assert.equal(normalizePath('\\Users\\a\\..\\..\\Windows'), '\\Windows', '根相对形态到根即止');
+    assert.equal(normalizePath('\\Users\\vmuser\\..\\..\\Windows'), '\\Windows', '根相对形态到根即止');
   });
 
   test('UNC 不误伤：server/share 作为锚点保留，`..` 不得弹出 share 层', () => {
@@ -221,7 +246,7 @@ describe('U-P0-1 · normalizePath 段消解语义', () => {
     const e = productionEngine();
     const v = e.evaluate({
       capabilityId: 'storage.file.write',
-      params: { path: '\\\\?\\C:\\Users\\a\\x.txt' },
+      params: { path: '\\\\?\\C:\\Users\\vmuser\\x.txt' },
       risk: 'L1',
       approved: false,
     });
@@ -252,9 +277,9 @@ describe('U-P0-1 · normalizePath 段消解语义', () => {
       '\\\\server\\share\\..\\..\\..',
       '\\\\?\\',
       '\\\\.\\',
-      'C:\\Users\\a\\' + Array(40).fill('..').join('\\') + '\\Windows',
+      'C:\\Users\\vmuser\\' + Array(40).fill('..').join('\\') + '\\Windows',
       '\u0000\u0001\\..\\x',
-      'C:\\Users\\a\\..\\',
+      'C:\\Users\\vmuser\\..\\',
       '....\\....\\Windows',
     ];
     for (const s of hostile) {
@@ -344,22 +369,28 @@ describe('U-P0-1 · 策略判定：穿越串必须 DENY（黑白名单先归一�
   /**
    * ★ 非逃逸对照（team-lead 裁定第 3 条）：**归一 ≠ 放行**，同样也 **≠ 收紧到越界**。
    *
-   * `C:\Users\Public\Documents\..\..\Windows\System32\evil.dll` 两连 `..` 只弹到
-   * `C:\Users\Windows\System32\evil.dll` ⇒ 仍落在白名单 `C:\Users\**` 内、
+   * `C:\Users\vmuser\Documents\Reports\..\..\notes.txt` 两连 `..` 只弹到
+   * `C:\Users\vmuser\notes.txt` ⇒ **仍在白名单之内**（收紧后的当前用户目录）、
    * 没进 `C:\Windows\**` 黑名单区。**ALLOW 才是正确结论**：
-   * 归一后真实落点确实在 Users 之下，执行它不构成跨目录逃逸；
+   * 归一后真实落点确实在允许目录之下，执行它不构成跨目录逃逸；
    * 若为了「看着像穿越」就一律拒，等于把归一变成保守性收紧，会误杀
    * 大量合法等价写法（`.\` 段、冗余分隔符，见下一条用例）。
    *
    * 这条对照的价值：把「收紧穿越」与「误杀合法」的分界**写成可执行判据** ——
    * 分界只取决于**归一后的实际落点**，不取决于字面里有没有 `..`。
+   *
+   * ⚠ 样例基准自 ARCH-17 起改用 `%USERPROFILE%` 的实际值（`C:\Users\vmuser`，见文件头夹具）：
+   *   旧样例落在 `C:\Users\Windows\…`，在「全体账户」白名单下是 ALLOW；收紧后那一串
+   *   **既不在本用户目录也不在 Public** ⇒ 会被判 miss。结论的变化来自**白名单范围**
+   *   而不是归一语义，所以样例换成「落点确实在允许目录内」的形态，本条对照才能继续
+   *   钉它原本要钉的东西（落点判据），而不是顺带钉住一个已改口的授权面。
    */
   test('非逃逸的 `..` 写法（归一后仍在白名单内）→ ALLOW：判据只看落点，不看字面有无 `..`', () => {
     for (const p of [
-      'C:\\Users\\Public\\Documents\\..\\..\\Windows\\System32\\evil.dll',
-      'C:/Users/Public/Documents/../../Windows/System32/evil.dll',
+      'C:\\Users\\vmuser\\Documents\\Reports\\..\\..\\notes.txt',
+      'C:/Users/vmuser/Documents/Reports/../../notes.txt',
     ]) {
-      assert.equal(normalizePath(p), 'C:\\Users\\Windows\\System32\\evil.dll', '样例前提：落点在 Users 之下');
+      assert.equal(normalizePath(p), 'C:\\Users\\vmuser\\notes.txt', '样例前提：落点在本用户目录之下');
       const v = engine.evaluate({
         capabilityId: 'storage.file.write',
         params: { path: p, content: 'x' },
@@ -369,17 +400,130 @@ describe('U-P0-1 · 策略判定：穿越串必须 DENY（黑白名单先归一�
       assert.equal(v.allowed, true, `非逃逸等价写法被误杀：${v.matchedRule} / ${v.error?.message ?? ''}`);
       assert.equal(v.matchedRule, 'allow:policy-passed');
     }
-    // 同一字面补一个 `..`（弹到三级）即真正逃逸 ⇒ 必须 DENY。二者只差一层，
-    // 说明判定确实跟着**落点**走，而不是跟着某条串的「长相」走。
+    // 同一字面补到四级 `..`（弹穿 vmuser 与 Users）即真正逃逸进系统目录 ⇒ 必须 DENY。
+    // 二者只差一层，说明判定确实跟着**落点**走，而不是跟着某条串的「长相」走。
     const v = engine.evaluate({
       capabilityId: 'storage.file.write',
-      params: { path: 'C:\\Users\\Public\\Documents\\..\\..\\..\\Windows\\System32\\evil.dll', content: 'x' },
+      params: { path: 'C:\\Users\\vmuser\\Documents\\Reports\\..\\..\\..\\..\\Windows\\System32\\evil.dll', content: 'x' },
       risk: 'L1',
       approved: false,
     });
-    assert.equal(v.allowed, false, '补到三级 `..` 后必须 DENY（否则落点判据是假的）');
+    assert.equal(v.allowed, false, '补到四级 `..` 后必须 DENY（否则落点判据是假的）');
     assert.match(v.matchedRule, /pathDenylist/);
   });
+
+  /**
+   * ★ ARCH-17 新判据（Phase 1 刻意的破坏性收紧，设计 §7.4-T2 ②）：
+   * **跨账户**读写在策略层恒 DENY，本用户目录与显式共享目录照旧 ALLOW。
+   *
+   * 为什么这条必须钉成可执行判据：收紧前 `C:\Users\**` 覆盖全体账户，而
+   * `storage.file.read` 是 **L0 免审批** —— 别人的桌面/下载在策略层是**直接可读**的，
+   * 且没有任何一处代码会说「这里越界了」。收紧后越界变成硬 DENY（`pathAllowlist:miss`
+   * 发生在审批闸**之前** ⇒ 不是「转人工审批」，是拒绝），本条把这一改变钉住：
+   * 若有人把默认值改回 `C:\Users\**` 或删掉 `%USERPROFILE%` 条目，这里立刻变红。
+   */
+  test('★ ARCH-17：跨账户目录 DENY(pathAllowlist:miss)，本用户目录与 Public 共享区 ALLOW', () => {
+    const crossAccount = [
+      'C:\\Users\\other\\x.txt',
+      'C:\\Users\\other\\Desktop\\合同.pdf',
+      'C:\\Users\\Administrator\\ntds.dit',
+      // Users 根本身不再整体开放（旧 `C:\Users\**` 会命中它）
+      'C:\\Users',
+    ];
+    for (const p of crossAccount) {
+      const v = engine.evaluate({
+        capabilityId: 'storage.file.read',
+        params: { path: p },
+        risk: 'L0',
+        approved: false,
+      });
+      assert.equal(v.allowed, false, `跨账户 ${p} 必须 DENY（收紧未生效？）`);
+      assert.equal(v.matchedRule, 'pathAllowlist:miss', `${p} 应落白名单 miss，实得 ${v.matchedRule}`);
+      assert.equal(v.requiresApproval, false, 'miss 是硬拒绝，不得转「等审批」（那等于保留执行机会）');
+    }
+    for (const p of ['C:\\Users\\vmuser\\x.txt', 'C:\\Users\\Public\\drop.pdf']) {
+      const v = engine.evaluate({
+        capabilityId: 'storage.file.read',
+        params: { path: p },
+        risk: 'L0',
+        approved: false,
+      });
+      assert.equal(v.allowed, true, `允许目录 ${p} 被误杀：${v.matchedRule}`);
+    }
+  });
+
+  /**
+   * ★ ARCH-17：模式侧展开是**纯函数**，可脱离真实 env 直测（设计 §7.4-T2 ② 的离线口径）。
+   *
+   * 三条各自钉一个必要语义：
+   *  - 展开**生效**（否则 `%USERPROFILE%\**` 当字面进 glob ⇒ 恒不匹配 ⇒ 一刀封死）；
+   *  - **先展开后归一**（`%USERPROFILE%\.\x` 里的 `.` 段是被消解掉的，而不是留在字面上）；
+   *  - 占位符**未命中时原样保留**（`expandEnvPath` 不吞空串）⇒ 未知 env 写进策略表不会
+   *    误扩权限，而是退化成一条匹配不上任何真实路径的字面模式（fail-closed）。
+   */
+  test('★ ARCH-17：expandPolicyPathPattern 先展开后归一；未知占位符原样保留（fail-closed）', () => {
+    assert.equal(
+      expandPolicyPathPattern('%USERPROFILE%\\**', { USERPROFILE: 'C:\\Users\\bob' }),
+      'C:\\Users\\bob\\**',
+    );
+    assert.equal(
+      expandPolicyPathPattern('%USERPROFILE%\\.\\x', { USERPROFILE: 'C:\\Users\\bob' }),
+      'C:\\Users\\bob\\x',
+      '展开出来的值必须继续过同一条归一通路',
+    );
+    assert.equal(
+      expandPolicyPathPattern('%USERPROFILE%\\..\\Windows', { USERPROFILE: 'C:\\Users\\bob' }),
+      'C:\\Users\\Windows',
+      '展开后必须再过段消解才谈得上「落点」。期望串按权威参照 `path.win32.normalize(' +
+        "'C:\\\\Users\\\\bob\\\\..\\\\Windows\")` = `C:\\\\Users\\\\Windows`：" +
+        '`bob` 只被一个 `..` 弹掉，`Users` 仍在（本文件 §1 早已钉死「弹栈不足时绝不越过实际存在的层」，' +
+        '写这条期望时别顺手多弹一层）。反过来若先归一再展开，`%USERPROFILE%` 当字面段被弹出 ⇒ ' +
+        '得到 `\\Windows` 的错落点，顺序判据才成立。',
+    );
+    // 顺序判据：**先归一再展开**会得到完全不同的（错）落点 —— 占位符被当成一个可弹的段。
+    // 正向通路见上；反向通路的产物 `Windows` 是一条相对串，落白名单必 miss ⇒ 默认表项失效。
+    const wrongOrder = normalizePath('%USERPROFILE%\\..\\Windows');
+    assert.equal(
+      wrongOrder,
+      'Windows',
+      '前提校验：先归一时 `%USERPROFILE%` 被 `..` 弹出（这正是「先展开后归一」必须成立的原因）',
+    );
+    const unknown = expandPolicyPathPattern('%WINVM_NO_SUCH_VAR%\\x', {});
+    assert.ok(unknown.includes('%WINVM_NO_SUCH_VAR%'), `未知占位符必须保持字面（绝不吞成空串、也不展开成别人的目录），实得 ${unknown}`);
+    assert.equal(expandPolicyPathPattern('C:\\Temp\\**', {}), 'C:\\Temp\\**', '无占位符表项不受影响');
+  });
+
+  /**
+   * ★ ARCH-17 附带缺陷修复（必须写进交付说明的证据点，设计 §1.5-2）：
+   * `appops.cli.invoke` 的**能力级**白名单里写着 `%USERPROFILE%\WinVMWorkspace\out`，
+   * 旧实现模式侧不展开 ⇒ 该条**恒不匹配**。此前它被默认表的 `C:\Users\**` 兜住所以没显形；
+   * 收紧默认表之后，若模式侧展开不同时到位，合法生产目录会**被误拒** ——
+   * 即「收紧默认值」与「模式侧展开」是同一批的成对动作，缺一半就是事故。
+   */
+  test('★ ARCH-17：能力级 pathAllowlist 里的 %USERPROFILE% 能匹配（appops.cli.invoke outputDir）', () => {
+    const cap = capOf('appops.cli.invoke', 'L1', {
+      policy: { pathAllowlist: ['%USERPROFILE%\\WinVMWorkspace\\out', 'C:\\WinVMWorkspace\\out'] },
+    });
+    const e = engineWith([cap]);
+    const v = e.evaluate({
+      capabilityId: 'appops.cli.invoke',
+      params: { app: 'node', command: 'node build.js', outputDir: 'C:\\Users\\vmuser\\WinVMWorkspace\\out' },
+      risk: 'L1',
+      approved: false,
+      capabilityPolicy: cap.policy,
+    });
+    assert.equal(v.allowed, true, `能力级 %USERPROFILE% 未展开会误杀：${v.matchedRule} / ${v.error?.message ?? ''}`);
+    const deny = e.evaluate({
+      capabilityId: 'appops.cli.invoke',
+      params: { app: 'node', command: 'node build.js', outputDir: 'C:\\Users\\other\\WinVMWorkspace\\out' },
+      risk: 'L1',
+      approved: false,
+      capabilityPolicy: cap.policy,
+    });
+    assert.equal(deny.allowed, false, '跨账户 outputDir 必须 DENY');
+    assert.equal(deny.matchedRule, 'pathAllowlist:miss');
+  });
+
 
   test('命令参数内嵌穿越同样 DENY（extractPathTokens 之后仍走同一条归一通路）', () => {
     for (const v of [
@@ -391,7 +535,7 @@ describe('U-P0-1 · 策略判定：穿越串必须 DENY（黑白名单先归一�
       }),
       engine.evaluate({
         capabilityId: 'appops.cli.invoke',
-        params: { app: 'node', command: 'node C:/Users/a/../../Windows/System32/evil.js' },
+        params: { app: 'node', command: 'node C:/Users/vmuser/../../Windows/System32/evil.js' },
         risk: 'L1',
         approved: false,
       }),
@@ -405,8 +549,8 @@ describe('U-P0-1 · 策略判定：穿越串必须 DENY（黑白名单先归一�
    * ★★ 采集层（team-lead 裁定第 5 条 → **实现遗漏**，非断言错误）
    *
    * 查明根因：`extractPathTokens` 的盘符正则原本是 `/(?<![A-Za-z0-9_])[A-Za-z]:\\…/` ——
-   * 冒号后**硬编码反斜杠**。于是命令串里的 `C:/Users/a/../../Windows/System32/evil.js`
-   * 一个 token 都提不出来（实测 `extractPathTokens('node C:/Users/a/…') === []`），
+   * 冒号后**硬编码反斜杠**。于是命令串里的 `C:/Users/vmuser/../../Windows/System32/evil.js`
+   * 一个 token 都提不出来（实测 `extractPathTokens('node C:/Users/vmuser/…') === []`），
    * **根本不会进入**文件系统策略通路 ⇒ 与 `normalizePath` 是否修好无关，是纯粹的第二处绕过面。
    * 这条与 U-P0-1 属同一缺陷族：**写法决定成败**（S-1 当年修的伪盘符也是这一族）。
    * 参数通路已经正确（`params.path` 传正斜杠串会被拒），命令通路却失效 ——
@@ -417,8 +561,8 @@ describe('U-P0-1 · 策略判定：穿越串必须 DENY（黑白名单先归一�
    * 但这里的 token 断言会**立刻**指出「正斜杠盘符根本没被采集」。
    */
   test('★ 采集层：命令串内嵌的正斜杠盘符路径必须被提取（否则整条命令不进策略视野）', () => {
-    const fwd = 'node C:/Users/a/../../Windows/System32/evil.js';
-    assert.deepEqual(extractPathTokens(fwd), ['C:/Users/a/../../Windows/System32/evil.js'], '正斜杠盘符漏采 = 命令通路绕过面');
+    const fwd = 'node C:/Users/vmuser/../../Windows/System32/evil.js';
+    assert.deepEqual(extractPathTokens(fwd), ['C:/Users/vmuser/../../Windows/System32/evil.js'], '正斜杠盘符漏采 = 命令通路绕过面');
     // 反斜杠形态（原实现即可采到）——两形态都必须进同一通路
     assert.deepEqual(
       extractPathTokens(`Remove-Item ${TRAVERSAL} -Force`),
@@ -456,13 +600,17 @@ describe('U-P0-1 · 策略判定：穿越串必须 DENY（黑白名单先归一�
   });
 
   test('★ 不回归：合法白名单路径仍 ALLOW（收紧穿越不得顺手误杀正常调用）', () => {
+    // ARCH-17 收紧后的合法集 = 「当前用户目录（`%USERPROFILE%` 实际值）+ 其余显式条目」，
+    // 不再是「`C:\Users\**` 全体账户」。故本用例的样例按新口径书写：`alice` 已不再是
+    // 「默认就 ALLOW」的账户（它现在是跨账户 ⇒ DENY，见 §2 的跨账户新判据）。
     const legal = [
-      'C:\\Users\\alice\\notes.txt',
-      'C:\\Users\\a\\Documents\\x.docx',
+      'C:\\Users\\vmuser\\notes.txt',
+      'C:\\Users\\vmuser\\Documents\\x.docx',
+      'C:\\Users\\Public\\shared\\x.txt',
       'C:\\Temp\\build\\out.log',
       'C:\\WinVMWorkspace\\out\\report.pdf',
       'D:\\Data\\proj\\src\\main.ts',
-      'C:\\Users\\alice',
+      'C:\\Users\\vmuser',
       'C:\\WinVMWorkspace',
     ];
     for (const p of legal) {
@@ -479,11 +627,11 @@ describe('U-P0-1 · 策略判定：穿越串必须 DENY（黑白名单先归一�
 
   test('合法路径的 `.` / 冗余分隔符等价写法同样 ALLOW（归一是收敛而非收紧）', () => {
     for (const p of [
-      'C:\\Users\\alice\\notes.txt',
-      'C:\\Users\\alice\\.\\notes.txt',
-      'C:\\Users\\alice\\dir\\..\\notes.txt',
-      'C:/Users/alice/notes.txt',
-      'C:\\\\Users\\\\alice\\\\notes.txt',
+      'C:\\Users\\vmuser\\notes.txt',
+      'C:\\Users\\vmuser\\.\\notes.txt',
+      'C:\\Users\\vmuser\\dir\\..\\notes.txt',
+      'C:/Users/vmuser/notes.txt',
+      'C:\\\\Users\\\\vmuser\\\\notes.txt',
     ]) {
       const v = engine.evaluate({
         capabilityId: 'storage.file.write',
@@ -520,12 +668,12 @@ describe('U-P0-1 · 策略判定：穿越串必须 DENY（黑白名单先归一�
   test('白名单/黑名单**模式侧**同样先归一（两侧同一通路，防表内混入 `.`/`..` 形态）', () => {
     // 表项含 `.\` 与重复分隔符时仍须与规范表项等价（旧实现只归一入参侧）
     const e = new CorePolicyEngine({
-      config: { pathAllowlist: ['C:\\Users\\a\\.\\**'], pathDenylist: ['C:\\Windows\\**'] },
+      config: { pathAllowlist: ['C:\\Users\\vmuser\\.\\**'], pathDenylist: ['C:\\Windows\\**'] },
       disablePathAllowlist: false,
     });
     const v = e.evaluate({
       capabilityId: 'storage.file.write',
-      params: { path: 'C:\\Users\\a\\x.txt' },
+      params: { path: 'C:\\Users\\vmuser\\x.txt' },
       risk: 'L1',
       approved: false,
     });
@@ -607,7 +755,7 @@ describe('U-P0-3 · dry-run 免批必须是双条件（服务端声明 + 调用�
     const e = engineWith([UNDECLARED]);
     const v = e.evaluate({
       capabilityId: 'storage.link.manage',
-      params: { path: 'C:\\Users\\a\\x', target: 'C:\\Users\\a\\y', dryRun: true },
+      params: { path: 'C:\\Users\\vmuser\\x', target: 'C:\\Users\\vmuser\\y', dryRun: true },
       risk: 'L2',
       approved: false,
     });
@@ -624,7 +772,7 @@ describe('U-P0-3 · dry-run 免批必须是双条件（服务端声明 + 调用�
     const e = engineWith([DECLARED]);
     const v = e.evaluate({
       capabilityId: 'storage.file.write',
-      params: { path: 'C:\\Users\\a\\x.txt', content: 'y', dryRun: true },
+      params: { path: 'C:\\Users\\vmuser\\x.txt', content: 'y', dryRun: true },
       risk: 'L2',
       approved: false,
     });
@@ -635,7 +783,7 @@ describe('U-P0-3 · dry-run 免批必须是双条件（服务端声明 + 调用�
     const e = engineWith([DECLARED]);
     const v = e.evaluate({
       capabilityId: 'storage.file.write',
-      params: { path: 'C:\\Users\\a\\x.txt', content: 'y' },
+      params: { path: 'C:\\Users\\vmuser\\x.txt', content: 'y' },
       risk: 'L2',
       approved: false,
     });
@@ -647,7 +795,7 @@ describe('U-P0-3 · dry-run 免批必须是双条件（服务端声明 + 调用�
     for (const dryRun of [false, 'true', 1, undefined, null]) {
       const v = e.evaluate({
         capabilityId: 'storage.file.write',
-        params: { path: 'C:\\Users\\a\\x.txt', content: 'y', dryRun },
+        params: { path: 'C:\\Users\\vmuser\\x.txt', content: 'y', dryRun },
         risk: 'L2',
         approved: false,
       });
@@ -660,7 +808,7 @@ describe('U-P0-3 · dry-run 免批必须是双条件（服务端声明 + 调用�
     const e = engineWith([capOf('storage.link.manage', 'L2', { supportsDryRun: false })]);
     const v = e.evaluate({
       capabilityId: 'storage.link.manage',
-      params: { path: 'C:\\Users\\a\\x', dryRun: true },
+      params: { path: 'C:\\Users\\vmuser\\x', dryRun: true },
       risk: 'L2',
       approved: false,
     });
@@ -672,7 +820,7 @@ describe('U-P0-3 · dry-run 免批必须是双条件（服务端声明 + 调用�
     const e = new CorePolicyEngine();
     const v = e.evaluate({
       capabilityId: 'storage.file.write',
-      params: { path: 'C:\\Users\\a\\x.txt', content: 'y', dryRun: true },
+      params: { path: 'C:\\Users\\vmuser\\x.txt', content: 'y', dryRun: true },
       risk: 'L2',
       approved: false,
     });
@@ -699,7 +847,7 @@ describe('U-P0-3 · dry-run 免批必须是双条件（服务端声明 + 调用�
     for (const [capabilityId, risk, params] of [
       ['system.power.control', 'L3', { action: 'restart', dryRun: true }],
       ['app.winget.uninstall', 'L2', { id: 'Tencent.WeChatWork', dryRun: true }],
-      ['storage.file.delete', 'L2', { path: 'C:\\Users\\a\\old', dryRun: true }],
+      ['storage.file.delete', 'L2', { path: 'C:\\Users\\vmuser\\old', dryRun: true }],
     ]) {
       const v = e.evaluate({ capabilityId, params, risk, approved: false });
       assert.deepEqual(
@@ -727,7 +875,7 @@ describe('U-P0-3 · dry-run 免批必须是双条件（服务端声明 + 调用�
     const e = engineWith([DECLARED]);
     const v = e.evaluate({
       capabilityId: 'storage.file.write',
-      params: { path: 'C:\\Users\\a\\x.txt', content: 'y', dryRun: true },
+      params: { path: 'C:\\Users\\vmuser\\x.txt', content: 'y', dryRun: true },
       risk: 'L2',
       approved: false,
     });

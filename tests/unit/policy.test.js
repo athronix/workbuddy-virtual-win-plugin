@@ -12,6 +12,7 @@ import { join } from 'node:path';
 
 import { CapabilityRegistry, CorePolicyEngine } from '@winvm/core';
 import { defineCapability } from '@winvm/contracts';
+import { WINDOWS_CAPABILITIES } from '@winvm/vm-capabilities';
 
 const read = defineCapability({
   id: 'system.info.get',
@@ -57,6 +58,19 @@ const del = defineCapability({
   audit: { snapshot: 'before-after' },
   implementation: { kind: 'powershell', module: 'storage', function: 'Remove-FileSystemItem' },
 });
+
+/**
+ * ARCH-17（Phase 1 刻意的破坏性收紧）：默认路径白名单从「全体账户」收紧为「当前 VM 用户
+ * 目录」（写法 `%USERPROFILE%\**`，由引擎在**模式侧**编译时展开）。模式表在构造时编译、
+ * 展开读 `process.env` ⇒ 必须在**任何引擎构造之前**把 `USERPROFILE` 钉成确定值，
+ * 本文件的断言才在 POSIX 开发机与 Windows 真机上得到**同一个**结论（不钉则 POSIX 上
+ * 占位符保持字面 ⇒ 该条恒不匹配 ⇒ Users 路径一律 `pathAllowlist:miss`，红的是夹具前提
+ * 而不是策略行为）。
+ *
+ * 钉死值 `C:\Users\vmuser` 即「当前用户」基准：本用户目录 ALLOW；
+ * `C:\Users\<其他人>` 现在是跨账户 ⇒ DENY（旧夹具里的 `alice` 属于后者，故样例改基准账户）。
+ */
+process.env.USERPROFILE = 'C:\\Users\\vmuser';
 
 function makeEngine() {
   const registry = new CapabilityRegistry();
@@ -109,7 +123,7 @@ describe('策略引擎 · 路径白名单（拒绝优先）', () => {
   test('用户目录放行', () => {
     const v = engine.evaluate({
       capabilityId: 'storage.file.write',
-      params: { path: 'C:\\Users\\alice\\notes.txt' },
+      params: { path: 'C:\\Users\\vmuser\\notes.txt' },
       risk: 'L1',
       approved: false,
     });
@@ -173,13 +187,26 @@ describe('策略引擎 · 命令黑名单', () => {
   });
 
   test('普通命令放行', () => {
+    // 命令串里内嵌的路径同样要落在允许集合内（ARCH-17 收紧后 = 当前用户目录），
+    // 故样例写基准账户而不是 `C:\\Users` 根 —— 后者现在是跨账户入口，白名单必然 miss。
     const v = engine.evaluate({
       capabilityId: 'storage.file.write',
-      params: { command: 'Get-ChildItem C:\\Users' },
+      params: { command: 'Get-ChildItem C:\\Users\\vmuser\\Documents' },
       risk: 'L1',
       approved: false,
     });
     assert.equal(v.allowed, true, v.error?.message);
+  });
+
+  test('ARCH-17：跨账户目录不在默认白名单内 → 拒绝', () => {
+    const v = engine.evaluate({
+      capabilityId: 'storage.file.write',
+      params: { path: 'C:\\Users\\other\\x.txt' },
+      risk: 'L1',
+      approved: false,
+    });
+    assert.equal(v.allowed, false, '默认白名单已收紧到当前用户目录，跨账户必须拒');
+    assert.match(v.matchedRule, /pathAllowlist/);
   });
 });
 
@@ -189,7 +216,7 @@ describe('策略引擎 · 风险分级与审批闸', () => {
   test('L2 未审批 → APPROVAL_REQUIRED（可重试）', () => {
     const v = engine.evaluate({
       capabilityId: 'storage.file.delete',
-      params: { path: 'C:\\Users\\alice\\old' },
+      params: { path: 'C:\\Users\\vmuser\\old' },
       risk: 'L2',
       approved: false,
     });
@@ -202,7 +229,7 @@ describe('策略引擎 · 风险分级与审批闸', () => {
   test('L2 已审批 → 放行', () => {
     const v = engine.evaluate({
       capabilityId: 'storage.file.delete',
-      params: { path: 'C:\\Users\\alice\\old' },
+      params: { path: 'C:\\Users\\vmuser\\old' },
       risk: 'L2',
       approved: true,
     });
@@ -212,7 +239,7 @@ describe('策略引擎 · 风险分级与审批闸', () => {
   test('超出本次 maxRisk → 拒绝（最小权限）', () => {
     const v = engine.evaluate({
       capabilityId: 'storage.file.delete',
-      params: { path: 'C:\\Users\\alice\\old' },
+      params: { path: 'C:\\Users\\vmuser\\old' },
       risk: 'L2',
       approved: true,
       maxRisk: 'L1',
@@ -315,6 +342,48 @@ describe('策略引擎 · 注册表范围', () => {
       approved: true,
     });
     assert.equal(v.allowed, false);
+  });
+});
+
+describe('ARCH-17 · 模式侧 %ENV% 展开（能力级白名单附带缺陷修复）', () => {
+  /**
+   * 用**真实注册表**（而非夹具）钉这条：`appops.cli.invoke` 的能力级 `pathAllowlist`
+   * 里写着 `%USERPROFILE%\WinVMWorkspace\out`。旧实现模式侧不展开 ⇒ 该条**恒不匹配**，
+   * 只是碰巧被默认表的全体账户条目兜住所以没显形；默认表收紧后若展开不到位，
+   * 合法生产输出目录会被误拒 —— 即「收紧默认值」与「模式侧展开」必须同批到位。
+   * `process.env.USERPROFILE` 已在本文件顶部钉成 `C:\Users\vmuser`。
+   */
+  const engine = (() => {
+    const registry = new CapabilityRegistry();
+    registry.registerAll(WINDOWS_CAPABILITIES);
+    return new CorePolicyEngine({ registry });
+  })();
+
+  const cliInvoke = WINDOWS_CAPABILITIES.find((c) => c.id === 'appops.cli.invoke');
+
+  test('真实 appops.cli.invoke 的 outputDir（当前用户目录）命中能力级 %USERPROFILE% 白名单', () => {
+    assert.ok(cliInvoke?.policy?.pathAllowlist?.some((p) => p.includes('%USERPROFILE%')),
+      '前提校验：真实能力声明里确有 %USERPROFILE% 形态的白名单条目');
+    const v = engine.evaluate({
+      capabilityId: 'appops.cli.invoke',
+      params: { app: 'node', command: 'node build.js', outputDir: 'C:\\Users\\vmuser\\WinVMWorkspace\\out' },
+      risk: 'L1',
+      approved: false,
+      capabilityPolicy: cliInvoke.policy,
+    });
+    assert.equal(v.allowed, true, `模式侧展开失效会误杀合法生产目录：${v.matchedRule} / ${v.error?.message ?? ''}`);
+  });
+
+  test('同能力跨账户 outputDir 拒绝（收紧后不再由默认表兜住）', () => {
+    const v = engine.evaluate({
+      capabilityId: 'appops.cli.invoke',
+      params: { app: 'node', command: 'node build.js', outputDir: 'C:\\Users\\other\\WinVMWorkspace\\out' },
+      risk: 'L1',
+      approved: false,
+      capabilityPolicy: cliInvoke.policy,
+    });
+    assert.equal(v.allowed, false);
+    assert.match(v.matchedRule, /pathAllowlist/);
   });
 });
 

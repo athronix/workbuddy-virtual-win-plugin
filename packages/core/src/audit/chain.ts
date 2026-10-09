@@ -13,7 +13,16 @@ import { appendFile, mkdir, readFile, readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { GENESIS_HASH, type AuditRecord } from '@winvm/contracts';
-import type { AuditSink } from '@winvm/contracts';
+import type { ArchiveVerification, AuditSink } from '@winvm/contracts';
+
+/**
+ * D-4 兑现（ARCH-06 A2）：`ArchiveVerification` 的**权威定义在 contracts（L0）** ——
+ * `AuditSink.verifyArchive?()` 是 L0 契约成员的返回类型，L0 不得引用 L1a 的类型。
+ * core 侧只做**再导出**，供既有 `from '@winvm/core'` 的消费方（含单测）按同一名字取用；
+ * 全仓只允许这一份定义，禁止在 core 复制同形结构（两份同形接口会彼此漂移，
+ * 且 TS 结构化类型让漂移**静默通过编译**）。
+ */
+export type { ArchiveVerification };
 
 /* ------------------------------ 规范化 JSON ------------------------------ */
 
@@ -84,6 +93,17 @@ export interface AuditChainOptions {
 /** D30：链断裂原因 */
 export type ChainBreakReason = 'HASH_MISMATCH' | 'SEQ_DUP' | 'SEQ_GAP' | 'CHAIN_BREAK';
 
+/**
+ * ARCH-06 A2（O-8）：`verifyArchive` 单次最多校验的历史分片数 —— **写死的有界上限**。
+ *
+ * 为什么要写死而不是做成配置项：本方法会被启动 fire-and-forget 与 `/health` 级路径调用，
+ * 历史分片在长跑部署里可以有成百个；无界扫描会让一次健康检查变成整目录读盘。
+ * 超出上限的分片**只计数不校验**（调用方拿到的数组长度即已校验数，可与 `shardsTotal`
+ * 对比看出「还有多少没看」）。取值 30：够覆盖「一天轮转若干片 × 最近数日」的量级，
+ * 且单次代价可控（每片一次 readFile + 一次线性哈希重算）。
+ */
+export const ARCHIVE_VERIFY_MAX_SHARDS = 30;
+
 export interface ChainVerification {
   readonly valid: boolean;
   /** 断裂处的 seq（valid=false 时有值） */
@@ -92,6 +112,23 @@ export interface ChainVerification {
   readonly reason?: ChainBreakReason;
   readonly entries: number;
   readonly checked: number;
+  /**
+   * ARCH-06 A2（**纯附加可选**，缺席即旧行为）：本次结论**校验了什么范围**。
+   *
+   * 病灶：`server.ts` 硬写 `freshChainOnStart: true`，本方法在 freshChain 模式下只读
+   * 本轮 `activeShards` ⇒ 历史分片永久退出判定面，而 `/health.audit` 只报 `chainValid` ——
+   * 「校验过的那条链」与「磁盘上全部的链」是两个东西，但呈现面把它们说成同一个。
+   * 本批**不改** `freshChainOnStart` 行为（P0 根治另立项），只把既有事实显式化：
+   * `'session'` = 仅本轮运行期分片；`'full'` = 目录下全部分片。
+   * ⚠ 这四个字段**不参与** `valid` 判定（判定逻辑逐字不变），只是把范围说清楚。
+   */
+  readonly scope?: 'session' | 'full';
+  /** 参与判定的分片数 */
+  readonly shardsVerified?: number;
+  /** 审计目录下的全部分片数 */
+  readonly shardsTotal?: number;
+  /** 未参与判定的归档分片数（= shardsTotal − shardsVerified） */
+  readonly shardsArchived?: number;
 }
 
 export type AppendAuditInput = Omit<AuditRecord, 'hash' | 'prevHash' | 'seq'>;
@@ -310,7 +347,12 @@ export class HashChainAuditSink implements AuditSink {
   /** 全链校验（freshChain 模式仅校验本轮分片；历史分片归档可查但不参与判定） */
   async verifyChain(): Promise<ChainVerification> {
     await this.ensureLoaded();
-    const files = this.freshChain ? [...this.activeShards] : await this.listShards();
+    // ARCH-06 A2：先取**目录下全部分片**用于范围透出（代价 = 一次 readdir），
+    // 判定用的 files 仍按既有规则选取 —— 下面的 valid 判定逻辑**逐字未改**。
+    const all = await this.listShards();
+    const files = this.freshChain ? [...this.activeShards] : all;
+    // 纯附加信息：算范围数时读盘失败绝不改变判定结果（故整段包 try，兜底为「不知道就不报」）。
+    const scopeInfo = this.scopeInfo(all, files);
     let expectedPrev: string = GENESIS_HASH;
     let lastSeq = 0;
     let checked = 0;
@@ -353,14 +395,131 @@ export class HashChainAuditSink implements AuditSink {
               : rec.seq !== lastSeq + 1
                 ? 'SEQ_GAP'
                 : 'CHAIN_BREAK';
-          return { valid: false, brokenAt: rec.seq, reason, entries, checked };
+          return { valid: false, brokenAt: rec.seq, reason, entries, checked, ...scopeInfo };
         }
         expectedPrev = hash;
         lastSeq = rec.seq;
         checked++;
       }
     }
-    return { valid: true, entries, checked };
+    return { valid: true, entries, checked, ...scopeInfo };
+  }
+
+  /**
+   * ARCH-06 A2：范围透出（**纯附加**，不参与任何判定）。
+   *
+   * `shardsArchived = shardsTotal − shardsVerified`，即「目录里有、但本次结论没看」的片数 ——
+   * 这正是 `freshChainOnStart:true` 下历史链退出判定面的那部分，跨轮事实改由
+   * {@link verifyArchive} 的归档校验条目提供证据。
+   */
+  private scopeInfo(all: readonly string[], files: readonly string[]): Partial<ChainVerification> {
+    try {
+      const shardsTotal = all.length;
+      const shardsVerified = files.length;
+      return {
+        scope: this.freshChain ? 'session' : 'full',
+        shardsVerified,
+        shardsTotal,
+        shardsArchived: Math.max(shardsTotal - shardsVerified, 0),
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * ARCH-06 A2（O-8）：对**历史归档分片**逐片做片内校验，返回每片结论。绝不抛。
+   *
+   * 为什么只校验**片内**：历史片彼此无链关系，且与本轮新片也无关系（freshChain 以 GENESIS
+   * 起新链）。若把跨片首条的 `prevHash` 也拿来比对，**每一条历史分片都会报断**（全红），
+   * 那份证据就等于噪音。故每片**独立**校验「seq 单调 + prevHash 接得上」，报出的
+   * `brokenAt` 是**该片内**的 seq；跨片首条不比对（实现见 {@link verifyShardIntraChain}）。
+   *
+   * 有界：最多校验 `ARCHIVE_VERIFY_MAX_SHARDS` 片（超出的只计数不校验）—— 本方法可能被
+   * `/health` 级路径或启动 fire-and-forget 调用，历史分片多时不允许长阻塞。
+   * 全程 try/catch：读盘/解析失败只体现为该片的 `valid:false` 或跳过，绝不向上抛
+   * （取证面不得影响主流程，与 `doAppend` / 审批重放同一纪律）。
+   */
+  async verifyArchive(maxShards: number = ARCHIVE_VERIFY_MAX_SHARDS): Promise<readonly ArchiveVerification[]> {
+    try {
+      await this.ensureLoaded();
+      const all = await this.listShards();
+      // 「归档集」= 目录里的分片去掉本轮活跃分片。freshChain 模式下即全部历史片（新链只有一片）；
+      // 非 freshChain 模式下 activeShards 为空 ⇒ 逐片复核全部（比 verifyChain 的口径更宽，不作证据缺失）。
+      const archived = all.filter((f) => !this.activeShards.includes(f));
+      // 非正值/NaN ⇒ 回退默认上限（env 或调用方给坏值不得让校验失效或全量扫盘）
+      const limit = Number.isFinite(maxShards) && maxShards > 0 ? Math.floor(maxShards) : ARCHIVE_VERIFY_MAX_SHARDS;
+      const targets = archived.slice(0, limit);
+      const out: ArchiveVerification[] = [];
+      for (const shard of targets) {
+        out.push(await this.verifyShardIntraChain(shard));
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  /** 单片「片内链」校验（{@link verifyArchive} 的实现体；绝不抛） */
+  private async verifyShardIntraChain(shard: string): Promise<ArchiveVerification> {
+    let content: string;
+    try {
+      content = await readFile(join(this.dir, shard), 'utf8');
+    } catch (e) {
+      // 读不到：这是**事实**（分片消失/权限问题），报成该片不可信而不是抛
+      return { shard, entries: 0, valid: false, reason: `UNREADABLE:${(e as NodeJS.ErrnoException).code ?? 'ERR'}` };
+    }
+    const recs = content
+      .split('\n')
+      .filter((l) => l.trim().length > 0)
+      .map((l) => {
+        try {
+          return JSON.parse(l) as AuditRecord;
+        } catch {
+          return null;
+        }
+      })
+      .filter((r): r is AuditRecord => r !== null)
+      .sort((a, b) => a.seq - b.seq);
+
+    // **片内基线取自本片首条**（这是 O-8「只校验片内」的另一半，与「跨片首条 prevHash
+    // 不比对」是同一件事的两种说法）：
+    //   - 轮转/归档分片的首条 `prevHash` 指向**上一片**的尾条，`seq` 也从上一片继续 ——
+    //     若硬用 `expectedPrev = GENESIS` / `lastSeq = 0` 起步，每一片**正常轮转**的历史都
+    //     会报 `CHAIN_BREAK`/`SEQ_GAP`（全红），那份证据等于噪音，正是设计点名要防的形态；
+    //   - 首条的**接链关系**在片内无从校验（它的可信性由写它那天 verifyChain 的全链判定
+    //     负责），但首条的**自洽性**（存储 hash 是否等于内容重算值）片内完全可判 ⇒ 单独查
+    //     一次，让「只改首条内容」也当场显形，而不是拖到第二条才报。
+    // 「接不上上一片」不是断裂，但**片内**任何一处篡改都跑不掉：改某条内容 ⇒ 它的 hash 与
+    // 后一条的 prevHash 不符；改后一条的 prevHash ⇒ 它自己的 hash 重算不符。
+    const first = recs[0];
+    if (first) {
+      const { hash: firstHash, ...firstRest } = first;
+      if (sha256(canonicalJson(firstRest)) !== firstHash) {
+        return { shard, entries: recs.length, valid: false, brokenAt: first.seq, reason: 'HASH_MISMATCH' };
+      }
+    }
+    let expectedPrev: string = first?.hash ?? GENESIS_HASH;
+    let lastSeq: number = first?.seq ?? 0;
+    for (const rec of recs.slice(1)) {
+      const { hash, ...rest } = rec;
+      const recomputed = sha256(canonicalJson(rest));
+      const chainOk = rec.prevHash === expectedPrev;
+      const hashOk = recomputed === hash;
+      if (!chainOk || !hashOk || rec.seq !== lastSeq + 1) {
+        const reason: ChainBreakReason = !hashOk
+          ? 'HASH_MISMATCH'
+          : rec.seq <= lastSeq
+            ? 'SEQ_DUP'
+            : rec.seq !== lastSeq + 1
+              ? 'SEQ_GAP'
+              : 'CHAIN_BREAK';
+        return { shard, entries: recs.length, valid: false, brokenAt: rec.seq, reason };
+      }
+      expectedPrev = hash;
+      lastSeq = rec.seq;
+    }
+    return { shard, entries: recs.length, valid: true };
   }
 
   /** 按条件查询（只读） */

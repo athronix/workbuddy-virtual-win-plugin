@@ -626,7 +626,9 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 - **owner 终裁（14:55）**：① ARCH-18 死字段 `cmdAllowRe`/`commandAllowlist` = **删除**（不留 @deprecated 过渡，同批契约/schema/引擎/文档，登记刻意破坏性）；② ARCH-07 = **B 基线**（回环不可关 + SECURITY §2 信任边界文档化 + freshChainOnStart/审计保留期两权衡登记）**+ A 可选**（`enforceBearer` 默认 false、双条件守卫 O-9、`/health.security.authMode` 透出）**+ ENG-23 必做**（客户端 ssh-tunnel/streamable-http 统一 `applyBearerHeader` 消费 `tokenEnv`）；③ **裁断后立即派 T1-T5 离线代码批，真机轮挂起**（owner 选项=「立即派 T1，真机待 VM 窗口」）——14:52 VM 第 7 次掉线（OBS-C 电源漂移），A5 rejected 复验与 6 项真机验收清单待后续 VM 窗口，本轮验收口径=构建+离线单测。
 - **设计权威**：`docs/changes/phase1-arch-design.md`（502 行，commit `6f56c12`）§7.3 T1-T5 串行任务卡 + §7.2 server.ts 10 区域占用表（唯一写者=T4）+ §8 O-1..O-11 顺序纪律 + §10 R1-R10 风险。§5 七条待明确事项 owner 未表异议=按架构师默认取值实现。
 - **Phase 0 修复真机生效注记**：10:45 `deploy-vm --apply` 五阶段全绿（psBridge uptime 25s 证实服务重启到新码），随后 14:52 VM 掉线不影响部署成果（VM 重开后即为新码运行态）。
-- **实现批任务板**：#74 T1 契约基座 → #75 T2 core 内核 ∥ #76 T3 a2a-framework（唯一可并行对）→ #77 T4 vm-service 装配 → #79 T5 执行体/宿主/CLI/文档 → #78 QA 收官。
+- **实现批任务板**（旧团队失效后于新板重建）：#1 T1 契约基座 → #6 T2 core 内核 ∥ #2 T3 a2a-framework（设计可并行；实排因同 checkout 双进程 `tsc -b` dist 互踩改单进程串行）→ #5 T4 vm-service 装配 → #3 T5 执行体/宿主/CLI/文档 → #4 QA 收官。
+- **T1 已提交 `4983a58`**（10 文件 548+/20−，主理人独立复跑+tsc 全绿后原子提交；D-1/D-2/D-4/D-6 认可，D-3 入 Phase 2 backlog）。
+- **T2 已提交（core 执行内核）**：7 源文件（constants +14 / config +7−4 / engine +32−6 / defaults +23−9 / chain +163−4 / transport +46−9 / index +7−1）+ 2 测试适配（p0 84→87、policy 22→25）+ notes 150 行。兑现 ARCH-17（`expandPolicyPathPattern` 先展开后归一、四处模式侧、defaults 六条收紧）+ ARCH-18 引擎侧残留删除 + ARCH-06 A2（scope 四字段纯附加 + `verifyArchive` O-8 有界不抛）+ ENG-23（`applyBearerHeader` 双分支统一，主理人认可 D-11 校验前置防隧道泄漏）。主理人独立核验：tsc exit0；71 文件全量逐文件复跑 FAIL=0（`.test.js` 侧 1183、`.test.mjs` 侧 70 ⇒ 新口径 **1253 pass / 0 fail / 2 skip**，README/dev-status 统一写数待 QA 收官批）；锚点区 `engine.ts:769-778`→`:795-804` sha256 `28c99b334498abd0` 逐字节相等（行号位移非内容改动，主理人独立复证）；D-9 修正串经 `path.win32.normalize` 权威参照复核 = `C:\Users\Windows` 正确。
 
 ## Phase 0 止血批 · 2026-10-08 晚（owner 五项裁决后开工，团队 software-winvm-phase0）
 

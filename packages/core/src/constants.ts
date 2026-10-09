@@ -17,6 +17,20 @@ export type EnvView = Record<string, string | undefined>;
 
 /* ================================ 通用解析 ================================ */
 
+/**
+ * 展开 Windows 环境变量占位符（`%LOCALAPPDATA%`、`%USERPROFILE%` 等）；未命中的
+ * 占位符**原样保留**（绝不吞成空串），非 Windows 环境下同样按字面处理。
+ *
+ * T2（ARCH-17）自 `config/index.ts:179-182` 下沉至此：策略引擎的**模式侧**编译
+ * （`policy/engine.ts` 的路径白/黑名单）与本函数的既有消费方（audit 目录、日志目录、
+ * provider `outputDir`）必须走**同一条**展开通路 —— 若两处各有一份实现，运维在配置里
+ * 写 `%USERPROFILE%` 与在默认策略里写 `%USERPROFILE%` 的展开语义就会漂移。
+ * 本模块是 L1a 叶（无包内上游依赖），config 与 policy 都从它引，不构成包内环边。
+ */
+export function expandEnvPath(p: string, env: EnvView = process.env): string {
+  return p.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, name: string) => env[name] ?? m);
+}
+
 /** 解析正整数 env；非法（NaN / ≤0 / 非整数）→ 回退默认 */
 export function parsePositiveInt(raw: string | undefined, fallback: number): number {
   if (raw === undefined || raw === '') return fallback;

@@ -16,6 +16,7 @@ import type { TransportDecl } from '@winvm/contracts';
 import type { AgentProviderConfig } from '../bridge/loader.js';
 import type { PolicyConfig } from '../policy/defaults.js';
 import {
+  expandEnvPath,
   ENV_LLM_PERSISTENT,
   ENV_LLM_SESSION_ID,
   ENV_LLM_SESSION_IDLE_MS,
@@ -176,10 +177,12 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   },
 };
 
-/** 展开 Windows 环境变量占位符（%LOCALAPPDATA% 等），非 Windows 原样返回 */
-export function expandEnvPath(p: string, env: NodeJS.ProcessEnv = process.env): string {
-  return p.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, name: string) => env[name] ?? m);
-}
+/**
+ * `expandEnvPath` 自 Phase 1 T2 下沉到 `constants.ts`（策略引擎模式侧也要走同一条
+ * 展开通路，见该处的说明）。此处**只做再导出**，既有调用点与 `core/src/index.ts`
+ * 的导出名保持不变。
+ */
+export { expandEnvPath };
 
 export function resolveServiceConfig(cfg: ServiceConfig, env: EnvView = process.env): ServiceConfig {
   return {
@@ -200,7 +203,7 @@ function resolveLogging(cfg: LoggingConfig, env: EnvView): LoggingConfig {
   const dirRaw = env[ENV_LOG_DIR]?.trim();
   const dir = dirRaw ? dirRaw : cfg.dir;
   return {
-    dir: isAbsolute(dir) ? dir : resolve(expandEnvPath(dir, env as NodeJS.ProcessEnv)),
+    dir: isAbsolute(dir) ? dir : resolve(expandEnvPath(dir, env)),
     level: env[ENV_LOG_LEVEL] ? parseLogLevel(env[ENV_LOG_LEVEL], cfg.level) : cfg.level,
     maxBytes: env[ENV_LOG_MAX_BYTES] ? parsePositiveInt(env[ENV_LOG_MAX_BYTES], cfg.maxBytes) : cfg.maxBytes,
     maxFiles: env[ENV_LOG_MAX_FILES] ? parsePositiveInt(env[ENV_LOG_MAX_FILES], cfg.maxFiles) : cfg.maxFiles,

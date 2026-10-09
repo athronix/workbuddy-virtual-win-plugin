@@ -12,10 +12,16 @@ export interface PolicyConfig {
   readonly pathDenylist: readonly string[];
   /** 路径白名单（glob）。未命中即拒。 */
   readonly pathAllowlist: readonly string[];
-  /** 命令黑名单（正则）。优先级最高，命中即拒。 */
+  /** 命令黑名单（正则）。优先级最高，命中即拒。
+   *
+   *  Phase 1 ARCH-18：本表**曾有**的姊妹字段「命令白名单」已删除。删除理由（与
+   *  `contracts/src/capability.ts` 类型头注释同源，三处一一对应）：
+   *  ① 引擎从未读取它（全仓零消费点，`cmdAllowRe` 只编译不比对）；
+   *  ② 唯一写入点 `appops.workflow.run` 的能力声明已在 T1 同批删除；
+   *  ③ 命令面的真实边界由 `commandDenylist` + 能力风险/审批闸决定，白名单语义在此
+   *     只会造成「配了却不生效」的假安全感。
+   *  命令策略面**只有黑名单**是本表的既定口径。 */
   readonly commandDenylist: readonly string[];
-  /** 命令白名单（正则）。未命中即拒。为空表示不启用命令白名单。 */
-  readonly commandAllowlist: readonly string[];
   /** 禁止操作的进程名（小写，不含 .exe 也可匹配）。 */
   readonly processDenylist: readonly string[];
   /** 允许写入的注册表根键前缀。 */
@@ -48,11 +54,23 @@ export const DEFAULT_POLICY: PolicyConfig = {
     '\\\\*',
   ],
 
-  // —— 路径白名单：默认仅用户数据区 ——
+  // —— 路径白名单：默认仅**当前用户**数据区（ARCH-17 收紧）——
+  // 旧写法 `C:\Users\**` 覆盖**全体账户**，而 `storage.file.read` 是 L0 免审批 ⇒
+  // 跨账户 Profile/桌面/下载在策略层被直接放行，与 SECURITY §3.2 承诺的
+  // `C:\Users\<vmuser>\**` 不符。收紧为「`%USERPROFILE%` 运行时展开」而**不是**在默认值里
+  // 硬拼用户名：用户名是部署期事实，硬编码必然漂移，且默认值需在不同环境下保持确定性。
+  // 展开由 `policy/engine.ts` 的 `expandPolicyPathPattern` 在**模式侧**完成（先展开后归一），
+  // 与 config 层的 audit/log/outputDir 走同一份 `expandEnvPath` 实现。
+  //
+  // ⚠ 展开占位符在 env 缺席时保持**字面原样**（`expandEnvPath` 不吞空串）⇒ 该条目永不匹配
+  //   ⇒ 所有绝对路径落 `pathAllowlist:miss` 硬 DENY。方向是 fail-closed：收紧默认值在
+  //   非 Windows/离线环境下只会更严，不会误放。运维需要跨账户访问时**显式追加**条目
+  //  （`mergePolicy` 对数组做并集，只能加不能减 ⇒ 收紧默认值即永久生效）。
   // 注：`C:\WinVMWorkspace\**` 是插件约定的「生产工作目录」（见 winvm-app-operation skill），
   // 必须全域放行，否则 appops 写入后 storage 无法读回，文档工作流被策略打断。
   pathAllowlist: [
-    'C:\\Users\\**',
+    '%USERPROFILE%\\**',
+    'C:\\Users\\Public\\**',
     'C:\\Temp\\**',
     'C:\\tmp\\**',
     'D:\\Data\\**',
@@ -79,9 +97,6 @@ export const DEFAULT_POLICY: PolicyConfig = {
     'Invoke-Expression',
     '\\biex\\b',
   ],
-
-  // —— 命令白名单：留空表示不启用（策略以路径与能力边界为主）——
-  commandAllowlist: [],
 
   // —— 禁止终止/操作的系统进程 ——
   processDenylist: [
@@ -134,7 +149,6 @@ export function mergePolicy(base: PolicyConfig, override?: Partial<PolicyConfig>
     pathDenylist: union(base.pathDenylist, override.pathDenylist),
     pathAllowlist: union(base.pathAllowlist, override.pathAllowlist),
     commandDenylist: union(base.commandDenylist, override.commandDenylist),
-    commandAllowlist: union(base.commandAllowlist, override.commandAllowlist),
     processDenylist: union(base.processDenylist, override.processDenylist),
     registryWriteAllowlist: union(base.registryWriteAllowlist, override.registryWriteAllowlist),
     registryReadAllowlist: union(base.registryReadAllowlist, override.registryReadAllowlist),

@@ -8,6 +8,7 @@
 /* ------------------------------ 传输 ------------------------------ */
 export {
   establishTransport,
+  applyBearerHeader,
   HttpJsonRpcChannel,
   StdioJsonRpcChannel,
   establishSshTunnel,
@@ -29,7 +30,7 @@ export type { StdioChannelOptions } from './transport/stdio-channel.js';
 export { CapabilityRegistry, DuplicateCapabilityError } from './registry/capability-registry.js';
 
 /* ------------------------------ 策略引擎 ------------------------------ */
-export { CorePolicyEngine, globToRegex, collectStringValues, looksLikePath, looksLikeRegistryPath, normalizePath, normalizeRegistryPath } from './policy/engine.js';
+export { CorePolicyEngine, globToRegex, collectStringValues, looksLikePath, looksLikeRegistryPath, normalizePath, normalizeRegistryPath, expandPolicyPathPattern } from './policy/engine.js';
 // U-P0-3（A1）：dry-run 免批放行规则的哨兵值（引擎产出、服务端审计装饰器与单测共用同一常量，
 // 拼写漂移不得静默使免批执行失去链上证据）。
 export { DRY_RUN_BYPASS_MATCHED_RULE } from './policy/engine.js';
@@ -50,8 +51,13 @@ export {
   sha256,
   computeRecordHash,
   redact,
+  ARCHIVE_VERIFY_MAX_SHARDS,
 } from './audit/chain.js';
+// ARCH-06 A2 / D-4：`ArchiveVerification` 的**权威定义在 contracts（L0）**，此处只做再导出
+// （`AuditSink.verifyArchive?()` 的返回类型属 L0 契约面，不得引用 L1a 类型；core 复制同形
+// 结构会造成两份定义漂移）。消费方按既有 `from '@winvm/core'` 取名即可。
 export type { AuditChainOptions, ChainVerification, AppendAuditInput } from './audit/chain.js';
+export type { ArchiveVerification } from '@winvm/contracts';
 
 /* ------------------------------ 会话 ------------------------------ */
 export {
