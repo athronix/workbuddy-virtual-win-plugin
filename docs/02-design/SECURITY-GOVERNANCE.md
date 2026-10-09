@@ -19,11 +19,11 @@
 | 威胁 | 场景 | 缓解措施 |
 |---|---|---|
 | **S**poofing 伪装 |  attacker 冒充宿主连 VM 服务 | SSH 密钥鉴权（默认）；HTTP 模式 bearer token + 可选 mTLS；**VM 仅监听 127.0.0.1** |
-| **T**ampering 篡改 | 篡改审计日志掩盖操作 | **哈希链审计**（§4），任一改动即校验失败 |
+| **T**ampering 篡改 | 篡改审计日志掩盖操作 | **哈希链审计**（§4）——**本轮运行期内**任一改动即校验失败；跨轮历史由启动归档校验条目提供证据（范围限定语见 §4.3.1，残留风险见 §6.4 权衡一） |
 | **R**epudiation 抵赖 | 否认执行过某操作 | 全程 traceId + 签名审计 + before/after 快照 |
 | **I**nfo disclosure 泄露 | 凭据/文件内容外泄 | 无明文凭据落盘；凭据走 SSH key / `${VAR}` 占位 / 宿主加密 header |
-| **D**oS 拒绝服务 | 长任务/批量操作拖垮 VM | 请求超时、并发上限、任务取消（`tasks/cancel`）、ps-bridge 心跳重启 |
-| **E**oP 权限提升 | 借通道执行未授权高危操作 | **拒绝优先白名单** + L2/L3 审批闸 + 宿主侧 `disabledTools` 静态禁用 |
+| **D**oS 拒绝服务 | 长任务/批量操作拖垮 VM | 请求超时、并发上限、任务取消（`tasks/cancel`，**Phase 1 起为协作式真取消**，见 §2.2）、ps-bridge 心跳重启 |
+| **E**oP 权限提升 | 借通道执行未授权高危操作 | **拒绝优先白名单**（路径/进程/注册表；命令面**只有黑名单**，ARCH-18）+ L2/L3 审批闸 + 宿主侧 `disabledTools` 静态禁用 |
 
 ---
 
@@ -57,6 +57,39 @@
 └───────────────────────────────────────────────────────────┘
 ```
 
+### 2.1 信任边界声明（**必读**，ARCH-07 裁决结果）
+
+> **本系统的信任边界 = 「回环绑定 + SSH 隧道 + 审批闸」，服务端不承担身份鉴权。**
+
+这不是实现缺口，而是 Phase 1 的**明确设计选择**（裁决全文见 `docs/changes/phase1-arch-design.md` §2.2）。三点含义：
+
+1. **谁能连上 `vm-service`，等价于谁能在那台 Windows 上发起本地回环连接。** VM 内任意本地进程（含被诱导的桌面应用、低权限账户）都能裸调 MCP/A2A 端点 —— 此时**唯一的拦阻是策略引擎与审批闸（第 4/5 层）**，不存在"凭据不对就连不上"这第三道。所以第 2/4/5 层的任何放宽都必须按"暴露给本机所有进程"来评估。
+2. **回环约束不可关**：非回环绑定（如 `0.0.0.0`）一律判 **error** 且启动被拒，`security.requireLoopbackBind=false` **自 Phase 1 起不再能放宽该约束**（只额外产生一条 warning）。理由：一旦允许配置漂移成"对外裸 HTTP"，第 0 层（网络隔离）整体消失，其风险远大于"少一层 bearer 校验"的收益。运维若确需跨机访问，唯一受支持形态是在宿主侧用 `ssh -L` 把远端端口映射到本机回环（见 §6.1、`DEPLOYMENT.md §7`）。
+3. **bearer 是可选加固，不是默认事实**：`security.enforceBearer` 默认 `false`。开启需**双条件**（`enforceBearer===true` **且** `tokenEnv` 指向的 env 有值）守卫才真正挂载；缺任一条件即逐字旧行为，且该降级由 `/health.security.authMode` 显形为三态而非静默：
+
+   `authMode` 由 `resolveAuthMode()`（`http-guard.ts`，与 `resolveBearerToken()` 同源）按**四步判序**产出，三种取值各自的成立条件如下：
+
+   | `authMode` | 含义 | 判序 |
+   |---|---|---|
+   | `bearer-enforced` | 守卫在位，非豁免端点要求正确 token | ① `resolveBearerToken()` 返回**非空** —— 即 `enforceBearer===true` **且** `tokenEnv` 有指向名 **且** 该 env 有值（双/三条件全成立） |
+   | `bearer-configured-missing` | **两种"想开而没开成"的降级态**，必须显形、拒绝静默 | ② `enforceBearer===true` 但 token 解析为空（配了开关却没配到值，含 `tokenEnv` 根本没给名）；**或** ③ `enforceBearer` 缺席/false，但 `tokenEnv` **给了变量名而该 env 无值** —— **现网 `vm-service.config.json` 正落这一支**（它写了 `"tokenEnv": "WINVM_BEARER_TOKEN"` 却没写 `enforceBearer`，且服务进程环境未设该变量，故真机 `/health` 报此值） |
+   | `loopback-only` | 守卫停用，纯回环 | ④ 以上皆非 —— 未配 `enforceBearer` **且**（未配 `tokenEnv` 名，**或** 配了名且 env 有值）。即"干净的回环默认态" |
+
+   > ⚠ 别把"默认部署"简单等同于 `loopback-only`：**只要配置文件写了 `tokenEnv` 名而运行环境没有对应值，就会落 `bearer-configured-missing`**（判序③，与 `enforceBearer` 是否 true 无关）。这是刻意设计——"配了变量名却拿不到值"和"想开守卫开不起来"同样属于**必须显形的半开态**，不能静默归入"正常回环"，否则运维会误以为一切就位。现网要得到 `loopback-only`，要么删掉配置里的 `tokenEnv` 键，要么让服务环境真正设上该变量。
+
+   `authMode` 与守卫生效判据**同源**（同一 `resolveBearerToken()`），杜绝"health 说已强制、守卫其实停用"的自相矛盾。
+
+> ⚠ **开 `enforceBearer` 前必须先补齐 VM 内回连凭据通路（尚未实现）**
+> `vm-service` 会经 `buildMcpConfig()`（`packages/adapter-agent-workbuddy-llm/src/bridge.ts`）向 VM 内的 agent CLI 下发 `mcpServers` 条目（回连本服务的 `/mcp?dtid=…`），该条目**不含任何凭据**。因此一旦在真机误开 `enforceBearer`，**委派执行主链路会当场 401**（宿主侧 `--token-env` 只覆盖宿主→服务这一段，覆盖不到 VM 内回连这一段）。这是 §10 R4 的残留风险，属**中**级，不是理论风险。上线前置条件、客户端侧通路现状见 §6.1 与 `DEPLOYMENT.md`。
+
+### 2.2 取消的真实语义（ARCH-22）
+
+`tasks/cancel` 是**协作式**取消，不是抢占式终止：信号在每一个"能力调用边界"被消费，正在执行的那一次调用会跑完。因此：
+
+- 取消**成立**意味着「取消点之后的操作绝不发起」，**不**意味着「虚拟机未发生任何变更」。宿主呈现面据此事实化（两态文案 + `executedBeforeCancel`，见 `HOST-A2A-BRIDGE.md`），任何"未执行任何变更"式承诺都是不实陈述。
+- 常驻 LLM 会话被打断时会**终结其 CLI 子进程**（只 resolve promise 而留 CLI 活着 ⇒ VM 内 agent 会继续自行发起工具调用，取消成假动作）。
+- 证据面：取消终态以 `terminalState:'canceled'` + `errorCode:'TASK_CANCELED'` 入链（可审计、可与 failed/rejected 区分）。
+
 ---
 
 ## 3. 策略引擎（`packages/core/policy`）
@@ -74,18 +107,30 @@
 8. 通过 → 执行
 ```
 
-### 3.2 默认策略基线（`policy.default.json`）
+### 3.2 默认策略基线（**与代码逐字一致**）
 
-| 项 | 默认值 |
+> 事实源是 `packages/core/src/policy/defaults.ts` 的 `DEFAULT_POLICY`（本节下表**逐条照抄**代码写法与顺序，不是"设计意图"）。二者不符时以代码为准并立即回改本节。
+> 运维追加走 `mergePolicy()`：数组做**并集** ⇒ **只能加不能减**，因此收紧后的默认值一经合入即永久生效，任何部署都无法靠"少配一条"把它删掉。
+
+| 项 | 默认值（照抄 `DEFAULT_POLICY`） |
 |---|---|
-| 路径黑名单（**最高优先级**） | `C:\Windows\**`、`C:\Program Files\**`、`C:\Program Files (x86)\**`、`C:\ProgramData\**`、`C:\System Volume Information\**`、`C:\Boot*`、`C:\Recovery\**`、`\\?\**` |
-| 路径白名单 | `C:\Users\<vmuser>\**`、`C:\Temp\**`、`C:\Users\Public\**`、`D:\Data\**`（可配） |
-| 命令黑名单 | `format`、`diskpart`、`bcdedit`、`cipher /w`、`del /s /q C:\`、`reg delete HKLM\SYSTEM`、`net user * /add`、`takeown`、`icacls * /grant *:(F)`、`powershell -enc`、Base64 混淆执行 |
-| 进程黑名单 | `lsass`、`csrss`、`winlogon`、`services`、`smss`、`wininit`、`ntoskrnl` |
-| 注册表可写根键白名单 | `HKCU:\**` 为主；`HKLM:\SOFTWARE\**` 需 L2 审批；**禁止** `HKLM:\SYSTEM\**`、`HKLM:\SAM\**`、`HKLM:\SECURITY\**` |
+| 路径黑名单（**最高优先级**） | `C:\Windows\**`、`C:\Program Files\**`、`C:\Program Files (x86)\**`、`C:\ProgramData\**`、`C:\System Volume Information\**`、`C:\Recovery\**`、`C:\Boot*`、`C:\bootmgr*`、`C:\hiberfil*`、`C:\pagefile*`、`C:\swapfile*`、`\\?\**`、`\\*` |
+| 路径白名单（**与 `packages/core/src/policy/defaults.ts` 逐字对齐**） | `%USERPROFILE%\**`、`C:\Users\Public\**`、`C:\Temp\**`、`C:\tmp\**`、`D:\Data\**`、`C:\WinVMWorkspace\**` |
+| 命令黑名单 | `\bformat\b`、`\bdiskpart\b`、`\bbcdedit\b`、`\bdel\s+/s\s+/q`、`\brm\s+-rf\s+/`、`\bcipher\s+/w`、`\breg\s+delete\s+HKLM\SYSTEM`、`\bnet\s+user\b.*\/add`、`\bnet\s+localgroup\b.*\/add`、`\btakeown\b`、`\bicacls\b.*\bgrant\b.*:\(F\)`、`\-enc(odedcommand)?\b`、`\-e\s+[A-Za-z0-9+/]{100,}={0,2}`、`FromBase64String`、`Invoke-Expression`、`\biex\b` |
+| 进程黑名单 | `lsass`、`csrss`、`winlogon`、`services`、`smss`、`wininit`、`ntoskrnl`、`system`、`winvm-service` |
+| 注册表可写根键白名单 | `HKCU:\**`、`HKEY_CURRENT_USER\**`、`HKLM:\SOFTWARE\**`（写入仍受 L2 审批闸拦）、`HKEY_LOCAL_MACHINE\SOFTWARE\**`；**禁止** `HKLM:\SYSTEM\**`、`HKLM:\SAM\**`、`HKLM:\SECURITY\**` |
+| 注册表可读根键白名单 | 与写表**同四条**（两表必须成对存在，见下方第 4 条） |
 | 默认 `maxRisk`（委派） | `L1` |
 | 删除默认行为 | 进回收站（除非显式 `--permanent` + 已审批） |
 | L2/L3 是否强制快照 | 是（before/after） |
+
+**四条必须知道的口径**：
+
+1. **路径白名单里没有 `C:\Users\**`**。旧写法覆盖全体账户，而 `storage.file.read` 是 **L0 免审批** ⇒ 跨账户桌面/下载在策略层被直接放行，与本节历史承诺的 `C:\Users\<vmuser>\**` 不符。ARCH-17 已收紧为 `%USERPROFILE%\**`；**跨账户访问恒 DENY**（`matchedRule:'pathAllowlist:miss'`），确有需要由运维显式追加。
+2. **占位符在模式侧运行时展开**（`engine.ts` 的 `expandPolicyPathPattern`，先展开后归一，与 config 层 audit/log/outputDir 共用同一份 `expandEnvPath`）。env 缺席时占位符**保持字面原样** ⇒ 该条目永不匹配 ⇒ 绝对路径一律 DENY —— 方向是 fail-closed：非 Windows/离线环境只会更严，不会误放。附带修复：`appops.cli.invoke` 的 `outputDir: %USERPROFILE%\...` 此前因模式未展开而**恒不匹配**。
+3. **命令面只有黑名单**（ARCH-18）。`commandAllowlist` 已从契约 `CapabilityPolicy`、`PolicyConfig`、`capability.schema.json` 三处同批删除（它从未被引擎读取，唯一写入点亦已移除）。⚠ **`capability.schema.json` 的 `policy.additionalProperties === false` ⇒ 旧配置若仍写 `commandAllowlist` 会被 schema 直接拒绝（不是静默忽略）**——但**现状限定**：该 schema 尚未接入运行期校验（`phase1-t1-notes.md` D-3，全仓仅 `setup-env.test.js` 静态断言其存在），拒止目前兑现在 **CI/交付面**而非运行实例 ⇒ 升级前删该键是**运维必做动作**，不能指望运行期报错暴露问题。解释器约束由 `appops.cli.invoke` 的 `input.app` 枚举 + `validateParams`（早于执行）承担。
+4. **注册表写/读两表必须成对存在**。历史上写表是死配置（`isWrite` 要求动词两侧都有点，真实 ID `system.registry.write` 末段无尾点 ⇒ 恒 false ⇒ 写请求一直按读表判定）。修 `isWrite` 与补写表**必须同 commit**，否则会把「`HKLM:\SOFTWARE` 写入走 L2 审批」这条 SKILL.md 明文承诺的流程直接封死 —— 白名单 miss 发生在审批闸**之前**，miss = 硬 DENY 而非转"需批准"。
+
 
 ### 3.3 审批闸
 
@@ -120,7 +165,7 @@
 > 本条是对体检 U-P0-3（原报 P0、取证后降 P1 高，架构审计 ARCH-02）的裁决落地：
 > 旧实现**只**判 `req.params['dryRun'] === true` 即放行 L2/L3，与本节第 1 条红线**文本直接冲突**且无裁决依据。
 > 若某天决定彻底删除该通道，应同时删除 `supportsDryRun` 声明位与本小节，并把第 1 条红线恢复为绝对表述。
-- ✅ 审批超时默认**拒绝**（fail-closed）。**成立方式**：未获批准一律**不执行**（MCP 侧未携带有效 `approvalId` 的 L2/L3 请求永远返回 `APPROVAL_REQUIRED`；A2A 侧任务在 VM 侧持续挂起）。**注意**：V1 **未实现**审批记录的显式 TTL 回收 / 过期作废，本项为后续变更。
+- ✅ 审批超时默认**拒绝**（fail-closed）。**成立方式**：未获批准一律**不执行**（MCP 侧未携带有效 `approvalId` 的 L2/L3 请求永远返回 `APPROVAL_REQUIRED`；A2A 侧任务挂起至 TTL 到期即落 `timeout` 决策）。**Phase 1 现状**：两条 TTL 回收均已实现 —— A2A 审批等待由 `task-store.waitApproval` 按 `WINVM_APPROVAL_TTL_MS`（默认 30 分钟）计时；MCP 侧待批令牌由 `PendingApprovalRegistry.sweepExpired()` 定时清扫（同一 env 旋钮，**不新造同义配置**；`policy.approvalTimeoutMs` 为历史死字段，见 §3.2）。超时/拒绝/取消三种否定决策均入链（`ext.kind:'approval-decision'`），不得折叠为"未批准"。
 - ✅ provider 异常时服务降级为仅 `meta.*`，**绝不降级为无限制执行**
 
 ---
@@ -168,6 +213,21 @@ record_n.prevHash = hash_(n-1)
 - 创世记录 `prevHash = "GENESIS"`；
 - 校验：`verifyChain()` 逐条重算，任一不符立即失败并报告断裂位置；
 - 定期（每日 + 每次服务启动）自动校验，结果写入 `meta.health.check` 的 `audit.chainValid`。
+
+#### 4.3.1 校验范围的限定语（**重要，别把 `chainValid:true` 读成"全链完好"**）
+
+`vm-service` 装配链时固定 `freshChainOnStart: true`（本轮起新分片，不接续历史 seq/hash）。因此：
+
+| 事实 | 说明 |
+|---|---|
+| `verifyChain()` 在 freshChain 模式下**只校验本轮运行的分片** | 历史分片永久退出判定面 |
+| 该范围是**机器可读**的 | 返回体与 `/health.audit` 透出 `scope: 'session' | 'full'`、`shardsVerified`、`shardsTotal`、`shardsArchived`（= total − verified）；freshChain ⇒ `scope='session'`，否则 `'full'` |
+| 跨轮历史改由**启动归档校验**提供证据 | `verifyArchive()` 对非本轮分片**逐片独立**跑「片内 seq 单调 + 片内 prevHash 链式」，结果落一条 `ext.kind:'chain-archive-verify'` 审计条目；有界 `maxShards=30`（超出只计数不校验），全程 `try/catch` 绝不抛 |
+| 为什么只能**片内**校验 | 历史片彼此无链关系，且与本轮新片也无关系（freshChain 以 GENESIS 重开）；若比对跨片首条 `prevHash` 则必然全红 |
+
+⇒ 运维读法：`audit.chainValid` 回答的是「**本轮运行期内**任一改动即校验失败」；「历史分片是否完好」是另一条证据（归档校验条目），两者不得混为一谈。§1.1 威胁表里的「篡改即校验失败」须按本限定语理解。
+
+**权衡登记**见 §6.4（本批刻意不改 `freshChainOnStart` 行为，根治另立项）。
 
 ### 4.4 脱敏规则
 
@@ -228,7 +288,7 @@ record_n.prevHash = hash_(n-1)
 | 凭据 | 处理 |
 |---|---|
 | SSH 私钥 | 宿主侧 `~/.ssh/`；**不进插件包、不进仓库** |
-| Bearer token（非回环直连） | 环境变量 `WINVM_BEARER_TOKEN`，由宿主注入；**不落明文配置** |
+| Bearer token | 环境变量 `WINVM_BEARER_TOKEN`（名称由宿主 `--token-env` / `tokenEnv` 指定），由宿主注入；**不落明文配置**；仅在 VM 侧开 `enforceBearer` 时参与校验（见 §6.1） |
 | WorkBuddy header 覆盖 | 走宿主 `connector-states.v3.json` 的 AEAD 加密机制（实测 `aes-256-gcm` + `hkdf-sha256`） |
 | VM 自动登录凭据 | 用 Windows DPAPI / 凭据管理器；**禁止**明文写注册表 |
 
@@ -237,9 +297,26 @@ record_n.prevHash = hash_(n-1)
 | 层 | 认证对象 | 机制 | 何时需要 |
 |----|----------|------|----------|
 | **SSH 层** | 宿主 ↔ 被控端 Windows（scp 推包 / `ssh -L` 开隧道） | **SSH 公钥**（默认）；密码不可行 | 始终（部署 + 隧道） |
-| **Bearer 层** | 宿主 connector ↔ `vm-service`（MCP/A2A 协议） | `WINVM_BEARER_TOKEN` | **仅非回环直连**；走回环隧道时免校验 |
+| **Bearer 层** | 宿主 connector ↔ `vm-service`（MCP/A2A 协议） | `WINVM_BEARER_TOKEN`（宿主侧经 `--token-env` 给出**变量名**） | **仅当 VM 侧显式开启 `security.enforceBearer` 且 `tokenEnv` 有值**（双条件，O-9）；默认 `false` ⇒ 走回环隧道时免校验。⚠ 注意"非回环直连"在本系统**不是**可用形态（非回环绑定即启动 `error`，§2.1 第 2 条），所以 bearer 只在"回环 + 显式开守卫"这一组合下生效 |
 
-> 默认部署走 `ssh -L … 127.0.0.1:18443`，隧道两端都是回环地址，Bearer 层**免校验**；`vm-service.config.json` 仅当 `bind ≠ 127.0.0.1` 才强制 `tokenEnv: WINVM_BEARER_TOKEN`。所以绝大多数场景你**只需要配好 SSH 密钥**，无需碰 bearer token。
+> 默认部署走 `ssh -L … 127.0.0.1:18443`，隧道两端都是回环地址，Bearer 层**免校验**；`vm-service.config.json` 默认**不开** `enforceBearer`。所以绝大多数场景你**只需要配好 SSH 密钥**，无需碰 bearer token。
+
+**读 §6.1 必须同时知道的三件事**（口径权威在 §2.1，此处只列操作面）：
+
+1. **"Bearer 层免校验"是信任边界声明的一部分，不是待补的漏洞**：本系统对"谁在调用"的答案是**回环 + SSH 隧道 + 审批闸**，不是凭据。不要因为"bearer 更保险"就顺手打开 `security.enforceBearer`。
+2. **`enforceBearer` 是"配置即生效"的可选加固，双条件成立才挂载**（`enforceBearer===true` **且** `tokenEnv` 有值，O-9），生效与否由 `/health.security.authMode` 三态显式透出。宿主侧客户端通路已就绪：`--token-env`（`host-a2a-bridge/src/cli.ts`）→ `buildTransport` → `applyBearerHeader`（`core/src/transport`，两条远程传输分支**共用同一实现**，避免两份漂移），三态语义为「无 tokenEnv ⇒ 不加头／有值 ⇒ `authorization: Bearer <token>`／有名无值 ⇒ **fail-loud 抛 `TransportError`**，绝不静默降级成无凭据请求；ssh-tunnel 分支的校验还**前置到建隧道之前**」。
+3. ⚠ **VM 内回连凭据通路本批未实现 ⇒ 误开必 401**：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目（回连 `/mcp?dtid=…`）**不含凭据**。开 `enforceBearer` 后委派执行主链路会当场失败。启用前置条件（需定 env 分发机制 + 部署脚本发 token + 两侧回归）与残留风险登记见 §2.1 与 `docs/changes/phase1-arch-design.md` §5 第 3 条 / §10 R4。
+
+#### 6.1.1 两项已登记的权衡（Phase 1 裁决结果，**非缺陷**，别"顺手修掉"）
+
+本节是"认证/凭据"讨论的落点，因此把与 §6.1 直接相关的两条权衡在此**登记在册**（详细四件套——风险 / 为什么不根治 / 现有缓解 / 运维动作 / 根治归属——在 §6.4，权威表在 `docs/changes/CL-022/TECHNICAL-SOLUTION.md` 风险与回滚）：
+
+| # | 权衡 | 与 §6.1 的关系 | 裁定 |
+|---|---|---|---|
+| **W-1** | `freshChainOnStart: true`（每次服务启动起新分片 + 新 genesis）⇒ `verifyChain()` 只证明「本轮连续」（`scope='session'`），跨轮完整性退出判定面 | 与"bearer 可选加固"同构的取舍：**默认形态不追求全覆盖，但必须把覆盖范围显式说清楚**（凭据面靠 `authMode` 三态、审计面靠 `scope`/`shardsArchived`，都拒绝静默降级） | 保持真值、**不列为可关项**（§8 锚点纪律）；跨轮证据 = §4.3.1 的启动 `verifyArchive()` + `chain-archive-verify` 条目。根治（启动即全量校验并阻断就绪）另立 P0，不在本批夹带 |
+| **W-2** | 审计**保留期不设上限**（无到期删除、无容量水位清理，仅按天 / ≥64MB 轮转切分） | 凭据"不落明文"与审计"永不删除"是同一条纪律的两面：都拒绝给攻击者留可配置的消证开关 | 默认保留、**不由本服务自动删除**；收缩由运维在 VM 外做（**先导出归档再收缩**，不要靠删文件腾空间——那会同时销毁 W-1 仅剩的历史证据） |
+
+> 登记来源：`docs/changes/phase1-arch-design.md` §2.2 裁决 + §10 风险表；实施记录 `docs/changes/phase1-t5-notes.md`、变更集 `docs/changes/CL-022/`。
 
 ### 6.2 SSH 认证：只用密钥，不用密码
 
@@ -252,6 +329,30 @@ record_n.prevHash = hash_(n-1)
 
 被控端是不是真·虚拟机不影响架构——`vm-service` 只要跑在一台 Windows 上、经隧道在 `127.0.0.1:18443` 可达即可。把 `VM_HOST` 指向远程 Windows（物理机 / 云主机 / 内网机器），本地当宿主、远程当"VM"，即"本地操作远程 Windows"。唯一额外前置：远程 Windows 需 **OpenSSH Server 监听 22 且宿主可路由**（完整步骤见 `DEPLOYMENT.md §7`）。其余认证、隧道、能力边界与本地 VM 完全一致。
 
+### 6.4 两项已知安全权衡（显式登记，Phase 1 刻意不根治）
+
+> 体检曾点名「权衡未登记于 SECURITY 文档」。安全文档里**没有**登记的权衡等于不存在，因此本节按"风险 + 为什么不修 + 怎么观测 + 何时根治"四件套逐条写黑。
+
+**权衡一：`freshChainOnStart = true` ⇒ 跨轮篡改不在 `chainValid` 判定面内**
+
+| 项 | 内容 |
+|---|---|
+| 风险 | 攻击者若能在两次服务启动之间改写/删除**历史审计分片**，`/health.audit.chainValid` 仍会报 `true`；单看该位无法发现跨轮篡改。更弱的一环是"整片删除"—— freshChain 模式每轮都以 `GENESIS` 重开，本就不校验上一轮的链头衔接，删掉整片不会留下断裂痕迹。 |
+| 为什么不根治 | 根治要改成持久 seq/hash 续链（跨进程唯一链头），这会与既有分片文件、`activeShards` memoize、以及所有以"本轮链"为前提的断言同时冲突，属独立 P0 立项；把它塞进安全兑现批会让本批 5 个任务的回归面失控。 |
+| 现有缓解 | ① 校验范围**机器可读**（`scope`/`shardsArchived`，见 §4.3.1）—— "我这一轮验了多少"不再是隐藏信息；② 启动 fire-and-forget `verifyArchive()` 落一条 `chain-archive-verify` 条目，历史片**至少**得到片内校验；③ 审计文件 ACL 仅服务运行用户可写（§4.1）；④ `maxShards` 有界，不为取证引入可挂死 IO。 |
+| 运维动作 | 别只读 `chainValid`。要看 `audit.scope` 与 `shardsArchived`，并把历史分片**异地留存**（每日轮转文件推到 VM 之外）。 |
+| 根治归属 | Phase 2 独立变更（持久链头 + 跨片衔接校验 + 分片外部锚定/签名）。 |
+
+**权衡二：审计无保留期（retention）与自动归档策略**
+
+| 项 | 内容 |
+|---|---|
+| 风险 | 与权衡一**同源方向相反**：审计**永不删除** ⇒ 磁盘单调增长；分片数一多，`verifyArchive()` 在 `maxShards=30` 处截断（超出只计数不校验），最老的分片会退出任何校验面，而"没被校验"与"完好"是两件事。同时全量留存会把凭据明文之外的敏感操作细节长期堆积在本机。 |
+| 为什么不根治 | 保留期涉及合规口径（监管要求"留多久"与"能不能删"由业务与法规决定，不是工程默认值）；V1 选择**只追加不删除**，避免工程侧擅自清理出"审计被抹"的可疑窗口。 |
+| 现有缓解 | 按天轮转 + 单文件 ≥64MB 切分（§4.1）；`shardsTotal` 透出使增长可观测；归档校验条目可反查每片的 `entries`/`valid`。 |
+| 运维动作 | 自行设定**外部留存 + 冷备**策略（VM 外只读副本），并核对 `shardsTotal - shardsVerified` 是否已超 `maxShards`（超了就说明有片退出校验）。**不要**靠删文件腾空间——那会同时销毁权衡一仅剩的历史证据。 |
+| 根治归属 | Phase 2/3 与合规口径一并定：导出签名归档 + 保留期 + `verifyArchive` 全量覆盖方案。 |
+
 ---
 
 ## 7. 安全默认值汇总（Secure by Default）
@@ -259,14 +360,17 @@ record_n.prevHash = hash_(n-1)
 | 项 | 默认 |
 |---|---|
 | 传输 | SSH 隧道（VM 仅回环监听） |
+| **回环绑定** | **不可关**：非回环 ⇒ 启动 `error`，`security.requireLoopbackBind=false` 自 Phase 1 起不再能放宽（只额外产生 warning）—— 见 §2.1 |
+| 服务端身份鉴权 | `security.enforceBearer` 默认 `false`（可选加固，双条件生效，`/health.security.authMode` 三态透出）；开启前置条件见 §2.1 警告块 |
 | 策略 | **拒绝优先** |
 | L2/L3 | 强制审批 + before/after 快照 |
 | L3 分区/格式化 | **不注册为可用能力** |
 | 删除 | 进回收站 |
 | 委派 `maxRisk` | L1 |
 | 审批超时 | 拒绝（fail-closed） |
-| 公网暴露 | 无此配置模板；检测到非回环绑定即告警 |
-| 审计 | 全量开启 + 哈希链 |
+| 公网暴露 | **恒不可**：非回环绑定即启动 `error`（Phase 1 起从"告警"升为"拒绝启动"，见 §2.1）；无公网暴露配置模板 |
+| 任务取消 | **协作式真取消**（能力调用边界生效）；取消终态以 `terminalState:'canceled'` + `errorCode:'TASK_CANCELED'` 入链；呈现面禁止"未执行任何变更"式承诺 —— 见 §2.2 |
+| 审计 | 全量开启 + 哈希链（**校验范围 = 本轮**，跨轮见 §4.3.1 与 §6.4 权衡一） |
 | provider 异常 | 降级为仅 `meta.*` |
 
 ---
@@ -275,7 +379,7 @@ record_n.prevHash = hash_(n-1)
 
 | 评估建议风险 | 本设计缓解 | 落点 |
 |---|---|---|
-| 等于给 VM 开 RCE | 七层纵深防御（§2） | 全局 |
+| 等于给 VM 开 RCE | 七层纵深防御（§2）+ 信任边界声明与回环不可关（§2.1） | 全局 |
 | GUI 黑屏/失效 | 会话探针 + tscon + 自动登录 + 降级语义（§5） | `core/session`、`vm-capabilities` |
 | 委派"黑盒" | 强制 artifact（steps/screenshots/change-list）+ traceId（§IF-2.6） | `a2a-framework`、`vm-service` |
 | 资源占用 | V1 用确定性执行器（无 LLM 开销）；并发上限；任务可取消 | `adapter-agent-workbuddy`、`core` |

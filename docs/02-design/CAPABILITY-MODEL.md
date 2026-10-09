@@ -232,8 +232,13 @@
   "input":  { /* JSON Schema */ },
   "output": { /* JSON Schema */ },
   "policy": {                              // 策略引擎附加约束
-    "commandAllowlist": [],                // 正则白名单
-    "pathAllowlist": [],                   // 路径前缀白名单
+    // ⚠ ARCH-18（Phase 1 已裁断＝删除）：命令面**只有黑名单**，本对象不再有 `commandAllowlist`。
+    // 它从未被引擎读取（死配置），全仓唯一写入点（`appops.workflow.run` 的 9 个解释器正则）已同批移除；
+    // 解释器准入改由 `appops.cli.invoke` 的 `input.app` 枚举 + 登记期 `validateParams`（早于执行）把守。
+    // ★ 运维注意：`capability.schema.json` 的 `policy.additionalProperties === false` ⇒ 旧能力定义
+    //   若仍写 `commandAllowlist`，会被 schema **直接拒绝**（不是静默忽略）。现状：该 schema 尚未接入
+    //   运行期校验（phase1-t1-notes D-3），拒止兑现在 CI/交付面 ⇒ 升级前必须主动删该键，勿指望运行期报错。
+    "pathAllowlist": [],                   // 路径前缀白名单（支持 `%ENV%\**` 模式侧运行时展开，ARCH-17）
     "pathDenylist": [],                    // 路径黑名单（优先级最高）
     "processAllowlist": []
   },

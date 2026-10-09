@@ -72,7 +72,7 @@
 - 跑测**逐文件**，禁整批 glob（junction 用例并发触发 0xC0000005 假红）；同一时刻全仓只许一个全量跑进程。
 - 计数只用 `line.trimStart().startsWith("\u2139 tests ")`；禁 node -e 内联正则；大文件计数用 `git diff --numstat`（勿信单次 wc，先例 D-30）。
 - `tests/unit` 现有 phase1 新文件 4 个（t3×1 / t4×3）。
-- 文档面行数基线：SECURITY-GOVERNANCE 281 / ARCHITECTURE 341 / CAPABILITY-MODEL 289 / DEPLOYMENT 546 / README 338 / overview 232 / skills/winvm-storage-manager/SKILL.md 143。无任何测试读取 `docs/**`。
+- 文档面行数基线：SECURITY-GOVERNANCE 281 / ARCHITECTURE 341 / CAPABILITY-MODEL 289 / DEPLOYMENT 546 / README 338 / overview 232 / skills/winvm-storage-manager/SKILL.md 143。~~无任何测试读取 `docs/**`~~ ⇒ **已推翻**：实测 4 个守卫读文档/Skill 文本（详见 **D-39** 与 §8.1），改文档属守卫输入面。
 - getcwd 偶发异常：所有命令前缀 `cd <repo root>`。
 - ⚠ 更正：`/tmp` 在本环境**只读**（`bash: /tmp/t5dbg.mjs: Read-only file system`）；临时脚本一律落 `$HOME/wbtmp/`。`@winvm/*` 是 workspace 包，脚本必须放在仓库内才能解析导入。
 
@@ -192,6 +192,10 @@
 | **D-36** | 测试落点 | 判据④离线守卫**新建独立文件**（`phase1-t5-cancel-consume.test.js`），未并入 `oh-tunnel.test.mjs`/`tunnel-mode.test.js`。 | 设计 §7.4-T5 ④ 允许「同层断言」；那两个文件依赖隧道/真机环境，与「新增用例零环境依赖 + 逐文件跑测」纪律冲突。断言层级不变（cli→buildTransport→applyBearerHeader→establishTransport→真实 HTTP 头）。 |
 | **D-37** | 口径修正（主理人裁定） | `step()` 出口取消分支**改为仍把已完成产物 push 进本地 `artifacts`**，只关闭 `sink.onArtifact` 外推（原实现两侧一起收敛 ⇒ 本地集为 0）。 | 原判据「双闸同口径」推导有误：框架 O-2 决定 canceled 不落链，`task.artifacts` 只保持取消前既有内容、**不替 provider 补记**；而宿主文案计数与 QA 反查唯一可读事实源是 `GoalResult.artifacts`（T3 移交第 7 条亦注明 observer 快照里 `result` **在场**）。收口清空本地集＝抹掉「确实产出了这份产物」的可证事实 ⇒ 属实现缺陷，不得反向放宽测试。已同步：`phase1-t5-provider-cancel.test.js`（断 `===1` + 新增「本地账 ≥ 流出面」分叉钉）、`phase1-t5-cancel-consume.test.js`（断 `===1`／sink `===0`／summary「产出 1 个 artifact」）。 |
 | **D-38** | 测试替身 | 截图用例目标文本 `帮我截屏看看` 曾不命中确定性模板正则（`/(截图|截屏|看看屏幕|当前屏幕)/` 之外的措辞在另一文件里写成 `截个屏幕`）⇒ 走「无匹配模板」分支，表现为「artifact 数为 0」假象。 | 判因结论：**替身缺陷**（非实现缺口）。两个文件现分别用 `帮我截屏看看` / `截一张当前屏幕看看`，均命中 `gui.screen.capture`；已确认 `extractArtifacts` 仅在 `capabilityId==='gui.screen.capture'` 且 `data.data` 为 string 时产出，故夹具必须回 `{data:'...'}` 形状，否则 artifact 断言空转。 |
+| **D-39** | 侦察结论修正 | §0.3 曾记「无任何测试读取 `docs/**`」——**不成立**。实测有 4 个守卫直接读文档/Skill 文本：`r19b-s1-registry-forms`（切 `CAPABILITY-MODEL.md`）、`r19b-s5-write-allowlist-pairing`（切 `skills/winvm-system-admin/SKILL.md` + `docs/design/s5-*.md`）、`r1-approval-card`（切 `skills/winvm-orchestrator/SKILL.md`）、`host-adapter`/`deploy-shared-skills`（Skill 渲染产物）。 | 文档面因此**不是零风险区**：改 `CAPABILITY-MODEL.md` 属守卫输入面。已按守卫冲突协议在改后逐文件复跑（§8.1 五文件全绿）。教训：grep 结论要按「读文件的 API 调用点」（`src(` / `readFileSync` / `read(`）二次核验，只 grep 路径字符串会漏。 |
+| **D-40** | 文档补齐 | `SECURITY-GOVERNANCE.md` §2.2 原文把取消呈现口径指向 `HOST-A2A-BRIDGE.md`，但**该文档当时没有对应章节**（只有工具表里一行「取消任务」）⇒ 悬空引用。 | 本批在 `HOST-A2A-BRIDGE.md` 新增 **§4.5 取消的呈现口径**（两态判据表 + steps 两级派生 + `cancelObserved` + 重新发起须重新审批），使 §2.2 的指向落地；文案与 `tools.ts` 的 `canceledSummaryText` 逐字核对一致。属"补齐既有承诺"而非新增口径。 |
+| **D-41** | 文档未改动项（刻意） | 仓库根 `overview.md` 经 grep 核对**无** bearer/`--token-env` 配置样例、无与本批冲突口径 ⇒ 不编辑；`README.md:275` 与 `docs/06-OVERVIEW.md:4/60`、`phase0-delivery-summary.md` 的测试基线数字（71/1247 与 1245 pass）**保持原样**。 | 基线对外数字属 **QA 收官批**统一口径（任务书明写"不得动"），工程侧只留 `$HOME/wbtmp/t5-full-run*.txt` 实测证据。不做无谓编辑以压小 diff 面。 |
+| **D-42** | 文档现状说明（避免按旧登记改错地方） | 本笔记的 §8/§9/§10 存在**两个版本**（checkpoint-2 首版 + 队友后写终版，编号撞车）。经核：**首版（`## §8 文档面（判据⑤，逐项核对表）` 起）才是与当前工作区实况对应的那一版**；后一版（`## §8 文档面（checkpoint 2）` 起）的 `8.3 DOC-1/DOC-2` 描述已被后续重写**推翻**（实测 `SECURITY-GOVERNANCE.md:306` 仍有 `#### 6.1.1 两项已登记的权衡`，`:328` 另有 `### 6.4` 四件套权威表；`DEPLOYMENT.md` 已无 `§6.1.1` 引用）。 | 处置：把后一版降级为 **附录 A**（保留作并发双写的过程记录）并逐条标注失效项；终判（`IS_PASS`）**唯一份**，移到文件末尾（原首版 §10 末尾那份已删，避免两份互相矛盾）。教训：**同节号并写**会让读者按失效记录去"修正"实况 ⇒ 并发批次必须按 §7.5/纪律建议先锁章节归属。 |
 
 ---
 
@@ -206,7 +210,7 @@
 | B2 | `adapter-agent-workbuddy-llm/src/bridge.ts` | ✅ | 常驻/单次两路前置闸、turn 轮询 + signal 事件驱动、`launchCliProcess` signal 透传、R4 注释 |
 | C | `host-a2a-bridge/src/tools.ts` | ✅ | 两态文案 + `executedBeforeCancel` + `a2a.task.cancel` / `cancelObserved` |
 | D | `host-a2a-bridge/src/cli.ts` | ✅ | `--token-env` usage 与实现对齐（生效路径无改动） |
-| T | 测试三件（provider-cancel 12 例组 / cancel-consume / llm-cancel）+ `host-a2a-bridge.test.js` 同步 | ✅ | 见 §7.2 |
+| T | 测试四件（provider-cancel 11 例 / token-env 13 / cancel-consume 17 / llm-cancel 12）+ `host-a2a-bridge.test.js` 同步 | ✅ | 见 §7.2（主理人终审订正：provider-cancel 实测 11 例，非 12） |
 | DOC | 文档面 6 处 + CL-022 三件套 | ⏳ | Checkpoint 1 之后执行 |
 
 ### 7.2 五红判因（team-lead 唤醒清单 → 消解路径）
@@ -264,3 +268,166 @@
 | `cl018-persistent-session` | 19 | 0 | `activeAbort` / `killChild` 既有语义（本批新增 `abortActiveTurn` 未改写） |
 | `cl017-error-reason` | 10 | 0 | `TASK_CANCELED` 契约码与 reason 折叠 |
 | `cl018-a2a-timeout` | 7 | 0 | `cli.ts` 三条静态钉 + `tools.ts` 剥注释后无「已修复/已解决」 |
+
+---
+
+## §8 文档面（判据⑤，逐项核对表）
+
+> 事实源纪律：所有口径**以实现为准**回写文档；文档与实现冲突时改文档并在本节登记。测试基线对外数字（`1247 → 1400 → 1456` 的表述）属 QA 收官批统一口径，**工程侧不动**（`README.md:275` / `docs/06-OVERVIEW.md:4,60` / `phase0-delivery-summary.md` 三处保持原样）。
+
+| 目标 | 位点 | 内容 | 状态 |
+|---|---|---|---|
+| `SECURITY-GOVERNANCE.md` | **§2.1 新增**「信任边界声明（ARCH-07 裁决结果）」 | 边界=回环+SSH 隧道+审批闸、服务端不鉴权；三点含义（谁能连回环=谁能裸调 / **回环约束不可关** / bearer 可选加固 + `authMode` **三态表**）；⚠ 警告块「开 `enforceBearer` 前须先补齐 VM 内回连凭据通路（尚未实现）⇒ 委派主链路必 401」 | ✅ |
+| | **§2.2 新增**「取消的真实语义（ARCH-22）」 | 协作式非抢占；取消成立 ⇒ 取消点后不发起，**不**意味着 VM 未变更；常驻会话被打断会**终结 CLI 子进程**；证据面 `terminalState:'canceled'` + `errorCode:'TASK_CANCELED'` | ✅ |
+| | **§3.2** 与 `defaults.ts` 逐字 | 表头加「事实源是 `packages/core/src/policy/defaults.ts` 的 `DEFAULT_POLICY`」；路径白名单**六条逐字**（`%USERPROFILE%\**`、`C:\Users\Public\**`、`C:\Temp\**`、`C:\tmp\**`、`D:\Data\**`、`C:\WinVMWorkspace\**`，与 `defaults.ts:71-78` 同序同串）；黑名单/命令黑名单正则/进程黑名单/注册表双表按代码写法照抄；补「四条必须知道的口径」（无 `C:\Users\**`、模式侧展开 fail-closed、命令面只有黑名单 + schema 拒未知键、注册表写读双表成对） | ✅ |
+| | **§4.3.1 新增** 校验范围限定语 | `freshChainOnStart:true` ⇒ `verifyChain()` 只校本轮分片；范围**机器可读**（`scope`/`shardsVerified`/`shardsTotal`/`shardsArchived`）；跨轮证据=启动 `verifyArchive()` 落 `chain-archive-verify`；为何只能片内校验；运维读法（别把 `chainValid:true` 读成全链完好）；表下另留 ARCH-06 连读块 | ✅ |
+| | **§6.1 / §6.1.1 新增** | 双层认证模型 + 「读 §6.1 必须同时知道的三件事」（免校验是边界声明的一部分 / 双条件 O-9 + 客户端通路 `--token-env`→`buildTransport`→`applyBearerHeader` 三态 / ⚠ VM 内回连未实现）；**两项权衡登记 W-1（`freshChainOnStart`）+ W-2（审计保留期不设上限）**，各含「得到 / 付出 / 当前裁定与理由」 | ✅ |
+| | **§6.4 新增** 两项已知安全权衡 | 每条四件套「风险 / 为什么不根治 / 现有缓解 / 运维动作 / 根治归属」；权衡一点名「整片删除不留断裂痕迹」这一最弱环 | ✅ |
+| | **§7** 安全默认值汇总 | 新增 **「回环绑定：不可关」** 一行（非回环⇒启动 `error`，`requireLoopbackBind=false` 不再能放宽）；「服务端身份鉴权」改为默认 false + 双条件 + 三态 + 开启前置条件；「任务取消」改协作式真取消 + 入链 + 禁不实承诺；「审计」加校验范围=本轮；§1.1 威胁表 T/D/EoP 三行缓解改述 | ✅ |
+| `ARCHITECTURE.md` | §7 机制表 `:290`/`:292`/`:294` 行 | 白名单行补「命令面只有黑名单」；哈希链行加**校验范围限定语**（`scope`/`shards*` + 指向 SECURITY §4.3.1/§6.4）；**新增**「信任边界」「任务取消（真取消）」两行（全链五层） | ✅ |
+| | §10 风险表 `:338`/`:340`/`:342` | 「VM 服务等于开放 RCE」缓解改述为信任边界三点 + VM 内任意本地进程都在信任域内；「审计被篡改」改为**本轮期内**+⚠ 残留登记（非"已根治"）；「委派黑盒」加取消终态入链 + `executedBeforeCancel` | ✅ |
+| `CAPABILITY-MODEL.md` | `policy` 示例块 `:234-240` | **删除** `"commandAllowlist": []` 一行 ⇒ 命令面白名单口径移除；补 4 行注释（从未被引擎读取 / 唯一写入点已同批移除 / 解释器准入改建为 `input.app` 枚举 + 登记期 `validateParams` / schema `additionalProperties:false` 会**直接拒绝**旧键）；`pathAllowlist` 注释补 `%ENV%\**` 模式侧展开（ARCH-17） | ✅ |
+| `docs/changes/CL-022/` | 三件套 | **REQUIREMENT.md**（六条名实落差表 + **三条刻意破坏性 B-1/B-2/B-3** 各含"谁会破/症状/迁移动作" + 刻意不做的事 5 项 + 需求池 R1-1…R5-10 + 影响范围）／**TECHNICAL-SOLUTION.md**（A 取消贯通链 / B 信任边界与鉴权 / C 策略收紧与命令面清理 / D 审计范围与凭据通路 / E 执行体消费与宿主呈现 + 风险与回滚表 + 验证方法含三条破坏性的负向证据）／**QA-REPORT.md**（队友落盘，工程侧自证 + QA 待复核栏） | ✅ |
+| `DEPLOYMENT.md` | §8.1（`:450` 原句） | 原「非回环直连会被 `requireLoopbackBind` 拒绝，且会触发 `tokenEnv` bearer 校验」**两处失真**（非回环根本起不来；bearer 默认不校验）⇒ 改为三点块：回环不可关 / bearer 双条件 + 三态 / ⚠ VM 内回连未实现⇒401 | ✅ |
+| | §8.5（`:518` 原句） | 原「只有非回环直连才需要 `WINVM_BEARER_TOKEN` + `tokenEnv`」暗示存在受支持的非回环形态 ⇒ 改为本系统不存在该形态、绝大多数部署只需 SSH 密钥、真要开得先看 §8.1 警告块 | ✅ |
+| `README.md` | §2.4 强监管内核 5 行 | 「命令白/黑名单」→ **命令面只有黑名单**；哈希链承诺加「本轮运行期内」限定语 + 指向 §4.3.1；网络安全行加「回环不可关」+ bearer 可选（`--token-env`）+ 信任边界一句 | ✅ |
+| `overview.md`（仓库根） | 全文核对 | grep `token-env` / `bearer` / `WINVM_BEARER_TOKEN` ⇒ **无 bearer 配置样例**、无与本批冲突口径（只有 `a2a.task.cancel` 的工具名列举）⇒ **无需改动**（不做无谓编辑） | ✅ 核对 |
+| `HOST-A2A-BRIDGE.md` | §4.2 / **§4.5 新增** | 工具面 `a2a.task.cancel` 行标注协作式 + `cancelObserved`；新增 §4.5「取消的呈现口径」两态表（机械信号= `executedBeforeCancel` 有/无）+ steps 两级派生 + 重新发起须重新审批。依据：SECURITY §2.2 原文「见 `HOST-A2A-BRIDGE.md`」是**指向本文的悬空引用**，本批补齐（见 D-40） | ✅ |
+| `skills/winvm-storage-manager/SKILL.md` | `:35`（D-13） | 「默认路径白名单（与 `defaults.ts` 的 `DEFAULT_POLICY.pathAllowlist` 逐字一致，六条）」同串 + ⚠ 块说明「没有 `C:\Users\**`」与跨账户恒 DENY | ✅ |
+
+### 8.1 文档面的守卫复核（有守卫**读文档文本**，非零风险区）
+
+grep 实测「读 `docs/**` / `skills/**` 文本」的守卫共 4 个文件（**推翻了任务书里"无任何测试读取 docs"的侦察结论**，见 D-39）：`r19b-s1-registry-forms`（`CAPABILITY-MODEL.md` 切片）、`r19b-s5-write-allowlist-pairing`（`skills/winvm-system-admin/SKILL.md` + `docs/design/s5-*.md`）、`r1-approval-card`（`skills/winvm-orchestrator/SKILL.md`）、`host-adapter` / `deploy-shared-skills`（Skill 渲染产物）。文档改完后逐文件复跑：
+
+| 文件 | tests | fail |
+|---|---|---|
+| `r19b-s1-registry-forms` | 35 | 0 |
+| `r19b-s5-write-allowlist-pairing` | 39 | 0 |
+| `r1-approval-card` | 69 | 0 |
+| `host-adapter` | 35 | 0 |
+| `deploy-shared-skills` | 8 | 0 |
+| `r3-uninstall-verify`（D-42 补：该文件亦静态切 `CAPABILITY-MODEL.md` §3.2.1 回执语义，属文档守卫输入面） | 39 | 0 |
+
+六个读文档的守卫合计 **225 例 / 0 fail**，终版留档 `$HOME/wbtmp/se2-t5-docguard-final.txt`（逐文件串行，禁 glob、禁与其它 sweep 并发）。同文件另附**机械探针** `$HOME/wbtmp/t5-doc-verify.mjs` 输出：**20 项全 OK**（`$HOME/wbtmp/t5-doc-verify.txt`）。探针价值实证：首轮抓到 `SECURITY §6.1.1 MISS` —— 当时该节确实在并发重写中丢失，我据 §6.4/§4.3.1 实况重建并同时修正 §6 凭据表行与 §6.1 表中残留的「仅非回环直连才需要 bearer」旧口径（与 §2.1 冲突三处）；随后队友写入 §6.4 四件套权威表，形成 W-1/W-2 摘要表（§6.1.1）+ 四件套（§6.4）并存结构，二者以「§6.1.1 指向 §6.4 为权威」的引用关系收敛，不构成双份漂移（见 D-42）。探针另两项首轮 DIFF 经核为**探针自身缺陷**：SKILL 六条写在标记行的下一行（扫描逻辑修后 OK）；`tools.ts`「审批通道已关闭」仅存在于注释中的病灶描述（改为注释感知后 OK）—— 教训：探针报红先判"工具缺陷 vs 真实回归"，与五红判因同一纪律。
+
+---
+
+## §9 一致性审查（全局，跨文件）
+
+| 维度 | 检查 | 结论 |
+|---|---|---|
+| 契约→框架→服务端→执行体→宿主 取消链路 | `isCancelled`/`cancellationSignal` 是否**同源**（`TaskStore.cancelController` 单主干）；执行体是否两侧都判（轮询 + 事件）；宿主是否只呈现事实 | ✅ 五层贯通，无第二信号源 |
+| 码路由 | 取消一律 `TASK_CANCELED`（`retryable:false`）；`goalFail()` 仍 `EXECUTION_FAILED`（未改语义）；`canceledResult()` 不走 `{unavailable}` | ✅ 三条降级红线（`EXECUTION_FAILED+零 artifact`／`PROVIDER_UNAVAILABLE`／常驻不可用回退单次 -p）全部避开，且有对照实验证非空断言 |
+| 产物记账口径 | provider 本地集**收纳**、`sink` 外推**关死**、框架 `addArtifact` 终态二次闸、O-2 不落链 | ✅ 三处口径一致（"本地 ≥ 流出"为设计意图，D-37） |
+| 文案口径 | provider `goalCanceled`（计数事实）／宿主 `canceledSummaryText`（两态）／SECURITY §2.2 ／ARCHITECTURE §10 ／HOST-A2A-BRIDGE §4.5 | ✅ 同一事实模型，无"未执行任何变更"式承诺（grep 全仓：仅 CL-016 历史归档与审计病灶描述保留，属应当） |
+| 白名单口径 | `defaults.ts:71-78` ↔ SECURITY §3.2 ↔ ARCHITECTURE 机制表 ↔ SKILL `:35` ↔ `r3-uninstall-verify`/`p0` 断言 | ✅ 逐字同串（六条，含 `%USERPROFILE%\**`） |
+| 凭据通路 | `applyBearerHeader`（**唯一实现**，两条远程分支共用）↔ cli `--token-env` usage ↔ SECURITY §6.1-2 ↔ DEPLOYMENT §8.1 | ✅ 三态语义一致，文档不再谎称默认值 |
+| 交叉引用可达性 | SECURITY §2.2→`HOST-A2A-BRIDGE.md`（原悬空，已补 §4.5）；ARCHITECTURE→SECURITY §2.1/§4.3.1/§6.4；SECURITY §6.1.1→`CL-022/TECHNICAL-SOLUTION.md`；DEPLOYMENT §8.1→SECURITY §2.1 | ✅ 全部可达且编号真实存在 |
+| 重复实现 | 曾有并发写出的两份 `abortActiveTurn`（薄封装版不杀子进程） | ✅ 已删除薄封装版，保留含 `killChild()` + `turnAbortedByCancel` 唯一版本 |
+| 静态守卫输入面 | `channel:` 计数、inner-call ext 计数、C6 两行门、`resolveA2aTimeoutMs`/`case '--timeout'`/`ENV_A2A_TIMEOUT_MS`、tools.ts 剥注释后禁词 | ✅ 未新增/未删除任何被钉出现点（§7.5 抽验全绿） |
+
+---
+
+## §10 移交（给 QA 收官批 / Phase 2）
+
+1. **QA 对外基线口径**：工程侧实测 **79 文件 / 1456 tests / 1454 pass / 0 fail / 2 skipped**（`$HOME/wbtmp/t5-full-run.txt`，文档面后终局复跑 `$HOME/wbtmp/t5-full-run-final.txt`）。`README.md:275`、`docs/06-OVERVIEW.md:4/60`、`phase0-delivery-summary.md` 三处仍是 71/1247 旧口径 ⇒ **由 QA 收官批统一改写**（工程侧不动，避免与 QA 独立复跑数字打架）。
+2. **`CL-022/QA-REPORT.md` 需 QA 独立复跑填栏**：§4-B5「QA 独立复跑与智能路由判定」与 §6 判定当前是工程侧自证 + 建议值，权威判定权在 QA。
+3. **真机 BLOCKED 三项**（离线不可证，判据原文见 `CL-022/TECHNICAL-SOLUTION.md` 验证方法 §6）：① 委派途中 `tasks/cancel` → VM 内 CLI 子进程消失（`Get-Process` 反查）+ 链上 `canceled`；② win32 `cmd.exe` 包装路径的 signal 透传实跑（本仓是 POSIX，只用形态计数钉 + 变异自证覆盖）；③ 误开 `enforceBearer` ⇒ 委派 401 的正向复现（R4 证据）。
+4. **观察项（建议 Phase 2 处理，本批刻意不动）**：
+   - **O-1**：确定性模板路径把 `execute` 的契约码折叠成 `EXECUTION_FAILED`（`step()` 只上抛 `res.error.message` 字符串）⇒ 策略拒绝码 `POLICY_DENIED` 在模板结果里不可见。已用断言钉住**既有形态**，是否让 `step()` 保留契约码待裁。
+   - **O-3**：`launchCliProcess` 是 `bridge.ts` 内部导出、未从包公共面透出 ⇒ 测试只能直连 `dist/bridge.js`。不为测试擅自扩公共面。
+   - **ARCH-18 schema 未接运行期校验**（`phase1-t1-notes.md` D-3）：`additionalProperties:false` 的拒止能力尚未在运行路径兑现 ⇒ B-2 破坏性目前主要靠交付/CI 侧暴露。
+   - 权衡一根治（持久链头 + 跨片衔接 + 分片外部锚定）与权衡二（保留期 + 签名导出归档）→ Phase 2 独立立项。
+5. **纪律建议（本批踩到，值得入团队规约）**：
+   - 改 `src` 后**立即** `tsc -b --force` 再跑测（本批 2 个红纯属 dist 陈旧，见 §7.2 #3/#4）。
+   - 全量 sweep 的留档路径**按成员隔离**（两个 sweep 共用 `t5-full-run.txt` 造成过一次交错假红，见 `CL-022/QA-REPORT.md` §5-2）。
+   - "文档不是零风险区"：4 个守卫读文档/Skill 文本（D-39）⇒ 改文档也要走守卫复跑。
+
+---
+
+# 附录 A · checkpoint-2 首版记录（**并发双写留痕，部分结论已被推翻**）
+
+> ⚠ 阅读须知（D-42）：本附录与上方 §8/§9/§10 编号撞车（历史原因：队友后写终版，我先前落的 checkpoint-2 首版未改号）。
+> **实况以正文 §8/§9/§10 为准**；本附录仅保留"过程证据"，其中 A.3 的 DOC-1/DOC-2 两条**处置已被后续重写推翻**（见 A.4 勘误）。终判 `IS_PASS` 只有一处，在文件末尾。
+
+> 判据⑤ 全覆盖；文档改动**零测试依赖**（无任何 `tests/**` 读 `docs/**`），故不触发守卫，仅需口径核验。
+> 本区为「面与文」的**文**半边；八文件实际由 software-engineer-1（§2/§4.3.1/§6.4/§7 主体、README、HOST-A2A-BRIDGE、ARCHITECTURE 主体）与我（CAPABILITY-MODEL、OVERVIEW、DEPLOYMENT 引用修正、SKILL.md 白名单、CL-022 三件套）分工完成。
+
+### A.1 八文件 numstat（git 只读实测，**当时快照**）
+
+```
+ 3 3  README.md                       （队友：bearer 段；我未动）
+ 7 5  docs/02-design/ARCHITECTURE.md  （队友：§安全机制表 + §10 风险表缓解改述 + 信任边界/真取消行）
+ 6 2  docs/02-design/CAPABILITY-MODEL.md（我：policy 示例去 commandAllowlist + pathAllowlist %ENV% 注）
+15 1  docs/02-design/HOST-A2A-BRIDGE.md（队友：a2a.task.cancel/executedBeforeCancel/cancelObserved 呈现口径）
+103 14 docs/02-design/SECURITY-GOVERNANCE.md（队友主写 §1.1/§2.1/§2.2/§3.2/§4.3.1/§6.1/§6.4/§7；我删重复 §6.1.1）
+ 7 2  docs/05-peripherals/DEPLOYMENT.md（队友：§8.1 bearer 块 + §8.5 边界；我：§6.1.1→§2.1/§6.4 失效引用修正）
+ 5 3  docs/06-OVERVIEW.md             （我：三道闸口径 + 网络信任边界段）
+ 9 1  skills/winvm-storage-manager/SKILL.md（我：§35 白名单六条逐字对齐 + 跨账户 DENY 说明）
+```
+
+> **终版 numstat 对照**（同区快照之后又动了 SECURITY 与 notes 本身，git 只读实测）：`SECURITY-GOVERNANCE.md 117/17`（§6.1.1 重建 + §6/§6.1 三处旧口径修正，见 A.4-2）、`README.md 3/3`（§2.4 五行口径）、`DEPLOYMENT.md 7/2`、`HOST-A2A-BRIDGE.md 15/1`（新增 §4.5）、`phase1-t5-notes.md 152/1 → 本区增量`。其余四文件未再变。
+
+### A.2 判据⑤逐项核验
+
+| 子判据 | 要求 | 落点 | 结论 |
+|---|---|---|---|
+| §2 信任边界 | SECURITY 含信任边界声明 | §2.1（回环不可关 + authMode 三态 + enforceBearer 前置条件 R4） | ✅ 队友写，口径核对无误 |
+| §6 两项权衡 | `freshChainOnStart` / 审计保留期 | §6.4 权衡一（W-1）/ 权衡二（W-2） | ✅ 队友写（⚠ 本行结论已被 A.4 勘误修正：§6.1.1 摘要表与 §6.4 四件套**并存**，以 §6.4 为权威） |
+| §3.2 逐字对齐 | 与 `defaults.ts` 六条逐字 | §3.2 表 + 四条口径；实测三处（代码/SECURITY/SKILL.md）同串 | ✅ 逐字核对通过（见 §9 一致性） |
+| §4.3 校验范围限定语 | 本轮 scope + 跨轮 archive-verify 证据 | §4.3.1（含"别把 chainValid 读成全链完好"） | ✅ 队友写，限定语完整 |
+| §7 回环不可关一行 | 安全默认值表 | §7 表「回环绑定：不可关」行 | ✅ 队友写 |
+| ARCHITECTURE 限定语 | :292/:340 校验范围 + :336 风险表缓解 | 机制表「哈希链审计」行 + 风险表「VM 服务等于开放 RCE」「委派黑盒」「审计被篡改」三行改述 | ✅ 队友写 |
+| CAPABILITY-MODEL 白名单口径移除 | :201 命令面白名单 | policy 示例块（实际行号 :234-239，:201 为 appops 表格，已按 numstat 定位修正）| ✅ 我写 |
+| CL-022 三件套 | REQUIREMENT/TECHNICAL-SOLUTION/QA-REPORT，含 3 条刻意破坏性 | 三文件齐；B-1 白名单收紧 / B-2 commandAllowlist 移除 / B-3 回环不可关 逐条写黑 | ✅ 队友主写 REQUIREMENT/TECHNICAL-SOLUTION；我补 QA-REPORT + CL-022 引用核验 |
+| DEPLOYMENT/README/OVERVIEW | `--token-env` 与 bearer 样例核对 | DEPLOYMENT §8.1/§8.5、README :65、OVERVIEW 三道闸 | ✅ 队友 + 我；**测试基线数字（1247→1400→1456）未动**（属 QA 收官批） |
+| SKILL.md D-13 | 白名单六条逐字 | winvm-storage-manager/SKILL.md §35 | ✅ 我写 |
+
+### A.3 文档面缺陷修复（本区，**当时处置**）
+
+| # | 现象 | 判因 | 处置 |
+|---|---|---|---|
+| DOC-1 | SECURITY 出现两处权衡表：队友 §6.4（权威）+ 我 §6.1.1（W-1/W-2） | **并发双写**：分工前我已落 §6.1.1，队友随后写了更完整的 §6.4 四件套版 | ~~删我的 §6.1.1（保留队友 §6.4）~~ ⇒ 已推翻，见 A.4 |
+| DOC-2 | DEPLOYMENT:455 引用 `SECURITY §6.1.1`（被我删的节） | 引用未随 DOC-1 更新 | 改指 `§2.1（启用前置）/§6.4（权衡）`；全仓 `grep §6.1.1` 已无残留（**DEPLOYMENT 侧结论仍成立**） |
+
+### A.4 勘误（D-42 · 终版核验，以工作区实况为准）
+
+1. **DOC-1 的处置已失效**：`SECURITY-GOVERNANCE.md:306` 现仍存在 `#### 6.1.1 两项已登记的权衡（W-1/W-2 摘要表）`，与 `:328 ### 6.4 两项已知安全权衡（四件套权威表）**并存**。这不是"忘了删"：§6.1.1 开头显式声明「详细四件套…在 §6.4，权威表在 `CL-022/TECHNICAL-SOLUTION.md` 风险与回滚」，即**摘要 + 权威**的引用关系，单一事实源未被破坏（判定依据：两处裁语文案同源、无冲突口径）。探针项 `OK SECURITY §6.1.1 两项权衡` 即钉这一现状。
+2. **§6.1.1 的真实历史是"丢失—重建"，不是"删除"**：队友一次重写曾把该节整体抹去，同时残留 §6 凭据表行「`Bearer token`（非回环直连）」与 §6.1 表/blockquote 的「仅当 `bind ≠ 127.0.0.1` 才强制 `tokenEnv`」三处旧口径 —— 与 §2.1（回环不可关 + 双条件 O-9）直接冲突。机械探针抓出后我做了三处修复：**重建 §6.1.1**、改 §6 表行为「名称由宿主 `--token-env` / `tokenEnv` 指定…仅在 VM 侧开 `enforceBearer` 时参与校验」、改 §6.1「何时需要」为双条件 + ⚠「非回环直连不是可用形态」。
+3. **结论修正**：文档面**并非**"零测试依赖"（同区开头那句话是 D-39 推翻前的旧口径，保留以显示判因过程）；实况是 6 个守卫读文档/Skill 文本，合计 225 例已复跑全绿（正文 §8.1 表）。
+
+---
+
+## 附录 A · §9 一致性审查（全局，跨文件）
+
+| 维度 | 核查 | 结论 |
+|---|---|---|
+| 契约码一致 | `TASK_CANCELED` 在 provider（`goalCanceled`）/ LLM 桥（`canceledResult`）/ 服务端 observer（三分支）/ 宿主文案（判据③）四处同源 | ✅ 均经 `makeError('TASK_CANCELED',…)`，无一折叠为 `EXECUTION_FAILED`（守卫 §3a 对照实验证） |
+| 取消不落降级 | `canceledResult` 返回 `{result}` 非 `{unavailable}`；`runOneShot` abort 先于 error 归因 | ✅ 三条路径均绕开 `shouldDegrade`（§3b/§3c） |
+| 白名单三处逐字 | `defaults.ts:71-78` ↔ SECURITY §3.2 ↔ SKILL.md §35 | ✅ 六条同串（`%USERPROFILE%\**` 起首，无 `C:\Users\**`） |
+| 权衡登记面 | ~~freshChain / 保留期仅 §6.4 一处~~ ⇒ **终版实况**：§6.1.1 摘要表（W-1/W-2）+ §6.4 四件套（权威）并存，§6.1.1 显式指向 §6.4 | ✅ 无冲突口径；单一权威源在 §6.4/`CL-022` 风险表，摘要不引入第二套裁语（详见 A.4） |
+| 引用完整性 | CL-022 内 `§` 引用锚点 | ✅ 抽查 §2.1/§2.2/§3.2/§4.3.1/§6.4/§7 均存在；DEPLOYMENT 侧 `§6.1.1` 死链已修（DOC-2），SECURITY 内部 §6.1.1↔§6.4 互指可达（A.4 核验）|
+| 守卫输入面未被放宽 | 本批未改任一静态判据；`grep 审批通道已关闭` 代码/测试无残留 | ✅ 无放宽（冲突时均按"改实现/改测试断言"而非"改守卫"处置）|
+| 无占位符/无 TODO | 五源文件 + 三件套全文 | ✅ 无 `pass/TODO/...`；无未实现分支 |
+
+---
+
+## 附录 A · §10 移交（首版，与正文 §10 互补，正文为准）
+
+1. **真机判据 B1–B3**（`CL-022/QA-REPORT.md` §4）：①②③端到端取消、win32 cmd 包装 signal 实跑、误开 enforceBearer 的 401 复现 —— 均需主理人部署 T5 码后执行。
+2. **测试基线数字对外口径**：T5 后 **79 文件 / 1456 tests / 1454 pass / 0 fail / 2 skip**（+4 文件 +56 例 vs T4）。`docs/06-OVERVIEW.md` 与 `README.md` 的"1247 例"基线属 Phase 0 收官口径，**本批未改**（任务书明列属 QA 收官批）。QA 收官批统一更新时注意 `phase1-t5-token-env` 对 `applyBearerHeader` 三态的固化（O-2）勿重复计为新功能。
+3. **观察项 O-1**（模板路径 execute 的 `POLICY_DENIED` 被折叠成 `EXECUTION_FAILED`）与 **O-3**（`launchCliProcess` 未从包 index 再导出，测试直连 dist）：均非本批范围，建议后续单独评估是否扩 step() 契约码保真 / 扩公共导出面（属契约动作，须评审）。
+4. **并发双写教训**（供团队纪律）：本批 T5 源码面与 software-engineer-1 撞车两次（`abortActiveTurn` 重复实现致 TS2393；全量 sweep 共用 `$HOME/wbtmp/t5-full-run.txt` 致档期污染假红）。建议后续批次**开工前先锁文件归属**、**每成员独立留档路径**。
+
+---
+
+## 终判（全文唯一份 · checkpoint 1 + 2 合并）
+
+- **代码面（checkpoint 1）**：5 源文件（provider `index.ts` / `bridge.ts` / `persistent-session.ts` / 宿主 `tools.ts` / 客户端 `cli.ts`）+ 1 既有测试同步 + 4 新守卫文件（17+12+11 + `phase1-t5-token-env`）；`tsc -b tsconfig.build.json --force` **exit 0**；全量逐文件对账 **79 文件 / 1456 tests / 1454 pass / 0 fail / 2 skipped**（`$HOME/wbtmp/t5-full-run.txt`、终局复跑 `$HOME/wbtmp/t5-full-run-final.txt` 两次一致），15 个受影响既有守卫抽验全绿（正文 §7.5）。
+- **抹痕缺陷闭合**：`step()` 出口取消分支改为「本地集收纳、流出面关死」（D-37 主理人裁定），两处测试期望同步为 `===1` / sink `===0`，并加「本地账 > 流出面」分叉钉防口径再漂；未反向放宽任一断言。
+- **文档面（checkpoint 2）**：8 文件 + `CL-022/` 三件套（REQUIREMENT 132 行含 B-1/B-2/B-3 三条刻意破坏性、TECHNICAL-SOLUTION 297 行 A–E 五组含负向证据、QA-REPORT 110 行由 software-engineer-1 落盘、工程侧自证栏待 QA 独立复跑）齐；判据⑤ 逐项通过（正文 §8 表）。
+- **文档面机械核验**：探针 `$HOME/wbtmp/t5-doc-verify.mjs` **20 项全 OK**（含 `defaults.ts:71-78` 六条与 SECURITY §3.2 / SKILL `:35` 顺序敏感逐字比对）；6 个读文档守卫 **225 例 / 0 fail**（`$HOME/wbtmp/se2-t5-docguard-final.txt`）。探针抓出并修复一处**真实回归**：SECURITY §6.1.1 曾在并发重写中丢失 + §6/§6.1 三处「仅非回环直连」旧口径残留（与 §2.1 冲突），已重建/修正（取证见 A.4）。
+- **notes 自身**：§7 执行进度表（六文件区完成态 + 五红逐条判因 2 替身 / 2 dist 陈旧 / 1 实现缺口 + 计数与全量对账）、§8 文档面逐项 + §8.1 守卫复核、§9 一致性审查九维度、§10 移交；偏差登记 **D-31…D-42**；checkpoint-2 首版与终版编号撞车已降级为**附录 A** 并逐条勘误（D-42）。
+- **纪律**：全程零 git 写操作（仅 `status` / `diff` / `numstat` 只读子命令，统一由主理人提交，代码面已入库为 `c2e902a`）；零守卫放宽（冲突一律按"改实现 / 改测试断言"处置）；仓库根调试残留 `.t5dbg.mjs` 已删除。
+
+**IS_PASS: YES**

@@ -44,9 +44,11 @@
 
 ## 三、"最可监管"的三道闸
 
-1. **策略引擎（core/policy）**：L0–L3 风险分级；路径黑名单（系统区全禁）+ 白名单（仅用户数据区）；命令黑名单（format/diskpart/编码混淆等）；进程黑名单；默认委派最高风险 `L1`。
-2. **审批闸**：L2/L3 在 MCP 通道 `requiresApproval`、A2A 通道 `input-required` 挂起，宿主确认后续跑；超时 fail-closed 拒绝。
-3. **防篡改哈希链审计（core/audit）**：每条操作含 traceId/能力/参数（敏感键打码）/风险/判定/结果/前后哈希，可 `--audit verify` 校验完整性。
+1. **策略引擎（core/policy）**：L0–L3 风险分级；路径黑名单（系统区全禁）+ 白名单（Phase 1 收紧为**仅当前服务用户**：`%USERPROFILE%\**` 等六条，跨账户恒 DENY）；**命令面只有黑名单**（`commandAllowlist` 已删除，ARCH-18）；进程黑名单；默认委派最高风险 `L1`；**拒绝优先**。
+2. **审批闸**：L2/L3 在 MCP 通道 `requiresApproval`、A2A 通道 `input-required` 挂起，宿主确认后续跑；超时 fail-closed 拒绝；批准/拒绝/超时/取消**四态均入链**（Phase 1）。
+3. **防篡改哈希链审计（core/audit）**：每条操作含 traceId/能力/参数（敏感键打码）/风险/判定/结果/前后哈希，可 `--audit verify` 校验完整性。⚠ 运行期 `verifyChain()` 覆盖**本轮分片**（`/health.audit.scope='session'`）；跨轮历史由启动归档校验条目提供证据（`SECURITY-GOVERNANCE.md` §4.3.1 / §6.4）。
+
+网络信任边界（Phase 1 起为显式声明）：**回环绑定不可关** + SSH 隧道 + 审批闸；`vm-service` 不承担身份鉴权，`security.enforceBearer` 为可选加固（默认关；开启前须补齐 VM 内回连凭据通路）。详见 `SECURITY-GOVERNANCE.md` §2.1。
 
 会话保活（core/session）监控隧道断线，~30s 内标记失活。
 

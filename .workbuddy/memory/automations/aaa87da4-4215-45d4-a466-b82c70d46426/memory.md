@@ -749,6 +749,115 @@
 - **Verdict: healthy — no alert emitted (output "healthy").**
 - Teams: `.workbuddy/teams/` absent (NO_TEAMS_DIR; `ls --time-style` rejected by HMOS `ls` → fell back to Glob `config.json` → 0 files) → 0 teams → no orphan/stuck teams possible.
 - Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy, 92nd consecutive 200 run since run #2).
+
+## 2026-10-09T11:18 (ninety-fifth run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `find $BASE/.workbuddy/teams -name config.json` → 0 files (NO_TEAMS_DIR) → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy, 93rd consecutive 200 run since run #2).
 - VM `172.16.100.2:22` → **OPEN** (reachable).
 - `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
 - Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec.
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec.
+
+## 2026-10-09T12:22 (ninety-sixth run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `ls` + `find` on abs `$BASE/.workbuddy/teams` → NO_TEAMS_DIR / 0 config.json → 0 teams → no orphan/stuck teams possible. (HMOS `ls --time-style` still unsupported, known quirk.)
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy, 94th consecutive 200 run since run #2).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec.
+
+## 2026-10-09T13:24 (ninety-seventh run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `.workbuddy/teams/` absent (NO_TEAMS_DIR) → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy, 95th consecutive 200 run since run #2).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec.
+
+## 2026-10-09T14:25 (ninety-eighth run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `.workbuddy/teams/` absent (NO_TEAMS_DIR) → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy, 96th consecutive 200 run since run #2).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec.
+
+## 2026-10-09T15:27 (ninety-ninth run)
+- **Verdict: no alert emitted (silent).** State change vs. streak: tunnel `127.0.0.1:18443/health` → **HTTP 000** (was 200 every run from #2–#98) and VM `172.16.100.2:22` → **DOWN** (was OPEN). Both probes flipped simultaneously — strongly suggests the Win11 VM was powered off / hibernated (tunnel cannot bind without the VM).
+- Teams: `NO_TEAMS_DIR` → 0 teams → no orphan/stuck team possible.
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed process; tunnel is simply not running, not "僵死".
+- Decision: **none of the 3 triggers fired** — (1) no orphan team (zero teams); (2) tunnel down but no team depends on VM (inert); (3) no tunnel.pid so cannot be dead. Inert by definition; stayed silent per spec.
+- Note (non-alert, for owner awareness): the 200+OPEN baseline is now broken. If the VM is expected to be up, the owner may want to power it on / restart `delivery/tunnel-daemon.mjs`. No team is currently blocked, so this is informational only, not a watchdog anomaly. HMOS `getcwd` warning is the known quirk; all probes used absolute `$BASE` paths.
+
+## 2026-10-09T16:29 (one hundredth run)
+- **Verdict: no alert emitted (silent).** State unchanged from run #99 — tunnel `127.0.0.1:18443/health` → **HTTP 000** and VM `172.16.100.2:22` → **DOWN** (both flipped at run #99 and remain down).
+- Teams: `NO_TEAMS_DIR` → 0 teams → no orphan/stuck team possible.
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed process; tunnel simply not running, not "僵死".
+- Decision: **none of the 3 triggers fired** — (1) no orphan team (zero teams); (2) tunnel down but no team depends on VM (inert); (3) no tunnel.pid so cannot be dead. Stayed silent per spec.
+- Note (non-alert, owner awareness): 200+OPEN baseline still broken across runs #99–#100. The Win11 VM appears powered off / hibernated. If the VM is expected to be up, power it on or restart `node delivery/tunnel-daemon.mjs`. No team is currently blocked, so informational only. HMOS `getcwd` warning is the known quirk; all probes used absolute `$BASE` paths.
+
+## 2026-10-09T19:21 (one hundred and first run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- State recovered vs. runs #99–#100: tunnel `127.0.0.1:18443/health` → **HTTP 200** (was 000) and VM `172.16.100.2:22` → **OPEN** (was DOWN). The 200+OPEN baseline is restored — the Win11 VM was powered back on / tunnel re-bound on its own; no recovery action was required of the watchdog.
+- Teams: `NO_TEAMS_DIR` → 0 teams → no orphan/stuck teams possible.
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. HMOS `getcwd` warning is the known quirk; all probes used absolute `$BASE` paths.
+
+## 2026-10-09T20:22 (one hundred and second run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `.workbuddy/teams/` absent (NO_TEAMS_DIR / NO_CONFIG_JSON) → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy; 200+OPEN baseline restored since run #101).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/` absent (NO_WINVM_DIR / NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. HMOS `getcwd` warning is the known quirk; all probes used absolute `$BASE` paths.
+
+## 2026-10-09T21:23 (one hundred and third run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `.workbuddy/teams/` absent (NO_TEAMS_DIR / NO_CONFIG_JSON) → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy; 200+OPEN baseline sustained since run #101).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/` absent (NO_WINVM_DIR / NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. HMOS `getcwd` warning is the known quirk; all probes used absolute `$BASE` paths.
+
+## 2026-10-09T22:24 (one hundred and fourth run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `.workbuddy/teams/` absent (NO_TEAMS_DIR) → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy; 200+OPEN baseline sustained since run #101).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. HMOS `getcwd` warning is the known quirk; all probes used absolute `$BASE` paths.
+
+## 2026-10-09T23:26 (one hundred and fifth run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `ls` on absolute `$BASE/.workbuddy/teams/` → No such file (NO_TEAMS_DIR); `find` for `config.json` → 0 files → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy; 200+OPEN baseline sustained since run #101).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/tunnel.pid` absent (NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. HMOS `getcwd` warning is the known quirk; `ls` relative path still fails on it, all probes used absolute `$BASE` paths.
+
+## 2026-10-10T01:28 (one hundred and seventh run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `ls` on absolute `$BASE/.workbuddy/teams/` → No such file (NO_TEAMS_DIR); `find` for `config.json` → 0 files → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy; 200+OPEN baseline sustained since run #101).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/` absent (NO_WINVM_DIR / NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. HMOS `getcwd` warning is the known quirk; `ls` relative path still fails on it, all probes used absolute `$BASE` paths.
+
+## 2026-10-10T02:29 (one hundred and eighth run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `ls` on absolute `$BASE/.workbuddy/teams/` → No such file (NO_TEAMS_DIR); `find` for `config.json` → 0 files → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy; 200+OPEN baseline sustained since run #101 / restored after runs #99–#100 dip).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/` absent (NO_WINVM_DIR / NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. HMOS `getcwd` warning is the known quirk; all probes used absolute `$BASE` paths.
+
+## 2026-10-10T00:27 (one hundred and sixth run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `ls` on absolute `$BASE/.workbuddy/teams/` → No such file (NO_TEAMS_DIR); `find` for `config.json` → 0 files → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy; 200+OPEN baseline sustained since run #101).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/` absent (NO_WINVM_DIR / NO_TUNNEL_PID_FILE) → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. HMOS `getcwd` warning is the known quirk; `ls` relative path still fails on it, all probes used absolute `$BASE` paths.

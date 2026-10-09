@@ -32,7 +32,15 @@ relatedSkills:
   系统目录 → 路径黑名单，任何能力都不得触碰
 - 未列入白名单的盘符/路径 → 拒绝优先
 
-**默认路径白名单**：`C:\Users\**`、`C:\Temp\**`、`C:\tmp\**`、`C:\WinVMWorkspace\**`、`D:\Data\**`
+**默认路径白名单（与 `packages/core/src/policy/defaults.ts` 的 `DEFAULT_POLICY.pathAllowlist` 逐字一致，六条）**：
+`%USERPROFILE%\**`、`C:\Users\Public\**`、`C:\Temp\**`、`C:\tmp\**`、`D:\Data\**`、`C:\WinVMWorkspace\**`
+
+> ⚠ 白名单里**没有 `C:\Users\**`**（ARCH-17 收紧）。旧写法覆盖**全体账户**，而 `storage.file.read` 是
+> **L0 免审批** ⇒ 别的账户的桌面/文档/下载会被直接放行。现改为 `%USERPROFILE%`（当前服务用户的
+> 主目录，由策略引擎在**模式侧**运行时展开），因此**跨账户访问恒 DENY**（`matchedRule:'pathAllowlist:miss'`，
+> 且该拒绝发生在审批闸**之前** ⇒ 不会转成"待批准"，是硬拒）。确需跨账户时由运维在
+> `policy.pathAllowlist` 显式追加（`mergePolicy` 对数组取并集 ⇒ 只能加不能减）。
+> 另：占位符在 env 缺席时保持字面原样 ⇒ 该条目永不匹配 ⇒ 非 Windows/离线环境只会更严（fail-closed）。
 
 **默认路径黑名单（优先级最高，命中即拒）**：`C:\Windows\**`、`C:\Program Files\**`、
 `C:\Program Files (x86)\**`（即 `C:\Program Files*\**`）、`C:\ProgramData\**`、

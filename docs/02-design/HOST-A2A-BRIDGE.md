@@ -92,7 +92,7 @@
 | `a2a.delegate` | 提交目标，流式收集进度与产物；返回 `taskId / state / progress[] / artifacts[] / approval?` |
 | `a2a.task.get` | 按 taskId 查状态与产物（超时后取结果、轮询长任务） |
 | `a2a.approval.reply` | 对 `input-required` 任务回复批准/拒绝 |
-| `a2a.task.cancel` | 取消任务 |
+| `a2a.task.cancel` | 取消任务（**协作式**，见 §4.5）；返回 `cancelObserved` 布尔位表明取消是否真的成立 |
 | `a2a.health` | 拉 Agent Card，确认隧道与 A2A 服务可达，列出 VM Agent 技能 |
 
 关键参数（最小权限）：`allowedCapabilities`（能力范围）、`maxRisk`（最高风险，默认 L1）。
@@ -111,6 +111,20 @@
 ### 4.4 审批闸
 
 任务挂起 → 宿主**必须先向用户展示影响清单** → 取得确认后才调 `a2a.approval.reply`。桥只做搬运，不代为决策；VM 侧超时按拒绝处理（fail-closed）。
+
+### 4.5 取消的呈现口径（Phase 1 T5，ARCH-22 / §10 R10）
+
+`tasks/cancel` 是**协作式**取消：执行体在"能力调用边界"消费取消信号，**正在执行的那一次调用会跑完**。因此宿主呈现面必须事实化，不得宣称"未执行任何变更"（那是 R10 点名的预期管理红线）。两态判据：
+
+| 态 | 机械信号 | `summary` 文案 |
+|---|---|---|
+| **零执行痕迹** | `structuredContent` 里**没有** `executedBeforeCancel` 键 | 「任务已取消（canceled），取消点之前的操作未执行。如需继续，请重新发起并重新确认审批。」 |
+| **有执行痕迹** | `structuredContent.executedBeforeCancel = { steps:N, artifacts:M }` | 「任务已取消（canceled）；**取消前已有 N 个操作执行、M 个产物**，请逐项核对 artifacts。」 |
+
+- `steps` 的事实源两级派生：优先 `execution-steps` artifact 内 `data.steps` 长度（框架侧权威载体，仅正常路径落，故取消场景常缺席）；取不到则退回 `progress[]` 里确定性执行体的 step 标记（`执行 <capabilityId>：<摘要>`）。
+- `artifacts` = 宿主可见产物总数**扣除** steps 载体本身；两者皆 0 ⇒ 不附该键（即"无痕迹态"，不做任何推断性表述）。
+- `a2a.task.cancel` 的 `cancelObserved`：`task.status.state === 'canceled'` 才为真。对**已终态**任务发 cancel 会回原终态 ⇒ 此时 `false` 且文本如实说明"取消未生效（任务已结束）"，不得让宿主自比字符串。
+- 重新发起 = 重新过审批：取消不会让已批准的 `approvalId` 复用，文案里明确提示。
 
 ---
 

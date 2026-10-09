@@ -58,11 +58,11 @@
 ### 2.4 强监管内核（NFR 落点）
 
 - **风险分级** `L0/L1/L2/L3`：每个能力标注风险等级。
-- **策略引擎**：命令白/黑名单（正则）、路径白名单、进程白名单、网络端点限制；**默认拒绝优先**。
+- **策略引擎**：路径白名单、命令黑名单（正则）、进程白名单/黑名单、注册表根键白名单；**命令面只有黑名单**（`commandAllowlist` 已从契约/配置/schema 三处删除，ARCH-18）；**默认拒绝优先**。
 - **审批闸**：L2/L3 操作默认需人工确认（A2A `input-required` / MCP 侧前置确认）；支持按能力免审。
-- **防篡改审计**：结构化 append-only 日志，**哈希链**（每条含前一条 hash），篡改任意一条 → 校验立即失败。
+- **防篡改审计**：结构化 append-only 日志，**哈希链**（每条含前一条 hash），篡改任意一条 → **本轮运行期内**校验立即失败；跨轮历史的证据是启动 `verifyArchive()` 落的 `chain-archive-verify` 条目，**不是** `chainValid`（限定语见 `SECURITY-GOVERNANCE.md` §4.3.1）。
 - **可观测**：全链路 `traceId` 贯穿 宿主→传输→VM 服务→能力执行；关键操作附 before/after 快照 artifact。
-- **网络安全**：VM 侧服务**仅监听 `127.0.0.1`**；SSH 隧道本地端口转发；Streamable HTTP 模式强制 TLS + bearer + Origin 校验；VM 对外零端口暴露。
+- **网络安全**：VM 侧服务**仅监听 `127.0.0.1`**，且该约束**不可关**（非回环绑定 ⇒ 启动 `error`，`security.requireLoopbackBind=false` 不再能放宽）；SSH 隧道本地端口转发；Streamable HTTP 模式 TLS + Origin 校验 + **可选** bearer（`security.enforceBearer` 默认 `false`，宿主侧由 `--token-env` 给出环境变量名）；VM 对外零端口暴露。信任边界 = 回环 + SSH 隧道 + 审批闸（§2.1）。
 
 ### 2.5 可替换的 Agent / 宿主
 

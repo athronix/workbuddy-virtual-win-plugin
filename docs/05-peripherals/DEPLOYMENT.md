@@ -447,7 +447,12 @@ New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' `
   -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22
 ```
 
-> `vm-service` 仍**只绑 `127.0.0.1`**（安全红线），对外只暴露 22（SSH），不直接暴露 18443。所有 18443 流量都走隧道；非回环直连会被 `requireLoopbackBind` 拒绝，且会触发 `tokenEnv`（`WINVM_BEARER_TOKEN`）bearer 校验。
+> `vm-service` 仍**只绑 `127.0.0.1`**（安全红线），对外只暴露 22（SSH），不直接暴露 18443。所有 18443 流量都走隧道。
+> 关于"绑定"与"凭据"两件事，Phase 1 起口径如下（权威声明见 `SECURITY-GOVERNANCE.md` §2.1，勿凭旧印象配置）：
+>
+> - **回环约束不可关**：`bind` 非回环（如 `0.0.0.0`）⇒ 校验恒 **error** 且**启动被拒**；`security.requireLoopbackBind=false` 自 Phase 1 起**不再能放宽**该约束，只会额外产生一条 warning。因此"非回环直连"这种部署形态在本系统里**不存在**，跨机访问的唯一受支持形态就是本节讲的 `ssh -L` 隧道。
+> - **bearer 是可选加固，默认不校验**：`security.enforceBearer` 默认 `false`；要生效需**双条件**（`enforceBearer===true` **且** `tokenEnv` 指向的 env 有值，缺一即逐字旧行为），是否真挂载由 `/health.security.authMode` 三态显形（`loopback-only` / `bearer-enforced` / `bearer-configured-missing`）。走回环隧道时默认**不需要**任何 bearer 配置。
+> - ⚠ **开 `enforceBearer` 前必须先补齐 VM 内回连凭据通路（本批未实现）**：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目不含凭据，误开会让**委派执行主链路当场 401**（宿主侧 `--token-env` 只覆盖宿主→服务这一段）。残留登记见 `docs/changes/phase1-arch-design.md` §10 R4 与 `SECURITY-GOVERNANCE.md` §2.1（启用前置条件）/ §6.4（两项权衡）。
 
 ### 8.2 SSH 通道怎么认证：用密钥，不用密码
 
@@ -510,7 +515,7 @@ curl -s http://127.0.0.1:18443/health      # 应返回 VM 侧健康态
 - 54 个能力在**远程 Windows 本机**执行 PowerShell（ps-bridge 在远端 spawn PowerShell 5.1），操作的正是那台远程机——即"本地操作远程 Windows"。
 - **GUI 自动化**仍依赖远程 Windows 有活跃交互会话/显示器；无头远程机可能跑不了 GUI 模块（与本地 VM 同源限制）。
 - 仅支持 Windows 被控端（强依赖 PowerShell 5.1），远程 Linux 不可作此"VM"。
-- 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道是回环，bearer 免校验；只有非回环直连才需要 `WINVM_BEARER_TOKEN` + `tokenEnv`。
+- 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道两端都是回环 ⇒ bearer **默认免校验**（`security.enforceBearer` 默认 `false`）；本系统不存在"非回环直连"这种受支持形态（非回环绑定即启动 `error`，见 §8.1），因此绝大多数部署**只需配 SSH 密钥**，`WINVM_BEARER_TOKEN` / `tokenEnv` 不必动。确要在 VM 侧开 `enforceBearer` 时，宿主侧凭 `--token-env` 给出**变量名**（见 §8.1 警告块：VM 内回连凭据通路未实现 ⇒ 委派主链路会 401）。
 
 ### 8.6 远程分发产物里有什么、依赖怎么解析（关键）
 
