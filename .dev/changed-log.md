@@ -621,6 +621,13 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 
 ---
 
+## Phase 1 安全边界兑现批 · 2026-10-09（owner 三项终裁，团队 software-winvm-phase1-9d19）
+
+- **owner 终裁（14:55）**：① ARCH-18 死字段 `cmdAllowRe`/`commandAllowlist` = **删除**（不留 @deprecated 过渡，同批契约/schema/引擎/文档，登记刻意破坏性）；② ARCH-07 = **B 基线**（回环不可关 + SECURITY §2 信任边界文档化 + freshChainOnStart/审计保留期两权衡登记）**+ A 可选**（`enforceBearer` 默认 false、双条件守卫 O-9、`/health.security.authMode` 透出）**+ ENG-23 必做**（客户端 ssh-tunnel/streamable-http 统一 `applyBearerHeader` 消费 `tokenEnv`）；③ **裁断后立即派 T1-T5 离线代码批，真机轮挂起**（owner 选项=「立即派 T1，真机待 VM 窗口」）——14:52 VM 第 7 次掉线（OBS-C 电源漂移），A5 rejected 复验与 6 项真机验收清单待后续 VM 窗口，本轮验收口径=构建+离线单测。
+- **设计权威**：`docs/changes/phase1-arch-design.md`（502 行，commit `6f56c12`）§7.3 T1-T5 串行任务卡 + §7.2 server.ts 10 区域占用表（唯一写者=T4）+ §8 O-1..O-11 顺序纪律 + §10 R1-R10 风险。§5 七条待明确事项 owner 未表异议=按架构师默认取值实现。
+- **Phase 0 修复真机生效注记**：10:45 `deploy-vm --apply` 五阶段全绿（psBridge uptime 25s 证实服务重启到新码），随后 14:52 VM 掉线不影响部署成果（VM 重开后即为新码运行态）。
+- **实现批任务板**：#74 T1 契约基座 → #75 T2 core 内核 ∥ #76 T3 a2a-framework（唯一可并行对）→ #77 T4 vm-service 装配 → #79 T5 执行体/宿主/CLI/文档 → #78 QA 收官。
+
 ## Phase 0 止血批 · 2026-10-08 晚（owner 五项裁决后开工，团队 software-winvm-phase0）
 
 - **U-P0-1 路径穿越修复**（commit `ba02fbb`）：`normalizePath` 重写为 win32 `path.resolve` 语义段消解（`foldWin32Segments`/`foldSegList`，total 不抛、幂等、UNC 锚点不误伤、`\\?\`/`\\.\` 透传、相对形态栈空 `..` 保留→白名单必然 miss fail-closed）；黑白名单**模式侧与入参侧先归一后匹配**（同一通路）；**连带发现并修复第二处独立绕过面** `extractPathTokens` 盘符正则硬编码反斜杠（`[A-Za-z]:\\`→`[A-Za-z]:[\\/]`，正斜杠盘符命令内嵌穿越此前根本不进文件系统策略视野）。守卫 `tests/unit/p0-path-traversal.test.js` 84 例（含段消解三态、逃逸 DENY/非逃逸 ALLOW 对照、声明位集合钉死、内存变异 X1-X4 判据、防注释自匹配用例）。
