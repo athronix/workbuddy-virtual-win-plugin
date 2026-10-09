@@ -27,6 +27,17 @@ export interface ApprovalTimeoutInfo {
   readonly ttlMs: number;
 }
 
+/** ENG-08：`maxTasks` 缺省上限（条数） */
+const DEFAULT_MAX_TASKS = 200;
+/** ENG-08：`terminalTtlMs` 缺省驻留时长（1 小时） */
+const DEFAULT_TERMINAL_TTL_MS = 3_600_000;
+/**
+ * 未知任务 id 的兜底信号：一个**永不** abort 的共享 AbortSignal。
+ * 为什么共享而非每次 `AbortController` 新建：`cancellationSignal()` 可能被 provider 在循环里
+ * 反复调用，共享常量零分配；且它永不置位 ⇒ 「任务不存在」不会被误读成「已取消」。
+ */
+const NEVER_ABORTED_SIGNAL: AbortSignal = new AbortController().signal;
+
 export interface TaskStoreOptions {
   /**
    * 审批等待 TTL（毫秒）；未给 → env `WINVM_APPROVAL_TTL_MS` → 默认 30 分钟。
@@ -35,6 +46,17 @@ export interface TaskStoreOptions {
   readonly approvalTtlMs?: number;
   /** 审批超时回调（清理宿主侧令牌等；异常被吞，不影响任务收口） */
   readonly onApprovalTimeout?: (info: ApprovalTimeoutInfo) => void;
+  /**
+   * ENG-08（**纯附加可选**）：内存任务条数上限，默认 200；仅在 `create()` 尾部生效（O-11）。
+   * 传 `0` / 负数 / 非有限 ⇒ **完全不驱逐**（条数与 TTL 两路一起关死，旧行为逐字保留）。
+   */
+  readonly maxTasks?: number;
+  /**
+   * ENG-08（**纯附加可选**）：终态任务驻留 TTL（毫秒），默认 1 小时；仅在 `create()` 尾部清扫。
+   * 传 `0` / 负数 / 非有限 ⇒ 禁用 TTL 过期驱逐（只按条数驱逐）。
+   * 前置条件：`maxTasks` 必须是有限正数 —— 否则整体驱逐关闭，本 TTL 一并失效（偏差 D-18）。
+   */
+  readonly terminalTtlMs?: number;
 }
 
 export interface PendingApproval {
@@ -49,6 +71,19 @@ export interface InternalTask {
   readonly subscribers: Set<(ev: A2A.A2AStreamEvent) => void>;
   pendingApproval?: PendingApproval;
   cancelRequested: boolean;
+  /**
+   * ARCH-22（**纯附加**）：协作式取消的信号主干。`requestCancel()` 在 `updateStatus('canceled')`
+   * **之前** `abort('canceled')`（顺序纪律 O-1）⇒ 订阅者一旦看到 canceled，信号必已置位。
+   * 消费方：`createProgressSink` 把它经契约成员 `cancellationSignal` 透出给 provider
+   * （常驻会话 abort / 子进程 kill），`isCancelled()` 透出轮询面。
+   */
+  readonly cancelController: AbortController;
+  /**
+   * ENG-08（**纯附加**）：进入终态的时刻（毫秒时间戳），由 `updateStatus` 盖一次（幂等）。
+   * 是 `evictIfNeeded()` 的驱逐排序依据（最旧者先出）。非终态时缺省 ⇒ 序列化时条件展开，
+   * 绝不写显式 undefined（`canonicalJson` 会把 undefined 变成 null 造成假断链）。
+   */
+  terminalAtMs?: number;
   readonly createdAtMs: number;
 }
 
@@ -86,6 +121,16 @@ export class TaskStore {
   /** 审批等待 TTL（毫秒；`Infinity` = 不设超时） */
   private readonly approvalTtlMs: number;
   private readonly onApprovalTimeout: ((info: ApprovalTimeoutInfo) => void) | undefined;
+  /**
+   * ENG-08：条数上限。`Number.POSITIVE_INFINITY` ⇒ 不设限（驱逐整体关闭，TTL 清扫一并失效）。
+   * 取值归一：未给 → 200；`0` / 负数 / 非有限 → 不设限。
+   */
+  private readonly maxTasks: number;
+  /**
+   * ENG-08：终态驻留 TTL（毫秒）。`Infinity` ⇒ 禁用 TTL 过期驱逐（只按条数驱逐）。
+   * 取值归一：未给 → 1h；`0` / 负数 / 非有限 → 禁用。
+   */
+  private readonly terminalTtlMs: number;
 
   constructor(opts: TaskStoreOptions = {}) {
     // 未显式指定 → env（非法回退 30 分钟默认）；显式传 ≤0 / 非有限 → 视为不设超时
@@ -96,6 +141,19 @@ export class TaskStore {
           ? Math.floor(opts.approvalTtlMs)
           : Number.POSITIVE_INFINITY;
     this.onApprovalTimeout = opts.onApprovalTimeout;
+    // ENG-08：与 approvalTtlMs 同构的归一纪律（非法值一律回退，不抛错、不打挂服务）
+    this.maxTasks =
+      opts.maxTasks === undefined
+        ? DEFAULT_MAX_TASKS
+        : Number.isFinite(opts.maxTasks) && opts.maxTasks > 0
+          ? Math.floor(opts.maxTasks)
+          : Number.POSITIVE_INFINITY;
+    this.terminalTtlMs =
+      opts.terminalTtlMs === undefined
+        ? DEFAULT_TERMINAL_TTL_MS
+        : Number.isFinite(opts.terminalTtlMs) && opts.terminalTtlMs > 0
+          ? Math.floor(opts.terminalTtlMs)
+          : Number.POSITIVE_INFINITY;
   }
 
   create(params: { contextId?: string; metadata?: Record<string, unknown> } = {}): InternalTask {
@@ -114,9 +172,13 @@ export class TaskStore {
       task,
       subscribers: new Set(),
       cancelRequested: false,
+      cancelController: new AbortController(),
       createdAtMs: Date.now(),
     };
     this.tasks.set(id, rec);
+    // ENG-08 / O-11：驱逐**只在 create() 尾部**触发 —— get/list/subscribe 路径一律不驱逐，
+    // 免得读侧出现「刚查到的任务下一帧消失」的意外语义。
+    this.evictIfNeeded();
     return rec;
   }
 
@@ -146,6 +208,10 @@ export class TaskStore {
       ...rec.task,
       status: { state, timestamp: new Date().toISOString(), ...(message ? { message } : {}) },
     };
+    // ENG-08：进入终态盖一次 terminalAtMs（此处已在终态守卫之后 ⇒ 只会从非终态转入终态，天然幂等）
+    if (isTerminalTaskState(state)) {
+      rec.terminalAtMs = Date.now();
+    }
     this.emit(rec, {
       kind: 'status-update',
       taskId: id,
@@ -162,8 +228,20 @@ export class TaskStore {
     rec.task = { ...rec.task, history };
   }
 
-  addArtifact(id: string, artifact: A2A.Artifact): void {
+  /**
+   * 追加 artifact。
+   *
+   * ARCH-22（**终态守卫**）：任务已处于终态 ⇒ **不落 artifact、不 emit**，返回 `false`
+   * （判据与终态集合一律走 `isTerminalTaskState` 单一来源，不在此复述成员名）。
+   * 这一处单独就把「已取消任务继续向宿主推 artifact」的未授权副作用关死 ——
+   * 宿主 UI 上已是终止任务，任何后续产物都是把既成事实伪装成进行中输出。
+   *
+   * 签名 `void` → `boolean` 属**附加**（调用方丢弃返回值合法）：不读返回值即逐字旧行为，
+   * 既有调用点（`createProgressSink.onArtifact`）与既有 SSE 用例均不受影响。
+   */
+  addArtifact(id: string, artifact: A2A.Artifact): boolean {
     const rec = this.get(id);
+    if (isTerminalTaskState(rec.task.status.state)) return false;
     const artifacts = [...(rec.task.artifacts ?? []), artifact];
     rec.task = { ...rec.task, artifacts };
     this.emit(rec, {
@@ -173,6 +251,7 @@ export class TaskStore {
       artifact,
       lastChunk: true,
     });
+    return true;
   }
 
   setMetadata(id: string, metadata: Record<string, unknown>): void {
@@ -180,6 +259,20 @@ export class TaskStore {
     rec.task = { ...rec.task, metadata: { ...(rec.task.metadata ?? {}), ...metadata } };
   }
 
+  /**
+   * 协作式取消的**请求侧**（ARCH-22）。
+   *
+   * 顺序纪律 **O-1**（必须逐字保持，四条各占一处副作用）：
+   *   ① 取消标志位置位（读侧兼容 + `isCancelled()` 判据之一）
+   *   → ② 挂起审批按拒绝收口 `resolve(false)`（不空等 TTL）
+   *   → ③ **`rec.cancelController.abort('canceled')`**（信号置位）
+   *   → ④ `this.updateStatus(id, 'canceled')`（终态 + SSE emit）。
+   * 为什么 ③ 必须先于 ④：`updateStatus` 会同步向全部 SSE 订阅者 emit `final:true` 的
+   * status-update —— 订阅者（宿主桥 / provider 的 `onStatus` 钩子）读到 canceled 的那一刻
+   * 起就该能观测到信号已置位。反序会开出「状态已 canceled、signal.aborted 仍 false」的窗口，
+   * 恰好复刻本任务要消除的「外观性取消」。该时序由行为守卫
+   * `tests/unit/phase1-t3-cancel-bounded.test.js`（O-1 反例探针）钉死。
+   */
   requestCancel(id: string): InternalTask {
     const rec = this.get(id);
     if (isTerminalTaskState(rec.task.status.state)) {
@@ -191,7 +284,31 @@ export class TaskStore {
     if (rec.pendingApproval) {
       rec.pendingApproval.resolve(false);
     }
+    // ARCH-22 / O-1：先 abort 再置终态（见方法注释的顺序纪律）
+    rec.cancelController.abort('canceled');
     return this.updateStatus(id, 'canceled');
+  }
+
+  /* ------------------------------ 取消探测（ARCH-22 读侧） ------------------------------ */
+
+  /**
+   * 宿主是否已请求取消本任务（协作式取消的**轮询面**）。
+   * 判据：已进终态 canceled，**或**取消标志已置位（覆盖「标志已置、终态收口尚未落地」的瞬间）。
+   * 未知 id ⇒ `false`（任务已被 ENG-08 驱逐时不得谎报，也不得抛错打断 provider 循环）。
+   */
+  isCancelled(id: string): boolean {
+    const rec = this.tryGet(id);
+    if (!rec) return false;
+    return rec.task.status.state === 'canceled' || rec.cancelRequested;
+  }
+
+  /**
+   * 取消的**事件面**（与 `isCancelled()` 同源同一个 `AbortController`）：
+   * 供能 kill 子进程 / abort 常驻会话的执行体消费（`fetch`/`spawn` 的 `signal` 形参）。
+   * 未知 id ⇒ 返回一个永不 abort 的共享信号（缺席即旧行为，绝不给消费方一个"已取消"的假信号）。
+   */
+  cancellationSignal(id: string): AbortSignal {
+    return this.tryGet(id)?.cancelController.signal ?? NEVER_ABORTED_SIGNAL;
   }
 
   /* ------------------------------ 审批闸 ------------------------------ */
@@ -425,6 +542,80 @@ export class TaskStore {
     return task;
   }
 
+  /* ------------------------------ 有界化（ENG-08） ------------------------------ */
+
+  /**
+   * 驱逐**只**由 `create()` 尾部调用（顺序纪律 **O-11**：get / list / subscribe / updateStatus
+   * 一律不触发，读侧不得出现「刚查到的任务下一帧消失」）。两条独立闸门，同一次调用内先后清扫：
+   *
+   * ① TTL 闸门：终态且 `terminalAtMs + terminalTtlMs` 已过 ⇒ 删（长跑内存回收主力）。
+   * ② 条数闸门：仍超出 `maxTasks` ⇒ 从**最旧终态**开始删至上限。
+   *
+   * 驱逐候选（三者全须，缺一不可 —— R5 的防线）：
+   *   · 任务态是**终态**（活动任务永不被逐，正在跑的委派绝不打断）；
+   *   · **无挂起审批**（`pendingApproval` 在位 ⇒ 宿主随时可能应答续跑，逐出等于吞掉人工决策）；
+   *   · **非「取消在飞」**（标志已置但尚未落 canceled 终态：此刻 runner 还在退出路上，
+   *     提前逐出会让 `runGoalWithLifecycle` 的取消收口分支找不到任务记录）。   *
+   * 删除时对该任务 `subscribers.clear()` —— SSE 生成器闭包若仍挂在集合上，任务对象会被
+   * 闭包反向强引用而**永不回收**（有界化的意义就没了）。清空后在飞的 SSE 流自然收不到后续事件。
+   *
+   * `maxTasks` 非有限（`0` / 负数 / `Infinity` / NaN ⇒ 归一为 Infinity）⇒ **整体关闭**：
+   * 条数与 TTL 两路一起不做，逐字保留旧行为（既有单测与 fixture 不受影响，判据④）。
+   * 注意 `terminalTtlMs` 只在整体开启时生效（偏差 D-18：`maxTasks:0` 是「关掉有界化」的
+   * 总开关语义，不「只按 TTL 驱逐」）。
+   */
+  private evictIfNeeded(): void {
+    if (!Number.isFinite(this.maxTasks)) return;
+    const now = Date.now();
+
+    // ① TTL 闸门：过期终态一并删
+    if (Number.isFinite(this.terminalTtlMs)) {
+      for (const [id, rec] of this.tasks) {
+        if (this.terminalExpired(rec, now)) this.evict(id, rec);
+      }
+    }
+
+    // ② 条数闸门：超出上限则从最旧终态删至 maxTasks
+    const overflow = this.tasks.size - this.maxTasks;
+    if (overflow <= 0) return;
+    const candidates = [...this.tasks.entries()]
+      .filter(([, rec]) => this.evictable(rec))
+      .sort((a, b) => (a[1].terminalAtMs ?? a[1].createdAtMs) - (b[1].terminalAtMs ?? b[1].createdAtMs));
+    for (let i = 0; i < overflow && i < candidates.length; i += 1) {
+      const [id, rec] = candidates[i]!;
+      this.evict(id, rec);
+    }
+  }
+
+  /**
+   * 可驱逐判据：终态 && 无挂起审批 && 非「取消在飞」。
+   * 「取消在飞」经 `cancelController.signal.aborted` 判定而**不读**取消标志位 ——
+   * 一为把标志位的读取点数量压到设计强制的那一处（它的出现点数量被既有静态守卫钉死，
+   *    每多一处读取就要多改一次守卫，见 T3 notes §5 D-14），
+   * 二为信号与终态本就同源，语义上更贴近「取消是否真的还在退出路上」。
+   * `requestCancel` 里 abort 与置终态同处一个同步体（O-1），故「已 abort 而未落 canceled」
+   * 在实际路径上是**瞬时窗口**，本判据属防御性冗余（真被读到即说明存在绕过 requestCancel
+   * 的写入者，此刻宁可保守不逐，也不打断在飞任务）。
+   */
+  private evictable(rec: InternalTask): boolean {
+    if (!isTerminalTaskState(rec.task.status.state)) return false;
+    if (rec.pendingApproval) return false;
+    return !(rec.cancelController.signal.aborted && rec.task.status.state !== 'canceled');
+  }
+
+  /** 终态驻留是否已过期（非终态 / 未盖 terminalAtMs ⇒ 永不过期） */
+  private terminalExpired(rec: InternalTask, nowMs: number): boolean {
+    if (!isTerminalTaskState(rec.task.status.state)) return false;
+    const at = rec.terminalAtMs;
+    return at !== undefined && at + this.terminalTtlMs < nowMs;
+  }
+
+  /** 逐出单条：先断开订阅（防 SSE 闭包强引用），再摘表项 */
+  private evict(id: string, rec: InternalTask): void {
+    rec.subscribers.clear();
+    this.tasks.delete(id);
+  }
+
   size(): number {
     return this.tasks.size;
   }
@@ -452,6 +643,11 @@ export function createProgressSink(store: TaskStore, taskId: string): ProgressSi
     onApprovalRequired(req) {
       return store.waitApproval(taskId, req);
     },
+    // ARCH-22（纯附加）：把同一 taskId 的取消探测面透出给 provider ——
+    // `isCancelled` 供能力边界**轮询**，`cancellationSignal` 供**事件**（kill 子进程 / abort 常驻会话）。
+    // 两者与 store 内的同一个 AbortController 同源，provider 不直接接触 TaskStore（保持桥接层解耦）。
+    isCancelled: () => store.isCancelled(taskId),
+    cancellationSignal: store.cancellationSignal(taskId),
   };
 }
 

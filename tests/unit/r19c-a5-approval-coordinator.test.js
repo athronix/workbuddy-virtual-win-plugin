@@ -492,8 +492,18 @@ describe('A5 / C 边界与回归锚点', () => {
       assert.equal(spy.calls.waitApproval.length, 0, '两种空值均一次都没挂起');
     }));
 
-  test('C3 task-store.cancelRequested 全仓只写不读（静态判据 + 行为旁证）', () =>
-    runCase('C3 cancelRequested 无人消费', 'C-边界', () => {
+  /* 【守卫更新协议 · Phase1-T3（ARCH-22 真取消落地）】
+   * 本用例**原版**是「缺陷现场快照」：断言 `cancelRequested` 全仓恰 3 处（声明/初始化/赋值）
+   * 且**零读取**，并在断言文案里自带预告 ——「若新增了读取点，此处会失败 ⇒ 即修复已落地」。
+   * Phase1-T3（设计 §1.1-2）要求新增 `TaskStore.isCancelled(id)` **读取**该标志位，使取消从
+   * 外观性变为可观测，即「修复落地」这一条件已被满足 ⇒ 按预告走守卫更新协议，把期望从
+   * 「恰 3 处零读取」同步为「恰 4 处 = 声明/初始化/赋值/**单点读取**」，并把原版语义作为
+   * **回归红线**保留：读取点仍只允许一处（`isCancelled`），不得扩散成多消费者各自读标志位
+   * （协作式取消的对外面是 `isCancelled` / `cancellationSignal`，标志位本身仍是内部状态）。
+   * 历史口径与病灶登记见 `docs/changes/phase1-t3-notes.md` §5 D-14、`docs/test/reports/
+   * a2a-coverage-2026-10-03.md` C3 行。 */
+  test('C3 task-store.cancelRequested 读侧已落地且恰一处（守卫更新：原「只写不读」= 缺陷现场）', () =>
+    runCase('C3 cancelRequested 读侧单点', 'C-边界', () => {
       // 静态判据：扫 packages/*/src 下全部 .ts（排除 dist 编译产物）
       const hits = [];
       for (const f of walkTs(join(ROOT, 'packages'))) {
@@ -508,25 +518,51 @@ describe('A5 / C 边界与回归锚点', () => {
       }
       assert.equal(
         hits.length,
-        3,
-        `全仓 src 出现点应为 3（声明/初始化/赋值），实测 ${hits.length}：${JSON.stringify(hits)}`,
+        4,
+        `全仓 src 出现点应为 4（声明/初始化/赋值/单点读取），实测 ${hits.length}：${JSON.stringify(hits)}`,
       );
       const forms = hits.map((h) => h.text.replace(/\s+/g, ' ')).sort();
       assert.deepEqual(
         forms,
-        ['cancelRequested: boolean;', 'cancelRequested: false,', 'rec.cancelRequested = true;'].sort(),
-        `出现点形态不符（若新增了读取点，此处会失败 —— 即修复已落地）：${JSON.stringify(hits)}`,
+        [
+          'cancelRequested: boolean;',
+          'cancelRequested: false,',
+          'rec.cancelRequested = true;',
+          "return rec.task.status.state === 'canceled' || rec.cancelRequested;",
+        ].sort(),
+        `出现点形态不符（读侧必须恰在 isCancelled 内一处，多一处即标志位消费者扩散）：${JSON.stringify(hits)}`,
+      );
+      // 读取点必须落在 task-store 的读侧方法内（唯一合法宿主）
+      const readHit = hits.find((h) => h.text.includes('||'));
+      assert.match(
+        readHit?.file ?? '',
+        /packages\/a2a-framework\/src\/task-store\.ts$/,
+        `cancelRequested 的读取点必须位于 task-store.ts，实得 ${readHit?.file}`,
       );
 
-      // 行为旁证：cancel 后标志确实被置 true，但它不是「打断在飞任务」的驱动者
+      // 行为旁证①：cancel 后标志被置 true，且**读侧真的能看见**（原版的「无人消费」已不成立）
       const store = new TaskStore({ approvalTtlMs: 300 });
       const rec = store.create();
+      assert.equal(store.isCancelled(rec.task.id), false, '未取消 ⇒ 读侧判假');
       store.requestCancel(rec.task.id);
       assert.equal(rec.cancelRequested, true, 'requestCancel 写标志为 true');
+      assert.equal(store.isCancelled(rec.task.id), true, '判据：读侧消费标志位/终态（真取消可观测）');
       assert.equal(
         store.get(rec.task.id).task.status.state,
         'canceled',
-        'cancel 的收口靠 updateStatus(canceled) + pendingApproval.resolve(false)，不是靠读标志',
+        'cancel 的收口仍是 updateStatus(canceled) + pendingApproval.resolve(false)（既有语义未改）',
+      );
+
+      // 行为旁证②：读侧只此一处 —— task-store.ts 内 `cancelRequested` 恰 4 行（声明/初始化/赋值/读取），
+      // 驱逐候选判据走 AbortSignal 而非读标志位 ⇒ 标志位消费者没有扩散。
+      const ownLines = readFileSync(SRC_TASK_STORE, 'utf8')
+        .split('\n')
+        .filter((l) => l.includes('cancelRequested'));
+      assert.equal(ownLines.length, 4, `task-store.ts 内出现点应恰 4，实得 ${ownLines.length}`);
+      assert.equal(
+        ownLines.filter((l) => l.includes('||')).length,
+        1,
+        '读取点必须恰一处（isCancelled 内），多一处即出现第二个标志位消费者',
       );
     }));
 

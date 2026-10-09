@@ -58,13 +58,21 @@ export interface A2AGoalHandler {
  * 框架层不得 import `@winvm/core`（设计 §2.4）；语义（壳双态条目）由 vm-service 实现本接口完成。
  * 两点即设计 §7 时序图的 `onGoalAccepted` / `onGoalTerminal`。
  */
-/** `onGoalTerminal` 的终态快照（框架据 result.ok / 异常 / 挂起 三者之一给出；设计 §2.1 三点均落） */
+/** `onGoalTerminal` 的终态快照（框架据 result.ok / 异常 / 挂起 / 取消 四者之一给出；设计 §1.1-3） */
 export interface DelegationTerminalSnapshot {
-  /** 框架写入 A2A 的任务态：completed | failed | input-required（挂起） */
-  readonly state: 'completed' | 'failed' | 'input-required';
+  /**
+   * 框架写入 A2A 的任务态：completed | failed | input-required（挂起）
+   * | canceled（ARCH-22 **附加枚举成员**：取消收口分支与 provider 因取消抛错的路径）。
+   *
+   * 附加性：旧 observer 只用三元组做 `=== 'failed'` / `=== 'completed'` 比较 ⇒ 拿到 'canceled'
+   * 时既不谎报 completed 也不谎报 failed；不读该值的实现零感知。
+   * 注意 **rejected 仍刻意不在本联合内**（D-5：rejected 只能由 observer 依 TaskStore
+   * 实际状态回改产生，框架层不直发）—— 新增 canceled 不构成对 rejected 的放宽。
+   */
+  readonly state: 'completed' | 'failed' | 'input-required' | 'canceled';
   /** handler 返回值（挂起与异常路径可为 undefined） */
   readonly result?: GoalResult;
-  /** runGoal 抛出的异常（仅 failed 异常路径） */
+  /** runGoal 抛出的异常（仅 failed / canceled 异常路径） */
   readonly error?: unknown;
 }
 
@@ -344,6 +352,10 @@ export class A2AServer {
           if (state === 'completed' || state === 'failed') return;
           sink.onStatus(state, message);
         },
+        // ARCH-22：取消探测面**逐字透传**给 handler（与 store 内同一个 AbortController 同源）。
+        // 条件展开：sink 上缺席 ⇒ 该键整体不写，绝不落显式 undefined（旧 provider 零感知）。
+        ...(sink.isCancelled ? { isCancelled: () => sink.isCancelled?.() === true } : {}),
+        ...(sink.cancellationSignal ? { cancellationSignal: sink.cancellationSignal } : {}),
       });
 
       // K4 安全网：若桥接层已把任务挂起为 input-required（等待宿主审批）或仍有未决审批，
@@ -353,6 +365,21 @@ export class A2AServer {
         // K-N1：挂起也是一次终态回调（服务端据此落 delegation.complete:input-required）
         this.observe(() =>
           this.delegationObserver?.onGoalTerminal(id, goalWithTask, { state: 'input-required', result }),
+        );
+        return;
+      }
+
+      // ARCH-22 取消收口分支（顺序纪律 **O-2**）：handler 已返回但任务在此期间被宿主取消 ⇒
+      // **不落 artifacts、不调 updateStatus**，只回调观测点。
+      //   · 不落 artifacts：取消后的产物是把「既成事实」推给宿主（宿主 UI 已显示 canceled），
+      //     与 sink.addArtifact 的终态守卫同一条红线，此处是它的**第二道闸**（handler 返回的
+      //     result.artifacts 走的是另一条写入路径，不经 store 守卫的那次调用点之外的循环）。
+      //   · 不调 updateStatus：canceled 已是终态，`TaskStore.updateStatus` 本就一律拒绝终态后
+      //     的任何流转（含同态重写）—— 显式不调用是把「不覆盖取消原因」写成代码事实而非依赖巧合。
+      //   · 只 observe：证据面（T4）据此落 `terminalState:'canceled'`，链上从此可证「何时被取消」。
+      if (recNow && this.tasks.isCancelled(id)) {
+        this.observe(() =>
+          this.delegationObserver?.onGoalTerminal(id, goalWithTask, { state: 'canceled', result }),
         );
         return;
       }
@@ -378,6 +405,16 @@ export class A2AServer {
       );
     } catch (e) {
       this.logger.error('runGoal 异常', { taskId: id, error: String(e) });
+      // ARCH-22：provider 按契约以「取消错」抛出退出（`makeError('TASK_CANCELED', …)` 或
+      // AbortError）时**不误报 failed** —— 任务已是 canceled 终态，failed 会把宿主主动取消
+      // 写成执行失败，取证面（O-3 的三分支）与链上 errorCode 都会跟着错。
+      // 判后不改判：既不写 failed 终态（终态守卫本会拦），也只回调 canceled 一种快照。
+      if (this.tasks.isCancelled(id)) {
+        this.observe(() =>
+          this.delegationObserver?.onGoalTerminal(id, goal, { state: 'canceled', error: e }),
+        );
+        return;
+      }
       this.tasks.updateStatus(id, 'failed', errorMessage(id, e));
       // K-N1（纯附加）：异常路径同样回调终态（服务端据此落 delegation.complete:failed）
       this.observe(() =>

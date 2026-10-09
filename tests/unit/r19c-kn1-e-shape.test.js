@@ -400,11 +400,20 @@ describe('K-N1 E-6 委派终态按路径区分（D-5：disabled 拒绝= failed�
     );
   });
 
-  test('DelegationTerminalSnapshot.state 类型结构上无法表达 rejected', () => {
+  test('DelegationTerminalSnapshot.state 类型结构上无法表达 rejected（canceled 已附加，rejected 仍未）', () => {
+    // 【守卫更新协议 · Phase1-T3 / D-16】原版钉死「三值」联合。T3（设计 §1.1-3）把 canceled
+    // 作为**附加枚举成员**纳入（真取消的证据面必须有处可落），故联合变四值。本用例的核心红线
+    // **未放宽**：rejected 仍结构上不可表达 ⇒ 它只能由 observer 依 TaskStore 实际状态回改产生。
+    // 同口径判据在 `r19c-kn1-e-mutation.test.js`（d5_snapshot_type + 其变异用例）同步更新。
     assert.match(
       A2A,
-      /readonly state: 'completed' \| 'failed' \| 'input-required';/,
-      '快照类型钉死三值，rejected 只能由 observer 回改产生',
+      /readonly state: 'completed' \| 'failed' \| 'input-required' \| 'canceled';/,
+      '快照类型钉死四值（含 canceled，不含 rejected），rejected 只能由 observer 回改产生',
+    );
+    assert.doesNotMatch(
+      A2A,
+      /readonly state:[^;]*'rejected'/,
+      'D-5 红线：框架层不得直发 rejected（附加 canceled 不构成对 rejected 的放宽）',
     );
   });
 

@@ -163,8 +163,10 @@ const GUARDS = {
     /const finalState: A2A\.TaskState = result\.ok \? 'completed' : 'failed';/.test(s.A2A) &&
     /onGoalTerminal\(id, goalWithTask, \{\s*state: result\.ok \? 'completed' : 'failed',/.test(s.A2A) &&
     !/result\.ok \? 'completed' : 'rejected'/.test(s.A2A),
-  /** E-6 (D-5)：快照类型结构上无法表达 rejected（三值钉死） */
-  d5_snapshot_type: (s) => /readonly state: 'completed' \| 'failed' \| 'input-required';/.test(s.A2A),
+  /** E-6 (D-5)：快照类型结构上无法表达 rejected（canceled 为 T3 附加成员，rejected 仍不可） */
+  d5_snapshot_type: (s) =>
+    /readonly state: 'completed' \| 'failed' \| 'input-required' \| 'canceled';/.test(s.A2A) &&
+    !/readonly state:[^;]*'rejected'/.test(s.A2A),
   /** E-6 (D-5)：rejected 仅由宿主审批拒绝路径置位（单点） */
   d5_rejected_single_site: (s) =>
     (s.A2A.match(/updateStatus\(\s*taskId,\s*'rejected'\s*\)/g) ?? []).length === 1,
@@ -420,11 +422,26 @@ const MUTATIONS = [
     name: 'E-6 快照类型被放宽为含 rejected（结构上可表达第三终态）',
     guard: 'd5_snapshot_type',
     mutate: (s) => {
+      // 【守卫更新 · Phase1-T3 / D-16】基线联合已由三值变四值（canceled 系设计 §1.1-3 附加成员），
+      // 故变异源串同步为四值形态；变异目标不变 —— 仍是在联合里塞进 rejected（D-5 红线）。
       setA2AServer(
         s,
         s.A2A.replace(
+          "readonly state: 'completed' | 'failed' | 'input-required' | 'canceled';",
+          "readonly state: 'completed' | 'failed' | 'input-required' | 'canceled' | 'rejected';",
+        ),
+      );
+    },
+  },
+  {
+    name: 'E-6 快照类型的 canceled 被摘（真取消的证据面无处可落 · T3 附加成员不得回退）',
+    guard: 'd5_snapshot_type',
+    mutate: (s) => {
+      setA2AServer(
+        s,
+        s.A2A.replace(
+          "readonly state: 'completed' | 'failed' | 'input-required' | 'canceled';",
           "readonly state: 'completed' | 'failed' | 'input-required';",
-          "readonly state: 'completed' | 'failed' | 'input-required' | 'rejected';",
         ),
       );
     },
