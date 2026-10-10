@@ -17,7 +17,7 @@ import { PsBridge, type PsBridgeOptions } from './ps-bridge.js';
 import { WINDOWS_CAPABILITIES, CAPABILITIES_BY_DOMAIN } from './registry/definitions.js';
 
 export { PsBridge, detectPowerShell, defaultScriptPath, PsBridgeError } from './ps-bridge.js';
-export type { PsBridgeOptions, PsCallResult } from './ps-bridge.js';
+export type { PsBridgeOptions, PsCallResult, PsCallOptions } from './ps-bridge.js';
 export { WINDOWS_CAPABILITIES, CAPABILITIES_BY_DOMAIN } from './registry/definitions.js';
 
 /** 平台标识：本能力层仅适用 Windows */

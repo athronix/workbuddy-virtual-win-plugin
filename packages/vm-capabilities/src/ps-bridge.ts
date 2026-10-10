@@ -42,6 +42,28 @@ export interface PsCallResult<T = unknown> {
   readonly durationMs: number;
 }
 
+/**
+ * ARCH-29（P2-T4，**纯附加可选**）：单次调用的中止选项。
+ *
+ * 为什么挂在 `call()` 上而**不是** `PsBridgeOptions`（构造参数）：
+ * `PsBridge` 是**进程级共享**的常驻桥（服务与 provider 复用同一实例，见 T02 注入改造），
+ * 而断连中止信号是**每请求**的事实 —— 塞进构造参数等于让一次断连波及同桥的其它在途调用。
+ * 故本形状只做 per-call 载体，与 `fetch` 的 `RequestInit.signal` 同构。
+ *
+ * 缺席即旧行为：不传 opts / opts.signal 缺席 ⇒ 逐字节走既有等待逻辑。
+ */
+export interface PsCallOptions {
+  /**
+   * 「宿主已断连 ⇒ 本地不再等待」信号。
+   *
+   * 中止强度（务必如实理解，不得加码）：abort 只让**本地 Node 侧停止等待这条 NDJSON 往返**，
+   * 已经写进 ps-bridge stdin 的请求**无法收回**，VM 内 PowerShell 会继续跑完它（cmd.exe 家族
+   * 无信号透传）。因此中止成功的结果是 `PSBRIDGE_CANCELED`（「本地停止跟进」），
+   * **绝不**是「VM 内操作已终止」。
+   */
+  readonly signal?: AbortSignal;
+}
+
 export class PsBridgeError extends Error {
   constructor(
     readonly code: string,
@@ -334,11 +356,26 @@ export class PsBridge {
     this.pending.clear();
   }
 
+  /**
+   * 底层单帧调用。
+   *
+   * `signal`（ARCH-29 / P2-T4，**纯附加可选第 5 参**）：宿主断连中止。
+   * 纪律三条（缺一不可）：
+   *  1. **缺席即旧行为** —— 不传（stdio 探针 / 心跳 / 看门狗 / 旧调用方）时本函数与改动前逐字同路径；
+   *  2. **中止即摘除等待位** —— `this.pending.delete(id)`，否则 VM 迟到的回执会去解析一个
+   *     已无人认领的 promise（内存泄漏 + `failAll` 重复 reject）；
+   *  3. **监听器必须随 settle 摘除** —— 心跳/看门狗等长期持有的 signal 上不留闭包
+   *     （与框架层 `raceAbort` 同一条纪律）。
+   *
+   * ⚠ 中止强度：写入 stdin 的请求**已无法收回**，VM 内 PowerShell 会跑完它。本函数中止的是
+   *    **本地等待**，绝不是「VM 内操作已终止」。
+   */
   private rawCall(
     module: string,
     fn: string,
     params: Record<string, unknown>,
     timeoutMs: number,
+    signal?: AbortSignal,
   ): Promise<PsCallResult> {
     if (!this.child?.stdin?.writable) {
       return Promise.reject(new PsBridgeError('PSBRIDGE_NOT_RUNNING', 'ps-bridge 未运行或 stdin 不可写'));
@@ -346,14 +383,57 @@ export class PsBridge {
     const id = `r${++seq}`;
     const payload = JSON.stringify({ id, module, function: fn, params, timeoutMs }) + '\n';
 
-    return new Promise<PsCallResult>((resolve, reject) => {
-      const timer = setTimeout(() => {
+    return new Promise<PsCallResult>((resolvePromise, rejectPromise) => {
+      /**
+       * 统一收尾：先摘超时器/中止监听/等待位，再 settle。
+       * 三条出口（超时 / abort / 迟到回执）都必须经过这里，否则 abort 监听会残留在
+       * 长期持有的 signal 上（与框架层 `raceAbort` 同一条「监听器随 settle 摘除」纪律）。
+       */
+      let onAbort: (() => void) | undefined;
+      const finish = (settle: () => void): void => {
+        clearTimeout(watchdog);
+        if (onAbort && signal) signal.removeEventListener('abort', onAbort);
         this.pending.delete(id);
-        reject(new PsBridgeError('PSBRIDGE_TIMEOUT', `调用 ${module}.${fn} 超时（${timeoutMs}ms）`));
+        settle();
+      };
+      const watchdog = setTimeout(() => {
+        finish(() => rejectPromise(new PsBridgeError('PSBRIDGE_TIMEOUT', `调用 ${module}.${fn} 超时（${timeoutMs}ms）`)));
       }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer });
+
+      if (signal?.aborted === true) {
+        // 派发前已断连 ⇒ 一个字节都不写（零副作用，与框架判据 1 同口径）
+        clearTimeout(watchdog);
+        rejectPromise(this.canceledError(module, fn, '派发前宿主连接已断开'));
+        return;
+      }
+      if (signal) {
+        onAbort = (): void => {
+          finish(() => rejectPromise(this.canceledError(module, fn, '宿主连接已断开')));
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+
+      this.pending.set(id, {
+        resolve: (v) => finish(() => resolvePromise(v)),
+        reject: (e) => finish(() => rejectPromise(e)),
+        timer: watchdog,
+      });
       this.child!.stdin!.write(payload);
     });
+  }
+
+  /**
+   * 取消错误（ARCH-29）：领域码 `PSBRIDGE_CANCELED`。
+   *
+   * 码形走**领域码**（`DOMAIN_CODE_RE` 命中）而非契约 10 码，故不进 `BRIDGE_ERROR_CODES`
+   * （对外契约码集不得因内部中止而扩张）；由消费侧显式识别后转 `TASK_CANCELED` 收口。
+   */
+  private canceledError(module: string, fn: string, cause: string): PsBridgeError {
+    return new PsBridgeError(
+      'PSBRIDGE_CANCELED',
+      `调用 ${module}.${fn} 已中止：${cause}；本地停止等待，VM 内已下发的操作可能仍在继续（协作式中止，非强杀）。`,
+      { canceled: true, inFlightMayContinue: true },
+    );
   }
 
   /**
@@ -362,16 +442,30 @@ export class PsBridge {
    * D2：入口加 **lazy 自愈** —— 若进程未运行且未显式 stop()，先尝试带退避的自愈，
    * 恢复后再发请求；自愈仍失败才报 `PROVIDER_UNAVAILABLE`（而不是像旧实现那样
    * 一次失败后所有调用永久失败）。已显式 stop() 时不复活，直接报错。
+   *
+   * `opts`（ARCH-29 / P2-T4，**纯附加可选第 5 参**）：per-call 中止载体。
+   * 第 4 参 `timeoutMs` 的位置与语义**一字未动** ⇒ 全部既有位置参调用方（会话探针、
+   * 健康自检、看门狗、`r3-uninstall-verify` 钉住的 `bridge.call(…, capTimeoutMs ?? …)`）
+   * 零改动、零回归。新消费方传第 5 参 `{ signal }`。缺席即旧行为。
    */
   async call<T = unknown>(
     module: string,
     fn: string,
     params: Record<string, unknown> = {},
     timeoutMs?: number,
+    opts?: PsCallOptions,
   ): Promise<T> {
+    const signal = opts?.signal;
+
     if (!this.running) {
       if (this.stopped) {
         throw new PsBridgeError('PROVIDER_UNAVAILABLE', 'ps-bridge 已停止（stopped），不再自愈');
+      }
+      // ARCH-29：自愈（spawn + 握手）本身是一段可达**数十秒**的本地等待（真机实测握手
+      // ~16.4s，见 `ready()` 注释）。宿主早已走开时还继续自愈 = 无意义的副作用延续，
+      // 故此处也必须过闸。
+      if (signal?.aborted === true) {
+        throw this.canceledError(module, fn, '派发前宿主连接已断开');
       }
       const healed = await this.selfHeal('call 入口发现 ps-bridge 未运行');
       if (!healed && !this.running) {
@@ -381,7 +475,7 @@ export class PsBridge {
         );
       }
     }
-    const res = await this.rawCall(module, fn, params, timeoutMs ?? this.defaultTimeoutMs);
+    const res = await this.rawCall(module, fn, params, timeoutMs ?? this.defaultTimeoutMs, signal);
     if (!res.ok) {
       const e = res.error ?? { code: 'PSBRIDGE_UNKNOWN', message: '未知错误' };
       throw new PsBridgeError(e.code, e.message, e.details);

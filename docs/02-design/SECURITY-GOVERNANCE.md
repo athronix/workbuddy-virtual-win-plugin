@@ -93,6 +93,25 @@
 - 常驻 LLM 会话被打断时会**终结其 CLI 子进程**（只 resolve promise 而留 CLI 活着 ⇒ VM 内 agent 会继续自行发起工具调用，取消成假动作）。
 - 证据面：取消终态以 `terminalState:'canceled'` + `errorCode:'TASK_CANCELED'` 入链（可审计、可与 failed/rejected 区分）。
 
+#### 2.2.1 两通道取消口径（Phase 2 · P2-T4 接通）
+
+本项目有**两条**会触发「停止在途能力调用」的通道：触发事实不同、信号载体不同，但**中止语义与收口口径必须一致**。
+
+| 通道 | 触发事实 | 信号载体（契约成员） | 取消口径 |
+|---|---|---|---|
+| **A2A 委派** | 宿主对任务发起 `tasks/cancel` | `ProgressSink.isCancelled()`（能力边界轮询）+ `ProgressSink.cancellationSignal`（事件面，能 kill 子进程的执行体消费） | `makeError('TASK_CANCELED', …)` 收口 + `terminalState:'canceled'` 入链 |
+| **MCP 直调** | 宿主 HTTP 连接断开（响应流 `close` 且**未**正常写完） | `McpRequestContext.signal` → `ToolContext.signal`（P2-T4 接通；此前是声明后从不构造、也从不消费的死契约 ARCH-29） | `isError:true` + `structuredContent:{ ok:false, canceled:true, inFlightMayContinue:true }`，文案取框架层唯一权威串 `CANCELED_TEXT`；执行侧同样以 `TASK_CANCELED` 收口 |
+
+两条通道共同的三条纪律（不得各自加码）：
+
+1. **协作式，不是抢占式**：信号只在「能力调用边界」被消费，正在执行的那一次会跑完。MCP 侧另把 `signal` 透到 ps-bridge 的单次调用参数上，用于中止**本地等待**——但已写进 ps-bridge stdin 的请求无法收回，VM 内会继续跑完它。
+2. **绝不谎报强杀**：`cmd.exe` 家族无信号透传，Node 侧无法终止 VM 内已下发的进程。两通道的取消文案因此只陈述「本地停止跟进」，并保留「VM 内在途操作可能仍在继续」这一可证事实；任何「未执行任何变更 / 已终止 VM 内进程」式表述都是不实陈述。
+3. **取消码绝不折叠为失败码**：`TASK_CANCELED` 必须留在契约码位（桥侧领域码经 `DOMAIN_CODE_TO_BASE` 显式映射到它，**不扩**对外封闭码集）。折叠成 `EXECUTION_FAILED` 会被 LLM 层的 `shouldDegrade` 判为「运行时不可用」并**回落确定性执行器重跑**——等于把宿主已经叫停/已经走开的操作再执行一遍（Phase 1 CL-022 3a 同一条红线）。
+
+**缺席即旧行为**：stdio 传输、未接断连侦测的调用方、以及不实现这些可选成员的第三方 provider，一律逐字保持接通前形态（`ToolContext` 键集不因本批扩张）。
+
+判据由 `tests/unit/phase2-mcp-signal.test.js` 钉死，含一条关键反证：`close` 且响应已正常写完（`writableEnded===true`）时**绝不允许** abort——否则每一次成功调用都会被读成取消（假取消比漏报更严重）。
+
 ---
 
 ## 3. 策略引擎（`packages/core/policy`）

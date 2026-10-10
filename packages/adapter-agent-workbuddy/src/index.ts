@@ -57,6 +57,14 @@ const DOMAIN_CODE_TO_BASE: Readonly<Record<string, string>> = {
   TIMEOUT: 'TIMEOUT',
   POLICY_DENIED: 'POLICY_DENIED',
   APPROVAL_REQUIRED: 'APPROVAL_REQUIRED',
+  /**
+   * ARCH-29（P2-T4）：ps-bridge 的本地中止 ⇒ 契约码 **必须**是 `TASK_CANCELED`。
+   *
+   * 若任其兜底成 `EXECUTION_FAILED`，LLM provider 的 `shouldDegrade` 会把
+   * 「EXECUTION_FAILED 且零 artifact」判为「运行时不可用」并**回落确定性执行器重跑**
+   * —— 等于把宿主已经走开/叫停的操作再执行一遍（Phase 1 CL-022 3a 同一条红线）。
+   */
+  PSBRIDGE_CANCELED: 'TASK_CANCELED',
 };
 
 /**
@@ -80,6 +88,37 @@ const APPROVAL_FIELD = '__approvalId';
  * 命中即认为可被 PowerShell 强转为 `[int]` / `[long]` / `[double]`。
  */
 const NUMERIC_LIKE_RE = /^\s*[+-]?\d+(\.\d+)?\s*$/;
+
+/**
+ * ARCH-29（P2-T4）：宿主断连中止的**执行侧收口错误**（`TASK_CANCELED`，`reason` 记中止阶段）。
+ *
+ * 为什么必须是 `TASK_CANCELED`：见 `DOMAIN_CODE_TO_BASE` 中 `PSBRIDGE_CANCELED` 的同条理由 ——
+ * 折叠成 `EXECUTION_FAILED` 会命中 LLM 层 `shouldDegrade` 的降级重跑判据。
+ *
+ * 为什么文案**只说本地停止、不说 VM 已停**：`cmd.exe` 家族无信号透传，Node 侧无法强杀
+ * 已下发的操作；宣称「未执行任何变更」或「已终止」都是不实陈述（`SECURITY-GOVERNANCE.md` §2.2）。
+ * `retryable:false` 由 `DEFAULT_RETRYABLE` 给出 —— 重跑必须重新发起并重新过审批闸。
+ */
+function hostDisconnectedError(phase: string): ReturnType<typeof makeError> {
+  return makeError('TASK_CANCELED', `宿主连接断开，本地已停止跟进（中止于：${phase}）`, {
+    reason: 'HOST_DISCONNECTED',
+    details: { hostDisconnected: true, inFlightMayContinue: true, canceledPhase: phase },
+  });
+}
+
+/**
+ * ARCH-29：能力边界的「宿主是否已走」判据（**必须是函数调用**，不能内联写
+ * `req.signal?.aborted === true`）。
+ *
+ * 为什么：`req` 是 `readonly` 形参，TS 会在**首次判定为 false 后把 `aborted` 收窄成
+ * `false` 并在整个函数体内保持**（跨 `await` 也不失效）—— 而 `AbortSignal.aborted`
+ * 恰恰是**会随时间翻转**的外部状态。内联写法会直接报 TS2367（比较无交集），
+ * 且即便不报错也是**假守卫**：后续边界点永远读到「未取消」。
+ * 走函数调用即每次真读，收窄无法跨调用传递 —— 这不是绕编译器，是**语义正确**的写法。
+ */
+function isHostGone(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true;
+}
 
 /**
  * CL-017 D26 裁决 B：`enum` 成员匹配 —— 先严格 `includes`，字符串再按**忽略大小写**比较。
@@ -239,6 +278,15 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     const started = Date.now();
     const cap = ctx.capabilities.get(req.capabilityId);
 
+    // —— ARCH-29（P2-T4）判据 1 的**执行侧同型闸**：派发前已断连 ⇒ 零副作用直接收口 ——
+    // 位置纪律：必须在「策略评估 / 入参校验 / 会话探针 / 并发闸门 / 桥调用」**全部之前**。
+    // 理由：这四段各有副作用面（会话探针会打一次 `bridge.call`、并发闸门会占额度），
+    // 而「宿主已经不在这条连接上了」是**比它们更优先的事实** —— 与 Phase 1 `step()` 咽喉点
+    // 「取消优先于执行」同一条口径。缺席（stdio / A2A 委派 / 单测）⇒ 整段跳过，逐字旧行为。
+    if (isHostGone(req.signal)) {
+      return this.fail(req, hostDisconnectedError('派发前宿主连接已断开'), started, ctx);
+    }
+
     if (!cap) {
       return this.fail(req, makeError('UNKNOWN_CAPABILITY', `能力未注册：${req.capabilityId}`), started, ctx);
     }
@@ -287,6 +335,12 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
           ctx,
         );
       }
+      // ARCH-29：会话探针本身是一段真实等待（ps-bridge 往返）。断连若发生在它期间，
+      // 必须在**发起能力调用之前**再问一次 —— 这是「协作式中止在每个能力边界轮询」的
+      // 第二个边界点（第一个是函数入口）。
+      if (isHostGone(req.signal)) {
+        return this.fail(req, hostDisconnectedError('会话探针期间宿主连接已断开'), started, ctx);
+      }
     }
 
     // —— 并发闸门 ——
@@ -297,6 +351,12 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     const bridge = this.bridge;
     if (!bridge) {
       return this.fail(req, makeError('PROVIDER_UNAVAILABLE', 'ps-bridge 未就绪'), started, ctx);
+    }
+
+    // ARCH-29：并发闸门与会话探针都可能等待 ⇒ 发起前最后一次边界轮询（咽喉纪律：
+    // 绝不在「宿主已走」判定成立后还发起能力调用）。
+    if (isHostGone(req.signal)) {
+      return this.fail(req, hostDisconnectedError('发起能力调用前宿主连接已断开'), started, ctx);
     }
 
     this.active++;
@@ -320,10 +380,20 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       // D5：meta.health.check 由 Node 侧**内置**返回与 GET /health 同构的快照
       //     （原绑定 system.Get-SystemInfo 返回的是系统信息而非健康态，语义不符）。
       // 其余 __meta.* 仍走 ps-bridge（保持既有语义）。
+      //
+      // ARCH-29（P2-T4）：`req.signal` 在场时走**带 signal 的分支**（ps-bridge 内部把 abort
+      // 与「等回执」竞速，并从 pending 表摘除等待位 —— 因此不存在「取消后迟到的 reject 变成
+      // 未处理拒绝」的风险；用外层 `Promise.race` 反而会有这个崩溃面，故不采）；
+      // 缺席时**逐字节保留旧调用形态**（4 参），这条分支是 `r3-uninstall-verify` 的
+      // T02b 超时形态静态钉所锁的字面量 ⇒ 不得改写。
       const raw =
         impl.module === '__meta' && impl.fn === 'healthCheck'
           ? await this.buildHealthSnapshot()
-          : await bridge.call(impl.module, impl.fn, req.params, capTimeoutMs ?? req.timeoutMs ?? 30_000);
+          : req.signal
+            ? await bridge.call(impl.module, impl.fn, req.params, capTimeoutMs ?? req.timeoutMs ?? 30_000, {
+                signal: req.signal,
+              })
+            : await bridge.call(impl.module, impl.fn, req.params, capTimeoutMs ?? req.timeoutMs ?? 30_000);
 
       // D10：列表类能力强制保形为数组（空 → []，单元素 → [{...}]）。
       // 注意：bridge.call 的 lazy 自愈（D2）在此处生效 —— 进程死亡时会先自愈再执行。
@@ -427,6 +497,14 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         risk: ctx.capabilities.get(capabilityId)?.risk ?? 'L3',
         approved: false,
         timeoutMs: goal.timeoutMs,
+        // ARCH-29（P2-T4，**纯附加条件展开**）：把 A2A 侧的取消信号（`ProgressSink
+        // .cancellationSignal`，与 `isCancelled()` 同一个 AbortController）交给 execute，
+        // 使**一次在途能力调用**也能在取消时停止本地等待 —— 旧实现只能在调用返回后
+        // 才在边界上发现取消（长能力调用最坏 540s）。
+        // 两通道口径就此对齐：A2A=委派取消信号、MCP=宿主断连信号，都走同一个 `req.signal`
+        // 消费面与同一个 `TASK_CANCELED` 收口（见 SECURITY-GOVERNANCE §2.2 两通道取消口径）。
+        // 缺席即旧行为：第三方 sink 不实现该成员 ⇒ 键不进对象字面量（K-13 禁显式 undefined）。
+        ...(sink.cancellationSignal ? { signal: sink.cancellationSignal } : {}),
       });
       steps.push({
         index: steps.length,

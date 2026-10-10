@@ -322,6 +322,22 @@ export interface CapabilityRequest {
    * 存在时 provider 审计条目写 `ext: { kind:'inner-call', delegationId, channel }`。
    */
   readonly delegationId?: string;
+  /**
+   * ARCH-29（P2-T4，**纯附加可选**）：宿主 HTTP 断连的中止信号（与 `ToolContext.signal` 同源）。
+   *
+   * 通路：`/mcp` 路由侦测到响应流 `close` 且未正常写完 ⇒ 框架灌进 `ToolContext.signal`
+   * ⇒ MCP handler 交给你（`provider.execute`）⇒ provider 交给 ps-bridge 的 per-call signal。
+   * A2A 委派通道**不经本字段**（那边由 `ProgressSink.isCancelled` / `cancellationSignal` 承载，
+   * 两通道取消口径见 `docs/02-design/SECURITY-GOVERNANCE.md` §2.2）。
+   *
+   * 消费纪律（与 `ToolContext.signal` 逐字同口径，不得自行加码）：
+   *  - **缺席即旧行为**：stdio / 单测 / A2A 委派 ⇒ 本键根本不注入；
+   *  - **协作式中止**：只中止本地等待与后续副作用发起；VM 内已下发的命令无法强杀
+   *    （cmd.exe 家族无信号透传），任何「已终止 VM 内进程」式表述都是不实陈述；
+   *  - 收口码一律 `TASK_CANCELED`（**不得**折叠成 `EXECUTION_FAILED` —— 后者会被
+   *    LLM 层的 `shouldDegrade` 判定为「运行时不可用」而回落**重跑**已叫停的操作）。
+   */
+  readonly signal?: AbortSignal;
 }
 
 export interface CapabilityResult {

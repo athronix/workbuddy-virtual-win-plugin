@@ -482,3 +482,21 @@ graph TD
 - **T10 提前于 T4**：架构师冲突表在 `adapter-agent-workbuddy/src/index.ts` 明写「T10 先、T4 后」，且 O-1（P0 安全性质）依赖仅 P2-T1（已满足）。执行序修正为 **T1→T2→T3→T3b→T10→T4→T5(真机)→T6→T7→T12→T8→T9→T11**。
 - P2-T3 追加补充批 **P2-T3b**（旧口径五处归一）已交付入库（`8a49f84`，+3 守卫例含裸承诺绝迹反证与字符画框宽守卫；灵敏度经 git show 改前版实测）。其范围外发现三处需求/规格叙事（`REQUIREMENTS.md:84/:98`、`SPEC-AGENT-SERVICE-BRIDGE.md:262`）裁定**并入 P2-T5 文档面**统一诚实化（T5 本就同批改 SECURITY/DEPLOYMENT，需求叙事的 Q2 对齐与其"永久限制"表述同源）。
 - T10 执行注记：O-1 选型任务书给了 (a) error 串前缀码=零契约扩展优先 / (b) `errorCode?`=碰 contracts/bridge.ts 需声明。回报后按选型登记 contracts 单写者序列偏移（若走 b，T5/T7/T9 对该文件的序列不变，仅本批插入）。
+
+### 13.4 P2-T4 交付与裁断登记（2026-10-11 03:0x，主理人）
+
+**停摆链**：T4 历经三实例（agent-81dd30d4 侦查+设计定稿停摆 → agent-3b9b0c22 framework 层编辑落盘停摆 → agent-41ebe32f 续跑完成交付）。教训两条已固化：成员 timeline 必须用真实 `date`（估计时间戳是停摆误判放大器）；重派任务书必须逐项点名"已完成勿重做"（含 diff 摘要），防新实例重写造成双写。
+
+**主理人裁断两条（01:5x 下发）**：
+1. **`raceAbort` 保持模块私有**：测试以替身 signal 记 add/remove 外部可观测断言摘除纪律，框架 API 面不为本批扩张。成员方案优于任务书默认，采纳。
+2. **`/mcp` 传输层接线取 (C)：绕开单写者 + 可粘贴代码块转正入 T5**。(B)（框架感知 `ServerResponse`）违反 step7 分层定稿排除；成员将断连侦测整体外移为**新建 `packages/vm-service/src/mcp-transport.ts`（92 行，零反向依赖，可独立单测）**，`vm-service/src/server.ts` 一个字节未动（diff 纯度实证）。三层语义闭环（framework→capabilities→adapter）离线全证；真机断连端到端降为遗留复核点。
+
+**遗留接线点（并入 P2-T5 执行窗口，成员提供、主理人核认可粘贴）**：`vm-service/src/server.ts` :1469–1484 路由体，import 段追加 `{ watchClientDisconnect, buildMcpRequestContext } from './mcp-transport.js'`；`const disconnect = watchClientDisconnect(res)` + try/finally `{ disconnect.dispose() }` 包住路由体；:1477 组装语句换 `mcp.handleRequest(parsed, buildMcpRequestContext(dtid, disconnect.signal))`；**保留** `const dtid = url.searchParams.get('dtid') ?? undefined;` 原样（phase1-t4-assembly:1021 钉该行）。⚠ **必须同批改 4 处守卫（否则必红）**：`r19c-kn1-e-shape.test.js` :110（正则改钉新组装形态）/:116（条件展开语义改钉 buildMcpRequestContext 或删条，职责已由 phase2-mcp-signal 装配用例承接）；`r19c-kn1-e-mutation.test.js` :110/:269（e1_conditional 判据与变异源串两处同步换字面量，变异体须仍能捕获条件展开破坏）。另 `r19c-kn1-e-shape` 的 `MCP_ROUTE` 切片终点为 `if (path === '/audit/receipt'` ⇒ 接线代码不得越出该边界。
+
+**范围外发现处置**：C1（vm-capabilities 无 execute，真身在 adapter:237）/C2（PsBridge 是 stdio NDJSON 常驻非 fetch）= 任务书行文与实际不符，成员按实际接线，**采信**；C3（工作区杂项勿误入库）= 提交时已选择性 add 规避；C4（hermes/llm adapter 未消费 signal，`CapabilityRequest.signal` 已就位）= 转记 **P2-T8/T12 备忘**；C5 = 已写入上段接线点纪律。
+
+**独立核验（主理人复跑）**：tsc exit 0；新测试 phase2-mcp-signal 54/54；关键碰撞面 r19c-kn1-e-shape 33、mutation 54、phase1-t5-provider-cancel 12、t3-cancel-bounded 29、t4-assembly 45、contract-code-fidelity 22、t4-http-guard 40、snapshot-truth 17、r3-uninstall-verify 39（第 5 参加而不破 4 参钉）、t5-cancel-consume 17、cl017-error-reason 10 全绿；dist 指纹在场（PSBRIDGE_CANCELED×2、signal: reqCtx.signal×1、dist/mcp-transport.js 3205B）；单写者 server.ts diff=0。**基线 84/1558 → 85/1612（+54，对账吻合，0 fail / 2 skip 恒 OFFLINE_SKIP）**。
+
+**中断强度语义（本批定版，SECURITY §2.2.1 已落）**：协作式中止——只中止本地等待与后续副作用发起；stdin 已写入的请求无法收回，VM 内跑完；取消面恒带 `inFlightMayContinue:true`；收口码 `TASK_CANCELED` 经 `DOMAIN_CODE_TO_BASE` 显式映射（`PSBRIDGE_CANCELED` 领域码，不扩契约 10 码封闭集），折叠成 `EXECUTION_FAILED` 会被 `shouldDegrade` 重跑叫停操作——已由用例钉死（CL-022 3a 红线同源）。
+
+**遗留真机复核（T5 窗口顺带或独立）**：①B2 类 cmd.exe 长调用中途断连实证「VM 内继续跑」+ 迟到回执无 pending 残留；②接线后端到端（宿主 curl 中途断 ⇒ 链上恰一条 TASK_CANCELED/canceled 条目）；③streamableHttp 单 POST 前提复核（若存在 SSE 长连则 dispose 时机重审）。
