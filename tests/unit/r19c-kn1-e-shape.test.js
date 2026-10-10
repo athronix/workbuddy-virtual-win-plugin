@@ -105,16 +105,23 @@ describe('K-N1 E-1 /mcp 路由：dtid 解析并注入委派归因（通道 2）'
       /url\.searchParams\.get\('dtid'\)/,
       '必须从 /mcp 的 query 解析 dtid（buildMcpConfig 拼入的委派 traceId）',
     );
+    // P2-T5 接线转正（设计 §13.4）：reqCtx 装配移交 buildMcpRequestContext(dtid, disconnect.signal)。
+    // 旧变异（内联三态展开 `dtid ? { delegationId: dtid } : undefined`）的「条件展开语义」职责已由
+    // mcp-transport.ts 的装配单元 + tests/unit/phase2-mcp-signal.test.js 装配用例承接；
+    // 本处只钉「路由必须把 dtid 与断连 signal 一并交给装配函数」的接线形态。
     assert.match(
       MCP_ROUTE,
-      /mcp\.handleRequest\(parsed,\s*dtid\s*\?\s*\{\s*delegationId:\s*dtid\s*\}\s*:\s*undefined\)/,
-      'reqCtx 必须条件展开：无 dtid 传 undefined（旧调用方逐字节不变）',
+      /mcp\.handleRequest\(parsed,\s*buildMcpRequestContext\(dtid,\s*disconnect\.signal\)\)/,
+      'handleRequest 第二入参必须是 buildMcpRequestContext(dtid, disconnect.signal)（接线转正形态）',
     );
   });
 
-  test('dtid 缺席 → 不注入 delegationId 键（ToolContext 旧形态，零回归）', () => {
-    assert.match(MCP_ROUTE, /dtid \? \{ delegationId: dtid \} : undefined/, '必须三态条件展开，不得塞空串');
-    assert.doesNotMatch(MCP_ROUTE, /delegationId: dtid \?\?/, '不得用 ?? 把 undefined 折叠成空值');
+  test('dtid 缺席 → 不注入 delegationId 键（存在性纪律迁至装配层，路由侧钉装配函数）', () => {
+    // 存在性纪律（dtid/signal 各自条件展开、两者皆缺 ⇒ undefined ⇒ 逐字节旧形态）现在
+    // 由 mcp-transport.ts 的 buildMcpRequestContext 实现，并被 phase2-mcp-signal 用例逐字节验证；
+    // 路由侧守卫改为钉「dtid 必须原样传入装配函数」，且不得在路由内内联拼 delegationId 对象。
+    assert.match(MCP_ROUTE, /buildMcpRequestContext\(dtid/, 'dtid 必须原样传入 buildMcpRequestContext，不得塞空串或路由内联拼装');
+    assert.doesNotMatch(MCP_ROUTE, /dtid \? \{ delegationId: dtid \} : undefined/, '路由内不得再内联条件展开（装配职责已归 mcp-transport）');
   });
 
   test('ToolContext.delegationId / McpRequestContext 为可选（纯附加，旧调用零改动）', () => {

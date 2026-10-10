@@ -107,7 +107,9 @@ const ADMIN = (s) =>
 const GUARDS = {
   /** E-1：/mcp 解析 dtid + 条件注入 reqCtx */
   e1_dtid: (s) => /url\.searchParams\.get\('dtid'\)/.test(MCP_ROUTE(s)),
-  e1_conditional: (s) => /dtid \? \{ delegationId: dtid \} : undefined/.test(MCP_ROUTE(s)),
+  // P2-T5 接线转正：条件展开语义由 buildMcpRequestContext 装配承接（phase2-mcp-signal 用例验证其内部），
+  // 路由侧守卫钉「装配函数调用形态」；变异体把调用换回路由内联无条件对象 ⇒ 守卫必须红。
+  e1_conditional: (s) => /buildMcpRequestContext\(dtid,\s*disconnect\.signal\)/.test(MCP_ROUTE(s)),
   /** E-1：ToolContext/McpRequestContext 各自可选（两处声明分别钉死） */
   e1_optional_ctx: (s) => {
     const decls = s.MCP.match(/readonly delegationId\??: string;/g) ?? [];
@@ -263,10 +265,12 @@ const MUTATIONS = [
     },
   },
   {
-    name: 'E-1 dtid 改为无条件注入 delegationId（旧调用方被污染）',
+    // P2-T5 接线转正后，装配调用是形态守卫的钉住对象；变异体把它换回「路由内联无条件对象」
+    // （即绕过 buildMcpRequestContext 的存在性纪律、dtid 缺席时仍注入键）⇒ e1_conditional 必须红。
+    name: 'E-1 绕过装配函数、无条件注入 delegationId（旧调用方被污染）',
     guard: 'e1_conditional',
     mutate: (s) => {
-      s.SERVER = s.SERVER.replace('dtid ? { delegationId: dtid } : undefined', '{ delegationId: dtid }');
+      s.SERVER = s.SERVER.replace('buildMcpRequestContext(dtid, disconnect.signal)', '{ delegationId: dtid }');
     },
   },
   {

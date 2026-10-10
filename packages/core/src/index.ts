@@ -85,6 +85,7 @@ export {
   loadServiceConfig,
   validateServiceConfig,
   resolveServiceConfig,
+  resolveEnforceBearerFailClosed,
   expandEnvPath,
 } from './config/index.js';
 export type {

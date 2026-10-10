@@ -152,6 +152,41 @@ export interface SecurityHealth {
    * 试图经 `/health` 报出「可配端点白名单」即编译失败，防止承诺漂移。
    */
   readonly endpointAllowlist?: never;
+  /**
+   * Phase 2 · P2-T5（**纯附加可选**）：bearer 守卫**挂载逻辑自检**结论。
+   *
+   * 病灶（设计 §2.1，B3 真机实证）：`authMode` 只回答「配置意图+env 有值」，它**不能**
+   * 回答「守卫代码是否真的在拒绝」。误开 `enforceBearer` 的危害形态是两段式的（宿主段
+   * 当场 401 / VM 内回连段 401 打在工具面 ⇒ 委派零副作用虚假完成），根因是缺「守卫是否
+   * 真的生效」这一事实。本字段把启动期的同进程正/反例求值结论（无凭据必 deny、正确
+   * 凭据必 pass）机器可读地透出；守卫未挂载时为 `not-mounted`（**透出但绝不据此拒启**）。
+   *
+   * 缺席即旧形状（K-13 纯附加：旧读者忽略未知字段）。类型故意是本模块内的**结构子集**
+   * （`vm-service/http-guard.ts` 的 `BearerSelfCheckHealth` 与之逐字段同形，避免
+   * contracts → vm-service 的反向依赖）。
+   */
+  readonly bearerSelfCheck?: {
+    readonly code:
+      | 'not-mounted'
+      | 'mounted-pass'
+      | 'mounted-fail-guard-always-allow'
+      | 'mounted-fail-guard-rejects-correct-token'
+      | 'mounted-evaluator-absent';
+    readonly ok: boolean;
+    readonly reason: string;
+  };
+  /**
+   * Phase 2 · P2-T5（**纯附加可选**）：VM 内回连（codebuddy CLI → 本服务 `/mcp?dtid=`）
+   * 通路可用性三态。**必须能表达「未验证」**（设计 §2.2 判据 2 与 F5 E-2 同族纪律 ——
+   * 探针自身不可达/超时绝不冒充 `broken`，否则 PR3 风险成真：服务因探针起不来）。
+   *
+   * 现况（诚实口径）：回连凭据分发通路属 P2-T6，未实现 ⇒ 守卫挂载时本判定如实报
+   * `broken`（回连不带凭据必 401）；守卫未挂载时恒 `unverified`（只观测不改判）。
+   */
+  readonly innerReconnect?: {
+    readonly status: 'ok' | 'broken' | 'unverified';
+    readonly reason: string;
+  };
 }
 
 /** `/health.tasks` 增量（ENG-08 **纯附加**）。长跑资源有界性的可观测面。 */

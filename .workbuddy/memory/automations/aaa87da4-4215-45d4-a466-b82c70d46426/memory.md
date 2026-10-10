@@ -989,3 +989,10 @@
 - 处置：VM 可达 → 执行 `node /storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin.mjs tunnel ensure`（幂等，自动读 vm-conn.json），输出"隧道已启动：127.0.0.1:18443 → User@172.16.100.2:22"。
 - 复探：/health = 200，tunnel.state.json = RUNNING/alive=true/pid 32583，`ps -p 32583` ALIVE，VM 22 = OPEN。
 - 结论：检测到隧道断开异常，已自愈恢复；无孤儿团队、未触发 SendMessage/TeamDelete、未发用户报警。
+
+## 2026-10-11 03:12 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at user-level `~/.workbuddy/teams/` (68 dirs). Only `software-winvm-phase2-t5` has sub-30min activity (newest file 25 min ago, in-process member) → within 30-min window, legitimately active (P2-T5), NOT orphan. All other 67 dirs are historical leftovers (in-process agents died with their sessions); no active members.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (ok:true, provider=workbuddy/ready, session.state=healthy, psBridge=ready, 54/54 capabilities). 
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid file (JSON, pid 32583) → `kill -0 32583` ALIVE; /proc/32583 cmdline confirms real `tunnel-daemon.mjs --vm-host 172.16.100.2 ...` (started 2026-10-10T18:10). The earlier /proc "pid 4072 tunnel-daemon" hit was a self-match false positive (the probe bash cmdline itself contained the pattern string; /proc/4072 absent post-run).
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning is the known quirk; all probes used absolute paths and succeeded.

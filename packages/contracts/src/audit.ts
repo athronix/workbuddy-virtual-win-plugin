@@ -85,7 +85,18 @@ export interface AuditExt {
      * 由 `vm-service` 经**原始 sink**（不经 `wrapAuditSink`）落一条，
      * 用于把「本轮 chainValid 只覆盖 session 范围」这件事补成跨轮可查的证据。
      */
-    | 'chain-archive-verify';
+    | 'chain-archive-verify'
+    /**
+     * Phase 2 · P2-T5 F2（**纯附加枚举成员**）：bearer 守卫**生效自检**结论条目
+     * （挂载逻辑求值 + VM 内回连通路判定）。
+     *
+     * 为什么必须入链（与 `chain-archive-verify` 同族纪律）：`authMode` 是运行期快照，
+     * 会被下一次启动覆盖；「本轮启动时守卫是否真在拒、回连是否确证可用」是**跨轮取证**事实
+     * ——误开 `enforceBearer` 的危害形态（B3 实证）恰是「委派虚假完成、现场无痕」，
+     * 只进 logger 等于没有证据。条目由 `vm-service` 经**原始 sink** 落链（审计自证纪律：
+     * 不得经账本装饰器把自己登记成「本回合有活动」，与 `chain-archive-verify` 同 O-7 判据）。
+     */
+    | 'bearer-selfcheck';
   /** 委派 traceId（= A2A goal.traceId），与内层回连调用建立归因链 */
   readonly delegationId?: string;
   readonly taskId?: string;

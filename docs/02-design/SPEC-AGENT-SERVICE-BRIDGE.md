@@ -259,7 +259,7 @@ A2A tasks/get / stream → 返回：成功摘要 + 前后对比图 + 导出文�
 
 1. **appops 是"生产维度"的契约落点**。无论 V1 确定性还是后续 LLM provider，应用生产操作都收敛到 `appops.*` 五大能力（`appops.state.query` / `cli.invoke` / `workflow.run` / `com.automate` / `gui.produce`，见 CAPABILITY-MODEL §3.5）。LLM provider 比 V1 多做的，是**在 appops 之上叠加语义理解与自主规划**——能力内核不变，只是"谁来决定调哪个能力"从模板匹配变成了 LLM 规划。
 2. **V1 与 LLM 不是二选一，而是渐进增强**。V1 把 `MCP 直调` + `A2A 委派` + 安全内核 + 监管闭环全部验证通；LLM provider 只是把 `runGoal` 的"模板编排"换成"LLM 规划"，确定性路径（MCP 精确调用）始终可用。
-3. **监管不降级**：LLM 自主规划的所有步骤仍逐条过策略引擎/审批闸/审计链，before/after 快照仍强制回传。LLM 带来"开放性"，框架带来"可监管性"，二者正交。
+3. **监管不降级**：LLM 自主规划的所有步骤仍逐条过策略引擎/审批闸/审计链（~~before/after 快照仍强制回传~~ —— Q2 裁决订正：该快照为契约上的**信息性声明，未实现且不实现**，运行期零消费；监管强制回传的事实面 = 逐条哈希链审计 + traceId + 委派壳条目，口径权威 `SECURITY-GOVERNANCE.md` §3.2，判据 `tests/unit/phase2-snapshot-truth.test.js`）。LLM 带来"开放性"，框架带来"可监管性"，二者正交。
 4. **宿主侧零感知**：A2A Agent Card 的 `skills[]` 由 `declareCapabilities()` 自动收敛，宿主无需关心 VM 内是确定性还是 LLM——协议层完全一致。
 
 > **结论（回应 Q2）**：用户要的"VM AI Agent 强大 Windows 系统与操作能力"，在本架构里 = **appops 域（生产维度）+ LLM provider（开放任务大脑）**。V1 默认确定性是为了最可靠、最可监管地先把链路跑通；要不要开放给 LLM 自主操作任意应用，是一行配置的事，且随时可回退到确定性。

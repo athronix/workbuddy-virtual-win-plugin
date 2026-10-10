@@ -61,7 +61,7 @@
 
 > **本系统的信任边界 = 「回环绑定 + SSH 隧道 + 审批闸」，服务端不承担身份鉴权。**
 
-这不是实现缺口，而是 Phase 1 的**明确设计选择**（裁决全文见 `docs/changes/phase1-arch-design.md` §2.2）。三点含义：
+这不是实现缺口，而是 Phase 1 的**明确设计选择**（裁决全文见 `docs/changes/phase1-arch-design.md` §2.2）。四点含义（第 4 点由 Phase 2 · P2-T5 增补）：
 
 1. **谁能连上 `vm-service`，等价于谁能在那台 Windows 上发起本地回环连接。** VM 内任意本地进程（含被诱导的桌面应用、低权限账户）都能裸调 MCP/A2A 端点 —— 此时**唯一的拦阻是策略引擎与审批闸（第 4/5 层）**，不存在"凭据不对就连不上"这第三道。所以第 2/4/5 层的任何放宽都必须按"暴露给本机所有进程"来评估。
 2. **回环约束不可关**：非回环绑定（如 `0.0.0.0`）一律判 **error** 且启动被拒，`security.requireLoopbackBind=false` **自 Phase 1 起不再能放宽该约束**（只额外产生一条 warning）。理由：一旦允许配置漂移成"对外裸 HTTP"，第 0 层（网络隔离）整体消失，其风险远大于"少一层 bearer 校验"的收益。运维若确需跨机访问，唯一受支持形态是在宿主侧用 `ssh -L` 把远端端口映射到本机回环（见 §6.1、`DEPLOYMENT.md §7`）。
@@ -72,18 +72,24 @@
    | `authMode` | 含义 | 判序 |
    |---|---|---|
    | `bearer-enforced` | 守卫在位，非豁免端点要求正确 token | ① `resolveBearerToken()` 返回**非空** —— 即 `enforceBearer===true` **且** `tokenEnv` 有指向名 **且** 该 env 有值（双/三条件全成立） |
-   | `bearer-configured-missing` | **两种"想开而没开成"的降级态**，必须显形、拒绝静默 | ② `enforceBearer===true` 但 token 解析为空（配了开关却没配到值，含 `tokenEnv` 根本没给名）；**或** ③ `enforceBearer` 缺席/false，但 `tokenEnv` **给了变量名而该 env 无值** —— **现网 `vm-service.config.json` 正落这一支**（它写了 `"tokenEnv": "WINVM_BEARER_TOKEN"` 却没写 `enforceBearer`，且服务进程环境未设该变量，故真机 `/health` 报此值） |
-   | `loopback-only` | 守卫停用，纯回环 | ④ 以上皆非 —— 未配 `enforceBearer` **且**（未配 `tokenEnv` 名，**或** 配了名且 env 有值）。即"干净的回环默认态" |
+   | `bearer-configured-missing` | **两种"想开而没开成"的降级态**，必须显形、拒绝静默 | ② `enforceBearer===true` 但 token 解析为空（配了开关却没配到值，含 `tokenEnv` 根本没给名）；**或** ③ `enforceBearer` 缺席/false，但 `tokenEnv` **给了变量名而该 env 无值** —— 旧版交付配置（P2-T5 之前）写过 `"tokenEnv": "WINVM_BEARER_TOKEN"` 而服务环境未设该变量，故当时真机 `/health` 报此值；**自 P2-T5 起默认配置已改为显式 `"enforceBearer": false` 并删除 `tokenEnv` 键 ⇒ 落 `loopback-only`**（历史部署遗留旧键文件时仍按本支显形，属正确行为） |
+   | `loopback-only` | 守卫停用，纯回环 | ④ 以上皆非 —— 未配 `enforceBearer` **且**（未配 `tokenEnv` 名，**或** 配了名且 env 有值）。即"干净的回环默认态"（现版 `delivery/vm-service.config.json` 出厂即此态） |
 
-   > ⚠ 别把"默认部署"简单等同于 `loopback-only`：**只要配置文件写了 `tokenEnv` 名而运行环境没有对应值，就会落 `bearer-configured-missing`**（判序③，与 `enforceBearer` 是否 true 无关）。这是刻意设计——"配了变量名却拿不到值"和"想开守卫开不起来"同样属于**必须显形的半开态**，不能静默归入"正常回环"，否则运维会误以为一切就位。现网要得到 `loopback-only`，要么删掉配置里的 `tokenEnv` 键，要么让服务环境真正设上该变量。
+   > ⚠ 别把"默认部署"简单等同于 `loopback-only`：**只要配置文件写了 `tokenEnv` 名而运行环境没有对应值，就会落 `bearer-configured-missing`**（判序③，与 `enforceBearer` 是否 true 无关）。这是刻意设计——"配了变量名却拿不到值"和"想开守卫开不起来"同样属于**必须显形的半开态**，不能静默归入"正常回环"，否则运维会误以为一切就位。要得到 `loopback-only`，要么删掉配置里的 `tokenEnv` 键（P2-T5 起的出厂默认配置即此形态），要么让服务环境真正设上该变量。
 
    `authMode` 与守卫生效判据**同源**（同一 `resolveBearerToken()`），杜绝"health 说已强制、守卫其实停用"的自相矛盾。
+
+4. **`authMode` 回答不了的两件事，由 P2-T5「bearer 生效自检」补齐**（`/health.security` 纯附加两键，判据 `tests/unit/phase2-bearer-selfcheck.test.js`）：
+   - **`bearerSelfCheck`**（挂载求值自检）：`authMode` 是装配事实，证明不了守卫代码**真的在拒**。启动期以同进程正/反例直调守卫产物求值（无凭据必须 deny、正确凭据必须 pass，成本≈0、零真实 HTTP），五结论码 `not-mounted / mounted-pass / mounted-fail-guard-always-allow / mounted-fail-guard-rejects-correct-token / mounted-evaluator-absent`。默认态（未挂载）透出 `not-mounted` 且 `ok:true` —— "没开守卫"是事实不是故障，不得被读成异常。
+   - **`innerReconnect`**（VM 内回连通路三态 `ok / broken / unverified`）：守卫生效时回连条目零凭据 ⇒ 必 401 ⇒ 判 `broken`（回连凭据分发通路属 P2-T6，未实现期如实报 broken）；守卫未挂载 ⇒ `unverified`（无判定意义，**只观测不改判**）；探针自身故障/不可达 ⇒ `unverified`（绝不拿观测失败冒充确证坏，否则把可观测性缺陷升级成可用性事故）。
+   - **fail-closed（`security.enforceBearerFailClosed`，默认 `true`）**：仅当「`authMode=bearer-enforced` ∧ `innerReconnect=broken`」确证成立才**拒绝启动**（先落链上证据 `ext.kind:'bearer-selfcheck'` 再抛，抛前收口本轮已启动的桥/监视器）；`unverified` 恒不拒；回滚位 `enforceBearerFailClosed:false` 放行但**必须**打显式告警 + `validateServiceConfig` 出厂即警（降级拒绝静默）。这杜绝的就是下方警告块的两段式退化里最隐蔽的一段：VM 内回连 401 打在工具面、委派零副作用虚假完成。
+   - 两键**纯附加**（K-13）：旧 `/health` 读者看到的形状逐字不变。
 
 > ⚠ **开 `enforceBearer` 前必须先补齐 VM 内回连凭据通路（尚未实现）**
 > `vm-service` 会经 `buildMcpConfig()`（`packages/adapter-agent-workbuddy-llm/src/bridge.ts`）向 VM 内的 agent CLI 下发 `mcpServers` 条目（回连本服务的 `/mcp?dtid=…`），该条目**不含任何凭据**。因此一旦在真机误开 `enforceBearer`（双条件齐），危害**分两段、形态不同**（2026-10-10 B3 真机演练实测订正，原"委派主链路当场 401"表述只写对了宿主段）：
 > - **宿主→服务段**：宿主请求不带凭据 ⇒ **HTTP 层当场 401**（`{"error":"unauthorized","code":"AUTH_REQUIRED"}`，fail-loud，传输层直接可见，宿主侧 `--token-env` 即覆盖此段）。
 > - **VM 内回连段**：401 打在**工具面**（CLI 回连 `/mcp` 与 `/.well-known/oauth-protected-resource/mcp` 全被拒 ⇒ 无工具可列可调用），LLM 会话**不因此失败**，而是"口头收尾"⇒ 委派退化为**零副作用的虚假完成**：A2A 终态 `completed`、artifacts 仅 `execution-steps` 载体（零能力产物）、链上 `ext.zeroInnerCalls:true / underlying:[] / blockedCount:0`、summary 标注「零工具调用；完成声称不予采信」。**真正兜住的是 CL-K3R 真值层的不采信判定，不是链路失败**——这比"当场失败"更隐蔽，切勿因任务"成功"而认为守卫没生效。演练证据：`$HOME/wbtmp/b3/b3-probes.json` / `b3-delegate.json`（链 `audit-20261009-6.jsonl`，traceId `tr_b3_mv1djyru`）；拒绝只进 `logger.warn` 不入审计链。
-> 这是 §10 R4 的残留风险，属**中**级，不是理论风险；`zeroInnerCalls` 判据因此**不可移除**。上线前置条件（含"bearer 生效自检"：开守卫后应主动探测一次 VM 内回连并拒绝静默退化，已列 Phase 2）与客户端侧通路现状见 §6.1 与 `DEPLOYMENT.md`。
+> 这是 §10 R4 的残留风险，属**中**级，不是理论风险；`zeroInnerCalls` 判据因此**不可移除**。上线前置条件中**"bearer 生效自检 + fail-closed"一支已由 P2-T5 落地**（判据第 4 点：启动期挂载求值 + 回连三态透出 + 「确证 broken」拒启，拒绝的正是上述静默退化）；**尚未落地的是"VM 内回连凭据分发通路"本身（P2-T6）**——自检能在误开时把事实显形甚至拒启，但把回连打通仍需 env 分发机制 + 部署脚本发 token + 两侧回归，客户端侧通路现状见 §6.1 与 `DEPLOYMENT.md`。
 
 ### 2.2 取消的真实语义（ARCH-22）
 
@@ -328,7 +334,7 @@ record_n.prevHash = hash_(n-1)
 
 1. **"Bearer 层免校验"是信任边界声明的一部分，不是待补的漏洞**：本系统对"谁在调用"的答案是**回环 + SSH 隧道 + 审批闸**，不是凭据。不要因为"bearer 更保险"就顺手打开 `security.enforceBearer`。
 2. **`enforceBearer` 是"配置即生效"的可选加固，双条件成立才挂载**（`enforceBearer===true` **且** `tokenEnv` 有值，O-9），生效与否由 `/health.security.authMode` 三态显式透出。宿主侧客户端通路已就绪：`--token-env`（`host-a2a-bridge/src/cli.ts`）→ `buildTransport` → `applyBearerHeader`（`core/src/transport`，两条远程传输分支**共用同一实现**，避免两份漂移），三态语义为「无 tokenEnv ⇒ 不加头／有值 ⇒ `authorization: Bearer <token>`／有名无值 ⇒ **fail-loud 抛 `TransportError`**，绝不静默降级成无凭据请求；ssh-tunnel 分支的校验还**前置到建隧道之前**」。
-3. ⚠ **VM 内回连凭据通路本批未实现 ⇒ 误开后 VM 内回连全 401、委派退化为零副作用的虚假完成**（2026-10-10 B3 真机演练实测订正，原"当场失败"表述与实况不符）：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目（回连 `/mcp?dtid=…`）**不含凭据**。开 `enforceBearer`（双条件齐）后：宿主不带凭据 ⇒ HTTP 层当场 401（可见）；但 VM 内回连段 401 只打在**工具面** ⇒ LLM"无工具可用仍口头收尾"⇒ 终态 `completed` + 零能力产物 + 链上 `zeroInnerCalls:true`，由 CL-K3R 真值层「完成声称不予采信」兜住（详见 §2.1 警告块）。启用前置条件（需定 env 分发机制 + 部署脚本发 token + 两侧回归 + bearer 生效自检）与残留风险登记见 §2.1 与 `docs/changes/phase1-arch-design.md` §5 第 3 条 / §10 R4。
+3. ⚠ **VM 内回连凭据通路未实现（属 P2-T6）⇒ 误开后 VM 内回连全 401、委派退化为零副作用的虚假完成**（2026-10-10 B3 真机演练实测订正，原"当场失败"表述与实况不符）：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目（回连 `/mcp?dtid=…`）**不含凭据**。开 `enforceBearer`（双条件齐）后：宿主不带凭据 ⇒ HTTP 层当场 401（可见）；但 VM 内回连段 401 只打在**工具面** ⇒ LLM"无工具可用仍口头收尾"⇒ 终态 `completed` + 零能力产物 + 链上 `zeroInnerCalls:true`，由 CL-K3R 真值层「完成声称不予采信」兜住（详见 §2.1 警告块）。**该静默退化已由 P2-T5「bearer 生效自检 + fail-closed」兜住启动面**（§2.1 判据第 4 点：`/health.security.bearerSelfCheck` / `innerReconnect` 两键透出，「守卫生效 ∧ 回连确证 broken」默认拒绝启动，`enforceBearerFailClosed:false` 一键回滚）——但"误开"仍不是可用形态：拒启只是止损，回连真正打通仍需 env 分发机制 + 部署脚本发 token + 两侧回归（P2-T6），残留风险登记见 §2.1 与 `docs/changes/phase1-arch-design.md` §5 第 3 条 / §10 R4。
 
 #### 6.1.1 两项已登记的权衡（Phase 1 裁决结果，**非缺陷**，别"顺手修掉"）
 
@@ -384,7 +390,8 @@ record_n.prevHash = hash_(n-1)
 |---|---|
 | 传输 | SSH 隧道（VM 仅回环监听） |
 | **回环绑定** | **不可关**：非回环 ⇒ 启动 `error`，`security.requireLoopbackBind=false` 自 Phase 1 起不再能放宽（只额外产生 warning）—— 见 §2.1 |
-| 服务端身份鉴权 | `security.enforceBearer` 默认 `false`（可选加固，双条件生效，`/health.security.authMode` 三态透出）；开启前置条件见 §2.1 警告块 |
+| 服务端身份鉴权 | `security.enforceBearer` 默认 `false`（可选加固，双条件生效，`/health.security.authMode` 三态透出）；`/health.security` 另纯附加 `bearerSelfCheck`（挂载求值）/`innerReconnect`（回连三态）两键（P2-T5）；开启前置条件见 §2.1 警告块 |
+| fail-closed 拒启 | `security.enforceBearerFailClosed` 默认 `true`：仅「守卫生效 ∧ 回连确证 broken」拒启（先落链证据再抛）；`false` ⇒ 放行+显式告警（回滚位），见 §2.1 第 4 点 |
 | 策略 | **拒绝优先** |
 | L2/L3 | 强制审批（before/after 快照为**信息性声明、运行期不产**，P2-T3/Q2，见 §3.2） |
 | L3 分区/格式化 | **不注册为可用能力** |

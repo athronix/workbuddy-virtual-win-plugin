@@ -187,6 +187,8 @@ node packages/vm-service/dist/cli.js `
 
 建议以 **Windows 服务 / 任务计划程序** 常驻（开机自启、崩溃重启）。配置项见 `delivery/vm-service.config.json`（含策略引擎默认 `defaultMaxRisk=L1`、路径黑名单、审计写入路径）。
 
+> ⚠ **升级前清理旧键**：旧 `policy.approvalTimeoutMs` 键已被忽略并告警，升级前请删除（审批等待的真实 TTL 走环境变量 `WINVM_APPROVAL_TTL_MS`，默认 30 分钟；该配置键自 Phase 2 · P2-T2 起是死字段，留着只会在每次启动校验时多一条 warning，不改变任何行为）。
+
 ### 3.4 自检
 
 ```powershell

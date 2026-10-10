@@ -114,6 +114,327 @@ function digestPrefix(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex').slice(0, DIGEST_PREFIX_LEN);
 }
 
+/* ============================================================================================
+ * P2-T5（F2 Step 1）· **bearer 生效自检** —— 拒绝静默退化
+ *
+ * 病灶（设计 §2.1，B3 真机实测）：`/health.security.authMode` 回答的是「配置意图 + env 有值」
+ * 这一**装配事实**，它回答不了两件事：
+ *   ① 守卫代码是否**真的在拒**（挂载逻辑漂移成永 allow ⇒ 事实面与执行面分家）；
+ *   ② VM 内回连通路在守卫生效时是否**真的可用**（不可用 ⇒ 401 打在工具面 ⇒ 委派零副作用
+ *      虚假完成，比当场失败更隐蔽）。
+ * 自检就是把这两件事变成机器可读事实：`bearerSelfCheck`（同进程正/反例求值，成本≈0）与
+ * `innerReconnect`（回连通路三态）。`enforceBearerFailClosed` 决定 `broken` 时是否拒启（Q4）。
+ *
+ * 纪律：
+ *  - 三个函数**全是纯函数**（输入 ⇒ 输出，零 I/O、零 setTimeout、不碰 process 之外的可变态），
+ *    可脱 ps-bridge 逐条断言（`phase2-bearer-selfcheck.test.js` 的决策表全分支）；
+ *  - **探针不可达/超时绝不冒充 broken** ⇒ `unverified` 是独立三态值（PR3：否则服务因探针
+ *    自身故障起不来，把观测风险升级成可用性事故）；
+ *  - 默认态（守卫未挂载）**只观测不改判**：`bearerSelfCheck.code='not-mounted'` +
+ *    `innerReconnect.status='unverified'`，`shouldFailClosedStart` 恒 `false` ⇒ 现网逐字零回归。
+ * ============================================================================================ */
+
+/** 挂载自检结论码（五值封闭集；`ok` 是 `code` 的单调映射，冗余便于 grep）。 */
+export type BearerSelfCheckCode =
+  /** 守卫未挂载（`resolveBearerToken` 为空）⇒ 跳过挂载求值；默认态。 */
+  | 'not-mounted'
+  /** 守卫已挂载且正反例均符合预期（无凭据 deny、正确凭据 pass）。 */
+  | 'mounted-pass'
+  /** 守卫已挂载却对无凭据请求放行 ⇒ 挂载逻辑漂移成永 allow（**静默退化**）。 */
+  | 'mounted-fail-guard-always-allow'
+  /** 守卫已挂载但对正确凭据判 deny ⇒ 装配错误，全部合法调用会被 401。 */
+  | 'mounted-fail-guard-rejects-correct-token'
+  /** 守卫已挂载但拿不到求值器 ⇒ 挂载逻辑**事实未知**（装配缺陷；不伪装成 not-mounted）。 */
+  | 'mounted-evaluator-absent';
+
+/** `/health.security.bearerSelfCheck` 透出形状（`reason` 为人读诊断，**绝不含凭据值**）。 */
+export interface BearerSelfCheckHealth {
+  readonly code: BearerSelfCheckCode;
+  readonly ok: boolean;
+  readonly reason: string;
+}
+
+/** 挂载自检入参（生产装配由 `server.ts` 喂；单测注入 `evaluate` 覆盖 4 条判决分支）。 */
+export interface BearerMountSelfCheckInput {
+  /** `resolveBearerToken(...)` 的结论：有值 ⇔ 守卫真挂载（`authMode==='bearer-enforced'`）。 */
+  readonly bearerToken?: string;
+  /** 守卫求值器（生产传 `createBearerGuard` 产物；缺席 ⇒ 不谎称 pass，见下）。 */
+  readonly evaluate?: (req: GuardableRequest) => GuardVerdict;
+}
+
+/** 自检用非豁免请求样本（POST `/mcp`：委派工具面，**绝不在豁免表内**）。 */
+function selfCheckRequest(authorization?: string): GuardableRequest {
+  const headers: Record<string, unknown> = {};
+  if (authorization !== undefined) headers['authorization'] = authorization;
+  return { method: 'POST', url: '/mcp', headers };
+}
+
+/**
+ * 挂载逻辑自检（设计 §2.2 Step-1 判据 1）。
+ *
+ * 为什么「不发真实 HTTP」：本沙箱内起服务会 spawn ps-bridge 触发原生 fatal（既有纪律），
+ * 且「守卫代码是否在拒」是**进程内逻辑事实**，同进程直调 `createBearerGuard` 产物即可
+ * 完整求值，成本≈0、离线可证、真机同码。真实 HTTP 面的可用性由 `qa/r19/` 探针脚本另证。
+ */
+export function runBearerMountSelfCheck(input: BearerMountSelfCheckInput): BearerSelfCheckHealth {
+  const token = input.bearerToken;
+  if (token === undefined || token === '') {
+    // 未挂载：透出事实但**绝不 ok:false**（默认态不得因"没开守卫"被读成异常）。
+    return { code: 'not-mounted', ok: true, reason: 'bearer 守卫未挂载（authMode≠bearer-enforced），跳过挂载求值' };
+  }
+  if (input.evaluate === undefined) {
+    // 已挂载却拿不到求值器 ⇒ 事实未知。刻意**不复用** not-mounted（那会把"未知"伪装成
+    // "确实没挂"），也不谎称 pass，更不冒用 always-allow（那是**实测**出来的永 allow 事实，
+    // 与"没测到"是两种证据强度）。
+    return {
+      code: 'mounted-evaluator-absent',
+      ok: false,
+      reason: '守卫已挂载但未注入求值器 ⇒ 挂载逻辑不可证（装配缺陷，自检拒绝静默放行）',
+    };
+  }
+  const evaluate = input.evaluate;
+  const noCred = evaluate(selfCheckRequest());
+  if (noCred.verdict !== 'deny') {
+    return {
+      code: 'mounted-fail-guard-always-allow',
+      ok: false,
+      reason: '守卫已挂载却对不带凭据的非豁免请求放行 ⇒ 挂载逻辑漂移成永 allow（静默退化）',
+    };
+  }
+  const withCred = evaluate(selfCheckRequest(`Bearer ${token}`));
+  if (withCred.verdict !== 'pass') {
+    return {
+      code: 'mounted-fail-guard-rejects-correct-token',
+      ok: false,
+      reason: '守卫已挂载但对正确 bearer 判 deny ⇒ 凭据装配漂移，全部合法调用将被 401',
+    };
+  }
+  return { code: 'mounted-pass', ok: true, reason: '挂载求值通过：无凭据 deny、正确凭据 pass' };
+}
+
+/** VM 内回连通路三态（**必须能表达「未验证」** —— PR3 护栏 + F5 E-2 同族纪律）。 */
+export type InnerReconnectStatus = 'ok' | 'broken' | 'unverified';
+
+/** `/health.security.innerReconnect` 透出形状。 */
+export interface InnerReconnectHealth {
+  readonly status: InnerReconnectStatus;
+  readonly reason: string;
+}
+
+/** 回连判定的输入视图（provider options 子集 + security 意图；键名与 `delivery/*` 同源）。 */
+export interface InnerReconnectView {
+  /** 守卫生效事实（`resolveAuthMode` 同源结论）；非 `bearer-enforced` ⇒ 无判定意义。 */
+  readonly authMode: HealthAuthMode;
+  /** 生效中的 provider options（`cfg.agent.providers[cfg.agent.provider].options`）。 */
+  readonly providerOptions?: Readonly<Record<string, unknown>>;
+  /**
+   * 真机探针结论（可选）：由调用方（`server.ts` 启动期 fire-and-forget / 探针脚本）回填。
+   * 缺席 ⇒ 按配置面判定；提供 ⇒ **优先采用**（端到端实证压过配置推理）。
+   */
+  readonly probeStatus?: InnerReconnectStatus;
+  /** 探针失败原因（超时/不可达等）；提供 ⇒ 强制 `unverified`（绝不误判 broken）。 */
+  readonly probeError?: string;
+}
+
+/**
+ * VM 内回连通路判定（设计 §2.2 Step-1 判据 2；**纯函数、零 I/O**）。
+ *
+ * 通路未实现期（P2-T6 前）的诚实语义：守卫真生效时，回连条目不带任何凭据 ⇒ 必 401 ⇒
+ * 判 `broken`（这就是 fail-closed 的触发条件，Q4）。守卫未生效 ⇒ `unverified`
+ * （只观测不改判，回环默认态永远不会因此拒启）。
+ *
+ * 判据（优先级从上到下）：
+ *  1. `authMode !== 'bearer-enforced'` ⇒ `unverified`（守卫没挂，回连带不带凭据都通，无判定意义）；
+ *  2. `probeError` 在场（探针自身不可达/超时）⇒ `unverified`（PR3：探针故障不得升级成可用性事故）；
+ *  3. `probeStatus` 在场 ⇒ 原样采用（端到端实证优先）；
+ *  4. provider options 未承载任何 bearer 变量名（`bearerEnvName` 缺席/空白）⇒ `broken`
+ *     （`buildMcpConfig` 现状：mcpServers 条目只有 url，零凭据 ⇒ 回连必 401）；
+ *  5. 配了变量名但 env 无值 ⇒ `broken`（有名无值，双条件缺件）；
+ *  6. 配了变量名且 env 有值 ⇒ `unverified`（配置在位只是必要条件，不谎称已证）。
+ */
+export function resolveInnerReconnect(
+  view: InnerReconnectView,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): InnerReconnectHealth {
+  if (view.authMode !== 'bearer-enforced') {
+    return {
+      status: 'unverified',
+      reason: `authMode=${view.authMode}：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）`,
+    };
+  }
+  if (view.probeError) {
+    return { status: 'unverified', reason: `回连探针自身失败（${view.probeError}）⇒ 事实未知，绝不据此拒启` };
+  }
+  if (view.probeStatus) {
+    return { status: view.probeStatus, reason: '采用真机/装配期探针端到端结论（实证优先于配置推理）' };
+  }
+  const raw = view.providerOptions?.['bearerEnvName'];
+  const envName = typeof raw === 'string' ? raw.trim() : '';
+  if (!envName) {
+    return {
+      status: 'broken',
+      reason:
+        '守卫已生效，但 VM 内回连通路未配置任何 bearer 凭据变量名（provider options.bearerEnvName 缺席 ⇒ buildMcpConfig 条目零凭据）⇒ 回连必 401；回连凭据分发通路属 P2-T6（未实现）',
+    };
+  }
+  if (!(env[envName]?.trim())) {
+    return {
+      status: 'broken',
+      reason: `回连 bearer 变量名 "${envName}" 已配置但环境无值 ⇒ 回连不带凭据必 401（有名无值，双条件缺件）`,
+    };
+  }
+  return {
+    status: 'unverified',
+    reason: `回连 bearer 变量名 "${envName}" 已配置且 env 有值 ⇒ 配置在位；端到端可用性须探针实证（本判定不谎称已证）`,
+  };
+}
+
+/** fail-closed 决策入参（三条件齐才拒启 —— §13 Q4 裁决的机器可读形态）。 */
+export interface FailClosedDecisionInput {
+  /** `/health.security.authMode` 的**同源**结论（仅 `bearer-enforced` 有权拒启，PR3）。 */
+  readonly authMode: HealthAuthMode;
+  /** 回连通路三态。 */
+  readonly innerReconnect: InnerReconnectStatus;
+  /** `security.enforceBearerFailClosed` 生效值（默认 true；false ⇒ 一键回滚）。 */
+  readonly failClosed: boolean;
+}
+
+/** fail-closed 判决：`refuse`=拒绝进入服务态；`rollbackWarn`=回滚位生效时的显式告警。 */
+export interface FailClosedDecision {
+  readonly refuse: boolean;
+  readonly rollbackWarn: boolean;
+}
+
+/**
+ * fail-closed 决策表（`phase2-bearer-selfcheck.test.js` 逐格断言）：
+ *
+ * | authMode | innerReconnect | failClosed | refuse | rollbackWarn |
+ * |---|---|---|---|---|
+ * | `loopback-only` | 任意 | 任意 | **false** | false |
+ * | `bearer-configured-missing` | 任意 | 任意 | **false** | false |
+ * | `bearer-enforced` | `unverified` | true/false | false | false |
+ * | `bearer-enforced` | `ok` | true/false | false | false |
+ * | `bearer-enforced` | `broken` | true | **true** | false |
+ * | `bearer-enforced` | `broken` | false | false | **true** |
+ */
+export function shouldFailClosedStart(input: FailClosedDecisionInput): FailClosedDecision {
+  if (input.authMode !== 'bearer-enforced') return { refuse: false, rollbackWarn: false };
+  if (input.innerReconnect !== 'broken') return { refuse: false, rollbackWarn: false };
+  return input.failClosed ? { refuse: true, rollbackWarn: false } : { refuse: false, rollbackWarn: true };
+}
+
+/* ---- 自检的链上取证（设计 §2.2 Step-1 判据 2：`ext.kind:'bearer-selfcheck'` 条目） ----
+ *
+ * 与 `chain-archive-verify` **同族纪律**：写**原始 sink**（不经 `wrapAuditSink`），否则
+ * 审计自证（自己的条目把自己登记成「本回合有活动」）。字段形态（`matchedRule` 前缀、
+ * `capabilityId:'meta.audit.chain'`、`risk:'L0'`、`principal.channel:'internal'`）逐字
+ * 对齐 `approval-replay.ts:571` 的既有自发条目范式，防两套口径漂移。
+ *
+ * ⚠ 返回**裸对象**（不带 `ext` 键）当且仅当调用方要求 `emitChainEntry:false`；默认恒带
+ * `ext` ⇒ 落盘条目 `ext.kind='bearer-selfcheck'` 可 grep（取证纪律：与 `zeroInnerCalls`
+ * 「恒落供人工审视」同源 —— 危害形态是「无痕的虚假完成」，证据必须无条件在场）。
+ */
+
+/** 自检链上条目的可注入输入（`server.ts` 装配点喂实测事实；单测喂夹具）。 */
+export interface BearerSelfCheckAuditInput {
+  readonly traceId: string;
+  /** `/health.security.authMode` 同源结论。 */
+  readonly authMode: HealthAuthMode;
+  readonly selfCheck: BearerSelfCheckHealth;
+  readonly innerReconnect: InnerReconnectHealth;
+  /** fail-closed 生效值（透出「本轮若判 broken 会不会拒启」这一决策事实）。 */
+  readonly failClosed: boolean;
+  /** fail-closed 是否真的拒启（仅拒启轮为 true；回滚位轮/放行轮 false）。 */
+  readonly refuse: boolean;
+  /** 自检发起时刻（毫秒 epoch，用于 durationMs）。 */
+  readonly startedAtMs: number;
+}
+
+/** 自检链上条目的**裸形态**（`AppendAuditInput` 的结构子集，不含 seq/hash/prevHash）。 */
+export interface BearerSelfCheckAuditEntry {
+  readonly ts: string;
+  readonly traceId: string;
+  readonly auditId: string;
+  readonly principal: { readonly host: string; readonly user: string; readonly channel: 'internal' };
+  readonly capabilityId: string;
+  readonly risk: 'L0';
+  readonly params: Record<string, unknown>;
+  readonly policyDecision: { readonly allowed: true; readonly matchedRule: string };
+  readonly result: { readonly ok: boolean; readonly summary: string };
+  readonly durationMs: number;
+  readonly ext: {
+    readonly kind: 'bearer-selfcheck';
+    readonly selfCheck: BearerSelfCheckHealth;
+    readonly innerReconnect: InnerReconnectHealth;
+    readonly authMode: HealthAuthMode;
+    readonly failClosed: boolean;
+    readonly refused: boolean;
+  };
+}
+
+/**
+ * 构造 `ext.kind:'bearer-selfcheck'` 链上条目（纯函数，`newAuditId` 注入 ⇒ 可脱服务断言）。
+ *
+ * `ok` 的口径（**不得加码也不得放松**）：守卫**未挂载**（默认态）⇒ `ok:true`（没开守卫
+ * 不是故障，判序见 `resolveAuthMode`）；守卫挂载 ⇒ `ok = 挂载求值通过 ∧ 回连非 broken`。
+ * `matchedRule` 把「回连必被打断」这一最恶形态单独成码（`bearer-selfcheck:inner-reconnect-broken`），
+ * 使 grep 一条码即得全部「误开守卫且回连必断」的启动轮。
+ */
+export function buildBearerSelfCheckAuditEntry(
+  input: BearerSelfCheckAuditInput,
+  newAuditId: () => string,
+): BearerSelfCheckAuditEntry {
+  const mounted = input.authMode === 'bearer-enforced';
+  const innerBroken = input.innerReconnect.status === 'broken';
+  const ok = mounted ? input.selfCheck.ok && !innerBroken : true;
+  const matchedRule = innerBroken
+    ? 'bearer-selfcheck:inner-reconnect-broken'
+    : !input.selfCheck.ok
+      ? `bearer-selfcheck:${input.selfCheck.code}`
+      : mounted
+        ? 'bearer-selfcheck:mounted-pass'
+        : 'bearer-selfcheck:not-mounted';
+  const summary = ok
+    ? `bearer 生效自检：authMode=${input.authMode} / selfCheck=${input.selfCheck.code} / innerReconnect=${input.innerReconnect.status}（判定合格，服务放行）`
+    : `bearer 生效自检：authMode=${input.authMode} / selfCheck=${input.selfCheck.code} / innerReconnect=${input.innerReconnect.status}` +
+      (input.refuse ? '⇒ fail-closed 拒绝进入服务态' : `⇒ 放行（enforceBearerFailClosed=${input.failClosed}）`) +
+      '；VM 内回连不带凭据 ⇒ 委派将退化为零副作用虚假完成（B3 实证形态），详见 SECURITY-GOVERNANCE §2.1';
+  return {
+    ts: new Date().toISOString(),
+    traceId: input.traceId,
+    auditId: newAuditId(),
+    principal: {
+      host: 'vm-service',
+      user: process.env['USERNAME'] ?? 'unknown',
+      // internal：服务端自发条目，不是任何外部主体的请求（与 chain-archive-verify 同口径）
+      channel: 'internal',
+    },
+    // 审计子系统自证属 meta 能力域（同 approval-replay.ts:603 的权威值），不占业务面
+    capabilityId: 'meta.audit.chain',
+    risk: 'L0',
+    params: {
+      authMode: input.authMode,
+      selfCheckCode: input.selfCheck.code,
+      innerReconnect: input.innerReconnect.status,
+      failClosed: input.failClosed,
+      refused: input.refuse,
+    },
+    // 自检是**事实陈述**而非许可判定 ⇒ allowed 恒 true，语义全在 matchedRule 与 result.ok
+    policyDecision: { allowed: true, matchedRule },
+    result: { ok, summary },
+    durationMs: Math.max(0, Date.now() - input.startedAtMs),
+    ext: {
+      kind: 'bearer-selfcheck',
+      selfCheck: { ...input.selfCheck },
+      innerReconnect: { ...input.innerReconnect },
+      authMode: input.authMode,
+      failClosed: input.failClosed,
+      refused: input.refuse,
+    },
+  };
+}
+
+
 /**
  * 构造 bearer 守卫纯函数（**无状态、无 I/O** —— env 只在构造期读一次期望值）。
  *
@@ -243,6 +564,11 @@ export function isLoopbackHost(host: string | undefined): boolean {
  * `import { buildSecurityHealth as buildSecurityHealthSnapshot }` 取用（本地别名只为表达
  * 「这是纯构造器，不是服务闭包里的薄封装」）。不要再在此文件另开同形函数 —— 两份实现
  * 漂移 = `/health` 报出的安全事实与守卫生效事实分家（判据⑤的同源性要求）。
+ *
+ * ★ P2-T5 附加两键（**纯附加、条件展开**）：`bearerSelfCheck` / `innerReconnect`。
+ * 两键只在调用方**给到快照**时才进对象（缺席 ⇒ 整键不存在 ⇒ 旧读者逐字旧形状，K-13）。
+ * 快照本身由 `server.ts` 在启动期算好一次并常驻（不在每次 /health 请求里重复求值 ——
+ * 探针是启动期事实，运行期重复探测等于 DoS 自我放大）。
  */
 export function buildSecurityHealth(opts: {
   readonly enforceBearer?: boolean;
@@ -250,11 +576,25 @@ export function buildSecurityHealth(opts: {
   /** 实际监听地址（`server.address()?.address`）；缺席时调用方应传配置值。 */
   readonly boundHost: string;
   readonly env?: Readonly<Record<string, string | undefined>>;
-}): { readonly loopbackOnly: boolean; readonly boundLoopback: boolean; readonly authMode: HealthAuthMode } {
+  /** P2-T5：启动期挂载自检快照（缺席 ⇒ 不写 `bearerSelfCheck` 键）。 */
+  readonly selfCheck?: BearerSelfCheckHealth;
+  /** P2-T5：VM 内回连通路判定快照（缺席 ⇒ 不写 `innerReconnect` 键）。 */
+  readonly innerReconnect?: InnerReconnectHealth;
+}): {
+  readonly loopbackOnly: boolean;
+  readonly boundLoopback: boolean;
+  readonly authMode: HealthAuthMode;
+  readonly bearerSelfCheck?: BearerSelfCheckHealth;
+  readonly innerReconnect?: InnerReconnectHealth;
+} {
   return {
     loopbackOnly: true,
     boundLoopback: isLoopbackHost(opts.boundHost),
     authMode: resolveAuthMode(opts.enforceBearer, opts.tokenEnv, opts.env ?? process.env),
+    // 条件展开（禁止显式 undefined —— 会让 JSON 落盘丢键而重算不一致的同族纪律不适用此处，
+    // 但「缺席即旧形状」的纯附加语义同样要求不写空键）。
+    ...(opts.selfCheck ? { bearerSelfCheck: { ...opts.selfCheck } } : {}),
+    ...(opts.innerReconnect ? { innerReconnect: { ...opts.innerReconnect } } : {}),
   };
 }
 

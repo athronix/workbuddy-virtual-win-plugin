@@ -105,11 +105,41 @@ export interface SecurityConfig {
    * ⚠ 开启动作的前置条件（R4，必须在文档写黑）：VM 内 codebuddy 回连 `/mcp?dtid=` 的
    * mcpServers 条目**目前不含凭据**（`adapter-agent-workbuddy-llm/src/bridge.ts` 的
    * `buildMcpConfig`）⇒ 直接开 `enforceBearer` 会让 VM 内回连全 401。B3 真机实测（2026-10-10）
-   * 订正失败形态：401 打在工具面 ⇒ 委派不当场失败，而是退化为零副作用虚假完成
-   * （`completed` + 链上 `zeroInnerCalls:true`，CL-K3R 真值层不予采信兜住）；宿主不带凭据段则当场 401。
-   * 回连凭据分发通路属部署契约（设计 §5 第 3 条：本批不实现）。
+   * 订正失败形态：**两段式**——宿主不带凭据段 ⇒ HTTP 层当场 401（fail-loud，可见）；
+   * VM 内回连段 401 打在**工具面** ⇒ 委派不当场报错，而是退化为**零副作用虚假完成**
+   * （`completed` + 链上 `zeroInnerCalls:true`，CL-K3R 真值层不予采信兜住）。
+   * 回连凭据分发通路属 P2-T6（未实现）⇒ Phase 2 · P2-T5 起由**启动期生效自检**
+   * （`/health.security.bearerSelfCheck` / `innerReconnect`）把「守卫是否真生效」变成机器可读
+   * 事实，配合 `enforceBearerFailClosed` 杜绝上述静默退化。
    */
   readonly enforceBearer?: boolean;
+  /**
+   * Phase 2 · P2-T5（**纯附加可选，出厂默认 true**，§13 Q4 裁决）：fail-closed 开关。
+   *
+   * 语义（决策表全集见 `vm-service/src/http-guard.ts` 的 `shouldFailClosedStart`）：
+   * **仅当** ① bearer 守卫真挂载生效（`authMode==='bearer-enforced'`，即双条件齐）**且**
+   * ② VM 内回连自检判定 `innerReconnect==='broken'`（回连通路未配置 ⇒ 一开守卫委派必
+   * 退化为零副作用虚假完成）时 ⇒ **拒绝进入服务态**（`createService` 抛错、服务不起）。
+   * 其余任何组合（含全部默认/半开态）⇒ 放行启动；探针不可达/超时恒 `unverified`，
+   * **绝不因探针自身故障拒启**（PR3 护栏）。
+   *
+   * `false` ⇒ 一键回滚位：判据成立时**照常放行启动**并打一条显式运维告警
+   * （降级事实显形，不静默）。回环默认态（现网）本开关零影响 —— 两个前置条件都不可能满足。
+   */
+  readonly enforceBearerFailClosed?: boolean;
+}
+
+/**
+ * `security.enforceBearerFailClosed` 的**生效值**解析（P2-T5）。
+ *
+ * 出厂默认 `true`（Q4 裁决：误开守卫的危害是静默退化，默认必须 fail-closed）；
+ * 显式 `false` ⇒ 回滚位。刻意写成**独立纯函数并导出**：`server.ts` 装配点与单测共用
+ * 同一判据源（把默认值散落进调用点 = 未来「health 说开了、装配读的是 undefined」的同族漂移）。
+ */
+export function resolveEnforceBearerFailClosed(
+  security: Pick<SecurityConfig, 'enforceBearerFailClosed'> | undefined,
+): boolean {
+  return security?.enforceBearerFailClosed !== false;
 }
 
 export interface ServiceConfig {
@@ -157,7 +187,9 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   policy: {},
   audit: { dir: '%LOCALAPPDATA%/WinVMBridge/audit', redactParams: true },
   session: { probeIntervalMs: 15_000 },
-  security: { requireLoopbackBind: true },
+  // P2-T5：出厂默认把 fail-closed 显式写出来（true），使「默认即安全」成为可 grep 的事实、
+  // 而不是隐式 undefined。`enforceBearer` 保持**缺席**（falsy）⇒ 现网默认仍是干净回环态。
+  security: { requireLoopbackBind: true, enforceBearerFailClosed: true },
   // CL-018 C3：日志落盘。目录保持 `%LOCALAPPDATA%` 模板（在 resolveServiceConfig 展开），
   // 使 DEFAULT_SERVICE_CONFIG 在不同环境下保持确定性、且不产生副作用。
   logging: {
@@ -287,6 +319,30 @@ export function validateServiceConfig(cfg: ServiceConfig, env: EnvView = process
     warnings.push(
       `security.enforceBearer=true 但未配置 security.tokenEnv ⇒ 无 token 可比对，守卫不会生效` +
         `（/health.security.authMode 将报 "loopback-only"，而非 "bearer-enforced"）。请补 tokenEnv 或关掉 enforceBearer。`,
+    );
+  }
+
+  /* ---- Phase 2 · P2-T5：fail-closed 开关的**类型卫生**与回滚位显形 ----
+   *
+   * `resolveEnforceBearerFailClosed` 的判据是 `!== false` ⇒ 写 `"false"`（字符串）或 `0`
+   * 都**不会**关掉 fail-closed。这是"以为关了其实没关"的同族病灶（与 ARCH-18 命令白名单、
+   * P2-T2 死字段同方向），故在本层显形；但**绝不**升级为 error —— 配置文本问题不该让服务
+   * 起不来（拒启的权力只在 server.ts 那条「守卫生效 ∧ 回连确证 broken」判据上，Q4 裁决）。
+   */
+  const failClosedRaw = cfg.security.enforceBearerFailClosed as unknown;
+  if (failClosedRaw !== undefined && typeof failClosedRaw !== 'boolean') {
+    warnings.push(
+      `security.enforceBearerFailClosed=${JSON.stringify(failClosedRaw)} 不是布尔值 ⇒ 按默认值 true 处理` +
+        `（判据是「显式 false 才关」，字符串 "false" / 0 / null 都关不掉 fail-closed）。` +
+        `要回滚请写布尔 false：{"security":{"enforceBearerFailClosed":false}}。`,
+    );
+  }
+  if (failClosedRaw === false) {
+    warnings.push(
+      `security.enforceBearerFailClosed=false：fail-closed **回滚位已生效** —— 即使 bearer 守卫生效且启动期自检判定` +
+        ` VM 内回连通路不可用（/health.security.innerReconnect='broken'），服务也会照常启动（改为打显式告警）。` +
+        `该形态下误开 enforceBearer 的后果 = 委派退化为零副作用虚假完成（completed + 链上 zeroInnerCalls:true，B3 真机实证），` +
+        `只适合排障临时使用，用完请删掉本键恢复默认 true（SECURITY-GOVERNANCE §2.1）。`,
     );
   }
 

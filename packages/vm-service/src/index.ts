@@ -47,9 +47,18 @@ export {
   isLoopbackHost,
   resolveAuthMode,
   resolveBearerToken,
+  /** Phase 2 · P2-T5（F2 Step 1）：bearer 生效自检纯函数四件套（决策表/回连三态/挂载求值/链上条目）。 */
+  runBearerMountSelfCheck,
+  resolveInnerReconnect,
+  shouldFailClosedStart,
+  buildBearerSelfCheckAuditEntry,
 } from './http-guard.js';
 export type {
   BearerGuardOptions,
+  BearerSelfCheckCode,
+  BearerSelfCheckHealth,
+  InnerReconnectStatus,
+  InnerReconnectHealth,
   GuardableRequest,
   GuardDenyReason,
   GuardVerdict,

@@ -500,3 +500,14 @@ graph TD
 **中断强度语义（本批定版，SECURITY §2.2.1 已落）**：协作式中止——只中止本地等待与后续副作用发起；stdin 已写入的请求无法收回，VM 内跑完；取消面恒带 `inFlightMayContinue:true`；收口码 `TASK_CANCELED` 经 `DOMAIN_CODE_TO_BASE` 显式映射（`PSBRIDGE_CANCELED` 领域码，不扩契约 10 码封闭集），折叠成 `EXECUTION_FAILED` 会被 `shouldDegrade` 重跑叫停操作——已由用例钉死（CL-022 3a 红线同源）。
 
 **遗留真机复核（T5 窗口顺带或独立）**：①B2 类 cmd.exe 长调用中途断连实证「VM 内继续跑」+ 迟到回执无 pending 残留；②接线后端到端（宿主 curl 中途断 ⇒ 链上恰一条 TASK_CANCELED/canceled 条目）；③streamableHttp 单 POST 前提复核（若存在 SSE 长连则 dispose 时机重审）。
+
+### 13.5 P2-T5 交付与主理人核验（2026-10-11 04:0x）
+
+- 交付：bearer 生效自检（五码：not-mounted/mounted-pass/mounted-fail-guard-always-allow/mounted-fail-guard-rejects-correct-token/mounted-evaluator-absent；同进程正/反例直调守卫探针，零真实 HTTP）+ `innerReconnect` 六级判序（只观测不改判/探针故障≠broken/实证优先/无 env 名⇒broken 且 reason 明说属 T6/有名无值⇒broken/有名有值⇒unverified 不谎称已证）+ Q4 fail-closed（拒启唯一格=enforced∧broken∧failClosed=true，抛前先落链证据再收口 sessionMonitor/bridge/logger，杜绝"服务没起但桥还活着"新静默退化）+ 回滚位 rollbackWarn + `/health.security` 两键纯附加 + 链上 `bearer-selfcheck` AuditExt.kind（默认态恒落一条，证据无条件在场）。
+- **T4 遗留转正兑现**：/mcp 接线落地（server.ts :1622–1647，dtid 行 :1634 逐字节保留）+ **4 处守卫同批改**（member 按 §13.4 清单先取 RED 基线 shape 2 fail/mutation 3 fail→改钉→GREEN 33/54；变异体仍捕获条件展开破坏，silent-mutation 检查通过）。
+- 默认态自洽：delivery config 删悬挂 `tokenEnv` 键（旧形态恒报半开态 bearer-configured-missing 与 §7 自称长期对不上，真机 03:33 基线实证）、显式 `enforceBearer:false` + `enforceBearerFailClosed:true`。宿主侧凭据面与本文件两线独立（注释已说清）。
+- 文档面：SECURITY §2.1 三点→四点+警告块尾句按"B3 两段式"订正并切分 T5（自检已落地）/T6（回连通路未落地）；DEPLOYMENT 旧键升级提示；REQUIREMENTS NFR-509/L2/L3 与 SPEC:262 快照叙事划线诚实化（Q2 口径，grep 守卫预检，snapshot-truth 17/17 复绿）。
+- 真机窗口证据（qa/r19/t5-*）：默认态→deploy→enforce-on 拒启轮（0 listeners/0 node/0 orphan ps-bridge，链上 refused=true）→回滚位轮（HTTP 200，broken 诚实语义成立）→**还原 BYTE_IDENTICAL**（runtime sha256=f61dd89f…、start-hidden=801038bc… 三点哈希一致）→终态三值回默认。探针 token 为一次性合成值（已随还原消失，非真实凭据，留档可安全入库）。
+- 主理人独立核验：tsc exit 0；复跑 bearer-selfcheck 45/45 + kn1-e-shape 33 + mutation 54 + t4-assembly 45 + http-guard 40 + mcp-signal 54 + dead-config 14 + contract-schema 23 + snapshot-truth 17 全绿；server.ts 非注释增行抽验=fail-closed 决策链与接线本体、dtid 钉在场；delivery config diff 语义与注释自洽。**基线 85/1612 → 86/1657（+45 精确对账，0 fail；成员 sweep 落盘 p2t5-sweep-result.txt FILES=86 FAILED=0）**。
+- 范围外发现转正：VM 链 `chain-archive-verify` 恒含断片 `audit-20260918.jsonl`（自 2026-10-09 起 8 分片一致在场，早于本窗口）⇒ 记入 backlog，收官批定夺修复批（P2-T13 候选）。`t5-health-after.{json,md}`（03:36:32）归属不明但内容与部署后态逐字段一致、零敏感信息 ⇒ 随证据入库。
+- 停摆链注记：T5 亦两程（首程 completed 无回报=中段停摆，代码面已大半落盘；SendMessage 续跑点名"已完成采信"→次程 20 分钟闭环全部剩余项）——"completed≠交付、取证先行、续跑优于重派"第三次验证有效。

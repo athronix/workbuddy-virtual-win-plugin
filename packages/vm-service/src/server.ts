@@ -50,6 +50,7 @@ import {
   resolveApprovalTtlMs,
   resolveNetCfgTtlMs,
   resolveNetCfgPrewarmTimeoutMs,
+  resolveEnforceBearerFailClosed,
   resolveServiceConfig,
   validateServiceConfig,
   type FileLogger,
@@ -77,8 +78,22 @@ import {
   buildSecurityHealth as buildSecurityHealthSnapshot,
   createBearerGuard,
   resolveBearerToken,
+  // Phase 2 · P2-T5（F2 Step 1）：bearer 生效自检三件套 + 回连通路判定 + fail-closed 决策表。
+  // 全部是 `http-guard` 的纯函数 ⇒ 判据可脱服务逐条断言（`phase2-bearer-selfcheck.test.js`）。
+  buildBearerSelfCheckAuditEntry,
+  resolveAuthMode,
+  resolveInnerReconnect,
+  runBearerMountSelfCheck,
+  shouldFailClosedStart,
+  type BearerSelfCheckHealth,
   type GuardableRequest,
+  type HealthAuthMode,
+  type InnerReconnectHealth,
 } from './http-guard.js';
+// Phase 2 · P2-T4 遗留接线转正（设计 §13.4）：宿主断连侦测 → AbortSignal → McpRequestContext。
+// `mcp-transport.ts` 是 T4 新建的零反向依赖传输层模块；本文件是 Phase 2 的 server.ts 唯一
+// 授权写者窗口，接线两行（signal 取用 + reqCtx 装配）与 4 处同源守卫**必须同批**（否则红）。
+import { watchClientDisconnect, buildMcpRequestContext } from './mcp-transport.js';
 import {
   LedgerRegistry,
   ReceiptCache,
@@ -697,9 +712,13 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    * 同时喂给守卫与 `/health.security.authMode` ⇒ 事实面与执行面同源，杜绝
    * 「health 报 bearer-enforced 而守卫其实停用」的自相矛盾（体检 U-P0-2 的病根之一）。
    *
-   * 现网默认（`delivery/vm-service.config.json` 未写 `enforceBearer`）⇒
-   * `resolveBearerToken ⇒ undefined` ⇒ `guardActive=false` ⇒ 守卫恒 pass ⇒
-   * **路由逐字旧行为**（判据⑤关键回归）。
+   * 现网默认（P2-T5 起 `delivery/vm-service.config.json` 显式写 `enforceBearer:false`
+   * 并**删掉** `tokenEnv` 键 ⇒ 默认部署是干净的 `loopback-only`，不再是半开的
+   * `bearer-configured-missing`）⇒ `resolveBearerToken ⇒ undefined` ⇒ `guardActive=false`
+   * ⇒ 守卫恒 pass ⇒ **路由逐字旧行为**（判据⑤关键回归）。
+   * 注：`tokenEnv` 键被删**不**影响任何凭据通路（宿主侧凭据走 `--token-env` →
+   * `buildTransport`/`applyBearerHeader`，与本文件的 VM 侧服务配置是两条独立面）；
+   * 运维若要预先挂好变量名，写回 `tokenEnv` 即回到「有名无值 ⇒ 显形为半开态」的旧观测形态。
    */
   const bearerToken = resolveBearerToken(cfg.security.enforceBearer, cfg.security.tokenEnv);
   const guardActive = bearerToken !== undefined;
@@ -708,6 +727,140 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     tokenEnv: cfg.security.tokenEnv,
     logger,
   });
+
+  /* ---- Phase 2 · P2-T5（F2 Step 1）：bearer **生效自检** —— 拒绝静默退化 ----
+   *
+   * `authMode` 只回答「配置意图 + env 有值」（装配事实），回答不了「守卫代码是否真在拒」
+   * 与「VM 内回连在守卫生效时是否真可用」。B3 真机实证：误开 `enforceBearer`（双条件齐）
+   * 的危害是**两段式**——宿主段当场 401（可见），VM 内回连段 401 打在**工具面** ⇒ 委派
+   * 退化为**零副作用虚假完成**（completed + 链上 `zeroInnerCalls:true`，靠 CL-K3R 不采信兜住）。
+   * 自检把这两件事变成机器可读事实，并按 Q4 裁决决定是否拒启。
+   *
+   * 三条纪律：
+   *  1. **判据同源**：`selfCheckAuthMode` 复用 `resolveAuthMode`（与 `guardActive` 同一条
+   *     `resolveBearerToken`），绝不在装配层另写条件（判据⑤的同源性要求）；
+   *  2. **默认态零改判**：守卫未挂载 ⇒ `bearerSelfCheck='not-mounted'`（ok:true）+
+   *     `innerReconnect='unverified'` ⇒ `shouldFailClosedStart` 恒 false ⇒ 现网逐字旧行为；
+   *  3. **探针故障绝不冒充 broken**：任何不可达/超时都归 `unverified`（PR3 护栏）。
+   */
+  const failClosedEnabled = resolveEnforceBearerFailClosed(cfg.security);
+  /** 生效中的 provider options（回连通路判定的输入面；provider 缺席 ⇒ 空视图）。 */
+  const activeProviderOptions: Readonly<Record<string, unknown>> | undefined =
+    cfg.agent.providers[cfg.agent.provider]?.options;
+  /** 启动期自检快照（常驻只读；`/health.security` 与 fail-closed 决策**共用同一份**，杜绝两处漂移）。 */
+  const selfCheckAuthMode = resolveAuthMode(cfg.security.enforceBearer, cfg.security.tokenEnv);
+  const bearerSelfCheck: BearerSelfCheckHealth = runBearerMountSelfCheck({
+    bearerToken,
+    // 同进程直调守卫（不发真实 HTTP）：判据是「守卫代码是否在拒」，成本≈0、离线可证、真机同码。
+    evaluate: (probeReq) => bearerGuard(probeReq),
+  });
+  const innerReconnect: InnerReconnectHealth = resolveInnerReconnect({
+    authMode: selfCheckAuthMode,
+    providerOptions: activeProviderOptions,
+  });
+  const failClosedDecision = shouldFailClosedStart({
+    authMode: selfCheckAuthMode,
+    innerReconnect: innerReconnect.status,
+    failClosed: failClosedEnabled,
+  });
+  // 生命周期收口位（P2-T5 判据 c）：`close()` 一经调用即置位，自检的 fire-and-forget 落链
+  // 段据此**放弃写入**（不再往已关闭的 sink 里塞条目，也不再在退出后打 warn）。
+  let serviceClosed = false;
+
+  /**
+   * 自检结论**落链**（与归档校验同 **O-7** 纪律：写**原始 `audit`**、不经 `auditSink` ⇒
+   * 服务端自发条目不会被账本登记成「本回合有活动」= 审计自证）。
+   * `refuse` 入参把「本轮是否真的拒绝进入服务态」写进条目（回滚位轮 = false + 显式告警）。
+   */
+  const recordBearerSelfCheck = async (refuse: boolean): Promise<void> => {
+    // 收口后不再往已关闭的 sink 里塞条目（fire-and-forget 与 close() 的竞态面）。
+    if (serviceClosed) return;
+    const startedAtMs = Date.now();
+    try {
+      // 默认态（守卫未挂载）也落一条：`authMode` 会被下次启动覆盖，而「本轮守卫是否真在拒」
+      // 是跨轮取证事实；危害形态恰是「无痕的虚假完成」⇒ 证据必须无条件在场（可 grep）。
+      await audit.append(
+        buildBearerSelfCheckAuditEntry(
+          {
+            traceId: newTraceId(),
+            authMode: selfCheckAuthMode,
+            selfCheck: bearerSelfCheck,
+            innerReconnect,
+            failClosed: failClosedEnabled,
+            refuse,
+            startedAtMs,
+          },
+          () => newId('aud'),
+        ),
+      );
+    } catch (e) {
+      if (!serviceClosed) logger.warn('bearer 生效自检落链失败（不影响服务，跨轮证据缺席）', { error: String(e) });
+    }
+  };
+
+  /* ---- fail-closed（§13 Q4）：**仅**「守卫真生效 ∧ 回连确证 broken ∧ 开关开」拒启 ----
+   *
+   * 拒启路径刻意**先落证据再抛**：这一轮「为什么起不来」必须跨轮可查（抛错后运维只会看到
+   * cli 的一行 stderr，链上条目才是权威事实）。回滚位（`enforceBearerFailClosed:false`）
+   * 放行但**必须**打显式告警 —— 降级事实显形、绝不静默（与 `authMode` 半开态同族纪律）。
+   */
+  if (failClosedDecision.refuse) {
+    logger.error('bearer 生效自检判定：守卫已生效且 VM 内回连必 401 ⇒ fail-closed 拒绝进入服务态', {
+      authMode: selfCheckAuthMode,
+      innerReconnect: innerReconnect.status,
+      reason: innerReconnect.reason,
+      selfCheck: bearerSelfCheck.code,
+    });
+    // 顺序纪律：证据**先落链**，再置收口位、再关本轮已启动的件。
+    await recordBearerSelfCheck(true);
+    // 抛错前收口本轮已启动的件：会话探针监视器（interval）与 ps-bridge（常驻 spawn）——
+    // 否则得到「服务没起但桥还活着」的新静默退化（泄漏面恰好是本批要杜绝的那一类）。
+    serviceClosed = true;
+    sessionMonitor.stop();
+    await runtime.bridge.stop().catch(() => undefined);
+    logger.close();
+    throw new Error(
+      `bearer 生效自检拒绝启动（fail-closed）：authMode=${selfCheckAuthMode} 且 VM 内回连通路=${innerReconnect.status}。` +
+        `${innerReconnect.reason} 后果：VM 内委派将退化为零副作用虚假完成（completed + 链上 zeroInnerCalls:true，B3 真机实证）。` +
+        `两条出路：①关掉 security.enforceBearer（回环默认态，信任边界=回环+SSH 隧道+审批闸）；` +
+        `②临时回滚位 security.enforceBearerFailClosed=false（放行并打显式告警，回连通路属 P2-T6）。` +
+        `详见 docs/02-design/SECURITY-GOVERNANCE.md §2.1。`,
+    );
+  }
+
+  /* 自检结论落链 + 告警（fire-and-forget，**不阻塞启动**）。 */
+  void (async (): Promise<void> => {
+    await recordBearerSelfCheck(false);
+    if (failClosedDecision.rollbackWarn) {
+      logger.warn(
+        'bearer 生效自检：判据成立（守卫生效 + VM 内回连必 401）但 enforceBearerFailClosed=false ⇒ 放行启动（回滚位生效）',
+        { authMode: selfCheckAuthMode, innerReconnect: innerReconnect.status, reason: innerReconnect.reason },
+      );
+    }
+    if (!bearerSelfCheck.ok) {
+      // 挂载逻辑漂移 ⇒ 事实面（authMode）与执行面（守卫判决）分家，这是最隐蔽的退化。
+      logger.error('bearer 生效自检不合格：守卫挂载逻辑与事实面不一致', {
+        authMode: selfCheckAuthMode,
+        code: bearerSelfCheck.code,
+        reason: bearerSelfCheck.reason,
+      });
+    } else if (innerReconnect.status === 'broken') {
+      logger.warn(
+        'bearer 生效自检：守卫已生效但 VM 内回连通路不可用（回连必 401 ⇒ 委派将退化为零副作用虚假完成）',
+        {
+          authMode: selfCheckAuthMode,
+          innerReconnect: innerReconnect.status,
+          reason: innerReconnect.reason,
+          failClosed: failClosedEnabled,
+        },
+      );
+    } else if (innerReconnect.status === 'unverified') {
+      logger.info('bearer 生效自检：回连通路状态未实证（默认态只观测不改判）', {
+        authMode: selfCheckAuthMode,
+        reason: innerReconnect.reason,
+      });
+    }
+  })();
 
   /* ---- CL-018 C5：网络配置进程内缓存（启动异步预热） ----
    *
@@ -1467,20 +1620,30 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         }
 
         if (path === '/mcp' && req.method === 'POST') {
-          const body = await readBody(req);
-          const parsed = body ? JSON.parse(body) : null;
-          // K-N1 通道 2（精确归因）：委派回合内层回连的 mcp 端点由桥拼成 `…/mcp?dtid=<委派traceId>`
-          // （`buildMcpConfig`），此处解析注入 → handler 拿到 `ToolContext.delegationId` →
-          // provider 审计落 `channel:'a2a'` + `ext.delegationId`，账本据此**精确**归入 executed。
-          // 无 dtid（纯宿主直调）→ reqCtx 缺席 → ToolContext 逐字节旧形态，零回归。
-          const dtid = url.searchParams.get('dtid') ?? undefined;
-          const result = await mcp.handleRequest(parsed, dtid ? { delegationId: dtid } : undefined);
-          if (result === null) {
-            res.writeHead(202).end();
+          // P2-T4 遗留接线转正（设计 §13.4）：宿主断连 → AbortSignal → McpRequestContext。
+          // `watchClientDisconnect` 只在「宿主没收到完整响应就走了」时 abort（正常写完不 abort，
+          // 杜绝假取消）；`dispose()` 必须在 finally 里调用 —— 长连接上不摘除会残留闭包。
+          const disconnect = watchClientDisconnect(res);
+          try {
+            const body = await readBody(req);
+            const parsed = body ? JSON.parse(body) : null;
+            // K-N1 通道 2（精确归因）：委派回合内层回连的 mcp 端点由桥拼成 `…/mcp?dtid=<委派traceId>`
+            // （`buildMcpConfig`），此处解析注入 → handler 拿到 `ToolContext.delegationId` →
+            // provider 审计落 `channel:'a2a'` + `ext.delegationId`，账本据此**精确**归入 executed。
+            // 无 dtid（纯宿主直调）→ reqCtx 缺席 → ToolContext 逐字节旧形态，零回归。
+            const dtid = url.searchParams.get('dtid') ?? undefined;
+            // 装配交 `buildMcpRequestContext`（**存在性纪律**：dtid/signal 各自条件展开，
+            // 两者都缺席 ⇒ 返回 undefined ⇒ 与接通前的调用形态逐字节等价）。
+            const result = await mcp.handleRequest(parsed, buildMcpRequestContext(dtid, disconnect.signal));
+            if (result === null) {
+              res.writeHead(202).end();
+              return;
+            }
+            sendJson(res, 200, result);
             return;
+          } finally {
+            disconnect.dispose();
           }
-          sendJson(res, 200, result);
-          return;
         }
 
         /* ---- S-3（方案 B，设计 §5.2）：回执查询端点（只读投影，零链体积增长） ----
@@ -1652,6 +1815,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    * - `boundLoopback` —— 读**实际** `server.address()`；listen 之前（或 address 缺席）
    *   回落配置值 ⇒ 保守不谎报。
    * - `endpointAllowlist` —— 契约类型是 `never`（负空间）：本实现**不**产出该键。
+   * - **P2-T5 附加两键**（`bearerSelfCheck` / `innerReconnect`）—— 喂的是**启动期那一份**
+   *   常驻结论（`selfCheckAuthMode` 与守卫挂载同源）；刻意不在请求期重复求值：探针是
+   *   启动期事实，每次 /health 重复探测等于把取证面变成 DoS 自我放大面。
    */
   function buildSecurityHealth(): SecurityHealth {
     // 实际监听地址优先；`server.address()` 在 listen 前返回 null ⇒ 回落配置值（保守不谎报）。
@@ -1660,11 +1826,14 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       typeof actualAddress === 'object' && actualAddress !== null
         ? actualAddress.address
         : cfg.server.host;
-    // 纯函数在 `http-guard`（可脱服务单测）；本处只负责喂「实测地址」这一服务闭包事实。
+    // 纯函数在 `http-guard`（可脱服务单测）；本处只负责喂「实测地址」这一服务闭包事实
+    // + 启动期自检/回连两个快照（条件展开，缺席即旧形状）。
     return buildSecurityHealthSnapshot({
       enforceBearer: cfg.security.enforceBearer,
       tokenEnv: cfg.security.tokenEnv,
       boundHost,
+      selfCheck: bearerSelfCheck,
+      innerReconnect,
     }) as SecurityHealth;
   }
 
@@ -1822,6 +1991,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     port,
     exposedCapabilities,
     async close() {
+      // P2-T5：先置收口位，使**在途**的自检 fire-and-forget 段（落链/告警）不再向已关闭的
+      // sink 写条目、也不再往已 `logger.close()` 的出口打日志 —— 静默退化不允许出现在退出路径上。
+      serviceClosed = true;
       sessionMonitor.stop();
       // ENG-01（判据⑥）：先停 TTL 清扫定时器，使收尾竞态里不再有"边关边扫"的写链；
       // `unref()` 已保证未决审批不拖住退出，`close()` 再保证关闭后定时器不复活。
