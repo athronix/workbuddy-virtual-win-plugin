@@ -56,7 +56,7 @@
     "probeIntervalMs": 15000
   },
   "security": {
-    "comment": "T1 契约核对（Phase 1 / ARCH-07 B 基线）：① requireLoopbackBind=true 已**不再是可关开关** —— validateServiceConfig 对「server.host 非回环」恒判 error，本项写 false 也不会放宽（只会多一条 warning），保留字段仅为兼容既有配置文件与文档；② tokenEnv 是 bearer token 的**环境变量名**（禁止明文落盘，NFR-511），有名无值时 validateServiceConfig 报 warning（「以为开了」必须显形）；③ 服务端 bearer 校验默认**关**（本文件未写 enforceBearer ⇒ 等价 false），现网信任边界 = 仅回环 + SSH 隧道 + 审批闸，事实经 /health.security.authMode='loopback-only' 机器可读透出。开 enforceBearer 前必须先补齐 VM 内回连（/mcp?dtid=）的凭据通路，否则委派执行会 401 —— 见 docs/02-design/SECURITY-GOVERNANCE.md §2 与 phase1-arch-design.md §5 第 3 条。",
+    "comment": "T1 契约核对（Phase 1 / ARCH-07 B 基线）：① requireLoopbackBind=true 已**不再是可关开关** —— validateServiceConfig 对「server.host 非回环」恒判 error，本项写 false 也不会放宽（只会多一条 warning），保留字段仅为兼容既有配置文件与文档；② tokenEnv 是 bearer token 的**环境变量名**（禁止明文落盘，NFR-511），有名无值时 validateServiceConfig 报 warning（「以为开了」必须显形）；③ 服务端 bearer 校验默认**关**（本文件未写 enforceBearer ⇒ 等价 false），现网信任边界 = 仅回环 + SSH 隧道 + 审批闸，事实经 /health.security.authMode='loopback-only' 机器可读透出。开 enforceBearer 前必须先补齐 VM 内回连（/mcp?dtid=）的凭据通路；2026-10-10 B3 真机实测：误开（双条件齐）后宿主不带凭据段当场 401，VM 内回连段 401 打在工具面 ⇒ 委派退化为零副作用虚假完成（completed + 链上 zeroInnerCalls:true，CL-K3R 不采信兜住，非链路报错）—— 见 docs/02-design/SECURITY-GOVERNANCE.md §2.1（含 authMode 四步判序：本文件 tokenEnv 有名无值 ⇒ /health 实报 bearer-configured-missing）与 phase1-arch-design.md §5 第 3 条 / D-43。",
     "requireLoopbackBind": true,
     "tokenEnv": "WINVM_BEARER_TOKEN"
   }

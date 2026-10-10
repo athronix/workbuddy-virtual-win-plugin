@@ -650,3 +650,8 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 - **新基线口径（Phase 0 收官主理人全量实跑）**：**71 个测试文件 / 1247 例（1245 pass / 0 fail / 2 skipped）** = 63 `.test.js`（1177）+ 8 `.test.mjs`（70）；skip 3→2 因 assembly-guard dry-run 软探针随 `ba02fbb` 转硬断言通过。README/dev-status/OVERVIEW 三处已同步。
 - **主理人核验方法**：engine/contracts/audit 全量 diff 审阅；独立复跑 p0/cl017/assembly-guard；`path.win32.resolve` 权威参照逐条裁定首轮 7 红（6 断言错 + 1 实现遗漏，工程师复核结论与裁定一致）；SECURITY §3.4.1 与 definitions 标注数（6）核对；`npm run test:unit` 收官全量 failed=0。
 - **遗留登记**（Phase 1 议题，`docs/changes/phase0-engine-notes.md` R-1/R-3 同源）：R-1 注册表域不做段消解（`HKLM:\SOFTWARE\..\SAM` 字面命中 ALLOW，与 U-P0-1 同族、非本次引入，建议立 U-P0-1b 复注）；R-3 `buildPreview` 文案分叉"可预览≠可免批"，真机轮如涉旧文案断言需同步；VM 侧 `C:\WinVMBridge\shared-skills` 待重发布（隧道可达时）；skill frontmatter version bump 待发布流程统一处理。
+
+## 2026-10-10 · QA 收官批（板 #4）+ L6 措辞残留清账（主理人执笔）
+- **QA 独立复跑（严过关）**：HEAD 2b2f241 逐文件 79 文件 = **1457/1455/0 fail/2 skip**（`$HOME/wbtmp/qa-t5-full-run.txt`，逐行四重交叉校验）；与工程侧 1456 对账差 1 例可归因 2b2f241。三项证伪式抽查 D-1/D-2/D-3 全过（D-2 精准红→md5 等值复原→39/39 绿）。终判 **NoOne/PASS**。
+- **基线统一写数**：README §8、06-OVERVIEW 首行+§四 改 79/1457 口径（演进链 1247→1253→1283→1400→1456→1457）；phase0-delivery-summary 保留历史+文末演进注记。
+- **L6 三处措辞残留清账**（QA D-3 发现，路由=主理人）：DEPLOYMENT:518 回指句、delivery/vm-service.config.json security.comment、CL-022/REQUIREMENT B-3 行——均订为两段式（宿主段当场 401 / VM 内回连段零副作用虚假完成）。**L5**：phase1-arch-design R4 表后加订正指针（设计快照原文不改写）。config 改后 JSON 合法性+消费方核查（tests 仅注释引用、install-vm 不读 comment）+ 85/85 绿。

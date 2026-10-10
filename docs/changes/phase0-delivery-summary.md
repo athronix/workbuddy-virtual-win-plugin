@@ -38,3 +38,7 @@
 2. VM 侧生效本次策略修复需部署轮：构建 → deploy-vm → `kill-restart.ps1`（顺序铁律：先部署→后补丁→再重启）。
 3. 宿主插件缓存若要消费新契约（supportsDryRun 出现在 AgentCard/schema），实跑 `delivery/install-host.mjs`。
 4. Phase 1 开工前把总报告 §4 Phase 1 清单 + 上述 5 项输入合并排程。
+
+---
+
+> **基线演进注记（QA 收官批 2026-10-10 追加，不改写上文 Phase 0 历史事实）**：上文 **71 文件 / 1247 例（1245 pass / 0 fail / 2 skipped）** 是 2026-10-08 Phase 0 收官的当时实况，作为历史留痕保留。截至 **Phase 1 安全兑现批 T5 收官**，权威基线已演进为 **79 文件 / 1457 例（1455 pass / 0 fail / 2 skipped；skip 恒为 `ssh2-resolve` 离线用例）**，演进链 1247(Phase 0)→1253(T1/T2)→1283(T3)→1400(T4)→1456(T5)→1457(T5 收官小修)；对外口径见 `README.md` §8 与 `docs/06-OVERVIEW.md`，QA 独立复跑与终判见 `docs/changes/CL-022/QA-REPORT.md`。

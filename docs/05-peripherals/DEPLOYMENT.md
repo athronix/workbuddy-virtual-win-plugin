@@ -515,7 +515,7 @@ curl -s http://127.0.0.1:18443/health      # 应返回 VM 侧健康态
 - 54 个能力在**远程 Windows 本机**执行 PowerShell（ps-bridge 在远端 spawn PowerShell 5.1），操作的正是那台远程机——即"本地操作远程 Windows"。
 - **GUI 自动化**仍依赖远程 Windows 有活跃交互会话/显示器；无头远程机可能跑不了 GUI 模块（与本地 VM 同源限制）。
 - 仅支持 Windows 被控端（强依赖 PowerShell 5.1），远程 Linux 不可作此"VM"。
-- 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道两端都是回环 ⇒ bearer **默认免校验**（`security.enforceBearer` 默认 `false`）；本系统不存在"非回环直连"这种受支持形态（非回环绑定即启动 `error`，见 §8.1），因此绝大多数部署**只需配 SSH 密钥**，`WINVM_BEARER_TOKEN` / `tokenEnv` 不必动。确要在 VM 侧开 `enforceBearer` 时，宿主侧凭 `--token-env` 给出**变量名**（见 §8.1 警告块：VM 内回连凭据通路未实现 ⇒ 委派主链路会 401）。
+- 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道两端都是回环 ⇒ bearer **默认免校验**（`security.enforceBearer` 默认 `false`）；本系统不存在"非回环直连"这种受支持形态（非回环绑定即启动 `error`，见 §8.1），因此绝大多数部署**只需配 SSH 密钥**，`WINVM_BEARER_TOKEN` / `tokenEnv` 不必动。确要在 VM 侧开 `enforceBearer` 时，宿主侧凭 `--token-env` 给出**变量名**（见 §8.1 警告块两段式实况：宿主不带凭据段 ⇒ 当场 401；VM 内回连凭据通路未实现 ⇒ 回连 401 打在工具面、委派退化为**零副作用虚假完成**（`completed`+`zeroInnerCalls:true`，B3 真机实测，见 `SECURITY-GOVERNANCE.md` §2.1/D-43），**不得**以"任务显示成功"推断守卫未生效）。
 
 ### 8.6 远程分发产物里有什么、依赖怎么解析（关键）
 

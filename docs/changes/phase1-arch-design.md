@@ -488,6 +488,8 @@ graph TD
 | R4 | `enforceBearer` 被误开 → 委派主链路 401（回连无 token） | 运维手写配置 / 文档误读 | 默认 false；`/health.security.authMode` 透出三态；SECURITY 明写"开前须补回连凭据通路"（§5 第 3 条） | **中** —— 通路本批未实现，必须在文档里写黑 |
 | R5 | TaskStore 驱逐打断仍在轮询/SSE 订阅的历史任务，或 `tasks/get` 查不到刚完成的任务 | `maxTasks` 过小或 `terminalTtlMs` 过短 | 只驱逐终态 + 无挂起审批；默认 `200 / 1h`；`subscribers.clear()`；可用 `maxTasks:0` 关死驱逐回旧行为 | 中（A2A 历史查询语义属**行为变更**，需 CL 登记） |
 | R6 | `PendingApprovalRegistry` 替换 `Map` 后 `collectApprovalFacts` 的 `ReadonlyMap` 入参形状不匹配 | Registry 少实现 `entries/forEach` | 设计强制"窄 `ReadonlyMap` 实现"；`r19c-a5-approval-coordinator.test.js` 直接构造 `Map` 的用例需复核 | 低 |
+
+> **R4 失败形态订正指针（2026-10-10 B3 真机实测）**：本表 R4 行与 §5 第 3 条的"当场 401 / 必 401"为设计时点预判，实况是**两段式**——宿主不带凭据段当场 401（该段预判正确）；VM 内回连段 401 打在**工具面** ⇒ 委派退化为**零副作用虚假完成**（`completed` + 链上 `zeroInnerCalls:true`，CL-K3R 不采信兜住）。现行权威口径见 `SECURITY-GOVERNANCE.md` §2.1，订正全程见 `phase1-t5-notes.md` D-43；设计快照按留痕纪律不改写原文，以本指针为准。
 | R7 | 启动 `verifyArchive()` 在分片多时拖慢启动 / 与 `freshChainOnStart` seq 基线交互 | 审计目录分片 > 数十 | `maxShards=30` 有界、`void` fire-and-forget、只 warn；校验只读，写入走 `doAppend` 独立路径 | 低 |
 | R8 | 5 任务严格串行 ⇒ 关键路径长（`T1→T2→T4→T5`），交付节奏慢 | 按板任务 #1/#2/#3 并行派工会在 `server.ts`/`task-store.ts` 上互相踩 | **排期结论**：`T2` 与 `T3` 可并行（不同包、零共享文件）；其余必须串行；三个板任务不要同时开工 | 中（吞吐 vs 冲突的取舍，交 owner） |
 | R9 | 契约删除 `commandAllowlist` 与 T5 文档口径同步之间存在窗口 | T1 删完但文档未改 ⇒ 读者按旧契约配置 | 同一批（T1→T5）内闭环；schema 校验会拒未知键（若 `additionalProperties:false`）—— 需工程师核该 schema 的严格性 | 低 |
