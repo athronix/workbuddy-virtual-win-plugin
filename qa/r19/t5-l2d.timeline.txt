@@ -1,0 +1,13 @@
+[2026-10-10T10:19:57+08:00] l2d start: reading source
+2026-10-10T11:02:40+08:00 [l2d] engineer-Alex start; repo listing done
+2026-10-10T11:17:29+08:00 [l2d] code read done. Path=确定性模板2(storage.cleanup.analyze,L0,idempotent). step() 于 execute 前 sink.onStatus('working','执行 <cap>：<sum>')→updateStatus('working',msg)→SSE emit。cancel 时机=该 message 出现后、长能力调用未完成前(requestCancel→updateStatus('canceled') 无 msg)。宿主 delegate 内 streamMessage 收集 progress 含≥1条/^执行.../⇒derive steps≥1 artifacts=0⇒executedBeforeCancel={steps:1,artifacts:0}⇒有态文案。呈现面走真 createA2aBridgeTools→a2a.delegate handler(不import私有derive)。探针另跑自定义 stream 兜底记录现场。
+2026-10-10T11:42:54+08:00 [l2d] switch executed (see above output)
+2026-10-10T11:43:23+08:00 [l2d] scp l2d-switch.mjs + l2d-probe.mjs -> VM scratch
+2026-10-10T11:43:59+08:00 [l2d] provider switched (output above)
+2026-10-10T11:44:45+08:00 [l2d] kill-restart issued after switch
+2026-10-10T11:45:20+08:00 [l2d] health fingerprint OK: provider=workbuddy-deterministic state=ready; old live tasks evicted (live=0). probe attempt-1 start
+2026-10-10T11:46:33+08:00 [l2d] ATTEMPT-1 SUCCESS: final=canceled; wire step-line captured (msgType=string!); production delegate progress=0 ebc=null (confirm string-vs-Message gap); A-prime live derive ebc={steps:1,artifacts:0} text contains 取消前已有. Now attempt-2 repro with cancel-delay=1500ms
+2026-10-10T11:48:39+08:00 [l2d] runtime restored from .orig via cp -p (byte-identical), remove accidental .restore copy
+2026-10-10T11:48:55+08:00 [l2d] kill-restart issued for restore
+2026-10-10T11:50:28+08:00 [l2d] restore re-verified; residue checks done (see output)
+2026-10-10T11:56:57+08:00 [l2d] evidence.json validated (13802B); TASK COMPLETE — final report sent to team-lead

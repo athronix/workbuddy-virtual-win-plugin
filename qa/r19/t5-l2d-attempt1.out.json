@@ -1,0 +1,162 @@
+{
+  "case": "L2-D deterministic-cancel attempt 1",
+  "goal": "分析 C 盘磁盘空间占用，看看哪些大文件可以清理（只分析，不要删除任何东西）",
+  "cancelDelayMs": 0,
+  "startedAt": "2026-10-10T03:45:22.597Z",
+  "discipline": "zero git writes; zero source edits; dist+wire read-only; all derive inputs = live captures",
+  "healthPrecheck": {
+    "providerId": "workbuddy-deterministic",
+    "state": "ready"
+  },
+  "orchestration": {
+    "taskId": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+    "traceId": "tr_l2d_a1_mv1upu3p",
+    "cancelResponse": {
+      "jsonrpc": "2.0",
+      "id": 104,
+      "result": {
+        "kind": "task",
+        "id": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+        "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+        "status": {
+          "state": "canceled",
+          "timestamp": "2026-10-10T03:45:23.137Z"
+        },
+        "artifacts": [],
+        "history": [
+          {
+            "kind": "message",
+            "role": "user",
+            "messageId": "140fef24-8313-4eb3-8632-6daabf299f2b",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "分析 C 盘磁盘空间占用，看看哪些大文件可以清理（只分析，不要删除任何东西）"
+              }
+            ]
+          }
+        ],
+        "metadata": {
+          "traceId": "tr_l2d_a1_mv1upu3p",
+          "maxRisk": "L1"
+        }
+      }
+    },
+    "finalTask": {
+      "kind": "task",
+      "id": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+      "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+      "status": {
+        "state": "canceled",
+        "timestamp": "2026-10-10T03:45:23.137Z"
+      },
+      "artifacts": [],
+      "history": [
+        {
+          "kind": "message",
+          "role": "user",
+          "messageId": "140fef24-8313-4eb3-8632-6daabf299f2b",
+          "parts": [
+            {
+              "kind": "text",
+              "text": "分析 C 盘磁盘空间占用，看看哪些大文件可以清理（只分析，不要删除任何东西）"
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "traceId": "tr_l2d_a1_mv1upu3p",
+        "maxRisk": "L1"
+      }
+    },
+    "finalState": "canceled",
+    "finalArtifacts": []
+  },
+  "sseWire": [
+    {
+      "at": "2026-10-10T03:45:23.114Z",
+      "ev": {
+        "kind": "status-update",
+        "taskId": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+        "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+        "status": {
+          "state": "working",
+          "timestamp": "2026-10-10T03:45:22.718Z",
+          "message": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议"
+        },
+        "final": false
+      }
+    },
+    {
+      "at": "2026-10-10T03:45:23.166Z",
+      "ev": {
+        "kind": "status-update",
+        "taskId": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+        "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+        "status": {
+          "state": "canceled",
+          "timestamp": "2026-10-10T03:45:23.137Z"
+        },
+        "final": true
+      }
+    }
+  ],
+  "progressCaptures": [
+    {
+      "at": "2026-10-10T03:45:23.122Z",
+      "via": "tasks/get",
+      "state": "working",
+      "rawMessage": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议",
+      "text": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议"
+    }
+  ],
+  "hostDelegate": {
+    "via": "a2a.delegate production handler + real A2AClient (HTTP channel 127.0.0.1:18443/a2a)",
+    "isError": true,
+    "structuredContent": {
+      "ok": false,
+      "traceId": "tr_l2d_a1_mv1upu3p",
+      "taskId": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+      "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+      "state": "canceled",
+      "summary": "任务已取消（canceled），取消点之前的操作未执行。如需继续，请重新发起并重新确认审批。",
+      "progress": [],
+      "artifacts": []
+    },
+    "content": [
+      {
+        "type": "text",
+        "text": "任务已取消（canceled），取消点之前的操作未执行。如需继续，请重新发起并重新确认审批。"
+      }
+    ]
+  },
+  "liveStepLines": [
+    {
+      "state": "working",
+      "message": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议"
+    }
+  ],
+  "liveDerive": {
+    "codeSource": "C:/WinVMBridge/packages/host-a2a-bridge/dist/tools.js —— 运行时 indexOf 截取 STEPS_CARRIER_NAME..createA2aBridgeTools 段，new Function 装载（原文逐字，未重写）",
+    "slicedChars": 1292,
+    "sliceHead": "const STEPS_CARRIER_NAME = 'execution-steps';\nconst DETERMINISTIC_STEP_MARK = /^执行\\s+[A-Za-z0-9_.\\-]+\\s*[：:]/;\nfunction deriveExecutedBeforeCancel(artifacts, progress) {\n    let carrier;\n    for (cons",
+    "inputProgressSource": "live 现场：tasks/subscribe SSE 帧 + tasks/get status.message（合并去重，见 liveStepLines）",
+    "inputArtifactsSource": "live 现场：tasks/get 终态 task.artifacts（见 orchestration.finalArtifacts）",
+    "inputs": {
+      "progressCount": 1,
+      "artifactsCount": 0
+    },
+    "executedBeforeCancel": {
+      "steps": 1,
+      "artifacts": 0
+    },
+    "canceledSummaryText": "任务已取消（canceled）；**取消前已有 1 个操作执行、0 个产物**，请逐项核对 artifacts。（如需继续，请重新发起并重新确认审批）"
+  },
+  "verdict": {
+    "productionHostChannelStateful": false,
+    "liveConstructedStatefulDerive": true,
+    "note": "生产 delegate 的 progress 为空 ⇒ wire 上 status.message 为裸字符串、宿主 extractText 只认 Message.parts（既有架构结论的又一次实测）；有态由 A 路取消现场 + A 路生产源码派生成立"
+  },
+  "success": true,
+  "finishedAt": "2026-10-10T03:45:23.197Z"
+}

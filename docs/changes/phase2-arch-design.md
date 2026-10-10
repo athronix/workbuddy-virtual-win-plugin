@@ -200,10 +200,12 @@ backlog 给的临时口径"先做文档级注明：仅 `state==='healthy'` 才�
 
 ⇒ **所以 Phase 2 的真机清单里，L2 不是"补跑晚取消"（已跑完），而是"造一个确定性模板路径的有态样本"**，且必须与 GUI 端到端、P2-T5 回连探测、P2-T7 长会话**打包进同一次窗口**（PR10 的唯一缓解手段）。
 
+**L2 余项更新（2026-10-10 12:0x，主理人复核工程师真机构造后追加）**：有态样本**已构造完成并归档**（`qa/r19/t5-l2d-deterministic-evidence.md/.json`，attempt1/2 双复现，现场喂现网 derive ⇒ `{steps:1,artifacts:0}` 有态文案成立，VM 复原三值实测干净）。**同时补强一条比 `1faec49` 架构结论更深的实况**：同任务上生产 `a2a.delegate` 实测 progress=0/ebc=null——根因是 **sink→wire 类型级谎报**：契约 `onStatus(message?: string)`（contracts/bridge.ts:381）→ 确定性模板传 string（adapter-workbuddy/index.ts:418）→ `createProgressSink` as-cast 成 `A2A.Message` 直存（a2a-framework/task-store.ts:630-631）→ wire 裸字符串（探针 msgType=string 实证）→ 宿主 `extractText` 只认 `Message.parts`（host-a2a-bridge/tools.ts:45-46）⇒ 恒空。**有态在生产呈现面对两种 provider 均不可达**（LLM 路径另有 steps 恒空红线；确定性路径栽在此 as-cast），"只在确定性模板路径可达"须精确化为"只在 derive 函数层面可达"。对照旁证：框架自有 `approvalTimeoutMessage`（task-store.ts:439）正确构造 Message ⇒ as-cast 处是疏漏非设计；且该缺口**同样吞掉确定性路径 delegate 的实时进度回显**（不止取消文案）。审批链路不受影响（独立通路）。**建议新增任务 P2-T12**：`createProgressSink.onStatus` 构造合规 Message（纯框架侧一处），同批回归 delegate progress 呈现；归属 F3，与 P2-T7 同文件（task-store.ts 单写者）⇒ 排 T7 同批串行。**L2 余项从真机清单移除（已闭环）**，同窗口四件事减为三件。
+
 P2 的诚实处置（GUI 部分不变）：
 - **不在离线测试里假装覆盖**（现有 GUI 用例走的是探测形态，不是真点击）；
 - 交付一条**锁屏前置探针**：真机窗口开工前先跑会话交互性探测（`meta.session.status` / `health-probe` 的 `interactive`），若判非交互 ⇒ **立即标记该轮 GUI 端到端为 BLOCKED 并停手**，而不是跑出假红再分诊（Phase 1 §5 经验："见到红必须先分诊"；能提前判 BLOCKED 就别浪费档期）；
-- 同窗口四件事：**GUI 端到端 + 确定性模板有态取消样本（L2 余项）+ bearer 回连探测（P2-T5）+ 长会话驱逐观测（P2-T7）**。
+- 同窗口事项（~~四件~~ ⇒ **三件**，L2 余项已于 12:0x 构造归档闭环，见上条更新）：**GUI 端到端 + bearer 回连探测（P2-T5）+ 长会话驱逐观测（P2-T7）**。
 
 ⇒ **F3 不承诺"解决锁屏"，只承诺"不再浪费档期"**。这是本族最重要的口径管理。
 
@@ -302,6 +304,7 @@ F1/F4 落的每条静态守卫，今天都**只能靠人跑**。PM-08 给的裁�
 | **P2-T9** | `SessionHealth` 未知态 + 冷启动度量透出（E-2/E-1） | F3/F5 | 改 `packages/contracts/src/bridge.ts`（`SessionHealth` +`probeError?`/`probeErrorCode?`；`LlmSessionHealth` 度量位）<br>改 `packages/core/src/session/health.ts`（`isGuiAllowed` **行为不改**，仅判据注释）<br>改 `packages/vm-service/src/health-probe.ts:54`、`packages/vm-capabilities/src/index.ts:55`（假值改 probeError 形态）<br>改 `packages/adapter-agent-workbuddy-llm/src/persistent-session.ts`（`snapshot()`、首调延迟采样）<br>**新** `tests/unit/phase2-session-unknown.test.js`<br>改 `docs/02-design/HOST-A2A-BRIDGE.md`/`SECURITY` 口径 | P2-T1 | P2 | 否（度量真机顺带） |
 | **P2-T10** | API 保真与直接单测（O-1/O-3/K3-C4）+ 测试范式纪律 | F4 | 改 `packages/adapter-agent-workbuddy/src/index.ts`（`step()` 保留契约码）<br>改 `packages/adapter-agent-workbuddy-llm/src/index.ts`（`shouldDegrade` 判据同批）<br>改 `packages/adapter-agent-workbuddy-llm/src/bridge.ts`（`reconcileApprovalWait` 关键词集合常量化）<br>改 `tests/unit/phase1-t5-provider-cancel.test.js`（钉折叠形态那条 ⇒ 会红，按新形态改）<br>**新** `tests/unit/phase2-contract-code-fidelity.test.js`、`tests/unit/phase2-approval-wait-fallback.test.js`、`tests/helpers/bridge-internals.mjs`（`loadBridgeInternals()`）<br>改 `.workbuddy/README.md`/`docs/06-OVERVIEW.md`（"测试直连 dist"范式写下来） | P2-T1 | **P0** | 否 |
 | **P2-T11** | 守卫基建：`dep-lint` + 零平台成本门禁 + 锁屏前置探针 | F4/F3/F1 | **新** `scripts/dep-lint.mjs`（读 `packages/*/dist` import，方向 + 反向边 + 框架层审计边）<br>**新** `scripts/gate.mjs`（`tsc -b` + dep-lint + 契约/schema 守卫 + 逐文件 `node --test`）<br>改 根 `package.json`（恢复 `layout`；新增 `gate`）<br>**新** `tests/unit/phase2-dep-direction.test.js`（不得 import 被测包）<br>改 `README.md`、`docs/06-OVERVIEW.md`（基线数字口径 + 门禁说明；⚠ 先 grep 确认无守卫断言这两处数字——Phase 1 已核过一次，改前需再核）<br>（~~L6 三处措辞残留清理~~ ⇒ **已随 `9336eb5` 闭环，不列入改动集**，见 §1.4） | P2-T1 … P2-T10（收口） | **P0（基建应早）** | 部分（锁屏探针需真机） |
+| **P2-T12**（12:0x 追加） | `createProgressSink.onStatus` 合规 Message 构造（sink→wire 类型谎报修复，L2-D 补强实证） | F3 | 改 `packages/a2a-framework/src/task-store.ts`（`createProgressSink.onStatus` 把 string 包成 `{kind:'message',role:'agent',parts:[{kind:'text',text}]}`，对照 `approvalTimeoutMessage` :439 的正确形态）<br>回归 `packages/host-a2a-bridge` delegate 的 progress 收集（宿主侧**不改**，`extractText` 判据是对的）<br>**新** `tests/unit/phase2-progress-message.test.js`（wire 形状断言 + derive 有态经生产通道可达断言）<br>改 `docs/02-design/HOST-A2A-BRIDGE.md`（progress 回显口径：确定性路径实时进度恢复可见）<br>⚠ **与 P2-T7 同文件（task-store.ts 单写者）⇒ 排 T7 之后同批串行** | P2-T7 | P1 | 否（离线单测可证，真机顺带） |
 
 > **单写者冲突表**（Phase 1 教训的直接继承，必查）：
 > - `packages/vm-service/src/server.ts` ← **只有 P2-T5 可写**（T2/T3/T7/T9 对它的改动一律**并入 T5 的执行窗口**或改为只读核对）。这是我特意把 bearer 自检排在 T5 的原因：它天然动 `server.ts` 的 `buildHealth`/启动/`close()` 三个区。
@@ -464,3 +467,7 @@ graph TD
 | **Q10** | **接受完全串行** | 开工顺序 = P2-T1 → T2 → T3 → T4 → T5 → T6 → T7 → T8 → T9 → T10 → T11（真机窗口项 T5/T6/T7 与 L2 余项打包同批错峰） |
 
 **状态**：提案 → **裁决完毕，可开工**。开工首任务 P2-T1（纯离线）。⚠ 前置：等待后台工程师 L2 有态构造回报并归档——其宿主侧探针消费本地 dist，P2-T1 的 `tsc -b` 重建与之冲突（同刻单写者纪律 K-5）。
+
+### 13.1 L2-D 追加（同日 12:0x，裁决后、开工前）
+
+工程师真机构造回报经主理人源码级复核后新增 **P2-T12**（见 §6 表末行）：`createProgressSink.onStatus` 的 string→Message as-cast 谎报修复。任务数 **11 → 12**（§0/§1/§11 自检清单中的"11 个任务"口径以此追加记录为准，不回改原文——留痕纪律）。串行序不变，T12 钉在 T7 之后（同文件单写者）；真机窗口清单四减三（L2 余项闭环）。

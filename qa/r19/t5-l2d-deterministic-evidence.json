@@ -1,0 +1,305 @@
+{
+  "case": "L2-D 有态 executedBeforeCancel 真机构造（QA Phase-1 L2 最后半区）",
+  "date": "2026-10-10",
+  "repo": "/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin (HEAD=1faec49)",
+  "discipline": {
+    "git_writes": 0,
+    "source_edits": 0,
+    "vm_changes": "仅 agent.provider 切换（cp -p 备份→改→cp -p 还原，BYTE_IDENTICAL）+ 两次 kill-restart 重启",
+    "derive_inputs": "全部为真机现场捕获（tasks/subscribe SSE 帧 + tasks/get 轮询 + 终态 task.artifacts），零手造"
+  },
+  "environment": {
+    "vm": "172.16.100.2 (User@, SSH)",
+    "tunnel": "127.0.0.1:18443 -> VM 127.0.0.1:18443",
+    "probe_runtime": "VM 内 node v24.21.0；import VM 现网 packages/{a2a-framework,core,host-a2a-bridge}/dist（真 A2AClient + HttpJsonRpcChannel + createA2aBridgeTools）",
+    "switch": "C:/WinVMBridge/dev-and-qa/scratch/l2d-switch.mjs；备份 l2d-runtime.json.orig (2867B)"
+  },
+  "conclusion": {
+    "stateful_reachable_on_real_hw": true,
+    "summary": "确定性模板路径（provider=workbuddy-deterministic，模板2磁盘分析）在能力调用边界前取消，真机两次复现 steps=1/artifacts=0 的取消现场；用现网生产 derive 源码（逐字截取）喂真机现场，executedBeforeCancel={\"steps\":1,\"artifacts\":0}、有态文案成立。",
+    "production_delegate_gap": "同一次任务上，生产 a2a.delegate handler 实测 progress=0、executedBeforeCancel=null —— 根因现场实证：wire 上 status.message 为裸字符串（探针 WIRE 日志 msgType=string），宿主 extractText 只解析 Message.parts。有态在 LLM 常驻路径工程不可达、在确定性模板路径的**宿主生产呈现面**同样因该字符串/Message 形态缺口不可达（既有架构结论的补强实证）；任务指定的 A' 现场喂派生路径成立。"
+  },
+  "attempts": {
+    "attempt1": {
+      "args": "immediate cancel on first step-line",
+      "taskId": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+      "traceId": "tr_l2d_a1_mv1upu3p",
+      "finalState": "canceled",
+      "liveStepLines": [
+        {
+          "state": "working",
+          "message": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议"
+        }
+      ],
+      "cancelResponse": {
+        "jsonrpc": "2.0",
+        "id": 104,
+        "result": {
+          "kind": "task",
+          "id": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+          "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+          "status": {
+            "state": "canceled",
+            "timestamp": "2026-10-10T03:45:23.137Z"
+          },
+          "artifacts": [],
+          "history": [
+            {
+              "kind": "message",
+              "role": "user",
+              "messageId": "140fef24-8313-4eb3-8632-6daabf299f2b",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "分析 C 盘磁盘空间占用，看看哪些大文件可以清理（只分析，不要删除任何东西）"
+                }
+              ]
+            }
+          ],
+          "metadata": {
+            "traceId": "tr_l2d_a1_mv1upu3p",
+            "maxRisk": "L1"
+          }
+        }
+      },
+      "finalTask": {
+        "kind": "task",
+        "id": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+        "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+        "status": {
+          "state": "canceled",
+          "timestamp": "2026-10-10T03:45:23.137Z"
+        },
+        "artifacts": [],
+        "history": [
+          {
+            "kind": "message",
+            "role": "user",
+            "messageId": "140fef24-8313-4eb3-8632-6daabf299f2b",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "分析 C 盘磁盘空间占用，看看哪些大文件可以清理（只分析，不要删除任何东西）"
+              }
+            ]
+          }
+        ],
+        "metadata": {
+          "traceId": "tr_l2d_a1_mv1upu3p",
+          "maxRisk": "L1"
+        }
+      },
+      "sseWire": [
+        {
+          "at": "2026-10-10T03:45:23.114Z",
+          "ev": {
+            "kind": "status-update",
+            "taskId": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+            "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+            "status": {
+              "state": "working",
+              "timestamp": "2026-10-10T03:45:22.718Z",
+              "message": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议"
+            },
+            "final": false
+          }
+        },
+        {
+          "at": "2026-10-10T03:45:23.166Z",
+          "ev": {
+            "kind": "status-update",
+            "taskId": "b01a1a05-a745-4c88-a9db-14d502f0dcc1",
+            "contextId": "5b8b1ff6-4224-4eac-882d-412128045199",
+            "status": {
+              "state": "canceled",
+              "timestamp": "2026-10-10T03:45:23.137Z"
+            },
+            "final": true
+          }
+        }
+      ],
+      "productionHostDelegate": {
+        "state": "canceled",
+        "progress": [],
+        "executedBeforeCancel": null,
+        "summary": "任务已取消（canceled），取消点之前的操作未执行。如需继续，请重新发起并重新确认审批。",
+        "note": "生产 handler 原文回包（structuredContent 关键字段）；完整含 content 见 attempt1.out.json"
+      },
+      "liveDerive": {
+        "codeSource": "C:/WinVMBridge/packages/host-a2a-bridge/dist/tools.js —— 运行时 indexOf 截取 STEPS_CARRIER_NAME..createA2aBridgeTools 段，new Function 装载（原文逐字，未重写）",
+        "slicedChars": 1292,
+        "sliceHead": "const STEPS_CARRIER_NAME = 'execution-steps';\nconst DETERMINISTIC_STEP_MARK = /^执行\\s+[A-Za-z0-9_.\\-]+\\s*[：:]/;\nfunction deriveExecutedBeforeCancel(artifacts, progress) {\n    let carrier;\n    for (cons",
+        "inputProgressSource": "live 现场：tasks/subscribe SSE 帧 + tasks/get status.message（合并去重，见 liveStepLines）",
+        "inputArtifactsSource": "live 现场：tasks/get 终态 task.artifacts（见 orchestration.finalArtifacts）",
+        "inputs": {
+          "progressCount": 1,
+          "artifactsCount": 0
+        },
+        "executedBeforeCancel": {
+          "steps": 1,
+          "artifacts": 0
+        },
+        "canceledSummaryText": "任务已取消（canceled）；**取消前已有 1 个操作执行、0 个产物**，请逐项核对 artifacts。（如需继续，请重新发起并重新确认审批）"
+      },
+      "verdict": {
+        "productionHostChannelStateful": false,
+        "liveConstructedStatefulDerive": true,
+        "note": "生产 delegate 的 progress 为空 ⇒ wire 上 status.message 为裸字符串、宿主 extractText 只认 Message.parts（既有架构结论的又一次实测）；有态由 A 路取消现场 + A 路生产源码派生成立"
+      },
+      "success": true
+    },
+    "attempt2": {
+      "args": "cancel-delay 1500ms after step-line",
+      "taskId": "87b065fb-07ce-461d-b2ea-01510e0bf357",
+      "traceId": "tr_l2d_a2_mv1ure0o",
+      "finalState": "canceled",
+      "liveStepLines": [
+        {
+          "state": "working",
+          "message": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议"
+        }
+      ],
+      "cancelResponse": {
+        "jsonrpc": "2.0",
+        "id": 104,
+        "result": {
+          "kind": "task",
+          "id": "87b065fb-07ce-461d-b2ea-01510e0bf357",
+          "contextId": "b1579772-486c-49da-b74b-69bb4838f907",
+          "status": {
+            "state": "canceled",
+            "timestamp": "2026-10-10T03:46:37.137Z"
+          },
+          "artifacts": [],
+          "history": [
+            {
+              "kind": "message",
+              "role": "user",
+              "messageId": "f627f432-9059-44aa-8f95-707c10c2c78f",
+              "parts": [
+                {
+                  "kind": "text",
+                  "text": "分析 C 盘磁盘空间占用，看看哪些大文件可以清理（只分析，不要删除任何东西）"
+                }
+              ]
+            }
+          ],
+          "metadata": {
+            "traceId": "tr_l2d_a2_mv1ure0o",
+            "maxRisk": "L1"
+          }
+        }
+      },
+      "finalTask": {
+        "kind": "task",
+        "id": "87b065fb-07ce-461d-b2ea-01510e0bf357",
+        "contextId": "b1579772-486c-49da-b74b-69bb4838f907",
+        "status": {
+          "state": "canceled",
+          "timestamp": "2026-10-10T03:46:37.137Z"
+        },
+        "artifacts": [],
+        "history": [
+          {
+            "kind": "message",
+            "role": "user",
+            "messageId": "f627f432-9059-44aa-8f95-707c10c2c78f",
+            "parts": [
+              {
+                "kind": "text",
+                "text": "分析 C 盘磁盘空间占用，看看哪些大文件可以清理（只分析，不要删除任何东西）"
+              }
+            ]
+          }
+        ],
+        "metadata": {
+          "traceId": "tr_l2d_a2_mv1ure0o",
+          "maxRisk": "L1"
+        }
+      },
+      "sseWire": [
+        {
+          "at": "2026-10-10T03:46:35.555Z",
+          "ev": {
+            "kind": "status-update",
+            "taskId": "87b065fb-07ce-461d-b2ea-01510e0bf357",
+            "contextId": "b1579772-486c-49da-b74b-69bb4838f907",
+            "status": {
+              "state": "working",
+              "timestamp": "2026-10-10T03:46:35.125Z",
+              "message": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议"
+            },
+            "final": false
+          }
+        },
+        {
+          "at": "2026-10-10T03:46:37.169Z",
+          "ev": {
+            "kind": "status-update",
+            "taskId": "87b065fb-07ce-461d-b2ea-01510e0bf357",
+            "contextId": "b1579772-486c-49da-b74b-69bb4838f907",
+            "status": {
+              "state": "canceled",
+              "timestamp": "2026-10-10T03:46:37.137Z"
+            },
+            "final": true
+          }
+        }
+      ],
+      "productionHostDelegate": {
+        "state": "canceled",
+        "progress": [],
+        "executedBeforeCancel": null,
+        "summary": "任务已取消（canceled），取消点之前的操作未执行。如需继续，请重新发起并重新确认审批。"
+      },
+      "liveDerive": {
+        "codeSource": "C:/WinVMBridge/packages/host-a2a-bridge/dist/tools.js —— 运行时 indexOf 截取 STEPS_CARRIER_NAME..createA2aBridgeTools 段，new Function 装载（原文逐字，未重写）",
+        "slicedChars": 1292,
+        "sliceHead": "const STEPS_CARRIER_NAME = 'execution-steps';\nconst DETERMINISTIC_STEP_MARK = /^执行\\s+[A-Za-z0-9_.\\-]+\\s*[：:]/;\nfunction deriveExecutedBeforeCancel(artifacts, progress) {\n    let carrier;\n    for (cons",
+        "inputProgressSource": "live 现场：tasks/subscribe SSE 帧 + tasks/get status.message（合并去重，见 liveStepLines）",
+        "inputArtifactsSource": "live 现场：tasks/get 终态 task.artifacts（见 orchestration.finalArtifacts）",
+        "inputs": {
+          "progressCount": 1,
+          "artifactsCount": 0
+        },
+        "executedBeforeCancel": {
+          "steps": 1,
+          "artifacts": 0
+        },
+        "canceledSummaryText": "任务已取消（canceled）；**取消前已有 1 个操作执行、0 个产物**，请逐项核对 artifacts。（如需继续，请重新发起并重新确认审批）"
+      },
+      "verdict": {
+        "productionHostChannelStateful": false,
+        "liveConstructedStatefulDerive": true,
+        "note": "生产 delegate 的 progress 为空 ⇒ wire 上 status.message 为裸字符串、宿主 extractText 只认 Message.parts（既有架构结论的又一次实测）；有态由 A 路取消现场 + A 路生产源码派生成立"
+      },
+      "success": true
+    }
+  },
+  "key_texts": {
+    "canceledSummaryText(derive输出)": "任务已取消（canceled）；**取消前已有 1 个操作执行、0 个产物**，请逐项核对 artifacts。（如需继续，请重新发起并重新确认审批）",
+    "production_delegate_summary(无态态回包)": "任务已取消（canceled），取消点之前的操作未执行。如需继续，请重新发起并重新确认审批。",
+    "step_mark_captured": "执行 storage.cleanup.analyze：分析磁盘占用与清理建议"
+  },
+  "restore": {
+    "method": "cp -p l2d-runtime.json.orig -> delivery/.generated/vm-service.runtime.json; diff=BYTE_IDENTICAL(2867B); kill-restart.ps1",
+    "verify_12s": "provider=workbuddy state=ready authMode=bearer-configured-missing llmSession=starting tasksLive=0 caps=54",
+    "verify_+20s": "provider=workbuddy state=ready authMode=bearer-configured-missing llmSession=ready tasksLive=0 caps=54",
+    "llmSession_note": "starting→ready 为 LLM provider 重启后自然预热（前值 stopped 是空闲回收态），非配置差异；三值指纹全部一致",
+    "residue": "模板2（storage.cleanup.analyze）只读能力无产物；WinVMWorkspace/out 未因本次探针增长；两探针任务随重启出清（tasks/list 空）",
+    "scratch_files_kept": [
+      "C:/WinVMBridge/dev-and-qa/scratch/l2d-{switch,probe}.mjs",
+      "l2d-probe.attempt{1,2}.{out.json,timeline.log}",
+      "l2d-runtime.json.orig（现网态备份，保留）"
+    ]
+  },
+  "local_copies": [
+    "/storage/Users/currentUser/wbtmp/l2d-probe.attempt1.out.json",
+    "/storage/Users/currentUser/wbtmp/l2d-probe.attempt2.out.json",
+    "/storage/Users/currentUser/wbtmp/l2d-probe.attempt1.timeline.log",
+    "/storage/Users/currentUser/wbtmp/l2d-probe.attempt2.timeline.log",
+    "/storage/Users/currentUser/wbtmp/l2d-probe.mjs",
+    "/storage/Users/currentUser/wbtmp/l2d-switch.mjs",
+    "/storage/Users/currentUser/wbtmp/l2d-timeline.log"
+  ]
+}
