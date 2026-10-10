@@ -753,8 +753,10 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   /* ---- 审批闸登记（MCP 侧） ----
    * ENG-01（§7.2 区 3）：裸 Map ⇒ **有界登记表**。TTL 复用既有旋钮
    * `WINVM_APPROVAL_TTL_MS`（`resolveApprovalTtlMs()`），与 A2A 审批等待（下方 TaskStore
-   * 的默认 TTL）**同一旋钮、同一语义** —— 不新造同义 env 旋钮（§8 硬纪律），也不用
-   * `policy.approvalTimeoutMs`（默认 120s 远短于人工审批等待，§5 第 1 条已登记为死字段）。
+   * 的默认 TTL）**同一旋钮、同一语义** —— 不新造同义 env 旋钮（§8 硬纪律）。
+   * 策略表里**没有**第二个审批超时旋钮可言：曾与本旋钮并提的那个默认 120s 零消费
+   * 死字段已随 Phase 2 · P2-T2 删除（旧键写在配置文件里只会被 `validateServiceConfig`
+   * 告警并忽略，不会生效）。
    * `PendingApprovalRegistry` 实现窄 Map 面 ⇒ 下方三处调用点（`set`/`get`/`delete`）与
    * `collectApprovalFacts(ReadonlyMap)` 形参**签名与文本逐字不变**。
    */
@@ -1387,9 +1389,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   /* ---- ENG-01（判据⑥）：MCP 续跑令牌表的 TTL 清扫器 ----
    *
    * `WINVM_APPROVAL_TTL_MS`（`resolveApprovalTtlMs()`，缺省 30 分钟）—— 与 A2A 审批
-   * 等待**同一旋钮、同一语义**；不新造 env 名（§8 硬纪律），也不用
-   * `policy.approvalTimeoutMs`（120s 死字段，语义是"人工审批等待"，会在真人反应之前
-   * 批量误逐 —— 设计 §5 第 1 条）。
+   * 等待**同一旋钮、同一语义**；不新造 env 名（§8 硬纪律），策略面亦无第二个超时
+   * 字段 —— 那个默认 120s、零消费、会在真人反应之前批量误逐的死字段已在
+   * Phase 2 · P2-T2 删除（设计 §5 第 1 条登记的正是它）。
    *
    * 被逐条目的取证落点 = `timeout` 决策（actor `'mcp-ttl-sweep'`），使"令牌消失"
    * 这件事在链上可归因；否则只有 logger 一行，宿主侧「我申请的审批呢」无从查证。

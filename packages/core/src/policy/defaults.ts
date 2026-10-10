@@ -30,8 +30,6 @@ export interface PolicyConfig {
   readonly registryReadAllowlist: readonly string[];
   /** 委派默认最高风险 */
   readonly defaultMaxRisk: RiskLevel;
-  /** 审批超时（毫秒）。超时按拒绝处理（fail-closed）。 */
-  readonly approvalTimeoutMs: number;
   /** 网络端点白名单（HTTP 模式下生效） */
   readonly endpointAllowlist?: readonly string[];
 }
@@ -136,7 +134,6 @@ export const DEFAULT_POLICY: PolicyConfig = {
   ],
 
   defaultMaxRisk: 'L1',
-  approvalTimeoutMs: 120_000,
 };
 
 /** 合并用户配置与默认配置：数组字段做并集，标量字段用户优先 */
@@ -153,7 +150,6 @@ export function mergePolicy(base: PolicyConfig, override?: Partial<PolicyConfig>
     registryWriteAllowlist: union(base.registryWriteAllowlist, override.registryWriteAllowlist),
     registryReadAllowlist: union(base.registryReadAllowlist, override.registryReadAllowlist),
     defaultMaxRisk: override.defaultMaxRisk ?? base.defaultMaxRisk,
-    approvalTimeoutMs: override.approvalTimeoutMs ?? base.approvalTimeoutMs,
     ...(override.endpointAllowlist !== undefined
       ? { endpointAllowlist: override.endpointAllowlist }
       : base.endpointAllowlist !== undefined

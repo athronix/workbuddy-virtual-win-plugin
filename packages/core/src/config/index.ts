@@ -303,6 +303,24 @@ export function validateServiceConfig(cfg: ServiceConfig, env: EnvView = process
     warnings.push(`session.probeIntervalMs=${cfg.session.probeIntervalMs} 过小，建议 ≥5000`);
   }
 
+  /* ---- P2-T2 · F1 死字段删除族：旧键必须**显形**而非静默失效 ----
+   *
+   * `policy.approvalTimeoutMs` 已从 `PolicyConfig` 删除（三处定义、全仓零运行期消费；
+   * 审批等待的真实 TTL 由 env 旋钮 `WINVM_APPROVAL_TTL_MS` 承担 —— SECURITY §3.4、设计 §1.2）。
+   * 删除属**破坏性契约变更**：既有配置文件仍可解析（`loadServiceConfig` 对 `parsed.policy`
+   * 原样透传 ⇒ 旧键在 `cfg.policy` 上以 `in` 可检出，类型删除不影响运行期检出），
+   * 但绝不能"配了却不生效还不吭声"（假安全感，与 ARCH-18 删命令白名单同款病灶）。
+   * 判据（PR2）：**配置含旧键 ⇒ warnings 恰一条、errors 零条**，不拒绝启动。
+   */
+  const legacyPolicy = cfg.policy as Record<string, unknown> | undefined;
+  if (legacyPolicy && typeof legacyPolicy === 'object' && 'approvalTimeoutMs' in legacyPolicy) {
+    warnings.push(
+      `policy.approvalTimeoutMs 已随 Phase 2 · P2-T2 删除（历史死字段：引擎与审批闸从未读取它，` +
+        `默认 120s 也远短于真人审批等待）；审批等待的真实 TTL 由环境变量 WINVM_APPROVAL_TTL_MS 决定` +
+        `（缺省 30 分钟）。本键已被忽略、不会生效，请从配置文件删除（SECURITY-GOVERNANCE §3.2/§3.4）。`,
+    );
+  }
+
   return { errors, warnings };
 }
 

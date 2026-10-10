@@ -127,12 +127,13 @@
 | 删除默认行为 | 进回收站（除非显式 `--permanent` + 已审批） |
 | L2/L3 是否强制快照 | 是（before/after） |
 
-**四条必须知道的口径**：
+**五条必须知道的口径**：
 
 1. **路径白名单里没有 `C:\Users\**`**。旧写法覆盖全体账户，而 `storage.file.read` 是 **L0 免审批** ⇒ 跨账户桌面/下载在策略层被直接放行，与本节历史承诺的 `C:\Users\<vmuser>\**` 不符。ARCH-17 已收紧为 `%USERPROFILE%\**`；**跨账户访问恒 DENY**（`matchedRule:'pathAllowlist:miss'`），确有需要由运维显式追加。
 2. **占位符在模式侧运行时展开**（`engine.ts` 的 `expandPolicyPathPattern`，先展开后归一，与 config 层 audit/log/outputDir 共用同一份 `expandEnvPath`）。env 缺席时占位符**保持字面原样** ⇒ 该条目永不匹配 ⇒ 绝对路径一律 DENY —— 方向是 fail-closed：非 Windows/离线环境只会更严，不会误放。附带修复：`appops.cli.invoke` 的 `outputDir: %USERPROFILE%\...` 此前因模式未展开而**恒不匹配**。
 3. **命令面只有黑名单**（ARCH-18）。`commandAllowlist` 已从契约 `CapabilityPolicy`、`PolicyConfig`、`capability.schema.json` 三处同批删除（它从未被引擎读取，唯一写入点亦已移除）。⚠ **`capability.schema.json` 的 `policy.additionalProperties === false` ⇒ 旧配置若仍写 `commandAllowlist` 会被 schema 直接拒绝（不是静默忽略）**——**拒止兑现面（Phase 2 · P2-T1 起）**：该 schema 已被**交付面校验**消费——`packages/contracts/src/schema-check.ts` 的 `validateCapabilityShape` 以 schema JSON 为判据源，`tests/unit/phase2-contract-schema.test.js` 对注册表全量能力逐条校验并另有 schema↔`CAPABILITY_DOMAINS` 漂移守卫（本条承诺的拒绝行为有 `policy.additionalProperties=false` 用例逐字自证）；**运行实例仍不校验能力定义**（用户裁决 Q1=(b)：能力定义源自代码内常量，运行期校验只在校验自己编译出来的东西，增益≈0 且给启动加风险面）⇒ 升级前删该键仍是**运维必做动作**——红的是测试/门禁，不是运行期报错。解释器约束由 `appops.cli.invoke` 的 `input.app` 枚举 + `validateParams`（早于执行）承担。
 4. **注册表写/读两表必须成对存在**。历史上写表是死配置（`isWrite` 要求动词两侧都有点，真实 ID `system.registry.write` 末段无尾点 ⇒ 恒 false ⇒ 写请求一直按读表判定）。修 `isWrite` 与补写表**必须同 commit**，否则会把「`HKLM:\SOFTWARE` 写入走 L2 审批」这条 SKILL.md 明文承诺的流程直接封死 —— 白名单 miss 发生在审批闸**之前**，miss = 硬 DENY 而非转"需批准"。
+5. **策略表里没有任何"超时"字段**（Phase 2 · P2-T2）。历史的 `approvalTimeoutMs` 与本节第 3 条被删的 `commandAllowlist` 是同款病灶（"配了却不生效"的假安全感），已连同默认值（`DEFAULT_POLICY`）与合并逻辑（`mergePolicy`）一并删除；`AgentCard.signature`（JWS 签名卡）同批删除（仅剩类型声明、全仓零实现）。旧配置键不会静默失效 —— `validateServiceConfig` 对 `policy.approvalTimeoutMs` 给出**恰一条**告警（不阻断启动，判据钉在 `tests/unit/phase2-dead-config.test.js`）；契约面删除经 `tsc -b` 全量编译自证无残余引用。
 
 
 ### 3.3 审批闸
@@ -168,7 +169,7 @@
 > 本条是对体检 U-P0-3（原报 P0、取证后降 P1 高，架构审计 ARCH-02）的裁决落地：
 > 旧实现**只**判 `req.params['dryRun'] === true` 即放行 L2/L3，与本节第 1 条红线**文本直接冲突**且无裁决依据。
 > 若某天决定彻底删除该通道，应同时删除 `supportsDryRun` 声明位与本小节，并把第 1 条红线恢复为绝对表述。
-- ✅ 审批超时默认**拒绝**（fail-closed）。**成立方式**：未获批准一律**不执行**（MCP 侧未携带有效 `approvalId` 的 L2/L3 请求永远返回 `APPROVAL_REQUIRED`；A2A 侧任务挂起至 TTL 到期即落 `timeout` 决策）。**Phase 1 现状**：两条 TTL 回收均已实现 —— A2A 审批等待由 `task-store.waitApproval` 按 `WINVM_APPROVAL_TTL_MS`（默认 30 分钟）计时；MCP 侧待批令牌由 `PendingApprovalRegistry.sweepExpired()` 定时清扫（同一 env 旋钮，**不新造同义配置**；`policy.approvalTimeoutMs` 为历史死字段，见 §3.2）。超时/拒绝/取消三种否定决策均入链（`ext.kind:'approval-decision'`），不得折叠为"未批准"。
+- ✅ 审批超时默认**拒绝**（fail-closed）。**成立方式**：未获批准一律**不执行**（MCP 侧未携带有效 `approvalId` 的 L2/L3 请求永远返回 `APPROVAL_REQUIRED`；A2A 侧任务挂起至 TTL 到期即落 `timeout` 决策）。**Phase 1 现状**：两条 TTL 回收均已实现 —— A2A 审批等待由 `task-store.waitApproval` 按 `WINVM_APPROVAL_TTL_MS`（默认 30 分钟）计时；MCP 侧待批令牌由 `PendingApprovalRegistry.sweepExpired()` 定时清扫（同一 env 旋钮，**不新造同义配置**）。**Phase 2 · P2-T2 现状**：曾与本旋钮并提的 `policy.approvalTimeoutMs`（默认 120s、引擎与审批闸全仓零消费的**历史死字段**）已从 `PolicyConfig` / `DEFAULT_POLICY` / `mergePolicy` **三处删除** —— 删除属破坏性契约变更，故 `validateServiceConfig` 对旧配置键**显式告警而非静默忽略**（含旧键 ⇒ warnings 恰一条、不阻断启动；判据钉在 `tests/unit/phase2-dead-config.test.js`）。超时/拒绝/取消三种否定决策均入链（`ext.kind:'approval-decision'`），不得折叠为"未批准"。
 - ✅ provider 异常时服务降级为仅 `meta.*`，**绝不降级为无限制执行**
 
 ---

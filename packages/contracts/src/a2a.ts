@@ -155,8 +155,6 @@ export interface AgentCard {
   readonly skills: readonly AgentSkill[];
   readonly securitySchemes?: Readonly<Record<string, Record<string, unknown>>>;
   readonly security?: readonly Record<string, string[]>[];
-  /** v1.0 签名卡（JWS / Ed25519 / RFC 8785 JCS）；未签名时省略 */
-  readonly signature?: string;
 }
 
 /* ------------------------------ JSON-RPC ------------------------------ */
