@@ -66,6 +66,23 @@
 | self-test（含 provider 目录） | ✅ 默认 + `workbuddy` + `hermes-agent` LLM 均打印并校验 provider 能力目录，`/health` 报告 `provider.id` 正确 |
 | 共享 Skills 部署 dry-run | ✅ 发布 7 技能 + 为 workbuddy/hermes-agent 建 symlink 规划（不写盘、不触碰只读 hermes 目录） |
 
+### 4b. 测试范式：「直连 dist」而非「为测试扩公共面」
+
+包内私有机器（如 `bridge.ts` 的 `launchCliProcess` / `reconcileApprovalWait`）在
+`bridge.ts` 上 `export`，但**不**进 `src/index.ts` 的公共 re-export —— 因为扩公共面属
+**契约动作**（透出即承诺长期兼容，将来删除即破坏性变更，须走评审）。单测要直接验这些
+内部判定时，取用方式是**import 构建产物**，统一经 `tests/helpers/bridge-internals.mjs`
+的 `loadBridgeInternals()` / `loadDeterministicProvider()`（Phase 1 观察项 O-3 →
+Phase 2 P2-T10 落地；先例 `cl020-f2-*`、`phase1-t5-*`）。
+
+五条约定（权威表述见 `.workbuddy/README.md` §2b）：**① 先 `tsc -b tsconfig.build.json` 再跑**（helper 读的是 `dist/`，缺失时报错
+会直接给出该执行的命令）；**② 只读内部面做直接单测**，不得借此要求公共面导出某名字；
+**③ 带副作用的内部函数**（spawn 类）须由用例注入假时钟/假 spawn 后才可用；
+**④ 源码文本守卫 src 与 dist 两侧同时钉**（防「源码对、产物错」）；
+**⑤ 在包内函数声明行加 `export` 不等于扩公共面** —— 判据是它进不进 `src/index.ts` 的
+re-export（P2-T10 的 `reconcileApprovalWait` 不进 ⇒ 对外契约面零变化）。
+样板：`phase2-approval-wait-fallback.test.js`、`phase2-contract-code-fidelity.test.js`。
+
 ---
 
 ## 五、交付物清单

@@ -629,7 +629,28 @@ export function isFatalRuntimeStderr(stderr: string): boolean {
  * 规则：最终文本命中 `APPROVAL_REQUIRED`（或 LLM 明示「等待审批」）时，结果改为
  * `ok=false`、状态语义为「等待审批」，并把 approvalId（若能从文本中提取）透传给宿主。
  */
-const APPROVAL_WAIT_PATTERN = /APPROVAL_REQUIRED|等待审批/;
+/**
+ * 「等待审批」关键词集合（K3-C4 · P2-T10：由散写在正则字面量里的两个关键词**常量化**）。
+ *
+ * 行为**逐字不变**：`buildApprovalWaitPattern()` 按数组顺序用 `|` 拼接，
+ * 得到与旧字面量 `/APPROVAL_REQUIRED|等待审批/` 完全等价的源文本（无 `g` 标志、
+ * 无分组、两词都不需转义 ⇒ 无正则语义差异）。常量化只是为了让「兜底在哪些措辞下
+ * 改判」可被直接单测枚举（`tests/unit/phase2-approval-wait-fallback.test.js`
+ * 判据 a），而不是让测试再去解析正则字面量。
+ *
+ * 边界（诚实登记，判据 b）：本集合是**关键词启发式**，只覆盖「LLM 原样回显错误码」
+ * 与「中文直说等待审批」两种形态；同义改写（如「已提交审批，请人工确认」）
+ * **不命中** ⇒ 漏判风险由 CL-K3R 的服务端结构化反查（`reconcileApprovalTruth`）
+ * 承担，本兜底降为第二道闸。新增关键词时请同时补该测试文件的命中/不命中样本。
+ */
+const APPROVAL_WAIT_KEYWORDS: readonly string[] = ['APPROVAL_REQUIRED', '等待审批'];
+
+/** 由关键词集合构造匹配模式（与历史字面量等价，见上方注释） */
+function buildApprovalWaitPattern(): RegExp {
+  return new RegExp(APPROVAL_WAIT_KEYWORDS.join('|'));
+}
+
+const APPROVAL_WAIT_PATTERN: RegExp = buildApprovalWaitPattern();
 
 /** 从 LLM 文本中提取审批 ID（`apr_...` 形态，见 vm-service newId('apr')） */
 function extractApprovalId(text: string): string | undefined {
@@ -673,8 +694,15 @@ export { COMPLETION_CLAIM_PATTERN } from './delegation-truth.js';
  * 桥在收口点把它作为**依赖注入**传给 `delegation-truth.ts` 的 `reconcileApprovalTruth`
  * （并在模块加载时注册为默认兜底，见本文件顶部 `registerApprovalWaitFallback`）——
  * 单向依赖 `bridge → delegation-truth` 保持不变，包内无静态环。
+ *
+ * P2-T10（K3-C4）：加 `export` 关键字**仅供包内单测直连 `dist/bridge.js` 取用**
+ * （范式见 `tests/helpers/bridge-internals.mjs` / O-3：不为测试扩 `src/index.ts`
+ * 公共导出面）。这是**声明行上的附加标记**，函数体与文案**仍一字未改**（SK-9 约束
+ * 的对象是判定逻辑与回包文案）；与同文件既有包内导出 `launchCliProcess` /
+ * `isFatalRuntimeStderr` 同族。它**不**出现在 `src/index.ts` 的 re-export 里 ⇒
+ * 对外契约面零变化。
  */
-function reconcileApprovalWait(base: LlmGoalResult, finalText: string): LlmGoalResult {
+export function reconcileApprovalWait(base: LlmGoalResult, finalText: string): LlmGoalResult {
   if (!APPROVAL_WAIT_PATTERN.test(finalText)) return base;
   const parsed = parseApprovalBlock(finalText);
   return {

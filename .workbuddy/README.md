@@ -103,6 +103,51 @@ README.md（本文件）           ← 你已经在这
 | **原子提交** | 一个逻辑改动一次提交；message 用 Write 写文件 + `git commit -F` |
 | **同步 `.dev/` 六索引** | 每轮收尾更新 changed-log / docs-index / project-dev-status / project-dir-file-index |
 | **诚实输出** | 宁可报真实错误，也不要「假阳性 ✅」 |
+| **测试直连 dist** | 验包内私有机器时 import 构建产物，**不为测试扩公共导出面**（见 §2b） |
+
+### 2b. 「测试直连 dist」范式（Phase 1 观察项 O-3 → Phase 2 P2-T10 落地）
+
+**要解决的问题**：一批**包内**机器（`adapter-agent-workbuddy-llm/src/bridge.ts` 的
+`launchCliProcess` / `isFatalRuntimeStderr` / `renderCliArgs` / `reconcileApprovalWait` …）
+在 `bridge.ts` 上 `export`（供包内模块与单测取用），但**不**出现在 `src/index.ts` 的公共
+re-export 里。Phase 1 T5 曾为了让单测拿到 `launchCliProcess` 而
+`import { launchCliProcess } from '@winvm/adapter-agent-workbuddy-llm'` ⇒ 该名字不在
+公共面 ⇒ **整个测试文件 `SyntaxError`**（CL-022 缺陷记录第 5 条）。
+
+**本项目的解法**：**不为测试扩包公共导出面**，改为让测试直连构建产物。三条理由——
+①「透出公共面」是**契约动作**（透出即承诺长期兼容，将来删除即破坏性变更），须走契约评审；
+②`launchCliProcess` 是执行体内部机器，外部消费者不该依赖它；
+③真正的债不是「访问不到」，而是「范式没写下来」——不写下来，每个新工程师都会先撞一次
+`SyntaxError`。先例：`cl020-f2-*`、`phase1-t5-*` 本就是同范式直连 dist。
+
+**统一入口**（禁止各测试文件再手写相对路径）：
+
+```js
+import { loadBridgeInternals, loadDeterministicProvider, repoPath } from '../helpers/bridge-internals.mjs';
+
+const { reconcileApprovalWait } = await loadBridgeInternals();   // dist/bridge.js 的包内导出
+const { createProvider } = await loadDeterministicProvider();    // adapter-agent-workbuddy/dist/index.js
+const src = readFileSync(repoPath('packages', 'vm-service', 'src', 'server.ts'), 'utf8'); // 源码文本守卫
+```
+
+**五条硬约定**（缺一即范式失效）：
+
+1. **先 build 再跑**：helper import 的是 `dist/`，跑任何读 dist 的用例前必须
+   `./node_modules/.bin/tsc -b tsconfig.build.json`（与项目「先 build 后 test」顺序一致）。
+   dist 缺失时 helper 抛**带修复命令**的错误文案，而不是裸 `ERR_MODULE_NOT_FOUND`。
+2. **只读内部面做直接单测**，不得借它断言「公共面应当包含 X」——那是扩面诉求，须走评审。
+3. **带副作用的内部函数**（`launchCliProcess` 会真 spawn）必须由用例自己注入假时钟/假 spawn
+   后才可使用。
+4. **源码文本守卫同时钉 src 与 dist 两侧**（防「源码对、产物错」），路径统一经 `repoPath()` 拼。
+5. **「加 `export` 标记」≠「扩公共面」**：为了让单测够到某个包内函数而在**其声明行**加 `export`
+   （P2-T10 的 `reconcileApprovalWait` 即此）不违反本范式 —— 判据是它**进不进 `src/index.ts`
+   的 re-export**：不进 ⇒ 对外契约面零变化，仍是包内机器（与 `launchCliProcess` /
+   `isFatalRuntimeStderr` 同族先例）。该函数若另有「一字不改」类约束（如 SK-9 对
+   `reconcileApprovalWait` 判定逻辑与回包文案的约束），只约束**函数体与文案**，
+   不禁止声明行加标记；改动此类函数时请在回报里单列这一解读，别默认评审者认同。
+
+落地样板：`tests/unit/phase2-approval-wait-fallback.test.js`（包内私有函数的直接单测）、
+`tests/unit/phase2-contract-code-fidelity.test.js`（src↔dist 双侧静态守卫）。
 
 ### 3. 动手前：先确认环境基线
 

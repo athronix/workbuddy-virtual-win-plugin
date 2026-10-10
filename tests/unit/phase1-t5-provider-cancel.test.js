@@ -10,10 +10,11 @@
  *   B. 取消收口的契约形状：`ok:false` + `error.code==='TASK_CANCELED'` +
  *      `retryable===false` + **不写 `goalSummary/stepCount` 类推断**（文案只报可证事实）。
  *   C. 安全红线：取消**绝不得**折叠成 `EXECUTION_FAILED` ——
- *      `adapter-agent-workbuddy-llm/src/index.ts:437-442` 的 `shouldDegrade` 会把
+ *      `adapter-agent-workbuddy-llm/src/index.ts` 的 `shouldDegrade` 会把
  *      「EXECUTION_FAILED 且零 artifact」判定为可降级并**回落确定性执行器重跑**，
  *      等于把用户已叫停的任务再执行一遍。本文件末尾用真实导出面（`WorkbuddyLlmProvider`）
- *      端到端证伪这条路径。
+ *      端到端证伪这条路径。（行号有意不写：`shouldDegrade` 在 P2-T10 同批改动中位置会变，
+ *      钉行号即脆断言 —— 该函数的行为由本文件 + `phase2-contract-code-fidelity.test.js` 守护。）
  *
  * 纪律：不碰 VM / PowerShell / HTTP；import 构建产物（与 `cl020-f2-*` 同风格，
  *       跑测前须 `tsc -b tsconfig.build.json --force`，T4 移交第 D-28 条）。
@@ -217,7 +218,7 @@ describe('T5 判据① 取消收口的契约形状', () => {
     assert.equal(bridge.counts['system/Get-SystemInfo'], 1);
   });
 
-  test('非取消失败仍走 goalFail（EXECUTION_FAILED）—— 取消改造未改写既有失败语义', async () => {
+  test('非取消失败走 goalFail 并**保住来路契约码**（POLICY_DENIED 不再被折叠）', async () => {
     const gate = makeCancelController(999);
     const bridge = makeBridge(gate);
     const ctx = makeCtx(bridge);
@@ -231,12 +232,35 @@ describe('T5 判据① 取消收口的契约形状', () => {
       { onStatus: () => {}, onArtifact: () => {}, isCancelled: () => gate.cancelRequested() },
     );
     assert.equal(result.ok, false);
-    // 既有形状（本次未改）：`step()` 只把 `res.error.message` 上抛为字符串，模板层用
-    // `goalFail(...)` 统一包成 EXECUTION_FAILED ⇒ execute 内的 POLICY_DENIED 码在模板路径
-    // 上会被折叠。这属 T5 范围外的既有行为，本用例只钉「取消改造没有改写非取消失败分支」，
-    // 并把它登记为观察项（notes §观察 O-1，供后续批次决定是否让 step() 保留契约码）。
-    assert.equal(result.error.code, 'EXECUTION_FAILED');
-    assert.match(result.error.message, /被策略拒绝/, '既有折叠：模板层用 res.error.message 组 EXECUTION_FAILED（本次未改）');
+    // P2-T10（O-1）改写了本用例的期望值：旧实现 `step()` 只把 `res.error.message` 上抛为
+    // 字符串，模板层统一包成 EXECUTION_FAILED ⇒ execute 内的 POLICY_DENIED 在模板路径上
+    // 被折叠（当时登记为观察项 O-1）。现 `step()` 结构化透传 `BridgeError`、`goalFail()`
+    // 沿用来路码 ⇒ 策略硬拒以 **POLICY_DENIED** 收口，`retryable:false` 由
+    // `DEFAULT_RETRYABLE` 决定（不可自动重试）。折叠形态的钉法见本文件头注释与
+    // `phase2-contract-code-fidelity.test.js`（保码 + 降级边界双向守卫）。
+    assert.equal(result.error.code, 'POLICY_DENIED', '★ O-1 保码：策略硬拒不得再看起来像执行失败');
+    assert.equal(result.error.retryable, false, 'POLICY_DENIED 默认不可重试（重跑等于绕闸）');
+    assert.match(result.error.message, /被策略拒绝/, 'summary/message 仍携带上游可读文案');
+    assert.match(result.summary, /分析失败/, '模板层文案形状不变（仅码保真）');
+    await p.shutdown().catch(() => undefined);
+  });
+
+  test('模板业务判定（上游无码）仍折叠为 EXECUTION_FAILED —— 兜底语义未变', async () => {
+    // 与上一条互为对照：只有**上游带来错误**时才沿用其码；模板自身业务结论
+    // （未找到匹配包）无来路码 ⇒ 仍 `EXECUTION_FAILED`，逐字等于旧行为。
+    // 价值：证明保码不是「把所有失败都改成 POLICY_DENIED」的空改。
+    const bridge = makeBridge(null);
+    bridge.call = async (module, fn) => (module === 'app' && fn === 'Search-Winget' ? [] : {});
+    const p = createDeterministic();
+    await p.init(makeCtx(bridge));
+    const result = await p.runGoal(
+      { traceId: TRACE, goal: '安装 NoSuchPkg 应用', timeoutMs: 30_000 },
+      { onStatus: () => {}, onArtifact: () => {} },
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.error.code, 'EXECUTION_FAILED', '无来路码 ⇒ 兜底仍 EXECUTION_FAILED');
+    assert.equal(result.error.reason, undefined, '兜底不得凭空造 reason');
+    assert.match(result.error.message, /未找到与/);
     await p.shutdown().catch(() => undefined);
   });
 

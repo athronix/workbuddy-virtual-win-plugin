@@ -18,6 +18,7 @@ import {
   type GoalStep,
   type HealthStatus,
   type ProgressSink,
+  type BridgeError,
   makeError,
   riskAtLeast,
 } from '@winvm/contracts';
@@ -410,9 +411,12 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       capabilityId: string,
       params: Record<string, unknown>,
       summary: string,
-    ): Promise<{ ok: boolean; data?: unknown; error?: string; canceled?: boolean }> => {
+    ): Promise<{ ok: boolean; data?: unknown; error?: BridgeError; canceled?: boolean }> => {
       if (sink.isCancelled?.() === true) {
-        return { ok: false, canceled: true, error: '任务已取消，未发起该能力调用' };
+        // O-1（P2-T10）：哨兵也走结构化 `BridgeError`（与 `goalCanceled()` 同族契约码
+        // `TASK_CANCELED`）。旧实现返回裸字符串，模板层因此无法区分「取消」与「失败」以外的
+        // 任何原因码 —— 保持码形一致才能让 step() 的两条出口共用同一透传规则。
+        return { ok: false, canceled: true, error: makeError('TASK_CANCELED', '任务已取消，未发起该能力调用') };
       }
       const traceId = newTraceId();
       sink.onStatus('working', `执行 ${capabilityId}：${summary}`);
@@ -446,13 +450,18 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       // 因此本地的产物数可以大于宿主观测到的产物数，这是设计意图而非缺陷。
       if (sink.isCancelled?.() === true) {
         for (const a of res.artifacts ?? []) artifacts.push(a);
-        return { ok: res.ok, canceled: true, data: res.data, ...(res.error ? { error: res.error.message } : {}) };
+        // O-1（P2-T10）：旧实现 `res.error.message` 把 `BridgeError` 折叠成字符串，
+        // `code` / `reason` 在模板路径上消失 ⇒ POLICY_DENIED / APPROVAL_REQUIRED /
+        // SESSION_UNAVAILABLE 三码不可见，LLM 层 `shouldDegrade` 会把策略硬拒当「运行时
+        // 不可用」降级重跑。此处起改为**结构化透传**（零契约变更：`GoalStep.error`
+        // 本就是 `BridgeError`，step() 的 `error` 是其本地内联类型）。
+        return { ok: res.ok, canceled: true, data: res.data, ...(res.error ? { error: res.error } : {}) };
       }
       for (const a of res.artifacts ?? []) {
         artifacts.push(a);
         sink.onArtifact(a);
       }
-      return { ok: res.ok, data: res.data, ...(res.error ? { error: res.error.message } : {}) };
+      return { ok: res.ok, data: res.data, ...(res.error ? { error: res.error } : {}) };
     };
 
     /**
@@ -469,7 +478,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       const query = installMatch[1]!.trim();
       const found = await step('app.winget.search', { query, limit: 5 }, `搜索「${query}」`);
       if (found.canceled) return canceledReturn();
-      if (!found.ok) return this.goalFail(steps, artifacts, `搜索失败：${found.error ?? '未知原因'}`, started);
+      if (!found.ok) return this.goalFail(steps, artifacts, `搜索失败：${found.error?.message ?? '未知原因'}`, started, found.error);
 
       const list = (found.data as Array<{ id?: string; name?: string }> | undefined) ?? [];
       if (list.length === 0) {
@@ -483,10 +492,10 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       if (installed.canceled) return canceledReturn();
       return {
         ok: installed.ok,
-        summary: installed.ok ? `已安装 ${target}` : `安装失败：${installed.error ?? '未知原因'}`,
+        summary: installed.ok ? `已安装 ${target}` : `安装失败：${installed.error?.message ?? '未知原因'}`,
         artifacts,
         steps,
-        ...(installed.ok ? {} : { error: makeError('EXECUTION_FAILED', installed.error ?? '安装失败') }),
+        ...(installed.ok ? {} : { error: this.templateError(installed.error, installed.error?.message ?? '安装失败') }),
       };
     }
 
@@ -498,10 +507,10 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         ok: r.ok,
         summary: r.ok
           ? '已完成磁盘分析并给出建议（**未执行任何删除**）。如需删除，请明确指定路径并逐项走审批。'
-          : `分析失败：${r.error ?? '未知原因'}`,
+          : `分析失败：${r.error?.message ?? '未知原因'}`,
         artifacts,
         steps,
-        ...(r.ok ? {} : { error: makeError('EXECUTION_FAILED', r.error ?? '分析失败') }),
+        ...(r.ok ? {} : { error: this.templateError(r.error, r.error?.message ?? '分析失败') }),
       };
     }
 
@@ -511,10 +520,10 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       if (r.canceled) return canceledReturn();
       return {
         ok: r.ok,
-        summary: r.ok ? '已获取系统信息' : `获取失败：${r.error ?? '未知原因'}`,
+        summary: r.ok ? '已获取系统信息' : `获取失败：${r.error?.message ?? '未知原因'}`,
         artifacts,
         steps,
-        ...(r.ok ? {} : { error: makeError('EXECUTION_FAILED', r.error ?? '获取失败') }),
+        ...(r.ok ? {} : { error: this.templateError(r.error, r.error?.message ?? '获取失败') }),
       };
     }
 
@@ -524,10 +533,10 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
       if (r.canceled) return canceledReturn();
       return {
         ok: r.ok,
-        summary: r.ok ? '已截取当前屏幕（见 artifact）' : `截图失败：${r.error ?? '未知原因'}`,
+        summary: r.ok ? '已截取当前屏幕（见 artifact）' : `截图失败：${r.error?.message ?? '未知原因'}`,
         artifacts,
         steps,
-        ...(r.ok ? {} : { error: makeError('EXECUTION_FAILED', r.error ?? '截图失败') }),
+        ...(r.ok ? {} : { error: this.templateError(r.error, r.error?.message ?? '截图失败') }),
       };
     }
 
@@ -559,7 +568,10 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         };
       }
       // 工作流未登记：明确引导（不硬猜、不伪造）
-      const msg = (r.error ?? '工作流未找到') as string;
+      // O-1：step() 起为结构化 `BridgeError`，文案侧取 `.message`（旧实现是 `as string` 断言）。
+      // 收口码仍固定 `UNSUPPORTED_GOAL`（本模板的业务结论是「确定性执行器没有这条工作流」，
+      // 与上游来路码无关；且该码不在 `shouldDegrade` 触发集内，不存在降级重跑风险）。
+      const msg = r.error?.message ?? '工作流未找到';
       return {
         ok: false,
         summary:
@@ -987,14 +999,45 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     artifacts: Artifact[],
     summary: string,
     started: number,
+    stepError?: BridgeError,
   ): GoalResult {
     return {
       ok: false,
       summary: `${summary}（耗时 ${Date.now() - started}ms）`,
       artifacts,
       steps,
-      error: makeError('EXECUTION_FAILED', summary),
+      error: this.templateError(stepError, summary),
     };
+  }
+
+  /**
+   * 模板失败收口的契约码（**O-1 · P2-T10**）。
+   *
+   * 旧形状：四个模板内联 `makeError('EXECUTION_FAILED', <上游 .message>)` + `goalFail`
+   * 一律 `makeError('EXECUTION_FAILED', summary)` —— 上游 `execute()` 已经算好的
+   * `POLICY_DENIED` / `APPROVAL_REQUIRED` / `SESSION_UNAVAILABLE` 等码在这里被压平
+   * （丢码现场是 `step()` 的 `.message` 折叠，压平是它的下游后果）。
+   *
+   * 现形状：**上游有码 ⇒ 沿用来路码**，`reason` / `details` 保真透传，`retryable`
+   * 沿用来路值（来路已显式覆写的 —— 如并发闸门把 TIMEOUT 置 true —— 不得被本层改写；
+   * 未覆写时由 `DEFAULT_RETRYABLE` 按码给出）。
+   * `message` 参数**由调用方按旧实现逐字传入**（模板内联传上游 message、`goalFail`
+   * 传合成 summary），因此本批只改码与原因面，**宿主可读文案零漂移**。
+   * 上游无码（模板自身的业务判定，如「未找到匹配的包」）⇒ 仍 `EXECUTION_FAILED` 兜底，
+   * 与旧行为**逐字一致**。
+   *
+   * 为什么必须保码（安全性质）：`WorkbuddyLlmProvider.shouldDegrade` 把
+   * 「`EXECUTION_FAILED` 且零 artifact」判定为「LLM 运行时不可用」并回落确定性执行器**重跑**。
+   * 策略硬拒零产物 ⇒ 折叠后即命中该判据 ⇒ 被拦截的写操作绕过审批闸再执行一遍。
+   * 与 `shouldDegrade` 的排除判据属**同批原子改**，两者缺一即保码无效。
+   */
+  private templateError(stepError: BridgeError | undefined, message: string): BridgeError {
+    if (!stepError) return makeError('EXECUTION_FAILED', message);
+    return makeError(stepError.code, message, {
+      retryable: stepError.retryable,
+      ...(stepError.reason !== undefined ? { reason: stepError.reason } : {}),
+      ...(stepError.details !== undefined ? { details: stepError.details } : {}),
+    });
   }
 
   /**

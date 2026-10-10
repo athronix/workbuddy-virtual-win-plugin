@@ -45,6 +45,32 @@ export const PROVIDER_ID = 'workbuddy';
 export const LLM_SESSION_WARMUP_GOAL =
   'Reply with exactly the single word OK and perform no other actions.';
 
+/**
+ * **不降级**的契约码 / 领域原因码集合（P2-T10，与确定性执行体 `step()` 保码同批）。
+ *
+ * 语义：**「按规则不该执行」的终态结论**。这类码是策略闸、审批闸、会话闸或用户意志的
+ * 结果，不是运行时故障 —— 回落确定性执行器重跑等于「因为被拦住了，所以绕过拦我的东西
+ * 再试一遍」，属安全性质倒退（Phase 1 §3a 降级红线同族）。
+ *
+ * 同时用于两处（一个集合、两种来路）：
+ *   · `BridgeError.code` 命中 ⇒ 直接不降级；
+ *   · `code==='EXECUTION_FAILED'` 时 `BridgeError.reason` 命中 ⇒ 判为「上游闸类码被折叠
+ *     成通用执行失败」的残余路径，同样不降级（`adapter-agent-workbuddy` 的
+ *     `toBridgeError()` 第二层会把领域码 `POLICY_DENIED` / `APPROVAL_REQUIRED` 映射成
+ *     base code 并把**原码写入 reason**，故 reason 维度也需守）。
+ *
+ * 用 `readonly string[]` 而非 `BridgeErrorCode[]`：本集合需同时容纳契约码与领域码
+ * （reason 是自由 string），收窄成契约码枚举反而无法表达 reason 侧语义。
+ */
+const NON_DEGRADABLE_CODES: readonly string[] = [
+  'POLICY_DENIED',
+  'APPROVAL_REQUIRED',
+  'SESSION_UNAVAILABLE',
+  'SESSION_BLACK_SCREEN',
+  // 用户已叫停：重跑等于把取消操作再执行一遍（CL-022 3a）
+  'TASK_CANCELED',
+];
+
 /** 展开 %ENV% 占位符（与 outputDir 处理一致） */
 function expandEnvPath(p: string): string {
   return p.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, n: string) => process.env[n] ?? m);
@@ -433,11 +459,43 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
    *
    * 触发条件：LLM 运行时**不可用** —— 找不到/无法启动 CLI（PROVIDER_UNAVAILABLE，如 ENOENT），
    * 或非零退出且未产出任何 artifact（EXECUTION_FAILED）。超时不降级（避免重复劳动）。
+   *
+   * **P2-T10（O-1 同批原子改）**：降级集必须**只**覆盖「运行时不可用」这一种事实。
+   * 确定性执行体在 `step()` 保码之前会把 `POLICY_DENIED` 折叠成
+   * `EXECUTION_FAILED`（丢码 + 丢 `reason`），使「策略硬拒」与「运行时炸了」在
+   * 本判据下**完全同形** ⇒ 一次本应硬拒的操作被确定性执行器重跑（绕审批闸意图，
+   * Phase 1 §3a 降级红线同族）。保码后该折叠不再存在，但判据侧必须**自己**守住边界，
+   * 否则任何一条新的折叠路径都会把同一个洞重新打开。因此：
+   *
+   * 1. **闸类 / 意志类契约码一律不降级**（`NON_DEGRADABLE_CODES`）—— 这些码本身就是
+   *    「按规则不该执行」的终态结论，重跑等于把闸门当故障修；
+   * 2. `EXECUTION_FAILED` 且零产物时，仍要区分来路：`reason` 落在闸类码集合内
+   *    （如领域码被 `toBridgeError` 最小映射后留下的 `POLICY_DENIED`）⇒ 视同策略折叠，
+   *    **不降级**；真运行时失败（`LLM_PERSISTENT_TURN_FAILED` /
+   *    `LLM_RUNTIME_EXIT_n`）的 `reason` 不在该集合 ⇒ **照常降级**（K2 红线不误伤）；
+   * 3. K-12 五条既有降级红线**逐条保留**，本函数没有为其中任何一条改变结论：
+   *    · `TASK_CANCELED` 不落入降级（CL-022 3a）—— 本码在 1 中显式列出，旧实现靠
+   *      「不在触发集」得出同一结论，二者等价（`phase1-t5-*` 三条对照用例复跑为证）；
+   *    · 取消收口不得走 `{unavailable}`（3b）—— 判据未改，桥侧收口形状未动；
+   *    · 取消不得写 `lastError`（3c）—— 与本函数无关，未触及；
+   *    · 空闲期不得误杀常驻会话（3d）—— 与本函数无关，未触及；
+   *    · `NO_EXECUTION_RECEIPT`（K-N1 账本反查改判）不降级 —— 由**调用点豁免**
+   *      （`:396` `res.error?.reason !== 'NO_EXECUTION_RECEIPT'`）拦下，豁免先于本函数生效；
+   *      本函数**不**重复列它（该 reason 不在闸类集内），保持「单一权威拦截位」，
+   *      与 r19c-kn1-d-provider 钉既有豁免位置的口径一致；
+   *    · disabled 拒绝（`reason=LLM_SESSION_DISABLED`）不进本分支 —— 在 `runGoal`
+   *      入口提前 return（§4.1），判据无需为此分叉。
    */
   private shouldDegrade(res: LlmGoalResult): boolean {
     const code = res.error?.code;
+    if (typeof code === 'string' && NON_DEGRADABLE_CODES.includes(code)) return false;
     if (code === 'PROVIDER_UNAVAILABLE') return true;
-    if (code === 'EXECUTION_FAILED' && res.artifacts.length === 0) return true;
+    if (code === 'EXECUTION_FAILED') {
+      // 策略折叠来路（reason 是闸类契约码）⇒ 不降级；真运行时失败 ⇒ 零产物才降级
+      const reason = res.error?.reason;
+      if (typeof reason === 'string' && NON_DEGRADABLE_CODES.includes(reason)) return false;
+      return res.artifacts.length === 0;
+    }
     return false;
   }
 }
