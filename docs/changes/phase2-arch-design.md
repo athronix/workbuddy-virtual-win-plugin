@@ -476,3 +476,9 @@ graph TD
 
 - 独立验证者（instance-2）16 文件 465 例全绿 + 主理人 5 文件复跑 + 漂移注入二分验证，P2-T2 判 PASS（`9f47246`，基线 81/1494）。
 - 采纳其遗留两条为后续执行项（防丢失）：**① DEPLOYMENT.md 旧键升级提示** ⇒ 并入 **P2-T5 文档面**（T5 本就改 `delivery/vm-service.config.json` + DEPLOYMENT，同批顺带一句"旧 approvalTimeoutMs 键会被告警并忽略，升级前删除"）；**② policy 全键集白名单守卫**（现仅逐键告警已知死键，任意未知键仍静默透传）⇒ 列入 **P2-T11 gate 候选判据**（gate.mjs"哪些判据进门禁"表里补一行）。
+
+### 13.3 排程修正与 T3b 追加（2026-10-10 13:5x，主理人）
+
+- **T10 提前于 T4**：架构师冲突表在 `adapter-agent-workbuddy/src/index.ts` 明写「T10 先、T4 后」，且 O-1（P0 安全性质）依赖仅 P2-T1（已满足）。执行序修正为 **T1→T2→T3→T3b→T10→T4→T5(真机)→T6→T7→T12→T8→T9→T11**。
+- P2-T3 追加补充批 **P2-T3b**（旧口径五处归一）已交付入库（`8a49f84`，+3 守卫例含裸承诺绝迹反证与字符画框宽守卫；灵敏度经 git show 改前版实测）。其范围外发现三处需求/规格叙事（`REQUIREMENTS.md:84/:98`、`SPEC-AGENT-SERVICE-BRIDGE.md:262`）裁定**并入 P2-T5 文档面**统一诚实化（T5 本就同批改 SECURITY/DEPLOYMENT，需求叙事的 Q2 对齐与其"永久限制"表述同源）。
+- T10 执行注记：O-1 选型任务书给了 (a) error 串前缀码=零契约扩展优先 / (b) `errorCode?`=碰 contracts/bridge.ts 需声明。回报后按选型登记 contracts 单写者序列偏移（若走 b，T5/T7/T9 对该文件的序列不变，仅本批插入）。
