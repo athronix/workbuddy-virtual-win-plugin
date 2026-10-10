@@ -55,6 +55,21 @@ export interface CapabilityPolicy {
   readonly registryWriteAllowlist?: readonly string[];
 }
 
+/**
+ * 审计快照策略 —— **信息性声明**（Q2 裁决 2026-10-10：Phase 2 · P2-T3 降级为信息性，
+ * **不实现** before/after 快照）。
+ *
+ * 兑现口径（三侧，缺一不可，`tests/unit/phase2-snapshot-truth.test.js` 逐侧钉死）：
+ * - 交付面：注册期形状约束在场 —— `capability.schema.json` 的 allOf 条件约束
+ *   「risk ∈ {L2, L3} ⇒ `audit.snapshot` ≠ `'none'`」由 `schema-check.ts` 的
+ *   `validateCapabilityShape` 在**测试/门禁面**消费（P2-T1，裁决 Q1=(b)：运行期不校验）；
+ * - 运行面：**零消费** —— core / vm-service / adapter-* / delivery / psmod 无任何读取点，
+ *   执行体不产出快照；
+ * - 承载面：`contracts/src/audit.ts` 的 `AuditRecord` / `AuditExt` **没有**承载快照的字段
+ *   （缺口比审计 ARCH-04 记的更深一层：不是"有声明位没人读"，而是连落快照的字段都不存在）。
+ *
+ * ⚠ 改本类型或增删声明位前须同步：SECURITY §3.2 表「L2/L3 是否强制快照」行与 phase2-snapshot-truth。
+ */
 export type SnapshotPolicy = 'none' | 'after' | 'before-after';
 
 export interface CapabilityDefinition {
@@ -91,6 +106,11 @@ export interface CapabilityDefinition {
   readonly input: Record<string, unknown>; // JSON Schema
   readonly output: Record<string, unknown>; // JSON Schema
   readonly policy?: CapabilityPolicy;
+  /**
+   * **信息性声明**（Q2 裁决 2026-10-10，详见 `SnapshotPolicy` 头注）：必填形状约束保留
+   * 并被交付面 schema 校验消费（L2/L3 ⇒ 非 `'none'`），**运行期零消费、不产快照**。
+   * definitions.ts 的 26 处能力级标注作为声明数据保留，不删。
+   */
   readonly audit: { readonly snapshot: SnapshotPolicy };
   readonly implementation: {
     readonly kind: 'powershell' | 'native' | 'external';

@@ -125,7 +125,7 @@
 | 注册表可读根键白名单 | 与写表**同四条**（两表必须成对存在，见下方第 4 条） |
 | 默认 `maxRisk`（委派） | `L1` |
 | 删除默认行为 | 进回收站（除非显式 `--permanent` + 已审批） |
-| L2/L3 是否强制快照 | 是（before/after） |
+| L2/L3 是否强制快照 | **信息性声明，运行期不产快照**（Phase 2 · P2-T3，用户裁决 Q2 2026-10-10：降级为信息性，**不实现** before/after）。声明位**在场且必填**，参与**交付面**形状校验 —— `capability.schema.json` 的 allOf 条件约束「risk ∈ {L2,L3} ⇒ `audit.snapshot ≠ 'none'`」由 `schema-check.ts` 的 `validateCapabilityShape` 消费（P2-T1 裁决 Q1=(b)：只在测试/门禁面，运行期不校验能力定义）。**运行面零消费**（core / vm-service / adapter-* / delivery / psmod 无读取点），**承载面亦无字段**（`contracts/src/audit.ts` 的 `AuditRecord`/`AuditExt` 没有落快照的位置）⇒ 高危操作的事后证据仍只有哈希链 + `artifacts` 哈希，**本行不再构成快照防线承诺**；事实三元组由 `tests/unit/phase2-snapshot-truth.test.js` 钉死，出处见 `docs/audit/2026-10-08-architecture-audit.md` ARCH-04 勘误指针 |
 
 **五条必须知道的口径**：
 

@@ -283,6 +283,8 @@
 | **ARCH-26** | provider 家族**横向继承耦合**：第三代 provider 依赖第一/二代实现包 | `adapter-agent-workbuddy-llm` deps 含 `@winvm/adapter-agent-workbuddy`；`adapter-agent-hermes` deps 含 `-workbuddy` **与** `-workbuddy-llm`（§2.2 矩阵，`package.json`+tsconfig references 双证） | "换 Agent 零改动"对框架成立、对 provider 家族不成立：移除/重构基础 provider 会连带打断后续所有 provider；ADR-10 的可插拔收益被稀释 | 把复用部分下沉为 `core` 或新建 `packages/adapter-agent-shared`（L2-leaf，不依赖任何具体 provider）；在 ARCHITECTURE §4.1 明示 provider 依赖 DAG 与"可独立移除"验收标准 |
 | **ARCH-28** | tsconfig references 与 package.json 依赖不同步（构建图缺边） | ①`vm-capabilities/tsconfig.json` references 仅 `../contracts`，但 `src/index.ts:14` `import type { SessionProbe } from '@winvm/core'`（package.json 已声明 core）；②`vm-service/tsconfig.json` references 缺 `../adapter-agent-workbuddy-llm`（package.json 已声明，且 loader 运行期动态 import 它） | composite 构建不保证被引用项目先产出 `.d.ts` → 干净环境下 `tsc -b` 顺序依赖偶然性；第二项使"动态 import 的运行时依赖"在类型/构建图上完全隐形（**假设**：当前能过是因为 `tsc -b tsconfig.build.json` 根引用了全部项目） | 补齐两条 references；把"package.json 依赖 ⇔ tsconfig references"一致性做成 ARCH-01 dep-lint 的一条附带检查（零成本） |
 
+> **勘误指针 · ARCH-04（Phase 2 · P2-T3 处置登记，2026-10-10，依 K-20 前向指针惯例、不改写原文）**：本条二选一建议（"最小实现" vs "从文档删除承诺"）已由用户裁决 **Q2 = 降级为信息性**（`docs/changes/phase2-arch-design.md` §13）收口——不实现 before/after 快照。处置落地为：①声明位保留并加「信息性声明」JSDoc（`contracts/src/capability.ts`），26 条能力级标注数据不动（终审口径 28 处 = 26 标注 + `definitions.ts:47/:79` 两接线，见设计 §12-3）；②SECURITY §3.2 表「L2/L3 是否强制快照」行改述为信息性（声明参与**交付面** schema 形状校验、运行期零消费不产快照）；③三元组事实（声明在位/消费恒零/承载无字段）由 `tests/unit/phase2-snapshot-truth.test.js` 钉死防再漂移。另订正本条取证：原文"30+ 处"实为 **26 处**能力级字面标注；且缺口比本条所记更深一层——`contracts/src/audit.ts` 的 `AuditRecord`/`AuditExt` **没有承载快照的字段**（不是"有声明位没人读"，而是连落快照的位置都不存在）。
+
 ### P2（契约漂移 / 文档漂移 / 工程卫生）
 
 | ID | 现象 | 证据（文件:行号） | 建议 |
