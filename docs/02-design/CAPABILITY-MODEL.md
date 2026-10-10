@@ -215,12 +215,12 @@
 
 ## 4. 能力定义结构（契约）
 
-每个能力在 `packages/contracts` 中以如下结构声明（JSON Schema：`contracts/schemas/capability.schema.json`）：
+每个能力在 `packages/contracts` 中以如下结构声明（JSON Schema：`contracts/schemas/capability.schema.json`）。**schema 资产口径（Phase 2 · P2-T1）**：该 schema 是**被消费的交付面资产** —— `packages/contracts/src/schema-check.ts` 的纯函数 `validateCapabilityShape(def, schema)` 以本 JSON 为判据唯一来源，由 `tests/unit/phase2-contract-schema.test.js` 对注册表全量能力逐条校验，并以 `checkSchemaDomainDrift` 钉住 schema `domain.enum`/`id.pattern` 首段 ⇔ TS 事实源 `CAPABILITY_DOMAINS` 集合一致（新增域漏改 schema ⇒ 测试必红）。运行实例**不**校验能力定义（裁决 Q1=(b)：定义源自代码内常量，运行期校验增益≈0 且徒增启动风险面）：
 
 ```jsonc
 {
   "id": "system.service.control",          // 唯一标识
-  "domain": "system",                      // system|app|storage|gui|meta
+  "domain": "system",                      // system|app|storage|gui|appops|meta（事实源 CAPABILITY_DOMAINS，capability.ts）
   "name": "控制 Windows 服务",
   "description": "启动、停止或重启指定的 Windows 服务",
   "risk": "L1",                            // L0|L1|L2|L3
@@ -236,8 +236,10 @@
     // 它从未被引擎读取（死配置），全仓唯一写入点（`appops.workflow.run` 的 9 个解释器正则）已同批移除；
     // 解释器准入改由 `appops.cli.invoke` 的 `input.app` 枚举 + 登记期 `validateParams`（早于执行）把守。
     // ★ 运维注意：`capability.schema.json` 的 `policy.additionalProperties === false` ⇒ 旧能力定义
-    //   若仍写 `commandAllowlist`，会被 schema **直接拒绝**（不是静默忽略）。现状：该 schema 尚未接入
-    //   运行期校验（phase1-t1-notes D-3），拒止兑现在 CI/交付面 ⇒ 升级前必须主动删该键，勿指望运行期报错。
+    //   若仍写 `commandAllowlist`，会被 schema **直接拒绝**（不是静默忽略）。兑现面（Phase 2 · P2-T1 起）：
+    //   该拒绝由**交付面**执行——`schema-check.ts#validateCapabilityShape` 读本 schema 为判据、
+    //   `tests/unit/phase2-contract-schema.test.js` 逐条校验并含 commandAllowlist 拒收自证用例；
+    //   运行实例不校验（裁决 Q1=(b)）⇒ 升级前仍必须主动删该键，勿指望运行期报错。
     "pathAllowlist": [],                   // 路径前缀白名单（支持 `%ENV%\**` 模式侧运行时展开，ARCH-17）
     "pathDenylist": [],                    // 路径黑名单（优先级最高）
     "processAllowlist": []

@@ -7,6 +7,7 @@
 export * from './risk.js';
 export * from './errors.js';
 export * from './capability.js';
+export * from './schema-check.js';
 export * from './transport.js';
 export * from './audit.js';
 export * from './bridge.js';

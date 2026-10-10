@@ -23,10 +23,10 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^(system|app|storage|gui|meta)\\.[a-z0-9]+\\.[a-z0-9]+$",
+      "pattern": "^(system|app|storage|gui|appops|meta)\\.[a-z0-9]+\\.[a-z0-9]+$",
       "description": "能力 ID，形如 system.service.control"
     },
-    "domain": { "enum": ["system", "app", "storage", "gui", "meta"] },
+    "domain": { "enum": ["system", "app", "storage", "gui", "appops", "meta"] },
     "name": { "type": "string", "minLength": 1 },
     "description": { "type": "string", "minLength": 1 },
     "risk": { "enum": ["L0", "L1", "L2", "L3"] },
