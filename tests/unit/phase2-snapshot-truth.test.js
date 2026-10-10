@@ -251,6 +251,60 @@ describe('P2-T3 · 文档口径一致性', () => {
     assert.match(sec, /\*\*五条必须知道的口径\*\*/, 'P2-T2 起的口径计数（五条）不被本批破坏');
   });
 
+  test('P2-T3b 反证①：SECURITY 全文无"裸承诺"残留 —— 每个含 before/after 的行必须同行携带信息性口径', () => {
+    const sec = src(SECURITY_MD);
+    const bare = sec
+      .split('\n')
+      .filter((l) => /before\/after|before-after/.test(l))
+      .filter((l) => !/信息性|不产|不实现|零消费/.test(l))
+      .map((l) => l.slice(0, 80));
+    assert.deepEqual(bare, [], `出现未改述的快照承诺（旧口径回潮）：${bare.join(' | ')}`);
+    // 「快照哈希」这一误导性注释也须绝迹（:203 已改 artifacts 哈希口径）
+    assert.ok(!/\/\/ 快照哈希/.test(sec), '示例注释仍写"快照哈希"⇒ P2-T3b 改述被回退');
+  });
+
+  test('P2-T3b 反证②：ARCHITECTURE 防线表快照行 = 信息性现状口径（旧"自动截图+回传"承诺不得裸存）', () => {
+    const arch = src('docs/02-design/ARCHITECTURE.md');
+    const row = arch.split('\n').find((l) => l.startsWith('| before/after 快照'));
+    assert.ok(row, '防线表快照行须在位（行失踪=口径失踪）');
+    assert.match(row, /信息性声明，运行期不产/, '须为 Q2 信息性口径');
+    assert.match(row, /未实现/, '须明写未实现（旧文案是现在时承诺）');
+    assert.match(row, /phase2-snapshot-truth/, '须锚定事实三元组守卫');
+    // 旧裸文案在全文件绝迹（删除线留痕允许：~~...~~ 后必跟裁决说明）
+    const bareScreenshot = arch
+      .split('\n')
+      .filter((l) => /自动截图/.test(l))
+      .filter((l) => !/未实现|信息性/.test(l));
+    assert.deepEqual(bareScreenshot, [], `自动截图旧承诺裸存：${bareScreenshot.map((l) => l.slice(0, 60)).join(' | ')}`);
+  });
+
+  test('P2-T3b 排版守卫：架构图"第 7 层"内容行显示宽度与同框其它行一致（字符画框右缘不歪）', () => {
+    const sec = src(SECURITY_MD);
+    const lines = sec.split('\n');
+    const boxRow = lines.find((l) => l.startsWith('│') && l.includes('哈希链 append-only'));
+    assert.ok(boxRow, '第 7 层框内行在场');
+    const width = (s) => {
+      let n = 0;
+      for (const ch of s) {
+        const c = ch.codePointAt(0);
+        const wide =
+          c >= 0x1100 &&
+          (c <= 0x115f ||
+            c === 0x2500 ||
+            c === 0x251c ||
+            c === 0x2329 ||
+            (c >= 0x2e80 && c <= 0xa4cf && c !== 0x303f) ||
+            (c >= 0xac00 && c <= 0xd7a3) ||
+            (c >= 0xf900 && c <= 0xfaff) ||
+            (c >= 0xfe30 && c <= 0xfe6f) ||
+            (c >= 0xff01 && c <= 0xff60));
+        n += wide ? 2 : 1;
+      }
+      return n;
+    };
+    assert.equal(width(boxRow), 63, `框内行显示宽度须为 63（与同图其它行对齐；实得 ${width(boxRow)} ⇒ 右缘│已歪）`);
+  });
+
   test('审计文档 ARCH-04 勘误指针在场，且原文结论逐字保留（K-20：前向指针不改写历史）', () => {
     const au = src(AUDIT_MD);
     const row = au.split('\n').find((l) => l.startsWith('| **ARCH-04**'));

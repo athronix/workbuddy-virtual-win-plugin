@@ -20,7 +20,7 @@
 |---|---|---|
 | **S**poofing 伪装 |  attacker 冒充宿主连 VM 服务 | SSH 密钥鉴权（默认）；HTTP 模式 bearer token + 可选 mTLS；**VM 仅监听 127.0.0.1** |
 | **T**ampering 篡改 | 篡改审计日志掩盖操作 | **哈希链审计**（§4）——**本轮运行期内**任一改动即校验失败；跨轮历史由启动归档校验条目提供证据（范围限定语见 §4.3.1，残留风险见 §6.4 权衡一） |
-| **R**epudiation 抵赖 | 否认执行过某操作 | 全程 traceId + 签名审计 + before/after 快照 |
+| **R**epudiation 抵赖 | 否认执行过某操作 | 全程 traceId + 签名审计（哈希链）；before/after 快照**仅信息性声明、运行期不产**（P2-T3/Q2，见 §3.2） |
 | **I**nfo disclosure 泄露 | 凭据/文件内容外泄 | 无明文凭据落盘；凭据走 SSH key / `${VAR}` 占位 / 宿主加密 header |
 | **D**oS 拒绝服务 | 长任务/批量操作拖垮 VM | 请求超时、并发上限、任务取消（`tasks/cancel`，**Phase 1 起为协作式真取消**，见 §2.2）、ps-bridge 心跳重启 |
 | **E**oP 权限提升 | 借通道执行未授权高危操作 | **拒绝优先白名单**（路径/进程/注册表；命令面**只有黑名单**，ARCH-18）+ L2/L3 审批闸 + 宿主侧 `disabledTools` 静态禁用 |
@@ -53,7 +53,7 @@
 │  委派携带 allowedCapabilities + maxRisk；删除优先回收站     │
 └──────────────────────┬────────────────────────────────────┘
 ┌─ 第 7 层：审计与回溯（NFR-507/509）──────────────────────┐
-│  哈希链 append-only；traceId 全链路；before/after 快照      │
+│  哈希链 append-only；traceId 全链路；快照=信息性声明        │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -200,7 +200,7 @@
   "policyDecision": { "allowed": true, "matchedRule": "pathAllowlist:C:\\Users\\*" },
   "approval": { "approvalId": "apr_01J...", "approvedBy": "human", "approvedAt": "..." },
   "result": { "ok": true, "affected": 12, "bytesFreed": 10485760 },
-  "artifacts": ["sha256:ab12...", "sha256:cd34..."],   // 快照哈希
+  "artifacts": ["sha256:ab12...", "sha256:cd34..."],   // artifacts 哈希（执行体产物；before/after 快照不产，P2-T3/Q2）
   "durationMs": 2331,
   "prevHash": "sha256:9f2a...",
   "hash": "sha256:7c1e..."      // = SHA256(canonicalJson(this without hash))
@@ -367,7 +367,7 @@ record_n.prevHash = hash_(n-1)
 | **回环绑定** | **不可关**：非回环 ⇒ 启动 `error`，`security.requireLoopbackBind=false` 自 Phase 1 起不再能放宽（只额外产生 warning）—— 见 §2.1 |
 | 服务端身份鉴权 | `security.enforceBearer` 默认 `false`（可选加固，双条件生效，`/health.security.authMode` 三态透出）；开启前置条件见 §2.1 警告块 |
 | 策略 | **拒绝优先** |
-| L2/L3 | 强制审批 + before/after 快照 |
+| L2/L3 | 强制审批（before/after 快照为**信息性声明、运行期不产**，P2-T3/Q2，见 §3.2） |
 | L3 分区/格式化 | **不注册为可用能力** |
 | 删除 | 进回收站 |
 | 委派 `maxRisk` | L1 |
