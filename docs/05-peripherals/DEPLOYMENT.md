@@ -454,7 +454,15 @@ New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' `
 >
 > - **回环约束不可关**：`bind` 非回环（如 `0.0.0.0`）⇒ 校验恒 **error** 且**启动被拒**；`security.requireLoopbackBind=false` 自 Phase 1 起**不再能放宽**该约束，只会额外产生一条 warning。因此"非回环直连"这种部署形态在本系统里**不存在**，跨机访问的唯一受支持形态就是本节讲的 `ssh -L` 隧道。
 > - **bearer 是可选加固，默认不校验**：`security.enforceBearer` 默认 `false`；要生效需**双条件**（`enforceBearer===true` **且** `tokenEnv` 指向的 env 有值，缺一即逐字旧行为），是否真挂载由 `/health.security.authMode` 三态显形（`loopback-only` / `bearer-enforced` / `bearer-configured-missing`）。走回环隧道时默认**不需要**任何 bearer 配置。
-> - ⚠ **开 `enforceBearer` 前必须先补齐 VM 内回连凭据通路（本批未实现）**：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目不含凭据。误开（双条件齐）后危害分两段（2026-10-10 B3 真机演练实测订正）：宿主不带凭据 ⇒ **HTTP 层当场 401**（可见，`--token-env` 覆盖此段）；VM 内回连段 401 打在**工具面** ⇒ 委派不报错、退化为**零副作用的虚假完成**（终态 `completed` + 链上 `zeroInnerCalls:true`「完成声称不予采信」，由 CL-K3R 真值层兜住）。⇒ 演练/排障时**不得**以"任务显示成功"推断守卫未生效；运维自查看 `/health.security.authMode` 与服务日志 `bearer 守卫拒绝请求` warn（拒绝不入审计链）。残留登记见 `docs/changes/phase1-arch-design.md` §10 R4 与 `SECURITY-GOVERNANCE.md` §2.1（启用前置条件）/ §6.4（两项权衡）。
+> - ⚠ **`enforceBearer` 开启前置条件：VM 内回连凭据通路（P2-T6 已落地，默认未接线；三步见下）**。未接线就误开（双条件齐）——`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目零凭据——危害分两段（2026-10-10 B3 真机演练实测订正）：宿主不带凭据 ⇒ **HTTP 层当场 401**（可见，`--token-env` 覆盖此段）；VM 内回连段 401 打在**工具面** ⇒ 委派不报错、退化为**零副作用的虚假完成**（终态 `completed` + 链上 `zeroInnerCalls:true`「完成声称不予采信」，由 CL-K3R 真值层兜住）。⇒ 演练/排障时**不得**以"任务显示成功"推断守卫未生效；运维自查看 `/health.security.authMode`、`/health.security.innerReconnect`（P2-T6 起运行期自环探针会把实证结论 `ok/broken` 回填该观测面；fail-closed 拒启判据仍只看配置面）与服务日志 `bearer 守卫拒绝请求` warn（拒绝不入审计链）。残留登记见 `docs/changes/phase1-arch-design.md` §10 R4 与 `SECURITY-GOVERNANCE.md` §2.1（启用前置条件）/ §6.4（两项权衡）。
+>
+> **VM 内回连凭据分发三步（enforceBearer 开启的上线前置操作，P2-T6 交付）**——凭据纪律 = 变量名进配置、真值只进 VM 进程环境（NFR-511/K-17 不落任何明文盘）：
+>
+> 1. **分发 env（值）**：VM 上生成的 `delivery/.generated/start-hidden.ps1` 里显式赋值 `$env:WINVM_BEARER_TOKEN = '<真值>'`（计划任务无 env 通道，这是服务进程 env 的**唯一来源**；node 由 `Start-Process` 从该 ps1 继承环境，并经 `launchCliProcess` 透传给 codebuddy 子进程）。部署时可用 `node delivery/install-vm.mjs --bearer-env-name WINVM_BEARER_TOKEN` 让生成器写入**占位赋值行**（默认不写 ⇒ 产物逐字节旧形态；真值由运维替换，或部署会话先 `$env:` 设好、`--bearer-env-name` 会自动读取同名 env 写真值——值不进命令行）。
+> 2. **配变量名（名）**：运行时配置 `agent.providers.workbuddy.options.bearerEnvName = "WINVM_BEARER_TOKEN"`（与 `security.tokenEnv` 同名 = 默认约定；`--bearer-env-name` 会一并写入生成配置）。`buildMcpConfig` 据此在 `mcpServers.winvm.headers` 产出 `Authorization: Bearer ${WINVM_BEARER_TOKEN}` **引用**（真机实证 codebuddy 会按子进程 env 展开）。
+> 3. **开 enforce**：`security.enforceBearer = true`（双条件的另一半：服务进程 env 里 `WINVM_BEARER_TOKEN` 必须真有值，否则 `authMode=bearer-configured-missing` 半开态显形）。然后 kill-restart 重启服务，验收两件事：`/health.security.authMode = bearer-enforced` 且 `/health.security.innerReconnect = ok`（自环探针实证；`unverified` 表示探针未跑/未定，`broken` 表示带凭据回连被 401 —— 回头查第 1 步的 env 赋值）。
+>
+> 顺序铁律不变：**deploy → 补丁 → kill-restart**（`deploy-vm.mjs --apply` 会重新生成运行时配置与 ps1，手工补丁必须在部署之后）。
 
 ### 8.2 SSH 通道怎么认证：用密钥，不用密码
 
@@ -517,7 +525,7 @@ curl -s http://127.0.0.1:18443/health      # 应返回 VM 侧健康态
 - 54 个能力在**远程 Windows 本机**执行 PowerShell（ps-bridge 在远端 spawn PowerShell 5.1），操作的正是那台远程机——即"本地操作远程 Windows"。
 - **GUI 自动化**仍依赖远程 Windows 有活跃交互会话/显示器；无头远程机可能跑不了 GUI 模块（与本地 VM 同源限制）。
 - 仅支持 Windows 被控端（强依赖 PowerShell 5.1），远程 Linux 不可作此"VM"。
-- 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道两端都是回环 ⇒ bearer **默认免校验**（`security.enforceBearer` 默认 `false`）；本系统不存在"非回环直连"这种受支持形态（非回环绑定即启动 `error`，见 §8.1），因此绝大多数部署**只需配 SSH 密钥**，`WINVM_BEARER_TOKEN` / `tokenEnv` 不必动。确要在 VM 侧开 `enforceBearer` 时，宿主侧凭 `--token-env` 给出**变量名**（见 §8.1 警告块两段式实况：宿主不带凭据段 ⇒ 当场 401；VM 内回连凭据通路未实现 ⇒ 回连 401 打在工具面、委派退化为**零副作用虚假完成**（`completed`+`zeroInnerCalls:true`，B3 真机实测，见 `SECURITY-GOVERNANCE.md` §2.1/D-43），**不得**以"任务显示成功"推断守卫未生效）。
+- 另注意：SSH 认证（host ↔ 远程 Windows）与 MCP/A2A 的 **bearer token**（connector ↔ vm-service）是两回事。隧道两端都是回环 ⇒ bearer **默认免校验**（`security.enforceBearer` 默认 `false`）；本系统不存在"非回环直连"这种受支持形态（非回环绑定即启动 `error`，见 §8.1），因此绝大多数部署**只需配 SSH 密钥**，`WINVM_BEARER_TOKEN` / `tokenEnv` 不必动。确要在 VM 侧开 `enforceBearer` 时，宿主侧凭 `--token-env` 给出**变量名**（见 §8.1 警告块两段式实况：宿主不带凭据段 ⇒ 当场 401；VM 内回连凭据通路未接线（P2-T6 已交付通路，默认未接线，三步见 §8.1）⇒ 回连 401 打在工具面、委派退化为**零副作用虚假完成**（`completed`+`zeroInnerCalls:true`，B3 真机实测，见 `SECURITY-GOVERNANCE.md` §2.1/D-43），**不得**以"任务显示成功"推断守卫未生效）。
 
 ### 8.6 远程分发产物里有什么、依赖怎么解析（关键）
 

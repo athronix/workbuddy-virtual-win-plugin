@@ -290,7 +290,7 @@ skills/<name>/
 | 白名单 / 拒绝优先 | `core/policy`（路径/进程/注册表白名单 + 路径/命令/进程黑名单；**命令面只有黑名单**，`commandAllowlist` 已删除，ARCH-18） |
 | 审批闸 | `core/policy` 判定 → MCP 侧返回待确认 / A2A 侧置 `input-required` |
 | 哈希链审计 | `core/audit`（append-only，每条含 `prevHash`）。⚠ **校验范围限定语**：`vm-service` 装配为 `freshChainOnStart:true` ⇒ `verifyChain()`（= `/health.audit.chainValid`）**只覆盖本轮运行的分片**，跨轮历史改由启动 `verifyArchive()` 落的 `chain-archive-verify` 条目提供证据；范围本身机器可读（`audit.scope='session'|'full'` + `shardsVerified/shardsTotal/shardsArchived`）。详见 `SECURITY-GOVERNANCE.md` §4.3.1 与 §6.4 权衡一 |
-| 信任边界 | **回环绑定 + SSH 隧道 + 审批闸**，服务端不承担身份鉴权；非回环 ⇒ 启动 `error`（`requireLoopbackBind=false` 已无法放宽，ARCH-07 B 基线）。`security.enforceBearer` 为**可选加固**（默认 false；双条件才挂载守卫；`/health.security.authMode` 三态透出）——**开启前须先补齐 VM 内回连凭据通路，否则宿主不带凭据当场 401、VM 内回连全 401 使委派退化为零副作用虚假完成（`completed`+`zeroInnerCalls:true`，B3 真机实测，见 §10 R4 与本表下方说明）** |
+| 信任边界 | **回环绑定 + SSH 隧道 + 审批闸**，服务端不承担身份鉴权；非回环 ⇒ 启动 `error`（`requireLoopbackBind=false` 已无法放宽，ARCH-07 B 基线）。`security.enforceBearer` 为**可选加固**（默认 false；双条件才挂载守卫；`/health.security.authMode` 三态透出）——**开启前须先接线 VM 内回连凭据通路（P2-T6 已交付：`options.bearerEnvName` 变量名进配置 + start-hidden.ps1 显式 env 赋值 + headers `Bearer ${VAR}` 引用形态，默认未接线；未接线误开 ⇒ 宿主不带凭据当场 401、VM 内回连全 401 使委派退化为零副作用虚假完成（`completed`+`zeroInnerCalls:true`，B3 真机实测，见 §10 R4 与本表下方说明）** |
 | 任务取消（真取消） | 契约 `ProgressSink.isCancelled()/cancellationSignal` → 框架 `TaskStore.cancelController` + `addArtifact` 终态守卫 → 服务端 `onGoalTerminal` 三分支（`canceled` 入链、`errorCode:'TASK_CANCELED'`）→ 执行体消费（确定性 `step()` 咽喉 / LLM turn 边界 + CLI 子进程 kill）→ 宿主两态事实化。**协作式、非抢占**（见 `SECURITY-GOVERNANCE.md` §2.2） |
 | 宿主侧静态禁用 | `adapter-host-workbuddy` 生成 `mcp.json` 时写入 `disabledTools` |
 | traceId 全链路 | `core` 注入，贯穿 MCP/A2A/能力执行/审计 |
@@ -335,7 +335,7 @@ skills/<name>/
 
 | 风险 | 缓解 |
 |---|---|
-| VM 服务等于开放 RCE | **信任边界 = 回环监听 + SSH 隧道 + 审批闸**（服务端**不**承担身份鉴权，此为 ARCH-07 裁定的设计选择而非缺口）：仅回环绑定且**不可关**（非回环 ⇒ 启动 error）+ L2/L3 审批闸 + 拒绝优先白名单 + 宿主侧 `disabledTools`；`enforceBearer` 为可选加固（默认关，开前须补 VM 内回连凭据通路）。VM 内**任意本地进程都在信任域内** ⇒ 第 4/5 层不得放宽。详见 `SECURITY-GOVERNANCE.md` §2.1 |
+| VM 服务等于开放 RCE | **信任边界 = 回环监听 + SSH 隧道 + 审批闸**（服务端**不**承担身份鉴权，此为 ARCH-07 裁定的设计选择而非缺口）：仅回环绑定且**不可关**（非回环 ⇒ 启动 error）+ L2/L3 审批闸 + 拒绝优先白名单 + 宿主侧 `disabledTools`；`enforceBearer` 为可选加固（默认关，开前须接线 VM 内回连凭据通路——通路 P2-T6 已交付）。VM 内**任意本地进程都在信任域内** ⇒ 第 4/5 层不得放宽。详见 `SECURITY-GOVERNANCE.md` §2.1 |
 | GUI 黑屏静默失败 | 会话健康探针 + 截图熵检测 + degraded 降级 + 明确报错 |
 | 委派黑盒不可见 | A2A artifact 强制回传（截图/日志/变更清单）+ traceId 全链路 + 取消终态入链（`canceled` / `TASK_CANCELED`）+ 宿主 `executedBeforeCancel` 事实化 |
 | ps-bridge 进程僵死 | 心跳 + 超时重启 + 请求级超时 |

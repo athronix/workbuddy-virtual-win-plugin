@@ -511,3 +511,19 @@ graph TD
 - 主理人独立核验：tsc exit 0；复跑 bearer-selfcheck 45/45 + kn1-e-shape 33 + mutation 54 + t4-assembly 45 + http-guard 40 + mcp-signal 54 + dead-config 14 + contract-schema 23 + snapshot-truth 17 全绿；server.ts 非注释增行抽验=fail-closed 决策链与接线本体、dtid 钉在场；delivery config diff 语义与注释自洽。**基线 85/1612 → 86/1657（+45 精确对账，0 fail；成员 sweep 落盘 p2t5-sweep-result.txt FILES=86 FAILED=0）**。
 - 范围外发现转正：VM 链 `chain-archive-verify` 恒含断片 `audit-20260918.jsonl`（自 2026-10-09 起 8 分片一致在场，早于本窗口）⇒ 记入 backlog，收官批定夺修复批（P2-T13 候选）。`t5-health-after.{json,md}`（03:36:32）归属不明但内容与部署后态逐字段一致、零敏感信息 ⇒ 随证据入库。
 - 停摆链注记：T5 亦两程（首程 completed 无回报=中段停摆，代码面已大半落盘；SendMessage 续跑点名"已完成采信"→次程 20 分钟闭环全部剩余项）——"completed≠交付、取证先行、续跑优于重派"第三次验证有效。
+
+### 13.6 P2-T6 交付与主理人核验（2026-10-11 10:3x）
+
+**停摆链（四段，全项目最长）**：agent-…e16 首程（机制探针+设计定稿）→ 第二段（决策/观测分离修复+编辑面大半）→ 第三段（测试+文档+真机 E2E 四段落盘，止于 step18 复原前）→ 第四段 agent-65faa8d5 纯收尾（tsc+定向 18 文件 524 例+全仓 sweep 87/1695+IS_PASS YES，零改动零 git 写）。**关键环境处置**：第三段停摆遗留 VM enforce-on 补丁态 4.5 小时 ⇒ 主理人亲执行前实例留好的 `t6-enforce-patch.mjs restore`（自带 restore 子命令救场，RESTORED 两文件哈希 f61dd89f/801038bc=基线逐字节）→ kill-restart（PID=232）→ /health 三值回默认实测确认；留档 `qa/r19/t6-restore-lead-1016.md`。教训三条固化：①补丁脚本必自带 restore；②巡检对 enforce-on 类状态位直接 curl /health；③环境安全项不等重派。
+
+**交付实质（回连凭据通路，F2 收口）**：
+- 机制真机定案：E1 探针证明 codebuddy 会展开 `--mcp-config` headers 内 `Bearer ${ENV}` 子进程 env 插值（echo server 见真 token）⇒ **明文不落盘通路可行**（NFR-511）：值只进 start-hidden.ps1 显式赋值行，runtime.json 只进变量名。
+- `bridge.ts`：`buildMcpConfig` 三参纯附加（`bearerEnvName` null⇒无 headers 旧形态逐字节 / 字符串⇒`Authorization: Bearer ${envName}` 引用）+ `containsBearerCredentialLiteral` 两步 strip+词边界谓词（成员新测试抓出 env 名内 "BEARER" 误判真实缺陷并自修=K-11 纪律正例）+ 落盘前不可达防线（命中即抛）。`DEFAULT_BEARER_ENV_NAME='WINVM_BEARER_TOKEN'` 约定常量外供（测试 G 组钉值与文档同源）。
+- `server.ts` **决策/观测面分离**：`innerReconnect`（不可变，启动期配置面判序①..⑥）vs `innerReconnectObserved`（可变，探针实证升级）；`/health.security.innerReconnect` 透出观测面，**拒启判据不受探针影响**——E3 真机实证 wired+enforce 重启后 `bearer-enforced`+`mounted-pass`+`innerReconnect=ok`（自环探针 HTTP200），fail-closed 未触发。
+- `install-vm.mjs`：`--bearer-env-name/--bearer-token-value` 显式触发（默认产物逐字节不变，:754 条件展开、:785 条件注入），值优先级 显式参数>部署进程 env。
+- 真机 E4 三态实证：NOAUTH=401 / AUTHED=200（initialize result）/ WRONGTOKEN=401 —— 守卫真生效且带凭据回连真通过（200 非来自死守卫）。
+- 文档九处订正至 T6-landed（default-unwired）状态：SECURITY 84/88-92/337/393、DEPLOYMENT 457-471 三步开启+520、ARCHITECTURE 293/338。broken 语义=通路具备未接线，与 §2.1/§6.4 自洽。
+
+**主理人独立核验**：tsc exit 0；复跑 phase2-inner-credential 38 + bearer-selfcheck 45 + kn1-e-shape 33 + mutation 54 + t4-assembly 45 + t4-http-guard 40 + mcp-signal 54 七文件全绿；代码抽验（谓词真值表/三态分支/观测位与拒启格分离/install-vm 双条件闸）与证据链（E1/E3/E4/restore 留档互证）通过。**基线 86/1657 → 87/1695（+38 精确对账，0 fail，2 skip 恒 ssh2-resolve OFFLINE_SKIP；成员 sweep 落盘 p2t6-sweep-result.txt FILES=87 FAILED=0）**。
+
+**范围外备忘转正**：VM 侧 `C:/WinVMBridge/tools-t6/` 与 `.generated/*.bak-p2t6` 留待收官清场批评估；hermes/llm adapter 消费 signal 仍为 T8/T12 备忘（§13.4 已记）。

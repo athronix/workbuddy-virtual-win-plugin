@@ -239,16 +239,25 @@ export interface InnerReconnectView {
 /**
  * VM 内回连通路判定（设计 §2.2 Step-1 判据 2；**纯函数、零 I/O**）。
  *
- * 通路未实现期（P2-T6 前）的诚实语义：守卫真生效时，回连条目不带任何凭据 ⇒ 必 401 ⇒
- * 判 `broken`（这就是 fail-closed 的触发条件，Q4）。守卫未生效 ⇒ `unverified`
- * （只观测不改判，回环默认态永远不会因此拒启）。
+ * 语义演变（P2-T5 立判序 ⇒ P2-T6 通路面就位）：
+ *  - **T5 期（通路不存在）**：守卫真生效时回连条目零凭据 ⇒ **结构上必 401** ⇒ 判 `broken`
+ *    是唯一诚实结论（也就是 fail-closed 的触发条件，Q4）。
+ *  - **T6 后（通路存在，本节）**：`buildMcpConfig` 已能在 `mcpServers.winvm.headers` 承载
+ *    `Authorization: Bearer ${<envName>}`（真机实证 codebuddy 会展开该引用，`qa/r19/t6-probe-e1-*`），
+ *    于是「配置面上到底有没有把凭据交给回连」重新变成一个**可判定**的事实：
+ *      · 没配变量名 ⇒ 回连条目零凭据 ⇒ 与 T5 期同一形态 ⇒ 仍判 `broken`（此时拒启是**正确的**：
+ *        通路可用但没接线，一开守卫委派必退化为零副作用虚假完成）；
+ *      · 有名无值 ⇒ `broken`（双条件缺件，O-9 同族）；
+ *      · 有名有值 ⇒ `unverified`（配置在位只是**必要条件**，端到端可用性须探针/演练实证，
+ *        判序③的 `probeStatus` 即为此预留 —— 本函数**不**谎称已证）。
+ *  守卫未生效 ⇒ `unverified`（只观测不改判，回环默认态永远不会因此拒启）。
  *
  * 判据（优先级从上到下）：
  *  1. `authMode !== 'bearer-enforced'` ⇒ `unverified`（守卫没挂，回连带不带凭据都通，无判定意义）；
  *  2. `probeError` 在场（探针自身不可达/超时）⇒ `unverified`（PR3：探针故障不得升级成可用性事故）；
  *  3. `probeStatus` 在场 ⇒ 原样采用（端到端实证优先）；
  *  4. provider options 未承载任何 bearer 变量名（`bearerEnvName` 缺席/空白）⇒ `broken`
- *     （`buildMcpConfig` 现状：mcpServers 条目只有 url，零凭据 ⇒ 回连必 401）；
+ *     （通路**可用但未接线**：`buildMcpConfig` 条目零凭据 ⇒ 回连必 401）；
  *  5. 配了变量名但 env 无值 ⇒ `broken`（有名无值，双条件缺件）；
  *  6. 配了变量名且 env 有值 ⇒ `unverified`（配置在位只是必要条件，不谎称已证）。
  */
@@ -274,7 +283,7 @@ export function resolveInnerReconnect(
     return {
       status: 'broken',
       reason:
-        '守卫已生效，但 VM 内回连通路未配置任何 bearer 凭据变量名（provider options.bearerEnvName 缺席 ⇒ buildMcpConfig 条目零凭据）⇒ 回连必 401；回连凭据分发通路属 P2-T6（未实现）',
+        '守卫已生效，但 VM 内回连通路未配置任何 bearer 凭据变量名（provider options.bearerEnvName 缺席 ⇒ buildMcpConfig 条目零凭据）⇒ 回连必 401；凭据分发通路已具备（P2-T6），但**尚未接线**：请在 agent.providers.<id>.options.bearerEnvName 写变量名（默认约定 WINVM_BEARER_TOKEN）并让 start-hidden.ps1 显式赋值该 env',
     };
   }
   if (!(env[envName]?.trim())) {

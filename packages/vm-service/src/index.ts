@@ -53,6 +53,18 @@ export {
   shouldFailClosedStart,
   buildBearerSelfCheckAuditEntry,
 } from './http-guard.js';
+/**
+ * Phase 2 · P2-T6（F2 Step 2）—— VM 内回连**运行期探针**（自环一次带凭据回连，
+ * 把 `/health.security.innerReconnect` 从「配置面推理」升级为「实证 ok/broken」）。
+ * 与 http-guard 同一纪律：判决映射为可注入 fetch 的纯 I/O 边界 ⇒ 全分支离线可测，
+ * 真机端到端由 `qa/r19/t6-*` 另证。
+ */
+export { probeInnerReconnect, probeInitializeBody } from './inner-reconnect-probe.js';
+export type {
+  InnerReconnectProbeInput,
+  ProbeFetch,
+  ProbeFetchResponse,
+} from './inner-reconnect-probe.js';
 export type {
   BearerGuardOptions,
   BearerSelfCheckCode,

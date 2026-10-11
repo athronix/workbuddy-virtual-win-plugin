@@ -5,7 +5,7 @@
 宿主 WB 插件操作 Win11 VM（system/app/storage/gui/appops 五域 54 能力）。DDD+plan-first；npm workspaces 12 包，TS strict ESM，`tsc -b tsconfig.build.json`，`node --test <单文件>`。双通道：MCP 直调 `/mcp`（简单）/ A2A 经隧道 `/a2a`（复杂，streaming 审批），同隧道承载。工具名 `system.info.get`→`winvm__system_info.get`。VM Agent（`WINVM_VM_PROVIDER`）：`workbuddy-deterministic`(基准)/`workbuddy`(LLM codebuddy 常驻)/`hermes-agent`(config.yaml.mcp_servers 预注册)。
 
 ## 拓扑/环境
-- 宿主=鸿蒙 NEXT，`process.platform` 实报 `openharmony`；VM=Win11 `172.16.100.2`（ssh 免密；`C:/WinVMBridge` 程序、`C:/WinVMWorkspace` 工作区）；VM 服务只监听 `127.0.0.1:18443`，计划任务 `WinVMBridge.Service` 托管 `ps-bridge.ps1`（**改 psmod/*.ps1 必须重启服务**）。
+- 宿主=鸿蒙 NEXT，`process.platform` 实报 `openharmony`；VM=Win11 `172.16.100.2`（ssh 免密用户名=**User**（vm-conn.json 为准，非 towyq）；`C:/WinVMBridge` 程序、`C:/WinVMWorkspace` 工作区）；VM 服务只监听 `127.0.0.1:18443`，计划任务 `WinVMBridge.Service` 托管 `ps-bridge.ps1`（**改 psmod/*.ps1 必须重启服务**）。
 - **宿主插件缓存=运行态真相源**：`~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/`（真实副本）→ 改 dist 必须实跑 `delivery/install-host.mjs`。
 - 宿主持久化 `~/.workbuddy/winvm/{vm-conn.json,tunnel.pid,tunnel.state.json,tunnel.log}`；VM 侧 `~/.workbuddy/winvm/side.json`。
 - 鸿蒙沙箱：WB uid 20020171，每 App 独立挂载命名空间+HMMAC 无 root；`$HOME`(hmdfs) 唯一跨 App 通道；跨 App `kill -0`：EACCES≠死/ESRCH=死。
@@ -31,7 +31,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - **A5 / K-N1 / K-N2**：A5 L2 审批 `rejected` 置位路径真机不可达(activeTaskId 被 cancel 清掉)；K-N1 委派回合未发起 tools/call 致 K5 回执反查早退(0 执行仍 completed)；K-N2 dryRun 内层 success=false。均已有 `r19c-*` 单测覆盖。
 
 ## 关键口径
-- **测试基线 1247 例（1245 pass/0 fail/2 skip）**（2026-10-08 Phase 0 收官全量实跑，71 文件 = 63 .test.js(1177) + 8 .test.mjs(70)，逐文件跑），覆盖 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R + psmod 契约/S-4·A5 装配点/U-P0-1 穿越/U-P0-3 dry-run A1 守卫。旧口径 1054/1054（59 文件）、1162（70 文件）依次留档。根 `package.json` `layout` 脚本已删（指向不存在的 dep-lint；Phase 2 规划，D-4 类改动人工方向核对）。
+- **测试基线 86 文件 / 1657 例（1655 pass/0 fail/2 skip）**（2026-10-11 Phase 2 · T5 收官 d277882 全仓逐文件 sweep；2 skip 恒 ssh2-resolve OFFLINE_SKIP；todo 差值口径见 §13.5）。旧口径依次留档：85/1612(T4 cbd5dfd)、84/1558(T10 c5a9e40)、79/1457(Phase1 收官)、71/1247(Phase0)。Phase 2 已交付 T1–T5/T10+T3b（§13 裁决执行面，设计文档 §13.1–13.5 逐批登记）。根 `package.json` `layout` 脚本已删（指向不存在的 dep-lint；Phase 2 T11 规划）。
 - 测试证据口径：每轮只留一份权威报告 `real-test-<date>-run<N>.md`；「未复现≠已修」须确定性注入回归；FAIL 给四元组(现象/根因/证据/路由)；证据目录删除必留痕。
 - 裁决必须落档再引用编号：权威层级=仓库文档>任务板>聊天；文档引用锚点段标签为主、行号(号)为辅（并行改动行号漂移）。
 - 证据文件「写完再读」：落在写入窗口内得 0B 假空→任何"为空/缺失"须二次确认(mtime+字节+进程存活)。

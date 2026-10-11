@@ -1,0 +1,9 @@
+E4 (VM-side inner reconnect probe; run on VM via powershell -File t6-curl-inner.ps1)
+script: qa/r19/t6-curl-inner.ps1   token source: generated start-hidden.ps1 (len 21, value not committed)
+NOAUTH_STATUS=401        # no credential -> guard in force (host-visible 401, fail-loud)
+AUTHED_STATUS=200        # Bearer <token> -> MCP initialize result returned (inner reconnect works)
+WRONG_STATUS=401         # wrong token -> 401 (proves the 200 came from the credential, not from a dead guard)
+---HEALTH-VIA-VM-LOCALHOST---
+authMode=bearer-enforced
+innerReconnect=ok
+selfCheck=mounted-pass

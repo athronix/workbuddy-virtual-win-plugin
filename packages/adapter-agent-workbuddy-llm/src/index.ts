@@ -158,6 +158,22 @@ export interface WorkbuddyLlmProviderOptions {
    * `shadow` = 只 warn 不改判（灰度对拍）；`off` = 一键回滚到 R19F 后现状。
    */
   readonly approvalTruth?: ApprovalTruthMode;
+  /**
+   * P2-T6（**纯附加可选**）：VM 内回连凭据的**环境变量名**（原样透传给桥 ⇒
+   * `buildMcpConfig` 第 3 参三态：undefined=旧行为逐字节 / null=显式关凭据 /
+   * 非空串=headers `Authorization: Bearer ${<name>}` 变量引用）。
+   *
+   * 与 `http-guard.resolveInnerReconnect` 判序④⑤⑥消费的
+   * `agent.providers.<id>.options.bearerEnvName` **同源同键**（server.ts 判据面与本
+   * provider 装配读的是同一份运行时配置 ⇒ 不存在两套口径）。默认约定变量名
+   * `WINVM_BEARER_TOKEN`（与服务侧 `security.tokenEnv` 默认同名：守卫比对值与
+   * 回连携带值取自同一个进程 env，天然一致）。
+   *
+   * 纪律：**只承载变量名，绝不承载值**（NFR-511/K-17）；值缺失时本 provider **不**自行
+   * 降级掉凭据（那会在「守卫未开」的默认形态误伤回连）—— 有名无值的确证归
+   * T5 判序⑤ + fail-closed 拒启（启动面），运行期 init 只补一条可观测告警。
+   */
+  readonly bearerEnvName?: string | null;
 }
 
 export class WorkbuddyLlmProvider implements AgentServiceProvider {
@@ -180,6 +196,12 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
   private readonly outputDir: string;
   private readonly skillsRoot: string;
   /**
+   * P2-T6：回连凭据**环境变量名**的构造期归一值（三态：undefined / null / 非空串）。
+   * 与传给桥的 `bearerEnvName` 同源（同一行算出，配置值≠生效值的假指纹防线，
+   * 口径对齐 CL-K3R E-3 的 `approvalTruthMode`）；`health()` 透出该事实供运维核对。
+   */
+  private readonly bearerEnvName: string | null | undefined;
+  /**
    * CL-K3R E-3：审批真值判据的**运行时指纹**（构造期一次性解析，随 bridge 生效值同源）。
    * 必须在构造 bridge 那一行一并算出并存为 readonly 字段 —— 严禁在 health() 里二次读
    * process.env（否则配置值≠生效值，指纹失真）。取值：shadow ⇒ 'shadow'；
@@ -196,6 +218,14 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
     // 同一解析值既注入 bridge（生效值）也存为本类只读指纹（上报值）——二者天然同源。
     const approvalTruthMode = opts.approvalTruth ?? resolveApprovalTruth(process.env);
     this.approvalTruthMode = approvalTruthMode;
+    // P2-T6：回连凭据变量名三态归一（与桥内归一逐字同规则：null 原样、纯空白 ⇒ undefined）。
+    // 同一值既注入 bridge（生效值）也存为只读指纹（health 上报值）⇒ 配置面/生效面同源。
+    this.bearerEnvName =
+      opts.bearerEnvName === null
+        ? null
+        : typeof opts.bearerEnvName === 'string' && opts.bearerEnvName.trim()
+          ? opts.bearerEnvName.trim()
+          : undefined;
     this.executor =
       opts.executor ?? new DeterministicAgentProvider({ psBridge: opts.psBridge, maxConcurrency: opts.maxConcurrency });
     this.bridge =
@@ -211,6 +241,8 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
         ...(opts.onSessionLog ? { onSessionLog: opts.onSessionLog } : {}),
         // CL-K3R：审批真值判据模式（显式配置优先；否则取 env `WINVM_APPROVAL_TRUTH`，缺省 on）
         approvalTruth: approvalTruthMode,
+        // P2-T6：回连凭据变量名（显式透传；undefined ⇒ 桥逐字节旧行为）
+        bearerEnvName: this.bearerEnvName,
       });
   }
 
@@ -245,6 +277,33 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
     // K-N1：读取服务端注入的委派账本探针（cast 模式，同 reportNetCfg 惯例：
     // vm-service 在 bridgeCtx 里塞 `delegationProbe`，契约接口不扩）。缺席 → 桥透传旧行为。
     this.probe = (ctx as unknown as { delegationProbe?: DelegationTruthProbe }).delegationProbe;
+    /* ---- P2-T6：回连凭据接线可观测（有名无值显形，绝不静默） ----
+     *
+     * 只在「配了变量名 ∧ 本进程 env 里没有值」时打 warn：这正是 T5 判序⑤ 的确证形态
+     * （`bearerEnvName` 有名无值 ⇒ `resolveInnerReconnect` 判 `broken` ⇒ 守卫生效时
+     * fail-closed 拒启）。本 provider **不**据此自行降级掉 headers（那会在「守卫未开」
+     * 的默认形态误伤回连），只把「分发通路断在哪一段」讲清楚：
+     *   ① 值由 `delivery/.generated/start-hidden.ps1` 的显式 `$env:` 赋值注入服务进程
+     *      （计划任务无 env 通道 ⇒ 只能走这里，见 DEPLOYMENT.md 凭据分发小节）；
+     *   ② 服务进程 env 经 `launchCliProcess` 透传给 CLI 子进程 ⇒ 配置里的
+     *      `Bearer ${<name>}` 由 CLI 在连接期展开；
+     *   ⇒ 所以「本进程 env 无值」＝ 通路①没接好，运维可直接去查 start-hidden.ps1。
+     *
+     * 刻意**只读不判**：不产生错误、不改配置面结论（判决面归 http-guard）。
+     * `bearerEnvName` 为 null / undefined（未接线或显式关凭据）⇒ 一个字都不打（默认态零回归）。
+     */
+    if (this.bearerEnvName && !process.env[this.bearerEnvName]) {
+      ctx.logger.warn(
+        'VM 内回连凭据变量已配置但服务进程 env 无值 ⇒ 委派回连将带空凭据（守卫生效时 401）',
+        {
+          bearerEnvName: this.bearerEnvName,
+          hint:
+            '请在生成的 start-hidden.ps1 里显式赋值 $env:' +
+            this.bearerEnvName +
+            '（计划任务无 env 通道），再 kill-restart.ps1 重启服务；详见 DEPLOYMENT.md「VM 内回连凭据分发」',
+        },
+      );
+    }
     await this.executor.init(ctx);
   }
 
@@ -508,6 +567,9 @@ export function createProvider(options?: WorkbuddyLlmProviderOptions): Workbuddy
 export {
   CliLlmBridge,
   DEFAULT_CLI_ARG_TEMPLATE,
+  // P2-T6 纯附加再导出（供 tests/unit 直接断言凭据承载形态与反证判据，无需起服务）
+  DEFAULT_BEARER_ENV_NAME,
+  containsBearerCredentialLiteral,
   appendDtid,
   buildMcpConfig,
   buildSystemPrompt,

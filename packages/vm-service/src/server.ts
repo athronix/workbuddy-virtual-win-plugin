@@ -60,6 +60,11 @@ import { A2AServer, TaskStore, type DelegationObserver, type DelegationTerminalS
 import { McpServer, type McpTool, type McpToolResult } from '@winvm/mcp-framework';
 import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime } from '@winvm/vm-capabilities';
 import { raceHealthSubProbes, resolveHealthProbeTimeoutMs, resolvePsBridgeHealthState } from './health-probe.js';
+/**
+ * Phase 2 · P2-T6（F2 Step 2）：VM 内回连**运行期探针**（自环带凭据回连 `/mcp`，
+ * 实证优先升级 `/health.security.innerReconnect`；拒启判据不受其影响，见 server 装配点）。
+ */
+import { probeInnerReconnect } from './inner-reconnect-probe.js';
 import {
   buildChainArchiveVerifyAuditEntry,
   collectApprovalFacts,
@@ -754,10 +759,30 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     // 同进程直调守卫（不发真实 HTTP）：判据是「守卫代码是否在拒」，成本≈0、离线可证、真机同码。
     evaluate: (probeReq) => bearerGuard(probeReq),
   });
+  /**
+   * P2-T6（观测面与判决面**分离**）：
+   *  - `innerReconnect`（本行，**不可变**）＝ 启动期**配置面**结论（判序①..⑥）。它是
+   *    fail-closed 判决与链上取证条目（`ext.kind:'bearer-selfcheck'`）的**唯一依据**，
+   *    不得被稍后的探针追溯性改写 —— 否则「本轮为什么放行/为什么拒启」这一跨轮事实会失真。
+   *  - `innerReconnectObserved`（下方，**可变**）＝ `/health.security.innerReconnect`
+   *    的观测面，`listen()` 之后可由运行期回连探针（`probeInnerReconnect`，实证优先 ⇒
+   *    判序③ `probeStatus`）升级为 `ok` / `broken` 实形。
+   *
+   * 三条不变量（改这两行前先读 `inner-reconnect-probe.ts` 文件头）：
+   *  1. **拒启判据只看启动值**：`failClosedDecision` 在 `createServer` 之前按本行求值
+   *     （探针此刻尚未跑 ⇒ 拒启永不受观测面影响；观测手段坏不得升级为可用性事故 —— PR3）；
+   *  2. **探针不跑即旧形状**：`bearerEnvName` 缺席 / 守卫未挂载 ⇒ 探针根本不发起，观测面
+   *     逐字等于配置面结论（默认态零回归）；
+   *  3. **覆盖只在实证态**：探针给出 `ok`（带凭据回连 HTTP 200）或 `broken`（401/403）才
+   *     覆盖；`unverified`（超时/连接失败/无 fetch 等观测手段自身问题）**绝不覆盖**
+   *     —— 否则会把「没测到」洗成「测过且未知」，取证时点失真。
+   */
   const innerReconnect: InnerReconnectHealth = resolveInnerReconnect({
     authMode: selfCheckAuthMode,
     providerOptions: activeProviderOptions,
   });
+  /** 观测面（可被探针升级；初始＝配置面结论，探针不跑则全程逐字不变）。 */
+  let innerReconnectObserved: InnerReconnectHealth = innerReconnect;
   const failClosedDecision = shouldFailClosedStart({
     authMode: selfCheckAuthMode,
     innerReconnect: innerReconnect.status,
@@ -1828,6 +1853,12 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         : cfg.server.host;
     // 纯函数在 `http-guard`（可脱服务单测）；本处只负责喂「实测地址」这一服务闭包事实
     // + 启动期自检/回连两个快照（条件展开，缺席即旧形状）。
+    //
+    // P2-T6：透出面喂**观测面**（`innerReconnectObserved`）—— 运行期回连探针的实证结论
+    // （ok/broken）应在此显形；探针不跑（默认态 / `bearerEnvName` 缺席 / 守卫未挂载）
+    // 时该变量逐字等于配置面结论 ⇒ 默认态 `/health` 形状零回归。
+    // 判决面（fail-closed 与链上条目）仍喂配置面 const，二者刻意分离（见装配点不变量）。
+    const innerReconnect: InnerReconnectHealth = innerReconnectObserved;
     return buildSecurityHealthSnapshot({
       enforceBearer: cfg.security.enforceBearer,
       tokenEnv: cfg.security.tokenEnv,
@@ -1974,6 +2005,56 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
 
   const address = server.address();
   const port = typeof address === 'object' && address !== null ? address.port : cfg.server.port;
+
+  /* ---- P2-T6：VM 内回连**运行期探针**（listen 之后 fire-and-forget） ----
+   *
+   * 为什么必须放在 listen **之后**：这是自环探针（打自己的 `/mcp`），放在 listen 之前
+   * 等于自己等自己 ⇒ 启动依赖死锁。拒启判据已在 listen 之前按**配置面**求完值
+   * （见上方 `failClosedDecision`），本探针只升级**观测面**（`/health.security.innerReconnect`）。
+   *
+   * 只在「守卫生效 ∧ provider 配了 bearerEnvName」时跑（其余形态跑了也只得 unverified，
+   * 白增一次自环流量），且**只有实证结论（ok / broken）才覆盖**启动期的配置面结论 ——
+   * `unverified`（探针自身故障）绝不覆盖（PR3 + 不变量 3）。
+   */
+  if (guardActive) {
+    const rawBearerEnvName = activeProviderOptions?.['bearerEnvName'];
+    const bearerEnvName = typeof rawBearerEnvName === 'string' ? rawBearerEnvName.trim() : '';
+    const providerEndpoint =
+      typeof activeProviderOptions?.['endpoint'] === 'string'
+        ? (activeProviderOptions['endpoint'] as string)
+        : undefined;
+    if (bearerEnvName) {
+      void (async (): Promise<void> => {
+        try {
+          const probed = await probeInnerReconnect({
+            endpoint: providerEndpoint ?? `http://${cfg.server.host}:${port}/mcp`,
+            bearerEnvName,
+            // 拒启后 serviceClosed 已置位 ⇒ 探针结论不得再改观测面（此时服务已收口）
+          });
+          if (serviceClosed) return;
+          if (probed.status === 'unverified') {
+            logger.info('回连探针未得实证结论（保持配置面判定，不覆盖观测面）', {
+              reason: probed.reason,
+              innerReconnect: innerReconnectObserved.status,
+            });
+            return;
+          }
+          // 实证结论（ok / broken）⇒ 只升级观测面；配置面 const 保持不动（拒启依据与链上条目不变）。
+          innerReconnectObserved = probed;
+          logger.info('回连探针实证结论（升级 /health.security.innerReconnect）', {
+            innerReconnect: probed.status,
+            reason: probed.reason,
+          });
+        } catch (e) {
+          // 探针函数自身按契约不抛（全分支返回 unverified）；此 catch 只兜装配漂移，
+          // 任何情况下都不得让观测面的异常影响服务态。
+          if (!serviceClosed) {
+            logger.warn('回连探针异常（不影响服务，观测面保持配置面结论）', { error: String(e) });
+          }
+        }
+      })();
+    }
+  }
 
   logger.info('WinVM Bridge 服务已启动', {
     host: cfg.server.host,

@@ -149,15 +149,77 @@ export function appendDtid(endpoint: string | undefined, dtid: string | undefine
 }
 
 /**
+ * 回连凭据的**环境变量默认名**（P2-T6，通路缺省形态）。
+ *
+ * 与 `delivery/vm-service.config.json` 服务侧 `security.tokenEnv` 的默认约定**同名**
+ * （`WINVM_BEARER_TOKEN`，SECURITY-GOVERNANCE §6.4）：服务端守卫从这个 env 读期望值，
+ * VM 内 CLI 回连把同一个 env 渲染进 `Authorization` 头 —— 同一变量名两侧同源，
+ * 杜绝「服务端配的变量名」与「回连带的变量名」两套口径漂移。
+ */
+export const DEFAULT_BEARER_ENV_NAME = 'WINVM_BEARER_TOKEN';
+
+/**
+ * `headers` 里承载回连凭据的**变量引用形态**（P2-T6 选型结论，见下）。
+ * 只把 `${<envName>}` 占位写进配置，**值绝不落盘**（NFR-511 / K-17）。
+ */
+function bearerHeaderOf(envName: string): Record<string, string> {
+  return { Authorization: `Bearer \${${envName}}` };
+}
+
+/**
+ * 反证纯函数（P2-T6 判据②的机器可读面）：判定一段配置文本是否把 bearer 凭据
+ * 写成了**明文**（而不是 `${VAR}` 环境变量引用）。
+ *
+ * 两步判据（缺一不可，二者共同构成「合法引用」的唯一形态）：
+ *  1. 先整体剥掉所有**合法引用** `Bearer ${NAME}`（大小写不敏感、允许中间空白，
+ *     NAME 不含空白与花括号 —— 与 `bearerHeaderOf` 的产出形态逐字对偶）；
+ *  2. 剥完后的剩余文本里，只要 `bearer` 仍以**独立单词**出现（前后不接标识符字符），
+ *     即判定为明文凭据面 ⇒ true。
+ *
+ * 为什么必须两步而不是一条正则：变量名本身就含 `BEARER` 字样
+ * （默认约定名 `WINVM_BEARER_TOKEN`），单条 `Bearer(?!\s*\$\{)` 会在**名字内部**
+ * 命中而把合法产出误判为明文（`phase2-inner-credential.test.js` B 组抓到的真实缺陷）。
+ * 词边界（前后 `(?<![A-Za-z0-9_])` / `(?![A-Za-z0-9_])`）同时排除
+ * `WINVM_BEARER_TOKEN`（被 `_` 夹住）与 `bearerEnvName`（后接字母）这两类**非凭据**文本。
+ *
+ * 语义边界（刻意的宽松方向 = 宁可误拒不可漏判）：残缺引用如 `Bearer ${`（无闭合）
+ * **按明文处理** ⇒ true，因为 CLI 侧展不开它，等价于把裸值送进配置。
+ *
+ * `buildMcpConfig` 产出点调用 ⇒ 任何实现漂移（有人把值直接拼进模板）在**落盘前**
+ * 就抛，而不是等审计脱敏（logger.ts 的 token 脱敏只保护日志面，配置文件明文不在其
+ * 管辖内）来兜。provider 侧（`WorkbuddyLlmProvider`）透传的只是**变量名**，值进入
+ * 配置的唯一路径就是本函数产出 ⇒ 单点防线即覆盖全通路。
+ */
+export function containsBearerCredentialLiteral(config: string): boolean {
+  const stripped = config.replace(/Bearer\s*\$\{[^{\s}]+\}/gi, '');
+  return /(?<![A-Za-z0-9_])Bearer(?![A-Za-z0-9_])/i.test(stripped);
+}
+
+/**
  * 构造 MCP 配置串（真机 `--mcp-config` 接受 JSON 文本，而非 URL）。
  *
  * K-N1（**纯附加可选**第 2 参 `delegationId`）：存在时端点拼 `?dtid=<委派traceId>` ——
  * VM 内 CLI 的 streamableHttp 客户端原样使用该 URL 回连 `/mcp`，服务端解析 dtid 注入
  * ToolContext → provider 审计落 `channel:'a2a'` + `ext.delegationId`（精确归因）。
- * 缺席时输出与旧实现**逐字节一致**（设计 §9-B-5 回归护栏）。
  *
- * ⚠ **Phase 1 安全兑现批 T5 登记的启用前置条件（设计 §10 R4，本批不实现该通路）**：
- * 本函数产出的 `winvm.url` 是 VM 内 CLI **回连**宿主侧 `/mcp` 的端点，配置里
+ * **P2-T6（纯附加可选**第 3 参 `bearerEnvName`，三态）：
+ *  - `undefined`（缺席）⇒ 输出与旧实现**逐字节一致**（设计 §9-B-5 + 本批判据⑦
+ *    「缺席即旧行为」回归护栏，`r19c-kn1-b-bridge.test.js` 的 LEGACY_OUT 断言）；
+ *  - `null` ⇒ 显式**关闭**凭据注入 ⇒ 恒 `{ mcpServers: {} }`（endpoint 在场也不产出
+ *    winvm 条目 ⇒ CLI 零回连、当场可诊断，绝不产出「配了守卫却带不上凭据」的静默 401 形态）；
+ *  - 非空字符串 ⇒ `mcpServers.winvm.headers` 增加 `Authorization: Bearer ${<envName>}`。
+ *    承载形态选型（**2026-10-11 真机实测**，`qa/r19/t6-probe-e1-*`）：真机 codebuddy
+ *    （v2.149.0）的 streamableHttp 客户端**会**读 `headers` 字段、并对头值里的
+ *    `${VAR}` 做**进程 env 展开**（回环 echo server 实测收到展开后的真实 token），
+ *    `?dtid=` query 原样透传已实证（K-N1）。两种机制里 `headers`+env 引用为选型：
+ *    token 值不进配置文件明文（NFR-511/K-17 红线，(b) url query 带 token 形态已被
+ *    设计 §2.2 钉死拒绝），且值随进程环境消亡、无磁盘残留。
+ *  产出前经 `containsBearerCredentialLiteral` 反证自检：命中明文 ⇒ 抛（防实现漂移
+ *  把凭据写进落盘配置）。
+ *
+ * ✅ **Phase 1 T5 登记的启用前置条件已由 P2-T6 补齐**（原警告块的历史实况保留如下，
+ * 措辞被 `phase2-bearer-selfcheck.test.js` :317 守卫钉住**不可改**）：本函数产出的
+ * `winvm.url` 是 VM 内 CLI **回连**宿主侧 `/mcp` 的端点，配置里
  * **没有任何凭据字段** —— 回连凭据通路目前不存在。因此：
  *   服务侧一旦把 `enforceBearer` 置真（VM 侧 `/mcp`、`/a2a` 要求 Bearer 头），
  *   这里生成的配置就带不上凭据 ⇒ VM 内 CLI 回连全 401。⚠ 失败形态**不是**
@@ -168,14 +230,31 @@ export function appendDtid(endpoint: string | undefined, dtid: string | undefine
  * 开启 enforceBearer 之前必须先补齐：① 凭据如何进入 VM 内进程环境（注入面与
  * 保留期），② 本配置如何承载该凭据（新增字段须走契约评审），③ 401 的可观测归因。
  * 见 `docs/changes/CL-022/TECHNICAL-SOLUTION.md` 与 `docs/02-design/SECURITY-GOVERNANCE.md` §7。
+ * ①②③ 的兑现现状：① `start-hidden.ps1` 显式 `$env:` 赋值 → vm-service 进程 env →
+ * `launchCliProcess` 透传 CLI 子进程（同函数 :452 `:559` 既有 `env` 形参，**零改动**）；
+ * ② 本函数 `bearerEnvName` 参数（provider options 走既有 `Record<string, unknown>`
+ * 透传，contracts **零改动**）；③ 归因由 T5 的 `innerReconnect` 三态 + fail-closed 承担。
  */
-export function buildMcpConfig(endpoint: string | undefined, delegationId?: string): string {
-  if (!endpoint) return JSON.stringify({ mcpServers: {} });
-  return JSON.stringify({
-    mcpServers: {
-      winvm: { type: 'streamableHttp', url: appendDtid(endpoint, delegationId) },
-    },
-  });
+export function buildMcpConfig(
+  endpoint: string | undefined,
+  delegationId?: string,
+  bearerEnvName?: string | null,
+): string {
+  if (!endpoint || bearerEnvName === null) return JSON.stringify({ mcpServers: {} });
+  const entry: Record<string, unknown> = {
+    type: 'streamableHttp',
+    url: appendDtid(endpoint, delegationId),
+  };
+  const envName = typeof bearerEnvName === 'string' ? bearerEnvName.trim() : '';
+  if (envName) {
+    entry['headers'] = bearerHeaderOf(envName);
+  }
+  const out = JSON.stringify({ mcpServers: { winvm: entry } });
+  if (containsBearerCredentialLiteral(out)) {
+    // 不可达防线（bearerHeaderOf 恒产出 ${} 引用）：命中即实现漂移，宁抛不落盘。
+    throw new Error('buildMcpConfig 产出含 bearer 明文凭据 ⇒ 违反 NFR-511（凭据不落明文），拒绝落盘');
+  }
+  return out;
 }
 
 /** CLI 解析结果（CL-017 D4：可操作的错误提示需要「是否解析到 / 探测过哪些路径 / 是否为脚本」） */
@@ -593,6 +672,15 @@ export interface CliLlmBridgeOptions {
    *   - `off`：判据整体短路，逐字 = R19F 后现状（文本启发式仍是唯一判据）。
    */
   readonly approvalTruth?: ApprovalTruthMode;
+  /**
+   * P2-T6（**纯附加可选**）：VM 内回连凭据的**环境变量名**（三态，语义见
+   * `buildMcpConfig` 第 3 参注释）。缺席 ⇒ `buildMcpConfig` 逐字节旧行为；
+   * `null` ⇒ 显式关凭据（恒 `{mcpServers:{}}`）。桥**只承载变量名**，
+   * 绝不读取/持有 token 值 —— 值由 CLI 子进程环境提供（env 透传链：
+   * start-hidden.ps1 显式赋值 → vm-service 进程 env → 本文件 :512 `launchCliProcess`
+   * 既有 `env` 形参 ⇒ 桥侧零新增注入面）。
+   */
+  readonly bearerEnvName?: string | null;
 }
 
 /** 产物逐步回传的扫描节流间隔 */
@@ -807,6 +895,12 @@ export class CliLlmBridge implements LlmBridge {
   private readonly approvalTruthEnabled: boolean;
   /** CL-K3R：`shadow` 态 —— 判据照常计算，命中时只 warn 不改判（SK-K2 埋点对拍） */
   private readonly approvalTruthShadow: boolean;
+  /**
+   * P2-T6：回连凭据的**环境变量名**（三态：undefined=旧行为逐字节 / null=显式关凭据 /
+   * 非空串=headers 注入）。构造期归一（纯空白串视同 undefined，与 `resolveInnerReconnect`
+   * 的「空白⇒缺席」判序同源），此后只读 ⇒ 委派并发下不可能读到半个名字。
+   */
+  private readonly bearerEnvName: string | null | undefined;
 
   constructor(opts: CliLlmBridgeOptions = {}) {
     this.cliPath = opts.cliPath ?? opts.runtime ?? 'codebuddy';
@@ -823,6 +917,13 @@ export class CliLlmBridge implements LlmBridge {
     const approvalTruthMode = opts.approvalTruth ?? resolveApprovalTruth(process.env);
     this.approvalTruthEnabled = approvalTruthMode !== 'off';
     this.approvalTruthShadow = approvalTruthMode === 'shadow';
+    // P2-T6：三态归一（null 原样透传 = 显式关凭据；纯空白串 ⇒ undefined = 逐字节旧行为）
+    this.bearerEnvName =
+      opts.bearerEnvName === null
+        ? null
+        : typeof opts.bearerEnvName === 'string' && opts.bearerEnvName.trim()
+          ? opts.bearerEnvName.trim()
+          : undefined;
   }
 
   /**
@@ -1236,9 +1337,13 @@ export class CliLlmBridge implements LlmBridge {
    * （按 outputDir 复用同一 CLI 进程），把逐次委派 dtid 写进去只在该进程**下次 spawn** 时才生效，
    * 归因时点错位、且会把上一委派的 dtid 留在文件里；常驻路径的内层归因由**通道 1（时间窗 wild）**
    * 兜底，判定同样成立（零活动 = 窗口内一条非壳记录都没有）。登记为设计偏差（§10-5 同类）。
+   *
+   * P2-T6：落盘的 `mcp.json` 只承载 `${envName}` **变量引用**（凭据值绝不进文件，
+   * NFR-511 / K-17）；`bearerEnvName` 缺席时文件内容与改造前**逐字节一致**。
    */
   private async prepareMcpConfig(outputDir: string, delegationId?: string): Promise<string | undefined> {
-    const inline = buildMcpConfig(this.endpoint, delegationId);
+    // P2-T6：第 3 参透传构造期归一后的 bearerEnvName（undefined ⇒ 输出逐字节旧行为）。
+    const inline = buildMcpConfig(this.endpoint, delegationId, this.bearerEnvName);
     try {
       const cfgDir = join(dirname(outputDir), '.winvm');
       await mkdir(cfgDir, { recursive: true });
@@ -1494,7 +1599,10 @@ export class CliLlmBridge implements LlmBridge {
     // 仅在委派上下文（有 taskId）时拼 —— 非委派调用绝不新增 query（旧行为逐字节保持）；
     // 常驻路径（runPersistent）**不传** —— mcp.json 会话级共享，dtid 归因时点错位（见方法注释）。
     const dtid = input.taskId ? input.traceId : undefined;
-    const mcpConfigArg = (await this.prepareMcpConfig(outputDir, dtid)) ?? buildMcpConfig(this.endpoint, dtid);
+    // P2-T6：内联回退分支同样透传 bearerEnvName（与落盘分支保持同一形状，
+    // 否则「目录不可写 ⇒ 内联」路径会静默退化成无凭据配置 ⇒ 回连必 401）。
+    const mcpConfigArg =
+      (await this.prepareMcpConfig(outputDir, dtid)) ?? buildMcpConfig(this.endpoint, dtid, this.bearerEnvName);
 
     const args = renderCliArgs(this.argTemplate, {
       goal: input.goal,

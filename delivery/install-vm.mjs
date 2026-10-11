@@ -23,6 +23,7 @@
  *                                [--task-name WinVMBridge.Service] [--skip-build]
  *                                [--skip-install] [--skip-links]
  *                                [--admin-endpoint]
+ *                                [--bearer-env-name WINVM_BEARER_TOKEN]
  *
  * 运维端点开关（--admin-endpoint）：
  *   计划任务 WinVMBridge.Service 的任务动作不含任何 env 元素，VM 服务能拿到的环境变量
@@ -35,6 +36,21 @@
  *     （远程打挂会话）」两种能力；服务虽只监听 127.0.0.1，但宿主经 SSH 隧道访问的正是
  *     同一个 loopback 服务，等于暴露面扩大到隧道另一端。
  *     ⇒ 仅在需要验证时显式开启，**验完必须去掉该开关重新部署以收回**。
+ *
+ * 回连凭据分发通路（--bearer-env-name，P2-T6）：
+ *   VM 内 workbuddy provider 起的 codebuddy 子进程要回连宿主侧 `/mcp?dtid=`，服务一旦
+ *   开启 `security.enforceBearer`，回连必须带 Bearer 凭据（T5 真机 B3 实证：缺凭据
+ *   ⇒ 401 打在工具面 ⇒ 委派退化为零副作用虚假完成）。凭据**值**在本仓库纪律下不得
+ *   落任何配置文件明文（NFR-511 / K-17），只允许以「变量名进配置、值进进程环境」的
+ *   形态存在：provider options.bearerEnvName 写变量名 ⇒ `buildMcpConfig` 在
+ *   `mcpServers.winvm.headers` 产出 `Authorization: Bearer ${<envName>}` 引用 ⇒
+ *   CLI 子进程按**自身 env** 展开（2026-10-11 真机实测成立，`qa/r19/t6-probe-e1*`）。
+ *   而「CLI 子进程的 env」= vm-service 进程 env（`launchCliProcess` 透传）= 本脚本
+ *   生成的 start-hidden.ps1 里的显式 `$env:` 赋值（计划任务无 env 通道，见上）。
+ *   ⇒ 本开关只做一件事：在生成的 ps1 里追加**变量名赋值行**，值默认写成占位空串
+ *     （绝不写入真值 —— 真值由运维在 VM 上替换，或经补丁脚本注入，仓库零残留）。
+ *   ⚠ **默认关闭**：不传该开关时生成内容与历史版本逐字节一致（GOLDEN 字节冻结，
+ *     `tests/unit/install-vm-admin-endpoint.test.js`）。
  *
  * 卸载（安全：仅删本项目，目录/软链移入回收站，可恢复）：
  *   node delivery/install-vm.mjs --uninstall            # 预览：打印待移除项，不删除
@@ -107,6 +123,11 @@ function parseArgs(argv) {
     // 运维端点开关：**默认关闭**。为 true 时在生成的 start-hidden.ps1 里追加
     // `$env:WINVM_ADMIN_ENDPOINT = '1'`（vm-service 侧唯一 env 来源，见文件头说明）。
     adminEndpoint: false,
+    // P2-T6 回连凭据分发通路：**默认不注入**（undefined ⇒ 部署产物逐字节旧形态）。
+    // 非空 ⇒ buildTaskXml 之后对生成的 start-hidden.ps1 追加 `$env:<NAME> = ''`
+    // 占位赋值行（值由运维/补丁脚本在 VM 上写真值；仓库与默认产物零残留）。
+    bearerEnvName: undefined,
+    bearerTokenValue: '',
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -129,6 +150,8 @@ function parseArgs(argv) {
       case '--skills-root': out.skillsRoot = argv[++i]; break;
       case '--task-name': out.taskName = argv[++i]; break;
       case '--admin-endpoint': out.adminEndpoint = true; break;
+      case '--bearer-env-name': out.bearerEnvName = argv[++i]; break;
+      case '--bearer-token-value': out.bearerTokenValue = argv[++i]; break;
       default: break;
     }
   }
@@ -721,7 +744,15 @@ async function main() {
   if (isLlmProvider && runtime.agent.providers?.[provider]) {
     runtime.agent.providers[provider] = {
       ...runtime.agent.providers[provider],
-      options: { ...runtime.agent.providers[provider].options, cliPath: cli },
+      options: {
+        ...runtime.agent.providers[provider].options,
+        cliPath: cli,
+        // P2-T6 回连凭据**变量名**（只在显式传 --bearer-env-name 时写入 ⇒ 默认配置逐字节旧形态）。
+        // 这是判据面（`resolveInnerReconnect` 判序④⑤⑥）与生效面（`buildMcpConfig` headers 引用）
+        // 的**同一个键**（agent.providers.<id>.options.bearerEnvName）⇒ 两侧天然同源；
+        // 承载的是变量名，**不是值**（NFR-511 / K-17，值只进 ps1 与进程环境）。
+        ...(args.bearerEnvName ? { bearerEnvName: args.bearerEnvName } : {}),
+      },
     };
   }
   writeJson(runtimeConfig, runtime);
@@ -747,6 +778,17 @@ async function main() {
   killServiceProcess(args.port, args.taskName, args.dryRun, (m) => console.log(`      ${m}`));
   const nodeExe = process.execPath;
   buildTaskXml(args.taskName, nodeExe, cliEntry, args.port, runtimeConfig, undefined, args.adminEndpoint);
+  /* P2-T6：回连凭据变量注入（仅在显式给 --bearer-env-name 时触发 ⇒ 默认产物逐字节不变）。
+   * 值的来源优先级：--bearer-token-value（调试用，会进 argv/历史，不推荐）> 部署进程
+   * 自身同名 env（推荐：运维在 VM 会话里先 `$env:WINVM_BEARER_TOKEN='<真值>'` 再跑部署，
+   * 真值不进命令行、不进仓库）> 占位空串（有名无实值 ⇒ 由 provider init 告警显形）。 */
+  if (args.bearerEnvName) {
+    const bearerValue = args.bearerTokenValue ?? process.env[args.bearerEnvName] ?? '';
+    const injected = injectBearerEnvAssignment(join(genDir, 'start-hidden.ps1'), args.bearerEnvName, bearerValue);
+    console.log(
+      `      回连凭据变量：$env:${injected.envName} 赋值行已${injected.inserted ? '注入' : injected.changed ? '更新' : '就位'}（值${injected.hasValue ? '已写入' : '为占位空串 ⇒ 请运维替换真值'}）`,
+    );
+  }
   r = run('schtasks', ['/Create', '/TN', args.taskName, '/XML', taskXmlPath, '/F']);
   if (r.status !== 0) { console.error('注册任务计划程序失败（需以管理员身份运行）'); process.exit(1); }
   console.log(`      已注册任务 ${args.taskName}（开机自启 + 登录即启 / 崩溃重启 ×3 / 交互式会话 / 无控制台窗口）`);
@@ -828,6 +870,66 @@ export function writeVmSideMarker(home = homedir()) {
   return p;
 }
 
+/**
+ * P2-T6：在生成的 `start-hidden.ps1` 里补齐**回连凭据变量赋值行**（凭据分发通路的注入面）。
+ *
+ * 为什么是「后置补齐」而不是给 `buildTaskXml` 加第 8 参：
+ *  `buildTaskXml` 的输出被 `tests/unit/install-vm-admin-endpoint.test.js` 的
+ *  `GOLDEN_PS1_BEFORE_SWITCH` 做**字节冻结**（历史形态零漂移是既有纪律）；把凭据行塞进
+ *  它的模板里 ⇒ 必然改冻结基线 ⇒ 需要改钉。后置注入器把「默认部署产物逐字节不变」与
+ *  「运维可显式接线凭据通路」两件事解耦：不传 `--bearer-env-name` 时本函数**根本不触发**
+ *  （默认态零回归，与 admin-endpoint 开关同纪律），传了才在已有 ps1 上追加一行。
+ *
+ * 凭据形态铁律（NFR-511 / K-17，与安全评审裁决同源）：
+ *  - 配置面（provider options.bearerEnvName）只承载**变量名**；
+ *  - 本行承载**值**，但值只存在于 VM 上生成的 ps1 与进程环境中，**绝不进仓库**
+ *    （`delivery/.generated/` 已在 .gitignore）；默认写占位串 ⇒ 有名无实值时
+ *    服务端 `resolveInnerReconnect` 判序⑤（有名有占位值 ⇒ 探针/演练实证）与
+ *    provider init 告警（env 无值）都能显形，不会出现「配了却静默失效」。
+ *  - 幂等：同名变量已存在 ⇒ 只替换值（或原样保留），绝不重复插行（重复赋值最后一次生效
+ *    虽无害，但取证时会看不出真实值）。
+ *
+ * 入参校验刻意严格：变量名只接受 `[A-Za-z_][A-Za-z0-9_]*`（PowerShell 合法且无歧义的
+ *  环境变量名形态），否则宁可不注入 —— 计划任务动作行里塞进任意文本就是远程可写的
+ *  ps1 注入面。返回值只含**事实**（是否改动/注入了什么变量名），**绝不含值本身**。
+ *
+ * @param {string} ps1Path 生成的 start-hidden.ps1 路径
+ * @param {string} envName 凭据环境变量名（例：WINVM_BEARER_TOKEN）
+ * @param {string} [tokenValue=''] 变量值（默认占位空串 ⇒ 由运维/补丁脚本写真值）
+ * @returns {{changed: boolean, inserted: boolean, envName: string, hasValue: boolean}}
+ */
+function injectBearerEnvAssignment(ps1Path, envName, tokenValue = '') {
+  if (typeof envName !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(envName)) {
+    throw new Error(
+      `injectBearerEnvAssignment: 非法环境变量名 ${JSON.stringify(envName)}（只允许 [A-Za-z_][A-Za-z0-9_]*）`,
+    );
+  }
+  if (!existsSync(ps1Path)) {
+    throw new Error(`injectBearerEnvAssignment: 启动器文件不存在（先跑 buildTaskXml / 部署）：${ps1Path}`);
+  }
+  const value = typeof tokenValue === 'string' ? tokenValue : '';
+  const assignLine = `$env:${envName} = '${value.replace(/'/g, "''")}'`;
+  const src = readFileSync(ps1Path, 'utf8');
+  const eol = src.includes('\r\n') ? '\r\n' : '\n';
+  const lines = src.split(/\r?\n/);
+  // 已有同名赋值行 ⇒ 就地替换（幂等；绝不重复插行）
+  const existedAt = lines.findIndex((l) => new RegExp(`^\\$env:${envName}\\s*=`).test(l));
+  if (existedAt >= 0) {
+    if (lines[existedAt] === assignLine) {
+      return { changed: false, inserted: false, envName, hasValue: value.length > 0 };
+    }
+    lines[existedAt] = assignLine;
+    writeFileSync(ps1Path, lines.join(eol), 'utf8');
+    return { changed: true, inserted: false, envName, hasValue: value.length > 0 };
+  }
+  // 无同名行 ⇒ 紧跟 READY_TIMEOUT 赋值之后插入（与 admin-endpoint 注入位同段，env 段内聚）
+  const anchorAt = lines.findIndex((l) => l.startsWith('$env:WINVM_PSBRIDGE_READY_TIMEOUT_MS'));
+  const insertAt = anchorAt >= 0 ? anchorAt + 1 : 1;
+  lines.splice(insertAt, 0, assignLine);
+  writeFileSync(ps1Path, lines.join(eol), 'utf8');
+  return { changed: true, inserted: true, envName, hasValue: value.length > 0 };
+}
+
 /** 移除 VM 侧 side 标记；不存在则视为已清理（返回 false）。 */
 export function removeVmSideMarker(home = homedir()) {
   const p = join(home, '.workbuddy', 'winvm', 'side.json');
@@ -845,4 +947,4 @@ if (process.argv[1] && resolve(process.argv[1]) === __filename) {
 }
 
 // 导出供单测校验生成的任务 XML 与隐藏启动器（多层引号转义极易回归，必须锁住）
-export { buildTaskXml };
+export { buildTaskXml, injectBearerEnvAssignment };
