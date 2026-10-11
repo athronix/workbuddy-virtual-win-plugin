@@ -1,0 +1,3696 @@
+{
+  "meta": {
+    "purpose": "P2-T7 attribution four-shape probe (ground truth from chain samples, read-only)",
+    "at": "2026-10-11T04:11:44.887Z",
+    "node": "v24.21.0",
+    "ringCap": 64
+  },
+  "chain": {
+    "taskEvictedEntries": 140,
+    "shardsScanned": 82,
+    "entries": [
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 266,
+        "ts": "2026-10-11T04:01:20.825Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_003ac320573a468bada2",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 1 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "28a822a0-5b88-4671-9ad9-7ac22d27a807"
+          ],
+          "evictedTotal": 1,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 269,
+        "ts": "2026-10-11T04:01:23.629Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_08a7812d56e641d2ab49",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 2 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "a57ae835-3ba0-4642-908e-163d2c9ee8cb"
+          ],
+          "evictedTotal": 2,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 271,
+        "ts": "2026-10-11T04:01:23.634Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_251c333b67964675bc3c",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 3 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "207adb10-8b9e-483d-b529-b909d75f1839"
+          ],
+          "evictedTotal": 3,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 273,
+        "ts": "2026-10-11T04:01:23.637Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_34691dca68f349369b1c",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 4 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "f4ad6039-113d-40fb-8710-7ec92b58e998"
+          ],
+          "evictedTotal": 4,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 275,
+        "ts": "2026-10-11T04:01:23.645Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_3788a1f4ac3f48499ef3",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 5 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "3a04018f-3d6f-4717-baac-3510deadc8b4"
+          ],
+          "evictedTotal": 5,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 278,
+        "ts": "2026-10-11T04:01:26.491Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_af95aeb49af1472f80bb",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 6 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "2899ffcf-2885-490e-89f5-bf6b8974077e"
+          ],
+          "evictedTotal": 6,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 280,
+        "ts": "2026-10-11T04:01:26.497Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_7ab6668ec1d74d548d8b",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 7 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "160f491e-1905-45c5-9580-f2fb119bec4c"
+          ],
+          "evictedTotal": 7,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 282,
+        "ts": "2026-10-11T04:01:26.501Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_3b1a433f54d745fc9217",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 8 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "5fffa12e-9062-4405-8d0b-97a8be5ab2b7"
+          ],
+          "evictedTotal": 8,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 284,
+        "ts": "2026-10-11T04:01:26.511Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_55deee675fee4763b3a8",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 9 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "7ee66ace-a768-47c7-bdbb-3c89eccbc6cc"
+          ],
+          "evictedTotal": 9,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 286,
+        "ts": "2026-10-11T04:01:29.327Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_e83cfcbd2df84d32ade5",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 10 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "b0dd3383-a4f8-4120-ab15-71ceba4c4960"
+          ],
+          "evictedTotal": 10,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 288,
+        "ts": "2026-10-11T04:01:29.331Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_3737b76960d14770b659",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 11 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "506fb77d-c77a-4b8a-8210-2eac036e442e"
+          ],
+          "evictedTotal": 11,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 290,
+        "ts": "2026-10-11T04:01:29.332Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_9c8c96dbf0e44361a968",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 12 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "6531aa4b-45e9-4b87-aa3b-aa905bff5c06"
+          ],
+          "evictedTotal": 12,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 292,
+        "ts": "2026-10-11T04:01:29.334Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_0b21a540ee854f84b54f",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 13 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "bce95d98-d981-4fdc-b070-6738788eec8b"
+          ],
+          "evictedTotal": 13,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 295,
+        "ts": "2026-10-11T04:01:32.100Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_a2eb35e474754ffeb8f7",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 14 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "b1331dbb-9833-4696-b585-6c751a913705"
+          ],
+          "evictedTotal": 14,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 297,
+        "ts": "2026-10-11T04:01:32.116Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_a28d3dfdbe684b2abef5",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 15 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "3ed0df47-0221-464e-92e8-2e9ebafaa93b"
+          ],
+          "evictedTotal": 15,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 299,
+        "ts": "2026-10-11T04:01:32.120Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_a078f2ee84994c468b17",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 16 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "e002d731-a88e-4bb3-b551-e84ea5336eb1"
+          ],
+          "evictedTotal": 16,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 301,
+        "ts": "2026-10-11T04:01:32.132Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_0f616f8ba8f847799143",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 17 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "5a6587bb-cd26-44ec-8478-9d96bec0f912"
+          ],
+          "evictedTotal": 17,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 303,
+        "ts": "2026-10-11T04:01:34.984Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_58e8dd956259449c8a99",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 18 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "f6837c75-a304-4049-b2c1-7d4ff0cfa3ef"
+          ],
+          "evictedTotal": 18,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 305,
+        "ts": "2026-10-11T04:01:34.987Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_67bda72afb7c49a7b0bb",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 19 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "5de6f289-6e1e-4cf5-81fb-df2d4ebd1dda"
+          ],
+          "evictedTotal": 19,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 307,
+        "ts": "2026-10-11T04:01:34.996Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_2be32fe71d8743ce9449",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 20 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "dea17261-f89f-42f6-a94e-094a8ca3b367"
+          ],
+          "evictedTotal": 20,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 309,
+        "ts": "2026-10-11T04:01:34.998Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_dd4937d0d25946009b80",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 21 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "c2644ee0-5faf-40c5-a465-7fe8dac53149"
+          ],
+          "evictedTotal": 21,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 348,
+        "ts": "2026-10-11T04:01:37.797Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_4431dc4724a444ab82b3",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 22 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "ac3fe2ea-1715-42ca-8461-f2153c5375bb"
+          ],
+          "evictedTotal": 22,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 350,
+        "ts": "2026-10-11T04:01:37.810Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_4b7233002c2f4578ae4e",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 23 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "27d2f018-b91f-4933-966c-f5eab18d1c41"
+          ],
+          "evictedTotal": 23,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 352,
+        "ts": "2026-10-11T04:01:37.812Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_3cc1dbfb67f040d9b85d",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 24 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "59ab7768-7b78-4e66-b6e1-5258440b44c2"
+          ],
+          "evictedTotal": 24,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 354,
+        "ts": "2026-10-11T04:01:37.815Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_12a4baaee05143b8ad9d",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 25 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "8abb6336-e372-432b-adfe-0b5b8bb61573"
+          ],
+          "evictedTotal": 25,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 356,
+        "ts": "2026-10-11T04:01:37.816Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_e3b58275132d48b78b15",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 26 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "7e5a1765-4688-4bb7-8e02-ec9b02867d17"
+          ],
+          "evictedTotal": 26,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 358,
+        "ts": "2026-10-11T04:01:37.818Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c59bcebd9a324ea28d9d",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 27 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "f4ab66b9-988b-4626-b506-ed4a4cb2cd96"
+          ],
+          "evictedTotal": 27,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 360,
+        "ts": "2026-10-11T04:01:37.827Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c9136c255c884bb2834d",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 28 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "86b39160-68d5-4fff-9663-6295dd1e0c77"
+          ],
+          "evictedTotal": 28,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 362,
+        "ts": "2026-10-11T04:01:37.834Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_0778c55045cc4ef89f04",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 29 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "0f2d5674-6d7c-4062-a541-63a73d2350b7"
+          ],
+          "evictedTotal": 29,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 364,
+        "ts": "2026-10-11T04:01:37.840Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_6e6f93b52ed84abb9c92",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 30 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "26d13f4a-aa4b-496b-bf5e-6ad06814c439"
+          ],
+          "evictedTotal": 30,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 366,
+        "ts": "2026-10-11T04:01:37.846Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_596088b7c93e47cbbe03",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 31 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "7aa4d2cc-c4b2-4228-a1ae-9dc7f3010202"
+          ],
+          "evictedTotal": 31,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 368,
+        "ts": "2026-10-11T04:01:37.853Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_a5c1d4bcaea94a7b9b39",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 32 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "1779dac4-f9db-43dd-9310-dc13e97b531c"
+          ],
+          "evictedTotal": 32,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 370,
+        "ts": "2026-10-11T04:01:37.862Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_f8a32e24a3904b12aa4c",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 33 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "a9ed9cad-c77a-4790-bc27-9924b66abeea"
+          ],
+          "evictedTotal": 33,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 372,
+        "ts": "2026-10-11T04:01:37.868Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_e36a376fb91441a3aae6",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 34 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "06510787-2404-4a63-a579-ce80683296f2"
+          ],
+          "evictedTotal": 34,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 374,
+        "ts": "2026-10-11T04:01:37.878Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_1e335ed1aec9439b82e5",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 35 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "8b8592e8-9b6c-42bd-9868-cb93b373e859"
+          ],
+          "evictedTotal": 35,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 376,
+        "ts": "2026-10-11T04:01:37.899Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_11008c336f5a4527b7aa",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 36 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "b588da7f-8ab9-4479-b618-c78c9fb5732d"
+          ],
+          "evictedTotal": 36,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 378,
+        "ts": "2026-10-11T04:01:37.906Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_e60c3da445b34e509f40",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 37 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "698f5354-d46c-40a4-a932-12f7e015d4d6"
+          ],
+          "evictedTotal": 37,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 380,
+        "ts": "2026-10-11T04:01:37.915Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_9d2b6a2f531949238eaa",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 38 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "50100dd1-9595-44ec-af63-ec739c51f698"
+          ],
+          "evictedTotal": 38,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 382,
+        "ts": "2026-10-11T04:01:37.924Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c44cce214f0644588e1a",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 39 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "1e619e61-7a20-4d40-aa3c-938a245b2b54"
+          ],
+          "evictedTotal": 39,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 384,
+        "ts": "2026-10-11T04:01:37.930Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_b7169f69459b4c0dbff6",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 40 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "55f2ef65-8739-4d34-a0c3-583ef7e04f18"
+          ],
+          "evictedTotal": 40,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 386,
+        "ts": "2026-10-11T04:01:37.938Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_26f8da5665a44b2288ba",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 41 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "af2d49d7-91cd-4208-a520-6def58f87d7c"
+          ],
+          "evictedTotal": 41,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 388,
+        "ts": "2026-10-11T04:01:37.946Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_549ea54062834a77a501",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 42 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "0224c517-6bcd-4af3-a883-f2d395197c89"
+          ],
+          "evictedTotal": 42,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 390,
+        "ts": "2026-10-11T04:01:37.956Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_849094624d2c4b09aa35",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 43 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "dd2cb666-7297-4c80-811e-2a5d9495af93"
+          ],
+          "evictedTotal": 43,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 392,
+        "ts": "2026-10-11T04:01:37.963Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_5ea2879337444830a930",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 44 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "efeb32a6-ef1b-48fc-b34b-33f64543855e"
+          ],
+          "evictedTotal": 44,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 394,
+        "ts": "2026-10-11T04:01:37.978Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_d4971d9c111c4a779b5c",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 45 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "2a4317b6-294e-4530-a422-a907cb54ad65"
+          ],
+          "evictedTotal": 45,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 396,
+        "ts": "2026-10-11T04:01:37.986Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_4830f289fdff406d959a",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 46 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "e532c4d9-3b8d-4618-a1ba-9be602be6352"
+          ],
+          "evictedTotal": 46,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 398,
+        "ts": "2026-10-11T04:01:38.010Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_633a109408194bc1ace3",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 47 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "ba94405b-20a9-4ec7-a954-f298186a02b5"
+          ],
+          "evictedTotal": 47,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 400,
+        "ts": "2026-10-11T04:01:38.035Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_5ce54c88df3b464f88ea",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 48 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "ecb6a7cd-3f06-467c-b9fa-e8de46125bc6"
+          ],
+          "evictedTotal": 48,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 402,
+        "ts": "2026-10-11T04:01:38.053Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_ed2333d5c3e34abba1ab",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 49 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "a3c25b17-8a3c-49d8-a3b8-e5f385a22af1"
+          ],
+          "evictedTotal": 49,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 404,
+        "ts": "2026-10-11T04:01:38.068Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_edfa1a2072a44e7ea7b8",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 50 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "206e720c-c73e-4df9-a86f-ca37dbc5f844"
+          ],
+          "evictedTotal": 50,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 406,
+        "ts": "2026-10-11T04:01:38.082Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_45e49a09226b468ea888",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 51 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "f94d44b1-5072-4962-b57b-cd4f2c9a0023"
+          ],
+          "evictedTotal": 51,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 408,
+        "ts": "2026-10-11T04:01:38.092Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_88fbe871f44042e4bb0a",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 52 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "45e1caa5-53a1-4fcd-9086-102bb499b97b"
+          ],
+          "evictedTotal": 52,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 410,
+        "ts": "2026-10-11T04:01:38.111Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_b93e3735a7e14172ae73",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 53 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "2da0af0b-0cec-4420-8fd5-d59dbf670f1b"
+          ],
+          "evictedTotal": 53,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 412,
+        "ts": "2026-10-11T04:01:38.124Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_0d644cd4b98f460c8a7b",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 54 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "d363df5f-cf6a-47ba-94ac-08716919c4a1"
+          ],
+          "evictedTotal": 54,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 414,
+        "ts": "2026-10-11T04:01:38.143Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_a621836ea25b43e488b9",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 55 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "0fd1d1e6-60a8-4eb4-be38-0cfe772c58af"
+          ],
+          "evictedTotal": 55,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 427,
+        "ts": "2026-10-11T04:01:40.808Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_fdf5b72028284d8e85bf",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 56 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "84d06d86-0396-4f5e-bc5b-af76379f223e"
+          ],
+          "evictedTotal": 56,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 429,
+        "ts": "2026-10-11T04:01:40.811Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_66215d18794d421ba955",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 57 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "e5d21354-d8cb-4cfa-81d4-b1bb06d7fb53"
+          ],
+          "evictedTotal": 57,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 431,
+        "ts": "2026-10-11T04:01:40.812Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_4c6c07762bf64fcc8b67",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 58 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "e2cf4fb7-fbc0-419c-beb7-2cf639250ebf"
+          ],
+          "evictedTotal": 58,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 433,
+        "ts": "2026-10-11T04:01:40.813Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_1a4438f98add4c2f8bd8",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 59 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "351de345-32f1-47a8-99aa-76fb01038376"
+          ],
+          "evictedTotal": 59,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 436,
+        "ts": "2026-10-11T04:01:43.604Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_482ffa59811f48d6ace6",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 60 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "d909530c-d9b6-43b1-92a2-ef2021938469"
+          ],
+          "evictedTotal": 60,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 438,
+        "ts": "2026-10-11T04:01:43.613Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_f2479ca54df54a83879d",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 61 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "3986b610-2a40-4052-af7a-d2dfb4f7a4e4"
+          ],
+          "evictedTotal": 61,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 440,
+        "ts": "2026-10-11T04:01:43.616Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c9fcc781cefa4dba9caa",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 62 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "3c57492d-4043-41c4-a2e8-55d5d06ab8d6"
+          ],
+          "evictedTotal": 62,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 442,
+        "ts": "2026-10-11T04:01:43.618Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_fefc885722f14c9eb5cf",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 63 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "5dc2d52e-5162-4cbb-90fa-db63f70ef3c2"
+          ],
+          "evictedTotal": 63,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 444,
+        "ts": "2026-10-11T04:01:46.446Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_21d22c5344d74439a606",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 64 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "fd595a58-18ef-459a-a8ff-59c6f32642f4"
+          ],
+          "evictedTotal": 64,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 446,
+        "ts": "2026-10-11T04:01:46.450Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_e17d703d4e41451185ac",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 65 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "1aabcc44-271a-4dfd-86c7-e0ebe7093b5e"
+          ],
+          "evictedTotal": 65,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 448,
+        "ts": "2026-10-11T04:01:46.451Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_1a76d9ad61794ac996a2",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 66 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "22decbf1-7bd5-4705-bd00-1e1646677d77"
+          ],
+          "evictedTotal": 66,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 450,
+        "ts": "2026-10-11T04:01:46.454Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_a72cc0bf069e4c9da68a",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 67 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "4824e010-d5e5-41ea-9ef3-aefea73727d1"
+          ],
+          "evictedTotal": 67,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 453,
+        "ts": "2026-10-11T04:01:49.285Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_40e2cc110d6a42f38d06",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 68 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "768381c7-0cac-43cb-aa7c-23444a34edc0"
+          ],
+          "evictedTotal": 68,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 455,
+        "ts": "2026-10-11T04:01:49.293Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_efa67f6e25ca43248f07",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 69 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "83d29cb1-e78f-48ce-b852-3100fc9cd689"
+          ],
+          "evictedTotal": 69,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 457,
+        "ts": "2026-10-11T04:01:49.299Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_9e6bbac2dcbc46ba89a4",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 70 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "1a194919-bc27-4950-a4c9-8507579b33be"
+          ],
+          "evictedTotal": 70,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 459,
+        "ts": "2026-10-11T04:01:49.309Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_854c5576e283425a9670",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 71 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "2694b8a0-0460-43c4-bc84-563ae2bdd642"
+          ],
+          "evictedTotal": 71,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 462,
+        "ts": "2026-10-11T04:01:52.182Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_af5ee0c05c824305a1c5",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 72 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "c3747fa4-c1cc-431f-8248-34cef1305ee0"
+          ],
+          "evictedTotal": 72,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 464,
+        "ts": "2026-10-11T04:01:52.185Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_b3922e247bde4a4295f0",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 73 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "1c0e29dd-ce09-4b46-8725-ee26039e70f8"
+          ],
+          "evictedTotal": 73,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 466,
+        "ts": "2026-10-11T04:01:52.187Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_55ca10bb689c4512b8a6",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 74 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "5587b60c-cc88-4129-8aba-a5bbb586b1f4"
+          ],
+          "evictedTotal": 74,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 468,
+        "ts": "2026-10-11T04:01:52.194Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_16d7b58e25a949b3a356",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 75 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "2ec16d9a-601d-4bac-b485-6f999c80d799"
+          ],
+          "evictedTotal": 75,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 470,
+        "ts": "2026-10-11T04:01:54.964Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_4bf25061f8ed49bcb904",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 76 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "49b41dd4-4a0f-403d-bf5e-e794d63efe93"
+          ],
+          "evictedTotal": 76,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 472,
+        "ts": "2026-10-11T04:01:54.967Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_1d6e17cfddc74c478952",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 77 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "8414043f-1e7e-40f1-aee9-70487858e962"
+          ],
+          "evictedTotal": 77,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 474,
+        "ts": "2026-10-11T04:01:54.968Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_d46f7279c4fa44b788ef",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 78 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "0ce3ccab-3e26-4e91-bf60-8b46020355fc"
+          ],
+          "evictedTotal": 78,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 476,
+        "ts": "2026-10-11T04:01:54.969Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_28f981ae71f742d6a05d",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 79 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "027cbdde-8e0f-43a1-877a-42c434eb74f6"
+          ],
+          "evictedTotal": 79,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 479,
+        "ts": "2026-10-11T04:01:57.762Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_b9c8fc9a54454ee5ad5a",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 80 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "d86e7358-9af3-4fbf-a520-105a13720724"
+          ],
+          "evictedTotal": 80,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 481,
+        "ts": "2026-10-11T04:01:57.766Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c2585976a8c44be199b9",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 81 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "424d8c20-cfa6-4d22-ad41-de88f2306cc2"
+          ],
+          "evictedTotal": 81,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 483,
+        "ts": "2026-10-11T04:01:57.769Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_948445aba74f460e9070",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 82 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "c99b09fa-eb2a-4568-a526-a36bfaf24299"
+          ],
+          "evictedTotal": 82,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 485,
+        "ts": "2026-10-11T04:01:57.778Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_d19c2ff422494e71b38b",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 83 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "b82e8976-21d9-4ac5-8b81-bfbb05af7c64"
+          ],
+          "evictedTotal": 83,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 487,
+        "ts": "2026-10-11T04:02:00.567Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_bc79fef01cdf4b109b1a",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 84 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "6630f0b6-14e8-449a-a353-429ad60d3149"
+          ],
+          "evictedTotal": 84,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 489,
+        "ts": "2026-10-11T04:02:00.578Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_bc7560d2d4664e3eafd0",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 85 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "c16c59a3-2c85-4a6e-8ab1-caaf749be3ce"
+          ],
+          "evictedTotal": 85,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 491,
+        "ts": "2026-10-11T04:02:00.583Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_b6d2b62bfd3747288bcf",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 86 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "ec8ed5e7-f309-4d77-8ddb-27fcb990d70f"
+          ],
+          "evictedTotal": 86,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 493,
+        "ts": "2026-10-11T04:02:00.585Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_6deb23ebb6c247e08c6f",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 87 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "78e5e3bc-bb95-4e89-bf28-e3792310e806"
+          ],
+          "evictedTotal": 87,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 496,
+        "ts": "2026-10-11T04:02:03.370Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_3ef9daab1c474144a142",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 88 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "cd8d0bb9-6a81-40a5-aa37-a5b0e631a4b6"
+          ],
+          "evictedTotal": 88,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 498,
+        "ts": "2026-10-11T04:02:03.380Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_6b4a1fb1e6cb4d0cb572",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 89 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "70ec4c0d-8f32-473d-8a1e-0f3a28286690"
+          ],
+          "evictedTotal": 89,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 500,
+        "ts": "2026-10-11T04:02:03.383Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_bfb3099af5884c3f8e58",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 90 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "bb6b6d2b-227c-4f75-b2de-179e06dfc517"
+          ],
+          "evictedTotal": 90,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 502,
+        "ts": "2026-10-11T04:02:03.386Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_905a99cb6d114efc8662",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 91 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "f8e4d550-aac7-4a6f-97e4-8e96df24fa6c"
+          ],
+          "evictedTotal": 91,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 504,
+        "ts": "2026-10-11T04:02:06.246Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_7c1c787fd5184a43a3e5",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 92 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "8400c669-e3b9-43aa-b6b5-79df8ab365dc"
+          ],
+          "evictedTotal": 92,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 506,
+        "ts": "2026-10-11T04:02:06.249Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_fed379c6ca11468bb6ee",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 93 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "672cce18-6645-472b-a6a6-6c896d03b8f6"
+          ],
+          "evictedTotal": 93,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 508,
+        "ts": "2026-10-11T04:02:06.250Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c6e46c4dcb724a89b2ae",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 94 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "1ffe411b-2ac4-4d2b-b40d-a53039ef2aa7"
+          ],
+          "evictedTotal": 94,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 510,
+        "ts": "2026-10-11T04:02:06.252Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_f77e43efd9d84f3ea55f",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 95 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "17710f5a-e884-4c55-9857-3a1a7e84185d"
+          ],
+          "evictedTotal": 95,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 513,
+        "ts": "2026-10-11T04:02:09.112Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_d1cf948c5d0d4d598e78",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 96 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "dfed54cd-8709-41c0-afa2-27f9d1760e2b"
+          ],
+          "evictedTotal": 96,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 515,
+        "ts": "2026-10-11T04:02:09.117Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c4a5e39cfae34ac78df7",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 97 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "7624ab3e-f924-4681-9f4c-629623c45167"
+          ],
+          "evictedTotal": 97,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 517,
+        "ts": "2026-10-11T04:02:09.120Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_fe44205445e042999456",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 98 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "f16c3527-b8b3-4cbe-be1a-f8e8ec5127a6"
+          ],
+          "evictedTotal": 98,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 519,
+        "ts": "2026-10-11T04:02:09.130Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_db1708a2bed84180893d",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 99 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "e68fb5be-0ab1-46e6-b116-d24c8c4b8bb3"
+          ],
+          "evictedTotal": 99,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 521,
+        "ts": "2026-10-11T04:02:11.962Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_090741ac04db4f82aeee",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 100 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "a0b17dc3-3ff5-4635-ba42-41e561ffacf2"
+          ],
+          "evictedTotal": 100,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 523,
+        "ts": "2026-10-11T04:02:11.968Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_a013de97dc12442490d1",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 101 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "5a4e9477-c508-4d3e-85c0-df95a164b6dd"
+          ],
+          "evictedTotal": 101,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 525,
+        "ts": "2026-10-11T04:02:11.980Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_1165a97d25904552bc51",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 102 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "a02f0156-69ba-4eba-9ce5-21a6707bbf62"
+          ],
+          "evictedTotal": 102,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 527,
+        "ts": "2026-10-11T04:02:11.984Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_fe75bd23c27c4d03ab01",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 103 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "f4b6371f-970c-4dc0-ab73-88685d4fe9e7"
+          ],
+          "evictedTotal": 103,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 530,
+        "ts": "2026-10-11T04:02:14.829Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_8c32537e0b404f87aa7e",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 104 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "15b2db09-f3a9-438f-8e87-efa05a37436f"
+          ],
+          "evictedTotal": 104,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 532,
+        "ts": "2026-10-11T04:02:14.833Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c4db4140f89a4403b3cd",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 105 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "a3a1c32f-78dd-46a2-a236-7cb08c154ea3"
+          ],
+          "evictedTotal": 105,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 534,
+        "ts": "2026-10-11T04:02:14.836Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_8a02f2e986954932b7ad",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 106 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "4a9a076d-b392-49b2-939e-b41b98835633"
+          ],
+          "evictedTotal": 106,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 536,
+        "ts": "2026-10-11T04:02:14.844Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_5a8239eaa2494f229025",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 107 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "1a0bc64c-8ba5-44c3-8027-f6319e4abd61"
+          ],
+          "evictedTotal": 107,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 538,
+        "ts": "2026-10-11T04:02:17.627Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_4c47a53e262e49899c8e",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 108 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "1ea7e4c9-9a18-4909-baa2-b843f32fd9bf"
+          ],
+          "evictedTotal": 108,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 540,
+        "ts": "2026-10-11T04:02:17.634Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_e584d86956d24354b0d8",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 109 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "34014b67-e779-41bb-b29e-5cb1309ceebc"
+          ],
+          "evictedTotal": 109,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 542,
+        "ts": "2026-10-11T04:02:17.647Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_ded104ff20c74b209ed2",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 110 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "7f329520-9a6a-4580-9f5e-a42696469695"
+          ],
+          "evictedTotal": 110,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 544,
+        "ts": "2026-10-11T04:02:17.650Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_26a6ecd30b8349c6afb2",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 111 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "cc89f8a5-8f27-4a57-99c8-507e37bfcce5"
+          ],
+          "evictedTotal": 111,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 547,
+        "ts": "2026-10-11T04:02:20.548Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_212b5e574540425db6c1",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 112 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "9976e2d1-9169-4482-837a-6aa3a0e2e353"
+          ],
+          "evictedTotal": 112,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 549,
+        "ts": "2026-10-11T04:02:20.552Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_057dbc8076ef445b8777",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 113 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "404ccdc9-d3c5-4fd4-9383-f4f7e7b8382c"
+          ],
+          "evictedTotal": 113,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 551,
+        "ts": "2026-10-11T04:02:20.559Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_45f3433c4a0248d28744",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 114 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "d42b4d7d-4350-4e41-a275-61af79d3badb"
+          ],
+          "evictedTotal": 114,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 553,
+        "ts": "2026-10-11T04:02:20.562Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_00d29d3bfb0048598bcf",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 115 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "2cd74b66-a342-4f36-a368-8ae125f54303"
+          ],
+          "evictedTotal": 115,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 555,
+        "ts": "2026-10-11T04:02:23.448Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_7b2ac4a88ff047f1acb1",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 116 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "da2c7b99-15c7-4b11-b56c-c6b9b54a7974"
+          ],
+          "evictedTotal": 116,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 557,
+        "ts": "2026-10-11T04:02:23.464Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_c1b163bccba140809ad1",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 117 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "b4a1aeab-3bb5-40b4-ab75-b25e63f467dc"
+          ],
+          "evictedTotal": 117,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 559,
+        "ts": "2026-10-11T04:02:23.467Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_ea1d54a2433a4cf58d47",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 118 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "ffafe92d-e7ea-4306-904c-cb18bd85830a"
+          ],
+          "evictedTotal": 118,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 561,
+        "ts": "2026-10-11T04:02:23.469Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_a9bf2de420594707ac3f",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 119 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "dafbc68b-4628-4e99-aa46-0f253b7ee92e"
+          ],
+          "evictedTotal": 119,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 564,
+        "ts": "2026-10-11T04:02:26.376Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_6aa3d4dda90d4fe59740",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 120 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "e746d90c-6945-4992-9145-206e6a811d31"
+          ],
+          "evictedTotal": 120,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 566,
+        "ts": "2026-10-11T04:02:26.379Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_5119dda0155e4dc09ceb",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 121 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "be6fd576-2d16-4d85-a66c-f7e3ec3060d7"
+          ],
+          "evictedTotal": 121,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 568,
+        "ts": "2026-10-11T04:02:26.380Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_2133fbac677a4f08ba28",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 122 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "c3627605-0d13-45b3-8cb8-2b4fef4865bb"
+          ],
+          "evictedTotal": 122,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 576,
+        "ts": "2026-10-11T04:02:32.045Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_4a576dbdfb10407ca53e",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 123 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "fc16ab47-647f-4288-b5c0-0be3b85e8a1f"
+          ],
+          "evictedTotal": 123,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 582,
+        "ts": "2026-10-11T04:02:34.945Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_1193282f68a542bd9e8a",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 124 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "eee34e3c-ac37-43c7-b493-ba9c91e5bb84"
+          ],
+          "evictedTotal": 124,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 622,
+        "ts": "2026-10-11T04:02:40.700Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_86c7d0da39ed43259ecb",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 125 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "7bb61d61-0a43-44ce-9563-cc687e3cc24a"
+          ],
+          "evictedTotal": 125,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 632,
+        "ts": "2026-10-11T04:02:46.657Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_1e4c8dbca72149109669",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 126 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "ef0c4c1e-497b-4832-a75b-575374cd0bf4"
+          ],
+          "evictedTotal": 126,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 642,
+        "ts": "2026-10-11T04:02:52.313Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_9c637e1f99904e09b300",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 127 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "70830751-b10f-4260-bc25-ed5427b79ebb"
+          ],
+          "evictedTotal": 127,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 652,
+        "ts": "2026-10-11T04:02:58.046Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_716a5d8242c846169e43",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 128 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "39f51e7f-3479-4a42-ad09-12133c3e7ef9"
+          ],
+          "evictedTotal": 128,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 658,
+        "ts": "2026-10-11T04:03:00.879Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_792c6af69e9349b6a483",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 129 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "5475f786-419a-4ae6-83e8-123a8254ec94"
+          ],
+          "evictedTotal": 129,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 722,
+        "ts": "2026-10-11T04:03:34.596Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_761ee5c7507c401dba77",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 55 条终态任务（overflow=55；累计 184 条）；终态分布 completed:55",
+        "evict": {
+          "count": 55,
+          "ttlCount": 0,
+          "overflowCount": 55,
+          "sampleTaskIds": [
+            "cd11d5a8-39c0-4ebd-96d5-95f017743da2",
+            "6ca196ce-13d5-4b39-b184-4d9558a7b8a1",
+            "7cfa072e-6f45-494a-a202-8ab4012846c9",
+            "914e2c3f-1745-4a9a-a126-971e9e6ad5e6",
+            "ab9d46de-4652-498b-97fe-a2fba8515bdd",
+            "23284577-0a92-4f7b-8b23-4b0c5a40a53b",
+            "64d5a3a2-5735-4115-8346-af4d84375578",
+            "0aa725d8-2fb9-4248-9282-4ae06a51df0d",
+            "8f10e02c-1da6-479e-9cf5-36d69a5d63d1",
+            "a1025943-05a5-45fb-ab5e-bb725e15ad0f"
+          ],
+          "evictedTotal": 184,
+          "terminalStates": {
+            "completed": 55
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 763,
+        "ts": "2026-10-11T04:04:33.127Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_06c35acf49d946eab6e7",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 10 条终态任务（overflow=10；累计 194 条）；终态分布 completed:10",
+        "evict": {
+          "count": 10,
+          "ttlCount": 0,
+          "overflowCount": 10,
+          "sampleTaskIds": [
+            "db3ffa6b-4322-4dab-a1bf-6c2b4655db77",
+            "f413d44c-e0fe-4190-b460-924bfbbe7deb",
+            "5777d223-b201-4c18-b4a5-d65d9393b0bb",
+            "8a794811-0195-40ae-949e-a1a76b2ad7bd",
+            "9f7e7b17-04aa-49b5-93d3-df54ce97f2a5",
+            "421a6416-4061-42ec-9dea-887e3153c786",
+            "1d5cc5ea-6f72-4148-a6a6-c5da093672e9",
+            "9ba9e2e5-6c8d-4a0e-9746-a13ee7f2320c",
+            "eb3c586d-368e-45d4-ac56-a5611da496d2",
+            "fcdecfb4-c808-474e-9ae3-cf67059a7042"
+          ],
+          "evictedTotal": 194,
+          "terminalStates": {
+            "completed": 10
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 857,
+        "ts": "2026-10-11T04:05:31.514Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_95d9e4e58a5549aaaa0e",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 63 条终态任务（overflow=63；累计 257 条）；终态分布 completed:6 failed:57",
+        "evict": {
+          "count": 63,
+          "ttlCount": 0,
+          "overflowCount": 63,
+          "sampleTaskIds": [
+            "c39707ba-9dbb-4fdc-ad61-12d199313361",
+            "89d3b390-5caf-4100-ba2e-9091fa8ac0f1",
+            "856a06eb-c889-4da7-9776-0d623a0288a7",
+            "aa1953cc-2134-4a06-84dd-76bc37f7a776",
+            "107fb89d-37ad-4d53-aa29-146084feef42",
+            "ae327892-24be-4b8a-8177-52895964209b",
+            "5a073d53-4782-4fee-b958-f4dc3c007e76",
+            "71ad8e7d-698b-4878-a301-5c0a95917f70",
+            "8d25d775-32b6-4023-b333-d6fcd952634a",
+            "a7c12e74-2155-498c-bc3b-38040ecd96f9"
+          ],
+          "evictedTotal": 257,
+          "terminalStates": {
+            "completed": 6,
+            "failed": 57
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 924,
+        "ts": "2026-10-11T04:06:30.023Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_8655ae29c00e4ad1a85d",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 36 条终态任务（overflow=36；累计 293 条）；终态分布 failed:36",
+        "evict": {
+          "count": 36,
+          "ttlCount": 0,
+          "overflowCount": 36,
+          "sampleTaskIds": [
+            "8490f562-6175-4a69-be61-5bcc6417fedd",
+            "e442db53-6d6e-4d1b-8cc4-7f61036f2bc0",
+            "80d27b10-52bc-4591-a7ed-a9c71ac49ab5",
+            "c27be4ea-35d7-4f81-b36d-5a0f8ed89963",
+            "8b6088d1-9152-4f52-b922-ea3c11a53897",
+            "236389a9-5b78-4864-b17b-1a1fa6f4b1bb",
+            "a21bfc0f-fa2f-4245-b273-4da3ed62aefd",
+            "d8589a13-f78c-4a62-884e-14896999ea59",
+            "d84351bb-d5c0-4ccc-b5c5-84cc00886299",
+            "9aae3189-862f-4eec-bc6b-b84449578315"
+          ],
+          "evictedTotal": 293,
+          "terminalStates": {
+            "failed": 36
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 982,
+        "ts": "2026-10-11T04:07:28.389Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_5e2c8e18a42845b7beb2",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 27 条终态任务（overflow=27；累计 320 条）；终态分布 failed:27",
+        "evict": {
+          "count": 27,
+          "ttlCount": 0,
+          "overflowCount": 27,
+          "sampleTaskIds": [
+            "0881a680-863c-4619-8d6b-dabac8cd6cb0",
+            "265a5371-dfcb-410f-b611-15339d539a5a",
+            "e0dacb95-e1b9-4ec8-a7b0-6fe3e6d60c8c",
+            "1c205526-a7c0-408b-88d0-b8e7803ce794",
+            "1261708c-c9b3-4d7c-b8f2-98dfcccb8eb9",
+            "1570e2cc-5bb4-4840-88e8-4ed546ae1c66",
+            "04cae6c3-ee28-44b8-98e8-4c351c06e104",
+            "f664351c-b4ac-43dd-99d7-5c5e5be8cb70",
+            "a8e87cad-3ad1-433b-9ff7-45132a834fd2",
+            "9207d407-01c5-4e8a-bb48-750328728671"
+          ],
+          "evictedTotal": 320,
+          "terminalStates": {
+            "failed": 27
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 1034,
+        "ts": "2026-10-11T04:08:26.634Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_1140b7a6483d449899dd",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 21 条终态任务（overflow=21；累计 341 条）；终态分布 failed:21",
+        "evict": {
+          "count": 21,
+          "ttlCount": 0,
+          "overflowCount": 21,
+          "sampleTaskIds": [
+            "97a64b33-13a7-4f65-af90-694db44faff3",
+            "0268da8b-e6f8-4365-bdec-009f6b0fc11d",
+            "3b8bb89f-8095-4c6d-b9bd-fe9bf58dfccd",
+            "394dec66-0531-47db-828a-f8b9aa363175",
+            "011546d7-9885-4247-893e-b90a95715f07",
+            "35abf397-978a-4be2-b2e0-e550ff77d03e",
+            "55c1145f-ecba-45e0-9610-615e25b5a171",
+            "21f7d05e-e5c5-4668-9bac-85cc920ab3b4",
+            "bf1d55a0-80f8-4728-b9f8-a38231654f2c",
+            "1d6d7833-1cff-4aa2-adb6-6e7533dc3036"
+          ],
+          "evictedTotal": 341,
+          "terminalStates": {
+            "failed": 21
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 1123,
+        "ts": "2026-10-11T04:09:56.710Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_26856cc6794b46fa8643",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 25 条终态任务（overflow=25；累计 366 条）；终态分布 failed:25",
+        "evict": {
+          "count": 25,
+          "ttlCount": 0,
+          "overflowCount": 25,
+          "sampleTaskIds": [
+            "89977c64-8654-4daa-bcec-47d8e4b4db6b",
+            "2bcdb4eb-20bc-4235-8143-8287f9008070",
+            "433a5d76-259c-4248-a385-1ff6c89fac64",
+            "53419d0c-a6bc-46e0-bc36-4e431e4610f6",
+            "f54583c1-ad1d-43cd-8f6c-931f95895b37",
+            "157837cd-b0c9-4217-ad49-dac9a10115b9",
+            "c6e5bd0a-7d19-4a93-ae53-5c4a96dd9de9",
+            "909a55f1-e92f-49b0-a31c-60e5ee54a914",
+            "c83f8a73-36d0-4a87-a94e-7d7691c65f50",
+            "9104587a-080d-4aa1-ad5f-4b6c3f7c6b00"
+          ],
+          "evictedTotal": 366,
+          "terminalStates": {
+            "failed": 25
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 1151,
+        "ts": "2026-10-11T04:10:19.792Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_46636ca2a26242ba8ab3",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 367 条）；终态分布 failed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "3a4a13f5-80b5-47dd-bd6d-d3b287620963"
+          ],
+          "evictedTotal": 367,
+          "terminalStates": {
+            "failed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 1177,
+        "ts": "2026-10-11T04:10:42.367Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_8f23107bb5824c4992fd",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 368 条）；终态分布 failed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "543e3dde-da1f-4f03-8f8c-51859d8a03e6"
+          ],
+          "evictedTotal": 368,
+          "terminalStates": {
+            "failed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 1196,
+        "ts": "2026-10-11T04:11:05.011Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_830d36a0098c499b8b1b",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 369 条）；终态分布 failed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "b70628c0-94f0-433a-8f97-47cd3d1c4d68"
+          ],
+          "evictedTotal": 369,
+          "terminalStates": {
+            "failed": 1
+          }
+        }
+      },
+      {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 1234,
+        "ts": "2026-10-11T04:11:27.618Z",
+        "principalChannel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "matchedRule": "internal:task-evicted",
+        "allowed": true,
+        "traceId": "tr_cf6569b7b09e42cb9fe9",
+        "durationMs": null,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 370 条）；终态分布 failed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "7da00e4b-e34a-49b9-9544-22cc54e1797d"
+          ],
+          "evictedTotal": 370,
+          "terminalStates": {
+            "failed": 1
+          }
+        }
+      }
+    ]
+  },
+  "probes": [
+    {
+      "kind": "C1-evicted-in-window",
+      "id": "7da00e4b-e34a-49b9-9544-22cc54e1797d",
+      "expected": "data={code,evicted:true}",
+      "hasResult": false,
+      "state": null,
+      "errorCode": -32602,
+      "errorData": {
+        "code": "TaskNotFoundError",
+        "evicted": true
+      },
+      "dataKeys": "code,evicted",
+      "hasEvictedKey": true,
+      "evictedTrue": true,
+      "message": "任务不存在或不可访问：7da00e4b-e34a-49b9-9544-22cc54e1797d"
+    },
+    {
+      "kind": "C2-evicted-out-of-window",
+      "id": "28a822a0-5b88-4671-9ad9-7ac22d27a807",
+      "expected": "legacy shape (honest false)",
+      "hasResult": false,
+      "state": null,
+      "errorCode": -32602,
+      "errorData": {
+        "code": "TaskNotFoundError"
+      },
+      "dataKeys": "code",
+      "hasEvictedKey": false,
+      "evictedTrue": false,
+      "message": "任务不存在或不可访问：28a822a0-5b88-4671-9ad9-7ac22d27a807"
+    },
+    {
+      "kind": "C3-never-existed",
+      "id": "t7-never-exists-00000000-0000-0000-0000-000000000000",
+      "expected": "legacy shape, byte-identical",
+      "hasResult": false,
+      "state": null,
+      "errorCode": -32602,
+      "errorData": {
+        "code": "TaskNotFoundError"
+      },
+      "dataKeys": "code",
+      "hasEvictedKey": false,
+      "evictedTrue": false,
+      "message": "任务不存在或不可访问：t7-never-exists-00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "kind": "C4-live",
+      "id": "a45fea89-98f4-45d4-a9d9-c7d1ff82c1de",
+      "expected": "hasResult (activity never evicted)",
+      "hasResult": true,
+      "state": "working",
+      "errorCode": null,
+      "errorData": null,
+      "dataKeys": null,
+      "hasEvictedKey": false,
+      "evictedTrue": false,
+      "message": null
+    },
+    {
+      "kind": "C4-live",
+      "id": "0a719842-ec64-4198-81f0-efadbaa3b5ff",
+      "expected": "hasResult (activity never evicted)",
+      "hasResult": true,
+      "state": "working",
+      "errorCode": null,
+      "errorData": null,
+      "dataKeys": null,
+      "hasEvictedKey": false,
+      "evictedTrue": false,
+      "message": null
+    }
+  ],
+  "health": {
+    "tasks": {
+      "live": 200,
+      "maxTasks": 200,
+      "terminalTtlMs": 3600000,
+      "evictedCount": 370
+    },
+    "audit": {
+      "entries": 1245,
+      "chainValid": true,
+      "scope": "session",
+      "shardsVerified": 1,
+      "shardsTotal": 82,
+      "shardsArchived": 81
+    },
+    "security": {
+      "loopbackOnly": true,
+      "boundLoopback": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": {
+        "code": "not-mounted",
+        "ok": true,
+        "reason": "bearer 守卫未挂载（authMode≠bearer-enforced），跳过挂载求值"
+      },
+      "innerReconnect": {
+        "status": "unverified",
+        "reason": "authMode=loopback-only：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）"
+      }
+    },
+    "provider": {
+      "id": "workbuddy",
+      "state": "ready"
+    }
+  },
+  "verdict": {
+    "c1AllEvictedTrue": true,
+    "c1DataKeysExact": true,
+    "c2HonestFalse": true,
+    "c3LegacyShape": true,
+    "c4LiveHasResult": true,
+    "evictedKeyPresentInHealth": true,
+    "chainValid": true,
+    "threeValuesDefault": true
+  }
+}

@@ -1,0 +1,1731 @@
+{
+  "meta": {
+    "purpose": "P2-T7 L1 long-session eviction observation (overflow gate, default 200/1h)",
+    "zeroSideEffect": {
+      "blocking": false,
+      "maxRisk": "L0",
+      "allowedCapabilities": [],
+      "note": "空 allowedCapabilities ⇒ 确定性执行器 allowed() 恒 false ⇒ 零模板零能力调用；L0 ⇒ 无审批闸触达"
+    },
+    "total": 240,
+    "batch": 12,
+    "startedAt": "2026-10-11T03:28:56.261Z",
+    "elapsedMs": 9570,
+    "node": "v24.21.0"
+  },
+  "sent": [
+    {
+      "seq": 1,
+      "id": "5b61dcec-a212-4162-8482-b5f8a3360de6",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 2,
+      "id": "23baca55-29a5-4fc5-a118-6f35e52af715",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 3,
+      "id": "bccd0d73-7f25-4a7c-b932-780d422789fe",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 4,
+      "id": "e0177cc9-c833-4196-9356-543b7b94b4ba",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 5,
+      "id": "706de66b-2829-41dd-aa51-fdca3a533225",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 6,
+      "id": "fdef7f25-38f4-46c1-b9bd-b19ccf150782",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 7,
+      "id": "0bcc04b0-577c-44ca-a3fa-808e583c35c7",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 8,
+      "id": "1017da64-1651-4133-a84d-887590c09d2a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 9,
+      "id": "e04dcde8-5dfb-4e5a-89c5-dac7b98bef85",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 10,
+      "id": "8bd5ba34-c312-4092-a5ac-df15a6dfca1d",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 11,
+      "id": "bf9f7c90-2def-4a13-a7de-dc3354653b19",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 12,
+      "id": "5e82bff9-c027-49d4-a5b0-610e034a572b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 13,
+      "id": "54149c32-e248-476e-8c35-8f77ca285e8d",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 14,
+      "id": "09085bc7-0c47-4db6-81b6-4c197d4cc29b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 15,
+      "id": "69a180b6-77ef-417e-ac54-e58ebb9f7796",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 16,
+      "id": "6d8095e4-e4c4-4613-ba2d-39f3f7c99ade",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 17,
+      "id": "bb660384-4843-4f5c-a587-80066c876791",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 18,
+      "id": "ad571082-610a-477b-9efa-5298092ff04d",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 19,
+      "id": "d6dac481-cd6c-4309-aa91-99685c6bd80f",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 20,
+      "id": "bd6f3444-658d-4716-8880-98c209ac3dcb",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 21,
+      "id": "88fecaec-4487-4b37-9cca-cc240c4c1520",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 22,
+      "id": "cd812390-1f93-4e59-ba58-3789e91649ca",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 23,
+      "id": "14f78556-cb88-4e6d-9e92-3cc1bce6e961",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 24,
+      "id": "27ffe4e1-9f21-47e7-a6ec-8cca36350da4",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 25,
+      "id": "12d114ae-7ff7-473a-aeb5-f21dbea9caa0",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 26,
+      "id": "0e856c59-1302-4edf-a39a-3db6ec756b87",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 27,
+      "id": "c07c8af4-138b-41bd-b907-342b0388b9dc",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 28,
+      "id": "94019263-ccdd-46f2-9f85-f0ca2fe4e3e2",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 29,
+      "id": "66cbeb82-4051-427d-824a-84078932ac85",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 30,
+      "id": "2910ac14-fa0e-4bbc-8311-74f0cf2114d3",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 31,
+      "id": "bac14cdc-506b-4e4e-a4e9-7821f7a75907",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 32,
+      "id": "9222deff-433c-4910-a849-40df3aa808ec",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 33,
+      "id": "ff1bea9d-155c-4561-a6ff-8ac483c5d039",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 34,
+      "id": "6b32d03a-1de3-4590-b29f-24dee82eb5b0",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 35,
+      "id": "33dbc284-c5b3-4d34-9b6a-11f1fae48f5e",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 36,
+      "id": "49aaca85-436c-48a5-86c0-7a7d9ff4ad76",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 37,
+      "id": "99050853-afa3-413a-b728-1447dafc0db8",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 38,
+      "id": "07027e14-7ee2-4401-a01d-41f31811791a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 39,
+      "id": "3e93d04d-ba54-48cc-8ffb-ab7490a01f35",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 40,
+      "id": "15775a24-a9ea-4452-8cd8-abd02f906956",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 41,
+      "id": "6a41bec7-ddc7-4597-ac1f-601cba78c690",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 42,
+      "id": "82bec48f-60e9-4598-a9ad-aa32218d9c28",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 43,
+      "id": "f9f26426-471f-4450-90b4-06eac03b1d19",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 44,
+      "id": "ca31a37e-c187-4c0a-9cad-070a9dd82081",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 45,
+      "id": "1b9d91d1-924e-427f-9e37-e73044a856ac",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 46,
+      "id": "3740327f-13ad-410b-af01-0b417411b424",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 47,
+      "id": "f935ee5c-1a66-4bfb-a0ca-b965cb8863ec",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 48,
+      "id": "885bb2a4-9a46-426c-8913-e4f5658a4217",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 49,
+      "id": "a3304c94-70b7-4f5b-b6f5-5f5438dbab3c",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 50,
+      "id": "cfc37895-cd97-43a7-b820-4e8271c19e70",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 51,
+      "id": "9ba213d5-fc4a-471f-9080-28155a3c512e",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 52,
+      "id": "4738da3e-3e04-45c3-b1cb-ce1d5d30ad07",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 53,
+      "id": "90605095-eaba-4b4c-866c-2dc835e2af64",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 54,
+      "id": "9a1b5437-c867-47ce-a001-f05e4163f0f5",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 55,
+      "id": "80f60426-224b-4bfb-883e-28fa69bc1755",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 56,
+      "id": "7e4ab159-4cfb-491f-86f2-03c33809f26f",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 57,
+      "id": "64e6a5bd-a9e6-4908-9065-2133ead3a93b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 58,
+      "id": "9949d853-0d5b-45e4-9e23-a55e5308454e",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 59,
+      "id": "7c7afa27-4cde-4e77-9a79-e42ed25ecd54",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 60,
+      "id": "1c80ec62-fa3a-4c3e-96a8-90e7a37d75aa",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 61,
+      "id": "661121a7-1129-4921-92c3-2f3d977c4b4b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 62,
+      "id": "93d0601f-1f5b-4c28-a934-fca98cae70a0",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 63,
+      "id": "f941f3d0-5a95-4ed4-8da8-7e8f7f7403e8",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 64,
+      "id": "6f6a4b58-f9f3-47e9-8a4a-ecda5a4896c6",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 65,
+      "id": "8d995047-a5fc-4db8-aad8-490a2a6e6422",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 66,
+      "id": "a171c4e1-d6f6-42b3-83a9-72f1ecc513e9",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 67,
+      "id": "2d3f003d-ec3b-4cd4-83c4-6ed8d44e8cad",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 68,
+      "id": "ed046a7c-e416-44ac-8423-411fa1ed1bb3",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 69,
+      "id": "0f6f51f9-7271-4a35-a6b6-0d4c5ceea7f7",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 70,
+      "id": "3c2f5510-7af0-4feb-a8b1-ff6d8f2875cf",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 71,
+      "id": "cf3d7968-4458-474e-96c9-54d44e0bfb94",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 72,
+      "id": "199b4ecf-62c3-4cf7-b8e2-f61901c47a40",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 73,
+      "id": "84d329f9-1ccb-4309-a17a-a9288334c239",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 74,
+      "id": "4167ac1e-1b38-4fb8-806f-a11b9975b535",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 75,
+      "id": "09e74267-0f58-413f-8af9-a5d470bf1eae",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 76,
+      "id": "f806ebdd-f1d2-41bc-974c-dd5d84a40f08",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 77,
+      "id": "ba89108d-5b87-4b37-b6fb-a80cbee83c84",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 78,
+      "id": "774ea6f2-b4a7-4b03-a765-a6fb5ce992f1",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 79,
+      "id": "98785f87-d2dc-4431-ae0f-453867b85ec7",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 80,
+      "id": "d08c488c-5a79-4317-a152-2e0996c59f89",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 81,
+      "id": "daf91cf1-cacf-47fa-ae72-138326c7d718",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 82,
+      "id": "ea992a0c-908a-4b46-9ef1-c4df164e4103",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 83,
+      "id": "34504908-3aa2-42fb-adee-3ebe925a6ad4",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 84,
+      "id": "9021380f-8785-43d2-bc02-f6c383a160c6",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 85,
+      "id": "03132533-68d2-4c64-b8cd-6ee29749f2cc",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 86,
+      "id": "df8c8c71-e246-47df-b786-351b361ef8a7",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 87,
+      "id": "d5b55bca-ccbd-49e0-8ac4-359ccff6b8e1",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 88,
+      "id": "bf639ded-ccce-4707-81f1-e92acb8d3969",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 89,
+      "id": "fa9151b2-4659-4915-ab09-b2a684347f55",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 90,
+      "id": "b32b8fc4-459f-40e1-b72c-ef5976dad3e4",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 91,
+      "id": "d645f981-0724-4536-b176-5ef7b09833c6",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 92,
+      "id": "2f7aafd7-ac53-4481-b943-ee727c8f5d0b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 93,
+      "id": "6d02c06d-0844-49f2-b270-627e00fb3263",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 94,
+      "id": "dcad4b41-d0fe-4ba2-8d87-decb71f81521",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 95,
+      "id": "a8eb9978-d519-470f-b4e7-3f4542f76b6e",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 96,
+      "id": "1bb4990a-3bb9-445a-99a3-686902c12230",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 97,
+      "id": "976ff012-8ca5-4981-9ea5-e54ad24dc282",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 98,
+      "id": "dd8632b4-e36b-4ab8-b658-a56d747f78c6",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 99,
+      "id": "18a59c9d-4481-441c-ad5e-82d1ed592733",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 100,
+      "id": "0596ad16-ed77-4c95-badf-d02d32628072",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 101,
+      "id": "721f15a4-78a3-49fb-93ca-16e1aaa1e34a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 102,
+      "id": "b126fa4d-6cfb-4d70-9b11-f546b7133689",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 103,
+      "id": "cc035fcb-e545-41db-8c8f-0a4a91d840ec",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 104,
+      "id": "288d068b-dda3-4646-a080-7124d67cf71a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 105,
+      "id": "464a4ac6-c6f2-4fa4-a3bf-314014d26201",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 106,
+      "id": "ec9c652d-d3a8-4f66-b97a-818245a8dcfa",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 107,
+      "id": "019c4486-ae34-4131-9399-e68ae4ffee19",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 108,
+      "id": "1a1e6010-0711-4e24-98ff-d6e22de979c7",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 109,
+      "id": "0011aa68-02c6-4f3d-80af-7744cd3ce870",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 110,
+      "id": "07b83cf9-76d6-4b6a-9d52-9b1edbf47bfe",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 111,
+      "id": "4300e41e-e7e5-42e2-b57f-ba0aacec9388",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 112,
+      "id": "52003a6d-ae49-4bad-bf19-c33af608f1aa",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 113,
+      "id": "a9ed3ba8-48fb-4a44-ba0f-e68f6c6cb4f4",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 114,
+      "id": "14a15d52-2858-41de-87ba-a6fbde10579f",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 115,
+      "id": "15c2385f-f253-4095-bfa8-dd712942b810",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 116,
+      "id": "22c3b0f6-01a4-4f96-8e06-da4af2c3f5fe",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 117,
+      "id": "a8b1062f-f960-4ccf-b46a-cc5f4339abd4",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 118,
+      "id": "7e215a50-47c3-4fc1-bd17-fa386900963b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 119,
+      "id": "d345229c-384b-467a-af83-c5800715f932",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 120,
+      "id": "8fff92e8-617e-46b8-8cde-8409231ae029",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 121,
+      "id": "ca6282fb-2d50-4954-a81b-8f623c80b556",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 122,
+      "id": "f25e5d62-11b5-47b4-819a-66ac344801f9",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 123,
+      "id": "2299ecfa-6eed-41a1-b320-b145d031831b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 124,
+      "id": "fb5e7f1a-812a-4e22-b869-f2aa33f11852",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 125,
+      "id": "1593571f-be31-4a17-ad4b-30daf58b9936",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 126,
+      "id": "6c864fe5-a3ea-4f73-b1d6-0d65962cc86b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 127,
+      "id": "f95b22c6-e9d9-4588-aaba-4a5095f50726",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 128,
+      "id": "b444a04c-c9fa-4694-b953-51646e8de6ec",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 129,
+      "id": "d8d45614-1f01-40c6-af17-b125b5863b9a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 130,
+      "id": "7dc03123-b189-43da-a9de-f539bd111867",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 131,
+      "id": "399778b5-686a-4315-a46a-f42cab3e643a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 132,
+      "id": "5ed9c0a3-dbaf-4c9c-9804-695161f9f9ee",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 133,
+      "id": "6c6fa595-3d86-45f7-a14c-8aa5e571c5d1",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 134,
+      "id": "b55df8af-3455-4657-9c2d-1b44070bae5b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 135,
+      "id": "88c8ecaf-e2e4-423d-84bb-8dc8e3107235",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 136,
+      "id": "fd34999a-c997-4737-8900-14b7490a3f96",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 137,
+      "id": "2f0deb39-69df-42a8-8e21-0867deb850dc",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 138,
+      "id": "85b59872-8282-4aad-bcb8-04a893927513",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 139,
+      "id": "119cb613-3bf7-4b93-8ffa-c8697c84db39",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 140,
+      "id": "6096cb39-a17e-4d9d-9818-fad5a85018f7",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 141,
+      "id": "a96c6887-fbf6-4303-a446-2d698288e10e",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 142,
+      "id": "aef653d1-a2f3-412e-ab62-33bbe07d0d20",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 143,
+      "id": "296cfac5-9568-4f20-8de2-1aea4bcc8ca5",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 144,
+      "id": "0c748797-ae61-463f-8d5a-a3b78f559f6c",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 145,
+      "id": "a25956c3-d491-4bef-a520-f0fbf8162c8b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 146,
+      "id": "a9037d28-c2ba-4937-bec4-385c6976f273",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 147,
+      "id": "8195f25d-b857-4a12-9375-107d3c774db8",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 148,
+      "id": "d1a838dd-6ea5-4e5a-9f59-f310de3636ea",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 149,
+      "id": "4202855e-c315-4912-8c52-cb2fbacf8a92",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 150,
+      "id": "2bea3af5-f74f-4c00-b6c7-d1c48cf7e00a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 151,
+      "id": "ac33679b-fcd7-417d-935c-96978fce1427",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 152,
+      "id": "465f545e-a9e9-4973-90d6-d354526baf79",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 153,
+      "id": "e6c7af46-62bb-4935-b163-9703549a1837",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 154,
+      "id": "7057a2ed-b820-4152-bc3e-aadeb37d8f22",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 155,
+      "id": "af1cab80-8a2a-43e0-aa54-d4245ad745e5",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 156,
+      "id": "818d6740-6b8e-4077-933f-64d8d9d36638",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 157,
+      "id": "75ae872c-63c0-4efa-af41-d9185b35d4c5",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 158,
+      "id": "d05d0b28-d2d7-4695-94e2-0b6c19b15310",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 159,
+      "id": "57f9fd8b-86a8-4323-83ec-192be3695b25",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 160,
+      "id": "45d21dee-466e-4685-a8b5-266bfbff024e",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 161,
+      "id": "ff5bd5c1-7d70-4c82-993e-56cca53dcdd1",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 162,
+      "id": "65af6d62-f9b0-40b4-8582-85d4ee7d2c05",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 163,
+      "id": "309d94bd-b0be-4fad-844a-27db5083cfc6",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 164,
+      "id": "7f1b933b-48fe-4e1e-b5e2-beccbaf0dc5d",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 165,
+      "id": "47b78bf9-98fe-4079-8320-054739475b4d",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 166,
+      "id": "7ba6d3f1-81b3-43b3-ae38-361a60b443ed",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 167,
+      "id": "a0eebfe4-1e20-49bd-af77-102e49d67b23",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 168,
+      "id": "f384afbb-c8ae-4492-9332-d41d5dd6c873",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 169,
+      "id": "304de271-2cf5-4284-827b-9e47610996a5",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 170,
+      "id": "063f8579-6f8f-4d41-aab9-39cc06f3434c",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 171,
+      "id": "cfd8771b-b987-4bbf-9d6e-d000c5875e30",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 172,
+      "id": "7f4e8488-b717-47c4-a1f3-a387af19694a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 173,
+      "id": "bfbbb73a-c074-423d-af94-74751aad1abb",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 174,
+      "id": "d3f16068-06ed-421e-a39e-cca2a4e8735a",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 175,
+      "id": "d4b1ce20-a91e-4d6f-94f9-e695d8326fef",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 176,
+      "id": "4d18cf39-3984-4972-96ca-9cce78dc841b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 177,
+      "id": "c809c5ab-9d2d-4d16-ad0c-88bb1dc2c38b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 178,
+      "id": "b18ded81-619b-46a0-9604-75d5c0506b05",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 179,
+      "id": "cecc88a3-7f05-46e1-8e5f-8bc5f907e278",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 180,
+      "id": "162b57cc-0693-4cc1-9741-a16d68133a48",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 181,
+      "id": "1597ca02-ab9c-40b7-b474-da403faf26bf",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 182,
+      "id": "fb835695-22b8-4be4-a98a-9d5b06e0eb41",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 183,
+      "id": "ae8317fb-c510-4e9f-b0b8-75602a1554ee",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 184,
+      "id": "7917a6a6-94ef-49ca-8623-a3409eb6d72f",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 185,
+      "id": "9017041c-20f4-48ef-9df6-20158c649caa",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 186,
+      "id": "d42d81b3-d394-404e-b0f9-e47d615f7e4c",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 187,
+      "id": "ab7dd61b-9126-43eb-8af4-ee249478fc77",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 188,
+      "id": "bf0ffac8-1a20-4d2c-8fd9-f850233b7d9d",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 189,
+      "id": "a12238c7-bf3f-4fec-942e-1eb8b39071bd",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 190,
+      "id": "8d55592e-85cb-4441-b3b1-b4e53adf183c",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 191,
+      "id": "fe795df4-8e14-493f-abf7-7c3c3bc3fc95",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 192,
+      "id": "aca203a9-e9dd-44ee-af35-ab013d472b70",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 193,
+      "id": "6a2eafbb-d9b7-4c5e-adad-f2f4de4e8d87",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 194,
+      "id": "a11d4b6b-a00c-46d3-a932-d97477d478d9",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 195,
+      "id": "1474b139-69d7-4845-b1f3-17a5c8b89ca1",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 196,
+      "id": "e9cc570d-45bf-4ea9-b60c-bb2b945d9649",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 197,
+      "id": "1436af01-4f39-42ff-aea6-8a93b40ca10c",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 198,
+      "id": "d71d1b97-b81b-4212-9d53-087f1e74a327",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 199,
+      "id": "39966b7f-4b50-419a-b3b9-652006f86363",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 200,
+      "id": "ce6d0ce8-e815-4c88-865f-aa16d7f38c0b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 201,
+      "id": "1044a17d-55e4-4c05-8c35-faf316e804e5",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 202,
+      "id": "87d4bb65-d6af-4d7a-99c9-f7ccd1508d3e",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 203,
+      "id": "30c5bc99-b6c6-4934-828a-5c704534ef90",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 204,
+      "id": "257fc00a-4bf2-40c2-bd5c-c7d0b8527565",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 205,
+      "id": "6dbede57-2a52-4727-b68e-bf413bab1f43",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 206,
+      "id": "ab80e4b3-d791-4f66-9163-a0c7655cd40d",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 207,
+      "id": "cc263e6a-b21e-4938-a15f-ce54016a9463",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 208,
+      "id": "5f815109-359b-4484-8b74-7f939b418510",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 209,
+      "id": "fd1c3e5b-15ab-4736-84e4-ce7bebbc3aae",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 210,
+      "id": "c19e458a-6e95-42f3-a00c-fb789a5dff26",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 211,
+      "id": "d5daf5b5-e6ef-4fc9-8e19-86b37d7204ee",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 212,
+      "id": "590fb7c8-411f-4dd2-9b68-16c8a77bed1b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 213,
+      "id": "e1d7e45e-bcb9-4bbb-bbab-38cf8ede2003",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 214,
+      "id": "ae8dc1c9-bea0-4874-8dbe-ab91023eb2fe",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 215,
+      "id": "afad3c94-17ad-4126-96ee-1ffde8889976",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 216,
+      "id": "c4394cf3-5cb3-48ed-a66f-cfd9b52d87c7",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 217,
+      "id": "b52f23b1-7425-4e15-8c97-34a84675c882",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 218,
+      "id": "96ac01a9-8c15-4f7a-b80d-f4b97abc6d3f",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 219,
+      "id": "87d5b09a-3e00-4381-b202-cc1b632ff20c",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 220,
+      "id": "bc657eaa-63cf-427f-a9d9-8640b6f36510",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 221,
+      "id": "0f37370b-125c-4cc8-b06b-3b9248848a55",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 222,
+      "id": "d572126f-e211-41c1-8f52-ab1165657a14",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 223,
+      "id": "d2129091-225b-4f8c-9d1c-2f5f98cc37ef",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 224,
+      "id": "e99f2c51-fd01-4b5a-9a03-ce797d332dd3",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 225,
+      "id": "17f54278-645f-443d-bfc1-0f2a0adc9ddb",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 226,
+      "id": "4d248b10-7e0b-439b-8659-699641b76d29",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 227,
+      "id": "14d7fa53-2239-4a5d-b26f-4c910bf9687b",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 228,
+      "id": "9dffadae-044d-4119-aae5-e669fc8f2da5",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 229,
+      "id": "19ef6c80-373f-4f41-80ef-26e3fa1c5090",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 230,
+      "id": "d917a1ea-7271-4a74-9cf9-7b8dead2b439",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 231,
+      "id": "696fecd1-602a-4f98-bf46-f6396d6aa51f",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 232,
+      "id": "b59d48bf-89a1-43e3-bb26-edda293dfb62",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 233,
+      "id": "7b946196-64ef-48b2-a0f7-7c35cd54f52d",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 234,
+      "id": "8e58cc24-6acb-4e48-b863-59b85c658006",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 235,
+      "id": "a0d77d39-f17e-46c7-9a0c-4dce3f754e19",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 236,
+      "id": "79ad9ac9-10b8-47a1-8def-8bce6aa10104",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 237,
+      "id": "f2d79f5c-2bb1-4ef0-b11a-085c7e5edab9",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 238,
+      "id": "d4d6ae2e-155c-4c2d-82e3-ed5d2f74186f",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 239,
+      "id": "2e077b2a-94d9-47d8-931a-b466c8bb36a0",
+      "state": "working",
+      "error": null
+    },
+    {
+      "seq": 240,
+      "id": "fe1c6268-206f-4764-b9f9-73c673084b3f",
+      "state": "working",
+      "error": null
+    }
+  ],
+  "healthSamples": [
+    {
+      "at": "2026-10-11T03:28:57.130Z +872ms",
+      "phase": "start",
+      "tasks": {
+        "live": 144,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 140,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:28:58.403Z +2142ms",
+      "phase": "after-round-2",
+      "sentTo": 24,
+      "tasks": {
+        "live": 204,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 171,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:28:59.210Z +2949ms",
+      "phase": "after-round-4",
+      "sentTo": 48,
+      "tasks": {
+        "live": 252,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 186,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:00.060Z +3799ms",
+      "phase": "after-round-6",
+      "sentTo": 72,
+      "tasks": {
+        "live": 300,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 199,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:00.932Z +4671ms",
+      "phase": "after-round-8",
+      "sentTo": 96,
+      "tasks": {
+        "live": 336,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 212,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:01.668Z +5408ms",
+      "phase": "after-round-10",
+      "sentTo": 120,
+      "tasks": {
+        "live": 360,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 267,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:02.459Z +6198ms",
+      "phase": "after-round-12",
+      "sentTo": 144,
+      "tasks": {
+        "live": 384,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 381,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:03.122Z +6861ms",
+      "phase": "after-round-14",
+      "sentTo": 168,
+      "tasks": {
+        "live": 408,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 410,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:03.819Z +7558ms",
+      "phase": "after-round-16",
+      "sentTo": 192,
+      "tasks": {
+        "live": 432,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 434,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:04.590Z +8329ms",
+      "phase": "after-round-18",
+      "sentTo": 216,
+      "tasks": {
+        "live": 456,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 458,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:05.236Z +8975ms",
+      "phase": "after-round-20",
+      "sentTo": 240,
+      "tasks": {
+        "live": 480,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 482,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    },
+    {
+      "at": "2026-10-11T03:29:05.831Z +9570ms",
+      "phase": "end",
+      "tasks": {
+        "live": 480,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 484,
+      "chainValid": true,
+      "authMode": "loopback-only",
+      "bearerSelfCheck": "not-mounted",
+      "innerReconnect": "unverified"
+    }
+  ],
+  "attribution": [
+    {
+      "kind": "never-existed",
+      "id": "t7-never-exists-00000000-0000-0000-0000-000000000000",
+      "hasResult": false,
+      "errorData": {
+        "code": "TaskNotFoundError"
+      },
+      "message": "任务不存在或不可访问：t7-never-exists-00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "kind": "late-sent",
+      "id": "7b946196-64ef-48b2-a0f7-7c35cd54f52d",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null
+    },
+    {
+      "kind": "late-sent",
+      "id": "8e58cc24-6acb-4e48-b863-59b85c658006",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null
+    },
+    {
+      "kind": "late-sent",
+      "id": "a0d77d39-f17e-46c7-9a0c-4dce3f754e19",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null
+    },
+    {
+      "kind": "late-sent",
+      "id": "79ad9ac9-10b8-47a1-8def-8bce6aa10104",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null
+    },
+    {
+      "kind": "late-sent",
+      "id": "f2d79f5c-2bb1-4ef0-b11a-085c7e5edab9",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null
+    },
+    {
+      "kind": "late-sent",
+      "id": "d4d6ae2e-155c-4c2d-82e3-ed5d2f74186f",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null
+    },
+    {
+      "kind": "late-sent",
+      "id": "2e077b2a-94d9-47d8-931a-b466c8bb36a0",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null
+    },
+    {
+      "kind": "late-sent",
+      "id": "fe1c6268-206f-4764-b9f9-73c673084b3f",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null
+    }
+  ],
+  "summary": {
+    "sentOk": 240,
+    "sendErrors": 0,
+    "evictedCountEnd": 0,
+    "liveEnd": 480,
+    "maxTasks": 200,
+    "terminalTtlMs": 3600000,
+    "identityCheck": {
+      "livePlusEvicted": 480,
+      "sentOk": 240
+    },
+    "earlyProbesEvictedAttributed": 0,
+    "neverExistedHasEvictedKey": false
+  }
+}

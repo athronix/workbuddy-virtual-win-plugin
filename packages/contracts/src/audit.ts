@@ -96,7 +96,20 @@ export interface AuditExt {
      * 只进 logger 等于没有证据。条目由 `vm-service` 经**原始 sink** 落链（审计自证纪律：
      * 不得经账本装饰器把自己登记成「本回合有活动」，与 `chain-archive-verify` 同 O-7 判据）。
      */
-    | 'bearer-selfcheck';
+    | 'bearer-selfcheck'
+    /**
+     * Phase 2 · P2-T7 F3/L1（**纯附加枚举成员**）：TaskStore **驱逐**（有界化回收）的链上取证条目。
+     *
+     * 病灶（设计 §3.1-1 / QA §4-B4）：`evictIfNeeded()` 过去无计数、无日志、无回调，
+     * 「哪些任务在长会话里被悄悄回收了」这条事实链上零痕迹 —— 而它恰是排查
+     * 「委派 id 查不到了」的第一手依据。条目由 `vm-service` 经**原始 sink** 落链
+     * （审计自证，与 `bearer-selfcheck` / `chain-archive-verify` 同 O-7 判据），
+     * 框架层只给 `onEviction` 结构化回调、**不 import 任何审计语义**（依赖方向铁律）。
+     *
+     * 体量纪律：一次「突发逐出」（一次 `create()` 触发多条）合并成**一条**聚合条目
+     * （见 `ext.evict`），稳态每委派至多一条 —— 观测不得把审计链变成新的无界增长点。
+     */
+    | 'task-evicted';
   /** 委派 traceId（= A2A goal.traceId），与内层回连调用建立归因链 */
   readonly delegationId?: string;
   readonly taskId?: string;
@@ -159,7 +172,29 @@ export interface AuditExt {
    * 写入方**不得**依据调用方参数自行判定是否免批，一律以 `PolicyVerdict.matchedRule` 为唯一
    * 判据（否则等于把免批判定权交回调用方 —— 正是 U-P0-3 的病灶）。
    */
-  readonly bypass?: 'dry-run';
+    readonly bypass?: 'dry-run';
+  /**
+   * P2-T7（**纯附加可选**）：TaskStore 驱逐的**聚合摘要**。仅当 `kind === 'task-evicted'` 时有意义。
+   *
+   * 只记聚合与**有界样本 id 清单**，不记任务内容（同框架侧环形日志的 W-2 约束：
+   * 「回收发生了」可留痕、「任务里曾有什么」不可）。`sampleTaskIds` 上界 10 条 ⇒ 单条目体积
+   * 与突发规模**解耦**（一次溢出轮逐出 200 条也只有 10 个样本），防链上条目线性膨胀
+   * —— 与 `chain-archive-verify` 的「只记聚合 + 断裂清单」是同一手法。
+   */
+  readonly evict?: {
+    /** 本条目聚合的逐出条数（≥1；突发合并时 >1） */
+    readonly count: number;
+    /** 其中经 TTL 闸门逐出的条数 */
+    readonly ttlCount: number;
+    /** 其中超上限（overflow）闸门逐出的条数 */
+    readonly overflowCount: number;
+    /** 本条目覆盖的样本 id（≤10，取本突发最先逐出者） */
+    readonly sampleTaskIds: readonly string[];
+    /** 截至本条目落链时 TaskStore 的累计驱逐数（与 `/health.tasks.evictedCount` 同口径对账） */
+    readonly evictedTotal: number;
+    /** 终态分布聚合（completed/failed/canceled/rejected 各自条数） */
+    readonly terminalStates: Readonly<Record<string, number>>;
+  };
 }
 
 export interface AuditRecord {

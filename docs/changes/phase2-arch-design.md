@@ -527,3 +527,20 @@ graph TD
 **主理人独立核验**：tsc exit 0；复跑 phase2-inner-credential 38 + bearer-selfcheck 45 + kn1-e-shape 33 + mutation 54 + t4-assembly 45 + t4-http-guard 40 + mcp-signal 54 七文件全绿；代码抽验（谓词真值表/三态分支/观测位与拒启格分离/install-vm 双条件闸）与证据链（E1/E3/E4/restore 留档互证）通过。**基线 86/1657 → 87/1695（+38 精确对账，0 fail，2 skip 恒 ssh2-resolve OFFLINE_SKIP；成员 sweep 落盘 p2t6-sweep-result.txt FILES=87 FAILED=0）**。
 
 **范围外备忘转正**：VM 侧 `C:/WinVMBridge/tools-t6/` 与 `.generated/*.bak-p2t6` 留待收官清场批评估；hermes/llm adapter 消费 signal 仍为 T8/T12 备忘（§13.4 已记）。
+
+### 13.7 P2-T7 交付与主理人核验（2026-10-11 12:2x）
+
+**停摆与接力**：首程 55m completed 无回报，取证=离线面全闭环（step0–8：tsc 0、新测试 44/44 run2、守卫 11 件全绿、sweep 88/1739 对账、§5 逐字节钉零改钉）而真机窗口停在 deploy 之后 ⇒ SendMessage 续跑点名"已完成勿重做"，次程真机窗口闭环。
+
+**真机窗口三事故（全部如实入档）**：
+- **(a) 批量 cancel 打挂服务（真机红线，backlog 候选）**：198 个 working 任务并发 8 `tasks/cancel` ⇒ 每次 requestCancel abort 打断**同一 LLM 常驻会话**当前轮 ⇒ 重建风暴（attempt2..6）⇒ vm-service 崩溃（0 listeners、~90 孤儿 node）。根因=T3 取消通路 × workbuddy provider 交互放大，与 T7 代码无关。纪律：**本 provider 禁批量 cancel 排空**；单条 cancel 端到端 3.4s（会话重建代价）⇒ 取消 SLA 值得单独立项。
+- **(b) 设计偏差实证**：provider=workbuddy 把 filler 当纯文本答完 ⇒ completed（≈5s/任务串行收口）而非 §3.1 假定的"确定性执行器无匹配模板⇒快速 failed"⇒在飞洪水期无终态候选⇒`live>maxTasks ∧ evictedCount=0`。这是 **R5（活动任务永不被逐）+ O-11（驱逐只在 create 尾部）的设计自洽表现**，非实现失效——反手成为 L1 语义的最强正面实证。观测方案改为"低并发慢投+自然收口"。
+- **(c) ssh 脱管失认事故（主理人裁断）**：成员见 11:58 落盘的 `t7-burst.mjs` 疑"第三方探针"；主理人四证据（团队唯一工程师/脚本在其自身工作区且头注引用其自己的 timeline/timeline 尾行"burst v2 启动"为其亲笔/11:59 ssh 推送与脱管同机制）裁断=**本人前轮产物因 ssh `&` 脱管+上下文丢失失认**。教训固化：**ssh 脱管不仅让进程活着，还让"谁在跑什么"失去真相——VM 侧长观测一律前台限时或自带 PID 落盘+心跳文件**。处置=停 round 保 burst（burst 五相位设计更强），自此零新增投递；双轮产出经链上 sampleTaskIds 真值归法互证（victim 创建序预言失效的降级处置正确）。
+
+**交付实质**：task-store.ts 单调 `evictedCount` + 有界环形日志（容量 64，只存 {id,terminalState,evictedAtMs,gate} 四元数据，W-2 不触碰；`wasEvicted()` 窗口=环容量，窗外只承认"不知道"绝不谎称存在过）+ `onEviction` 回调（框架零审计语义，依赖方向不破；计数/环形/回调三可见面写在唯一删除路径⇒与真实删除一一对应）；`TaskNotFoundError.evicted` 默认参（错误文本逐字不变）；a2a server `tasks/get` error.data 条件展开；vm-service `task-evict-audit.ts` 新建（微任务突发合并投递器+serviceClosed 双判+失败仅 warn）；`/health.tasks.evictedCount` 纯附加（与链 `ext.evict.evictedTotal` 同一读数源⇒两面互校对账）；contracts TasksHealth 末位可选键（T5 两键未动）。
+
+**真机六项实证**：overflow 曲线 0→372 单调（wave 阶梯）；**突发合并**一次 create 逐 25 条⇒链上净新增恰 1 条；**同尺对账** 链 Σcount=372==health.evictedCount=372；闸门可分 gates={ttl:0,overflow:372}（TTL 轮裁断不做——改配置污染风险>收益，`gate:'ttl'` 已由单测 1ms-TTL 直接实证+真机零误标反向实证）；归因四形态 C1 窗内 evicted:true / C2 窗外诚实无键 / C3 从未存在逐字节旧形 / C4 存活正常，VERDICT 八判据全 true；ringWrapped=true（372>64 窗内外样本天然齐备）。复原：kill-restart 后三哈希 BYTE_IDENTICAL（f61dd89f…/801038bc…/90fee7a4… 全 64-hex）+ 三值回默认实测 + evictedCount=0 键在场 + chainValid=true。
+
+**主理人独立核验**：tsc exit 0；复跑新件 44/44 + t3-cancel-bounded 29/29 + §5 八守卫（shape33/mutation54/assembly45/selfcheck45/inner38/dead14/schema23/snapshot17）+ r19c-a5-approval-coordinator 22/22（成员回报名简写，全路径复验绿）；代码抽验（唯一删除路径三面对账/窗外语义/合并投递器/health 同读数源）；VM 终态 curl 实测与证据互证。**基线 87/1695 → 88/1739（+44 精确对账，0 fail，2 skip 恒 OFFLINE_SKIP；成员 sweep 落盘 p2t7-sweep-result.txt FILES=88 FAILED=0）**。零改钉实证（dtid 行 :1684 逐字节、innerReconnectObserved 6 处、freshChainOnStart/storedState/cancelRequested 恰 4 行全在位）。
+
+**转正事项**：①(a) 批量 cancel 红线 → backlog（收官批定夺是否立项"取消 SLA/会话打断放大"修复）；②工作流纪律"真机窗口串行化探针"写入 QA 手册口径；③T12（同文件 task-store.ts as-cast 修复）前置条件已满足，T7 为唯一写者收官。

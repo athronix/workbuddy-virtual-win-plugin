@@ -1,0 +1,99 @@
+{
+  "ids": [
+    {
+      "id": "28a822a0-5b88-4671-9ad9-7ac22d27a807",
+      "sentState": "working",
+      "err": null
+    },
+    {
+      "id": "a57ae835-3ba0-4642-908e-163d2c9ee8cb",
+      "sentState": "working",
+      "err": null
+    },
+    {
+      "id": "207adb10-8b9e-483d-b529-b909d75f1839",
+      "sentState": "working",
+      "err": null
+    },
+    {
+      "id": "f4ad6039-113d-40fb-8710-7ec92b58e998",
+      "sentState": "working",
+      "err": null
+    },
+    {
+      "id": "3a04018f-3d6f-4717-baac-3510deadc8b4",
+      "sentState": "working",
+      "err": null
+    }
+  ],
+  "timeline": [
+    {
+      "at": "+6s",
+      "round": 1,
+      "states": [
+        "working",
+        "working",
+        "working",
+        "working",
+        "working"
+      ],
+      "tasks": {
+        "live": 5,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      }
+    },
+    {
+      "at": "+11s",
+      "round": 2,
+      "states": [
+        "completed",
+        "completed",
+        "working",
+        "working",
+        "working"
+      ],
+      "tasks": {
+        "live": 5,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      }
+    },
+    {
+      "at": "+17s",
+      "round": 3,
+      "states": [
+        "completed",
+        "completed",
+        "completed",
+        "working",
+        "working"
+      ],
+      "tasks": {
+        "live": 5,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      }
+    },
+    {
+      "at": "+22s",
+      "round": 4,
+      "states": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "tasks": {
+        "live": 5,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      }
+    }
+  ]
+}

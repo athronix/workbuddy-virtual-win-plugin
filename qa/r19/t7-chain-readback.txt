@@ -1,0 +1,22 @@
+=== P2-T7 audit chain readback ===
+auditDir=C:\Users\User\AppData\Local\WinVMBridge\audit
+shardsScanned=4 (newest first, limit=4)
+
+--- SHARD REPORTS ---
+shard=audit-20261011-1.jsonl entries=550 chainBroken=0 task-evicted=0
+  kinds={"delegation-start":480,"delegation-complete":68,"bearer-selfcheck":1,"chain-archive-verify":1}
+shard=audit-20261011.jsonl entries=2 chainBroken=0 task-evicted=0
+  kinds={"bearer-selfcheck":1,"chain-archive-verify":1}
+shard=audit-20261010-9.jsonl entries=5 chainBroken=0 task-evicted=0
+  kinds={"bearer-selfcheck":1,"chain-archive-verify":1,"delegation-start":1,"delegation-complete":1}
+shard=audit-20261010-8.jsonl entries=2 chainBroken=0 task-evicted=0
+  kinds={"bearer-selfcheck":1,"chain-archive-verify":1}
+
+--- task-evicted ENTRIES (total=0) ---
+
+--- DISCIPLINE CHECKS ---
+allInternalMetaAuditChainL0Rule=true
+sampleWithOverflowGate=0
+sampleWithTtlGate=0
+evictedTotalMax=0
+chainBrokenTotal=0

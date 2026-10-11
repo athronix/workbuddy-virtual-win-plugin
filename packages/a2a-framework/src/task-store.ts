@@ -32,11 +32,42 @@ const DEFAULT_MAX_TASKS = 200;
 /** ENG-08：`terminalTtlMs` 缺省驻留时长（1 小时） */
 const DEFAULT_TERMINAL_TTL_MS = 3_600_000;
 /**
+ * P2-T7（L1 驱逐可观测化）：**有界环形日志**的容量。
+ *
+ * 为什么固定为常量而非配置旋钮（§8「不新造 env 旋钮」同纪律）：本日志的定位是
+ * 「最近发生了什么」的排障窗口，不是审计台账 —— 容量越大内存占用与「伪装成保留期承诺」
+ * 的风险都上升。64 条覆盖「一次溢出轮 + 若干次 TTL 轮」的最近事实，且
+ * `wasEvicted()` 的归因窗口正好等于这个容量（窗口外只承认「不知道」，绝不谎称存在过）。
+ */
+const EVICTION_LOG_CAPACITY = 64;
+/**
  * 未知任务 id 的兜底信号：一个**永不** abort 的共享 AbortSignal。
  * 为什么共享而非每次 `AbortController` 新建：`cancellationSignal()` 可能被 provider 在循环里
  * 反复调用，共享常量零分配；且它永不置位 ⇒ 「任务不存在」不会被误读成「已取消」。
  */
 const NEVER_ABORTED_SIGNAL: AbortSignal = new AbortController().signal;
+
+/**
+ * P2-T7（L1）：驱逐发生的**哪一路闸门**（与设计 §3.1「双闸门」一一对应）。
+ * 由调用点**显式传入**（不在记录时反推）—— 反推需要读 `terminalAtMs + terminalTtlMs`，
+ * 而溢出轮里那条任务可能同时早已过期，反推会给出错误归因。
+ */
+export type EvictionGate = 'ttl' | 'overflow';
+
+/**
+ * P2-T7（L1）：单条驱逐的**结构化事实**（同时是有界环形日志的成员、`onEviction` 回调的入参）。
+ *
+ * 只存元数据、**不存任务内容**（无 status.message / 无 artifacts / 无 history / 无 metadata）：
+ * 这是设计 §3.1-1 的明写约束 —— 审计保留期权衡 W-2 不被本机制悄悄绕过
+ * （「任务已回收」这件事可以留痕，「任务里曾经有什么」不可以）。
+ */
+export interface EvictionRecord {
+  readonly id: string;
+  /** 被逐时刻的任务终态（completed / failed / canceled / rejected） */
+  readonly terminalState: A2A.TaskState;
+  readonly evictedAtMs: number;
+  readonly gate: EvictionGate;
+}
 
 export interface TaskStoreOptions {
   /**
@@ -46,6 +77,15 @@ export interface TaskStoreOptions {
   readonly approvalTtlMs?: number;
   /** 审批超时回调（清理宿主侧令牌等；异常被吞，不影响任务收口） */
   readonly onApprovalTimeout?: (info: ApprovalTimeoutInfo) => void;
+  /**
+   * P2-T7（**纯附加可选**）：单条驱逐的结构化事件回调，与 `onApprovalTimeout` 同构同纪律 ——
+   * 回调异常**一律被吞**，取证面绝不得影响驱逐本身（驱逐是内存有界性的安全阀，
+   * 让它因观察者抛错而不执行 = 把可观测性换成了新的 OOM 风险）。
+   *
+   * 为什么框架只给回调而不落审计：`a2a-framework` 不 import 审计/领域语义（依赖方向铁律，
+   * 同 `DelegationObserver` 的处理），**落不落链由 vm-service 决定**（设计 §3.1-1）。
+   */
+  readonly onEviction?: (info: EvictionRecord) => void;
   /**
    * ENG-08（**纯附加可选**）：内存任务条数上限，默认 200；仅在 `create()` 尾部生效（O-11）。
    * 传 `0` / 负数 / 非有限 ⇒ **完全不驱逐**（条数与 TTL 两路一起关死，旧行为逐字保留）。
@@ -103,9 +143,18 @@ export interface ListResult {
 }
 
 export class TaskNotFoundError extends Error {
-  constructor(readonly taskId: string) {
+  /**
+   * P2-T7（L1，**纯附加**）：本 id 是否**曾被驱逐**（判据 = 有界环形日志的归因窗口，见 `wasEvicted`）。
+   *
+   * 病灶：驱逐把表项删掉后，被逐 id 与「从未存在的 id」在协议面上完全同形，运维无法判断
+   * 是被回收了还是记错了 id。错误**文本逐字不变**（既有断言/日志匹配不受影响），
+   * 归因只走这一个结构化键 ⇒ 缺席/为 false 即旧语义。默认 `false` ⇒ 旧构造点合法且逐字旧行为。
+   */
+  readonly evicted: boolean;
+  constructor(readonly taskId: string, evicted = false) {
     super(`任务不存在或不可访问：${taskId}`);
     this.name = 'TaskNotFoundError';
+    this.evicted = evicted;
   }
 }
 
@@ -131,6 +180,24 @@ export class TaskStore {
    * 取值归一：未给 → 1h；`0` / 负数 / 非有限 → 禁用。
    */
   private readonly terminalTtlMs: number;
+  /** P2-T7：驱逐事件回调（可缺席 ⇒ 只留计数与环形日志） */
+  private readonly onEviction: ((info: EvictionRecord) => void) | undefined;
+  /**
+   * P2-T7（L1）：本轮运行以来**累计驱逐条数**（单调不减，只在 `evict()` 里自增）。
+   * 刻意不设「未知 id 命中」之类的旁路写入点 —— 计数唯一的产生地就是有界化那条真实删除路径，
+   * 这样 `evictedCount` 与链上聚合、`/health.tasks` 透出值三者必然同源（两处口径打架即说谎）。
+   */
+  private evictedTotal = 0;
+  /**
+   * P2-T7（L1）：**有界环形日志**（数组当环用：写满后由写指针回到 0 覆盖最旧者）。
+   * `evictionLog()` 返回按「最旧 → 最新」重排后的**拷贝**，外部拿不到内部环，
+   * 也就无法通过持有数组来延长元数据的驻留期（W-2 约束的落点之一）。
+   */
+  private readonly evictions: (EvictionRecord | undefined)[] = new Array(EVICTION_LOG_CAPACITY);
+  /** 环形写指针（下一个写入位） */
+  private evictCursor = 0;
+  /** 已写入条数（≤ 容量），决定环形重排的起点 */
+  private evictFilled = 0;
 
   constructor(opts: TaskStoreOptions = {}) {
     // 未显式指定 → env（非法回退 30 分钟默认）；显式传 ≤0 / 非有限 → 视为不设超时
@@ -141,6 +208,7 @@ export class TaskStore {
           ? Math.floor(opts.approvalTtlMs)
           : Number.POSITIVE_INFINITY;
     this.onApprovalTimeout = opts.onApprovalTimeout;
+    this.onEviction = opts.onEviction;
     // ENG-08：与 approvalTtlMs 同构的归一纪律（非法值一律回退，不抛错、不打挂服务）
     this.maxTasks =
       opts.maxTasks === undefined
@@ -182,9 +250,17 @@ export class TaskStore {
     return rec;
   }
 
+  /**
+   * 命中即返回，未命中抛 `TaskNotFoundError`。
+   *
+   * P2-T7（L1，**纯附加**）：抛出时把「本 id 是否落在驱逐归因窗口内」一并带上
+   * （`error.evicted`）⇒ 与「从未存在的 id」在协议面上可分。判读点只在**这一处**，
+   * 因此 `updateStatus` / `appendHistory` / `addArtifact` / `requestCancel` / `subscribe` /
+   * `waitApproval` 等全部 `get()` 消费方**自动**获得同一归因，零额外接线，也不会漏。
+   */
   get(id: string): InternalTask {
     const t = this.tasks.get(id);
-    if (!t) throw new TaskNotFoundError(id);
+    if (!t) throw new TaskNotFoundError(id, this.wasEvicted(id));
     return t;
   }
 
@@ -571,7 +647,7 @@ export class TaskStore {
     // ① TTL 闸门：过期终态一并删
     if (Number.isFinite(this.terminalTtlMs)) {
       for (const [id, rec] of this.tasks) {
-        if (this.terminalExpired(rec, now)) this.evict(id, rec);
+        if (this.terminalExpired(rec, now)) this.evict(id, rec, 'ttl');
       }
     }
 
@@ -583,7 +659,7 @@ export class TaskStore {
       .sort((a, b) => (a[1].terminalAtMs ?? a[1].createdAtMs) - (b[1].terminalAtMs ?? b[1].createdAtMs));
     for (let i = 0; i < overflow && i < candidates.length; i += 1) {
       const [id, rec] = candidates[i]!;
-      this.evict(id, rec);
+      this.evict(id, rec, 'overflow');
     }
   }
 
@@ -610,14 +686,91 @@ export class TaskStore {
     return at !== undefined && at + this.terminalTtlMs < nowMs;
   }
 
-  /** 逐出单条：先断开订阅（防 SSE 闭包强引用），再摘表项 */
-  private evict(id: string, rec: InternalTask): void {
+  /**
+   * 逐出单条：先断开订阅（防 SSE 闭包强引用），再摘表项，**最后**落可观测面。
+   *
+   * P2-T7（L1）：`gate` 由调用点显式传入（①/② 两路闸门各传各的，见 `evictIfNeeded()`），
+   * 计数与环形日志都在这**唯一的删除路径**上写 ⇒ 三个可见面（`evictedCount()` /
+   * `evictionLog()` / `onEviction` 回调）与真实删除严格一一对应，不存在「计了没删」或
+   * 「删了没计」的裂缝。顺序上放在 `delete` 之后：观察者若在回调里回头查表，
+   * 看到的必须是「已经不存在」的既成事实（否则它会以为任务还在，做出错误的续跑判断）。
+   */
+  private evict(id: string, rec: InternalTask, gate: EvictionGate): void {
     rec.subscribers.clear();
     this.tasks.delete(id);
+    this.recordEviction({
+      id,
+      terminalState: rec.task.status.state,
+      evictedAtMs: Date.now(),
+      gate,
+    });
+  }
+
+  /**
+   * 落驱逐可观测面：计数 → 环形日志 → 回调（回调异常被吞）。
+   * 与 `onApprovalTimeout` 同纪律：取证失败**绝不影响**有界化本身（R5 防线优先于观测）。
+   */
+  private recordEviction(info: EvictionRecord): void {
+    this.evictedTotal += 1;
+    this.evictions[this.evictCursor] = info;
+    this.evictCursor = (this.evictCursor + 1) % EVICTION_LOG_CAPACITY;
+    if (this.evictFilled < EVICTION_LOG_CAPACITY) this.evictFilled += 1;
+    try {
+      this.onEviction?.(info);
+    } catch {
+      /* 观察者异常不影响驱逐收口 */
+    }
   }
 
   size(): number {
     return this.tasks.size;
+  }
+
+  /* ------------------------------ 驱逐可观测面（P2-T7 / L1） ------------------------------ */
+
+  /**
+   * 本轮运行以来**累计被驱逐的任务条数**（单调不减；`maxTasks` 关闭 ⇒ 恒 0，逐字旧行为）。
+   * 读侧方法与 `size()` 并列同风格 ⇒ `/health.tasks` 直接取用，无需第二份状态。
+   */
+  evictedCount(): number {
+    return this.evictedTotal;
+  }
+
+  /**
+   * **有界**驱逐日志（最近至多 {@link EVICTION_LOG_CAPACITY} 条，按「最旧 → 最新」）。
+   * 返回**拷贝数组**：外部持有内部环等于悄悄延长元数据驻留期（W-2 约束）。
+   * 只含元数据（id / 终态 / 时刻 / 闸门），不含任何任务内容。
+   */
+  evictionLog(): readonly EvictionRecord[] {
+    const cap = EVICTION_LOG_CAPACITY;
+    const out: EvictionRecord[] = [];
+    // 未满：有效条目就在 [0, filled)；已满：写指针此刻指向「最旧的那一格」（它下一个要被覆盖）。
+    const start = this.evictFilled < cap ? 0 : this.evictCursor;
+    for (let i = 0; i < this.evictFilled; i += 1) {
+      const rec = this.evictions[(start + i) % cap];
+      if (rec) out.push(rec);
+    }
+    return out;
+  }
+
+  /**
+   * 本 id 是否**曾被驱逐**（判据 = 环形日志的归因窗口）。
+   *
+   * 三条诚实边界（都不谎报）：
+   *  · 命中 ⇒ true；未命中 ⇒ false —— 窗口是**有界**的，「不在窗口里」既可能是从未存在，
+   *    也可能是更早被驱逐后被日志覆盖 ⇒ 本方法只在窗口内给肯定答案，窗口外一律 false
+   *    （宁可让运维看到「未知/未记录」，也不给他一个无法证实的「曾存在」结论）；
+   *  · `maxTasks` 关闭 ⇒ 环恒空 ⇒ 恒 false（该形态下不存在驱逐这件事）；
+   *  · 本方法**不抛错**（读侧探针，被 `get()` 的失败路径调用，绝不能在这里二次抛出打断错误归因）。
+   */
+  wasEvicted(id: string): boolean {
+    if (this.evictFilled === 0) return false;
+    const cap = EVICTION_LOG_CAPACITY;
+    const start = this.evictFilled < cap ? 0 : this.evictCursor;
+    for (let i = 0; i < this.evictFilled; i += 1) {
+      if (this.evictions[(start + i) % cap]?.id === id) return true;
+    }
+    return false;
   }
 }
 

@@ -197,6 +197,18 @@ export interface TasksHealth {
   readonly maxTasks?: number;
   /** 终态任务的驻留 TTL（毫秒；缺席 ⇒ 未启用过期驱逐） */
   readonly terminalTtlMs?: number;
+  /**
+   * Phase 2 · P2-T7（L1，**纯附加可选**）：本轮运行以来**累计被驱逐的任务条数**
+   * （= `TaskStore.evictedCount()`，单调不减）。
+   *
+   * 为什么需要它：`live/maxTasks` 只能看出「快到顶了」，看不出「已经回收了多少」——
+   * QA-REPORT §4-B4 / L1 的病灶正是驱逐这件事在宿主侧完全不可见，被逐 id 再查
+   * `tasks/get` 也与「从未存在的 id」不可区分。本键把「回收确实发生了、发生了多少次」
+   * 变成机器可读事实，与链上 `ext.kind:'task-evicted'` 聚合互为对账面。
+   *
+   * 缺席即旧行为（旧服务端不报 ⇒ 旧读者零感知）；驱逐关闭（`maxTasks:0` 等回退位）⇒ 恒 `0`。
+   */
+  readonly evictedCount?: number;
 }
 
 export interface HealthStatus {

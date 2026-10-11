@@ -1,0 +1,1780 @@
+{
+  "meta": {
+    "purpose": "P2-T7 real-machine burst proof: overflow gate / evictedCount curve / attribution 4 shapes",
+    "zeroSideEffect": {
+      "blocking": false,
+      "maxRisk": "L0",
+      "allowedCapabilities": []
+    },
+    "startedAt": "2026-10-11T03:59:46.885Z",
+    "ringCap": 64,
+    "node": "v24.21.0",
+    "params": {
+      "N_TASKS": 280,
+      "CONC": 4,
+      "GAP_MS": 2500,
+      "P4_ROUNDS": 6,
+      "WAIT_MS": 20000,
+      "P2_DEADLINE_MS": 600000,
+      "HEALTH_TIMEOUT_LIMIT": 3,
+      "LOAD_GUARD_LIMIT": 20
+    }
+  },
+  "phases": {
+    "base": {
+      "tasks": {
+        "live": 65,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 0
+      },
+      "auditEntries": 110,
+      "chainValid": true,
+      "auth": "loopback-only/not-mounted/unverified",
+      "load": {
+        "psBridgePending": 0,
+        "llmPid": 13084,
+        "llmRestarts": 0
+      },
+      "ok": true
+    },
+    "P1": {
+      "sent": 280,
+      "okSent": 280,
+      "sendErrors": [],
+      "curve": [
+        {
+          "sent": 4,
+          "at": "2026-10-11T03:59:47.860Z +975ms",
+          "live": 69,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 114,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 8,
+          "at": "2026-10-11T03:59:50.720Z +3835ms",
+          "live": 73,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 119,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 12,
+          "at": "2026-10-11T03:59:53.561Z +6676ms",
+          "live": 77,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 123,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 16,
+          "at": "2026-10-11T03:59:56.390Z +9505ms",
+          "live": 81,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 128,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 20,
+          "at": "2026-10-11T03:59:59.234Z +12349ms",
+          "live": 85,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 133,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 24,
+          "at": "2026-10-11T04:00:02.067Z +15182ms",
+          "live": 89,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 137,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 28,
+          "at": "2026-10-11T04:00:04.858Z +17973ms",
+          "live": 93,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 142,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 32,
+          "at": "2026-10-11T04:00:07.635Z +20750ms",
+          "live": 97,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 146,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 36,
+          "at": "2026-10-11T04:00:10.461Z +23576ms",
+          "live": 101,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 151,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 40,
+          "at": "2026-10-11T04:00:13.269Z +26384ms",
+          "live": 105,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 155,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 44,
+          "at": "2026-10-11T04:00:16.099Z +29214ms",
+          "live": 109,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 160,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 48,
+          "at": "2026-10-11T04:00:18.887Z +32002ms",
+          "live": 113,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 165,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 52,
+          "at": "2026-10-11T04:00:21.735Z +34850ms",
+          "live": 117,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 169,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 56,
+          "at": "2026-10-11T04:00:24.530Z +37645ms",
+          "live": 121,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 174,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 60,
+          "at": "2026-10-11T04:00:27.432Z +40547ms",
+          "live": 125,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 178,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 64,
+          "at": "2026-10-11T04:00:30.360Z +43475ms",
+          "live": 129,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 183,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 68,
+          "at": "2026-10-11T04:00:33.226Z +46341ms",
+          "live": 133,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 188,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 72,
+          "at": "2026-10-11T04:00:35.993Z +49108ms",
+          "live": 137,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 192,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 76,
+          "at": "2026-10-11T04:00:38.784Z +51899ms",
+          "live": 141,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 197,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 80,
+          "at": "2026-10-11T04:00:41.594Z +54709ms",
+          "live": 145,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 202,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 84,
+          "at": "2026-10-11T04:00:44.496Z +57611ms",
+          "live": 149,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 206,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 88,
+          "at": "2026-10-11T04:00:47.314Z +60429ms",
+          "live": 153,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 211,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 92,
+          "at": "2026-10-11T04:00:50.127Z +63242ms",
+          "live": 157,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 215,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 96,
+          "at": "2026-10-11T04:00:52.902Z +66017ms",
+          "live": 161,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 220,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 100,
+          "at": "2026-10-11T04:00:55.746Z +68861ms",
+          "live": 165,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 225,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 104,
+          "at": "2026-10-11T04:00:58.559Z +71674ms",
+          "live": 169,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 229,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 108,
+          "at": "2026-10-11T04:01:01.358Z +74473ms",
+          "live": 173,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 234,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 112,
+          "at": "2026-10-11T04:01:04.185Z +77300ms",
+          "live": 177,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 238,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 116,
+          "at": "2026-10-11T04:01:07.029Z +80144ms",
+          "live": 181,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 243,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 120,
+          "at": "2026-10-11T04:01:09.859Z +82974ms",
+          "live": 185,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 247,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 124,
+          "at": "2026-10-11T04:01:12.672Z +85787ms",
+          "live": 189,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 252,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 128,
+          "at": "2026-10-11T04:01:15.456Z +88571ms",
+          "live": 193,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 256,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 132,
+          "at": "2026-10-11T04:01:18.272Z +91387ms",
+          "live": 197,
+          "maxTasks": 200,
+          "evictedCount": 0,
+          "delta": 0,
+          "auditEntries": 261,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 136,
+          "at": "2026-10-11T04:01:21.097Z +94212ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 1,
+          "delta": 1,
+          "auditEntries": 267,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 140,
+          "at": "2026-10-11T04:01:23.957Z +97072ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 5,
+          "delta": 4,
+          "auditEntries": 275,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 144,
+          "at": "2026-10-11T04:01:26.778Z +99893ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 9,
+          "delta": 4,
+          "auditEntries": 284,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 148,
+          "at": "2026-10-11T04:01:29.572Z +102687ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 13,
+          "delta": 4,
+          "auditEntries": 292,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 152,
+          "at": "2026-10-11T04:01:32.459Z +105574ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 17,
+          "delta": 4,
+          "auditEntries": 301,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 156,
+          "at": "2026-10-11T04:01:35.285Z +108400ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 21,
+          "delta": 4,
+          "auditEntries": 310,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 160,
+          "at": "2026-10-11T04:01:38.278Z +111393ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 55,
+          "delta": 34,
+          "auditEntries": 358,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 2,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 164,
+          "at": "2026-10-11T04:01:41.093Z +114208ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 59,
+          "delta": 4,
+          "auditEntries": 433,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 168,
+          "at": "2026-10-11T04:01:43.909Z +117024ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 63,
+          "delta": 4,
+          "auditEntries": 442,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 172,
+          "at": "2026-10-11T04:01:46.762Z +119877ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 67,
+          "delta": 4,
+          "auditEntries": 450,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 176,
+          "at": "2026-10-11T04:01:49.666Z +122781ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 71,
+          "delta": 4,
+          "auditEntries": 459,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 180,
+          "at": "2026-10-11T04:01:52.435Z +125550ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 75,
+          "delta": 4,
+          "auditEntries": 468,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 184,
+          "at": "2026-10-11T04:01:55.246Z +128361ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 79,
+          "delta": 4,
+          "auditEntries": 476,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 188,
+          "at": "2026-10-11T04:01:58.050Z +131165ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 83,
+          "delta": 4,
+          "auditEntries": 485,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 192,
+          "at": "2026-10-11T04:02:00.851Z +133966ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 87,
+          "delta": 4,
+          "auditEntries": 493,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 196,
+          "at": "2026-10-11T04:02:03.709Z +136824ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 91,
+          "delta": 4,
+          "auditEntries": 502,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 200,
+          "at": "2026-10-11T04:02:06.582Z +139697ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 95,
+          "delta": 4,
+          "auditEntries": 510,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 204,
+          "at": "2026-10-11T04:02:09.427Z +142542ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 99,
+          "delta": 4,
+          "auditEntries": 519,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 208,
+          "at": "2026-10-11T04:02:12.307Z +145422ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 103,
+          "delta": 4,
+          "auditEntries": 528,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 212,
+          "at": "2026-10-11T04:02:15.095Z +148210ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 107,
+          "delta": 4,
+          "auditEntries": 536,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 216,
+          "at": "2026-10-11T04:02:18.024Z +151139ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 111,
+          "delta": 4,
+          "auditEntries": 544,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 220,
+          "at": "2026-10-11T04:02:20.911Z +154026ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 115,
+          "delta": 4,
+          "auditEntries": 553,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 224,
+          "at": "2026-10-11T04:02:23.846Z +156961ms",
+          "live": 200,
+          "maxTasks": 200,
+          "evictedCount": 119,
+          "delta": 4,
+          "auditEntries": 561,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 228,
+          "at": "2026-10-11T04:02:26.679Z +159794ms",
+          "live": 201,
+          "maxTasks": 200,
+          "evictedCount": 122,
+          "delta": 3,
+          "auditEntries": 569,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 232,
+          "at": "2026-10-11T04:02:29.512Z +162627ms",
+          "live": 205,
+          "maxTasks": 200,
+          "evictedCount": 122,
+          "delta": 0,
+          "auditEntries": 573,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 236,
+          "at": "2026-10-11T04:02:32.427Z +165542ms",
+          "live": 208,
+          "maxTasks": 200,
+          "evictedCount": 123,
+          "delta": 1,
+          "auditEntries": 579,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 240,
+          "at": "2026-10-11T04:02:35.251Z +168366ms",
+          "live": 211,
+          "maxTasks": 200,
+          "evictedCount": 124,
+          "delta": 1,
+          "auditEntries": 585,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 244,
+          "at": "2026-10-11T04:02:38.178Z +171293ms",
+          "live": 245,
+          "maxTasks": 200,
+          "evictedCount": 124,
+          "delta": 0,
+          "auditEntries": 619,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 248,
+          "at": "2026-10-11T04:02:41.218Z +174333ms",
+          "live": 248,
+          "maxTasks": 200,
+          "evictedCount": 125,
+          "delta": 1,
+          "auditEntries": 625,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 252,
+          "at": "2026-10-11T04:02:44.116Z +177231ms",
+          "live": 252,
+          "maxTasks": 200,
+          "evictedCount": 125,
+          "delta": 0,
+          "auditEntries": 629,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 256,
+          "at": "2026-10-11T04:02:46.969Z +180084ms",
+          "live": 255,
+          "maxTasks": 200,
+          "evictedCount": 126,
+          "delta": 1,
+          "auditEntries": 635,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 260,
+          "at": "2026-10-11T04:02:49.782Z +182897ms",
+          "live": 259,
+          "maxTasks": 200,
+          "evictedCount": 126,
+          "delta": 0,
+          "auditEntries": 639,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 264,
+          "at": "2026-10-11T04:02:52.694Z +185809ms",
+          "live": 262,
+          "maxTasks": 200,
+          "evictedCount": 127,
+          "delta": 1,
+          "auditEntries": 645,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 268,
+          "at": "2026-10-11T04:02:55.515Z +188630ms",
+          "live": 266,
+          "maxTasks": 200,
+          "evictedCount": 127,
+          "delta": 0,
+          "auditEntries": 649,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 272,
+          "at": "2026-10-11T04:02:58.364Z +191479ms",
+          "live": 269,
+          "maxTasks": 200,
+          "evictedCount": 128,
+          "delta": 1,
+          "auditEntries": 655,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 276,
+          "at": "2026-10-11T04:03:01.193Z +194308ms",
+          "live": 272,
+          "maxTasks": 200,
+          "evictedCount": 129,
+          "delta": 1,
+          "auditEntries": 661,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        },
+        {
+          "sent": 280,
+          "at": "2026-10-11T04:03:04.013Z +197128ms",
+          "live": 276,
+          "maxTasks": 200,
+          "evictedCount": 129,
+          "delta": 0,
+          "auditEntries": 665,
+          "chainValid": true,
+          "load": {
+            "psBridgePending": 0,
+            "llmPid": 13084,
+            "llmRestarts": 0
+          }
+        }
+      ]
+    },
+    "P2": {
+      "need": 77,
+      "census": {
+        "per": {
+          "completed": 0,
+          "failed": 77,
+          "canceled": 0,
+          "rejected": 0
+        },
+        "total": 77
+      },
+      "waitedMs": 409296,
+      "samples": [
+        {
+          "at": "2026-10-11T04:03:07.196Z +200311ms",
+          "live": 276,
+          "evictedCount": 129,
+          "terminalTotal": 10,
+          "terminalPer": {
+            "completed": 10,
+            "failed": 0,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:03:27.674Z +220789ms",
+          "live": 276,
+          "evictedCount": 129,
+          "terminalTotal": 53,
+          "terminalPer": {
+            "completed": 53,
+            "failed": 0,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:03:48.013Z +241128ms",
+          "live": 251,
+          "evictedCount": 184,
+          "terminalTotal": 2,
+          "terminalPer": {
+            "completed": 2,
+            "failed": 0,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:04:08.613Z +261728ms",
+          "live": 251,
+          "evictedCount": 184,
+          "terminalTotal": 5,
+          "terminalPer": {
+            "completed": 5,
+            "failed": 0,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:04:29.000Z +282115ms",
+          "live": 251,
+          "evictedCount": 184,
+          "terminalTotal": 9,
+          "terminalPer": {
+            "completed": 9,
+            "failed": 0,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:04:49.505Z +302620ms",
+          "live": 271,
+          "evictedCount": 194,
+          "terminalTotal": 3,
+          "terminalPer": {
+            "completed": 3,
+            "failed": 0,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:05:09.938Z +323053ms",
+          "live": 271,
+          "evictedCount": 194,
+          "terminalTotal": 33,
+          "terminalPer": {
+            "completed": 6,
+            "failed": 27,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:05:30.321Z +343436ms",
+          "live": 271,
+          "evictedCount": 194,
+          "terminalTotal": 61,
+          "terminalPer": {
+            "completed": 6,
+            "failed": 55,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:05:50.731Z +363846ms",
+          "live": 238,
+          "evictedCount": 257,
+          "terminalTotal": 9,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 9,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:06:11.096Z +384211ms",
+          "live": 238,
+          "evictedCount": 257,
+          "terminalTotal": 22,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 22,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:06:31.509Z +404624ms",
+          "live": 232,
+          "evictedCount": 293,
+          "terminalTotal": 1,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 1,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:06:52.014Z +425129ms",
+          "live": 232,
+          "evictedCount": 293,
+          "terminalTotal": 14,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 14,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:07:12.405Z +445520ms",
+          "live": 232,
+          "evictedCount": 293,
+          "terminalTotal": 21,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 21,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:07:32.860Z +465975ms",
+          "live": 235,
+          "evictedCount": 320,
+          "terminalTotal": 0,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 0,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:07:53.327Z +486442ms",
+          "live": 235,
+          "evictedCount": 320,
+          "terminalTotal": 9,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 9,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:08:13.814Z +506929ms",
+          "live": 235,
+          "evictedCount": 320,
+          "terminalTotal": 18,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 18,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:08:34.218Z +527333ms",
+          "live": 224,
+          "evictedCount": 341,
+          "terminalTotal": 1,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 1,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:08:54.723Z +547838ms",
+          "live": 224,
+          "evictedCount": 341,
+          "terminalTotal": 17,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 17,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:09:15.146Z +568261ms",
+          "live": 224,
+          "evictedCount": 341,
+          "terminalTotal": 33,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 33,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:09:35.609Z +588724ms",
+          "live": 224,
+          "evictedCount": 341,
+          "terminalTotal": 70,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 70,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        },
+        {
+          "at": "2026-10-11T04:09:56.142Z +609257ms",
+          "live": 224,
+          "evictedCount": 341,
+          "terminalTotal": 77,
+          "terminalPer": {
+            "completed": 0,
+            "failed": 77,
+            "canceled": 0,
+            "rejected": 0
+          },
+          "need": 77
+        }
+      ],
+      "start": {
+        "tasks": {
+          "live": 276,
+          "maxTasks": 200,
+          "terminalTtlMs": 3600000,
+          "evictedCount": 129
+        },
+        "auditEntries": 675,
+        "chainValid": true,
+        "auth": "loopback-only/not-mounted/unverified",
+        "load": {
+          "psBridgePending": 0,
+          "llmPid": 13084,
+          "llmRestarts": 0
+        },
+        "ok": true
+      }
+    },
+    "P3": {
+      "before": {
+        "tasks": {
+          "live": 224,
+          "maxTasks": 200,
+          "terminalTtlMs": 3600000,
+          "evictedCount": 341
+        },
+        "auditEntries": 1121,
+        "chainValid": true,
+        "auth": "loopback-only/not-mounted/unverified",
+        "load": {
+          "psBridgePending": 0,
+          "llmPid": 13084,
+          "llmRestarts": 0
+        },
+        "ok": true
+      },
+      "sent": {
+        "tag": "A",
+        "id": "7c7923aa-8440-48e7-98d3-8975c94c668f",
+        "state": "working",
+        "error": null
+      },
+      "after": {
+        "tasks": {
+          "live": 200,
+          "maxTasks": 200,
+          "terminalTtlMs": 3600000,
+          "evictedCount": 366
+        },
+        "auditEntries": 1125,
+        "chainValid": true,
+        "auth": "loopback-only/not-mounted/unverified",
+        "load": {
+          "psBridgePending": 0,
+          "llmPid": 13084,
+          "llmRestarts": 0
+        },
+        "ok": true
+      },
+      "terminalCensusBefore": {
+        "per": {
+          "completed": 0,
+          "failed": 77,
+          "canceled": 0,
+          "rejected": 0
+        },
+        "total": 77
+      },
+      "evictedCountDelta": 25,
+      "liveDelta": -24,
+      "chainBeforeCount": 135,
+      "chainAfterCount": 136,
+      "chainNetNew": 1,
+      "newEntries": [
+        {
+          "shard": "audit-20261011-3.jsonl",
+          "seq": 1123,
+          "ts": "2026-10-11T04:09:56.710Z",
+          "traceId": "tr_26856cc6794b46fa8643",
+          "channel": "internal",
+          "capabilityId": "meta.audit.chain",
+          "risk": "L0",
+          "allowed": true,
+          "matchedRule": "internal:task-evicted",
+          "durationMs": 0,
+          "resultOk": true,
+          "summary": "TaskStore 驱逐回收 25 条终态任务（overflow=25；累计 366 条）；终态分布 failed:25",
+          "evict": {
+            "count": 25,
+            "ttlCount": 0,
+            "overflowCount": 25,
+            "sampleTaskIds": [
+              "89977c64-8654-4daa-bcec-47d8e4b4db6b",
+              "2bcdb4eb-20bc-4235-8143-8287f9008070",
+              "433a5d76-259c-4248-a385-1ff6c89fac64",
+              "53419d0c-a6bc-46e0-bc36-4e431e4610f6",
+              "f54583c1-ad1d-43cd-8f6c-931f95895b37",
+              "157837cd-b0c9-4217-ad49-dac9a10115b9",
+              "c6e5bd0a-7d19-4a93-ae53-5c4a96dd9de9",
+              "909a55f1-e92f-49b0-a31c-60e5ee54a914",
+              "c83f8a73-36d0-4a87-a94e-7d7691c65f50",
+              "9104587a-080d-4aa1-ad5f-4b6c3f7c6b00"
+            ],
+            "evictedTotal": 366,
+            "terminalStates": {
+              "failed": 25
+            }
+          }
+        }
+      ]
+    },
+    "P4": {
+      "curve": [
+        {
+          "round": 0,
+          "sentId": "d4d25eb7-b0b8-4c84-84b9-ed857daea14e",
+          "live": 200,
+          "evictedCount": 367,
+          "delta": 1,
+          "chainTaskEvicted": 137,
+          "chainNetNew": 1,
+          "auditEntries": 1153,
+          "chainValid": true
+        },
+        {
+          "round": 1,
+          "sentId": "9715ae60-6ac0-4ff3-8330-c88802d15893",
+          "live": 200,
+          "evictedCount": 368,
+          "delta": 1,
+          "chainTaskEvicted": 138,
+          "chainNetNew": 1,
+          "auditEntries": 1180,
+          "chainValid": true
+        },
+        {
+          "round": 2,
+          "sentId": "0a719842-ec64-4198-81f0-efadbaa3b5ff",
+          "live": 200,
+          "evictedCount": 369,
+          "delta": 1,
+          "chainTaskEvicted": 139,
+          "chainNetNew": 1,
+          "auditEntries": 1198,
+          "chainValid": true
+        },
+        {
+          "round": 3,
+          "sentId": "a45fea89-98f4-45d4-a9d9-c7d1ff82c1de",
+          "live": 200,
+          "evictedCount": 370,
+          "delta": 1,
+          "chainTaskEvicted": 140,
+          "chainNetNew": 1,
+          "auditEntries": 1234,
+          "chainValid": true
+        },
+        {
+          "round": 4,
+          "sentId": "20f574ae-41a8-4aee-afcb-0a95d42ebfb5",
+          "live": 200,
+          "evictedCount": 371,
+          "delta": 1,
+          "chainTaskEvicted": 141,
+          "chainNetNew": 1,
+          "auditEntries": 1249,
+          "chainValid": true
+        },
+        {
+          "round": 5,
+          "sentId": "e0bde769-4a03-44b5-9cff-85fa1ed80518",
+          "live": 200,
+          "evictedCount": 372,
+          "delta": 1,
+          "chainTaskEvicted": 142,
+          "chainNetNew": 1,
+          "auditEntries": 1267,
+          "chainValid": true
+        }
+      ],
+      "gates": {
+        "entries": 142,
+        "ttl": 0,
+        "overflow": 372,
+        "maxBatch": 63,
+        "sumCounted": 372,
+        "shapeOk": 142
+      },
+      "chainTaskEvictedTotal": 142,
+      "firstEntry": {
+        "shard": "audit-20261011-3.jsonl",
+        "seq": 266,
+        "ts": "2026-10-11T04:01:20.825Z",
+        "traceId": "tr_003ac320573a468bada2",
+        "channel": "internal",
+        "capabilityId": "meta.audit.chain",
+        "risk": "L0",
+        "allowed": true,
+        "matchedRule": "internal:task-evicted",
+        "durationMs": 0,
+        "resultOk": true,
+        "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 1 条）；终态分布 completed:1",
+        "evict": {
+          "count": 1,
+          "ttlCount": 0,
+          "overflowCount": 1,
+          "sampleTaskIds": [
+            "28a822a0-5b88-4671-9ad9-7ac22d27a807"
+          ],
+          "evictedTotal": 1,
+          "terminalStates": {
+            "completed": 1
+          }
+        }
+      },
+      "latestEntries": [
+        {
+          "shard": "audit-20261011-3.jsonl",
+          "seq": 1234,
+          "ts": "2026-10-11T04:11:27.618Z",
+          "traceId": "tr_cf6569b7b09e42cb9fe9",
+          "channel": "internal",
+          "capabilityId": "meta.audit.chain",
+          "risk": "L0",
+          "allowed": true,
+          "matchedRule": "internal:task-evicted",
+          "durationMs": 0,
+          "resultOk": true,
+          "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 370 条）；终态分布 failed:1",
+          "evict": {
+            "count": 1,
+            "ttlCount": 0,
+            "overflowCount": 1,
+            "sampleTaskIds": [
+              "7da00e4b-e34a-49b9-9544-22cc54e1797d"
+            ],
+            "evictedTotal": 370,
+            "terminalStates": {
+              "failed": 1
+            }
+          }
+        },
+        {
+          "shard": "audit-20261011-3.jsonl",
+          "seq": 1248,
+          "ts": "2026-10-11T04:11:50.178Z",
+          "traceId": "tr_e730d2c4c005453db130",
+          "channel": "internal",
+          "capabilityId": "meta.audit.chain",
+          "risk": "L0",
+          "allowed": true,
+          "matchedRule": "internal:task-evicted",
+          "durationMs": 0,
+          "resultOk": true,
+          "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 371 条）；终态分布 failed:1",
+          "evict": {
+            "count": 1,
+            "ttlCount": 0,
+            "overflowCount": 1,
+            "sampleTaskIds": [
+              "e70925bf-68cf-4e09-97e7-bb82ed0e6c0c"
+            ],
+            "evictedTotal": 371,
+            "terminalStates": {
+              "failed": 1
+            }
+          }
+        },
+        {
+          "shard": "audit-20261011-3.jsonl",
+          "seq": 1265,
+          "ts": "2026-10-11T04:12:12.766Z",
+          "traceId": "tr_99f69605c6f64a0babb2",
+          "channel": "internal",
+          "capabilityId": "meta.audit.chain",
+          "risk": "L0",
+          "allowed": true,
+          "matchedRule": "internal:task-evicted",
+          "durationMs": 0,
+          "resultOk": true,
+          "summary": "TaskStore 驱逐回收 1 条终态任务（overflow=1；累计 372 条）；终态分布 failed:1",
+          "evict": {
+            "count": 1,
+            "ttlCount": 0,
+            "overflowCount": 1,
+            "sampleTaskIds": [
+              "efcf76c3-73db-49e7-bfa2-ac2d476681b0"
+            ],
+            "evictedTotal": 372,
+            "terminalStates": {
+              "failed": 1
+            }
+          }
+        }
+      ]
+    },
+    "final": {
+      "tasks": {
+        "live": 200,
+        "maxTasks": 200,
+        "terminalTtlMs": 3600000,
+        "evictedCount": 372
+      },
+      "auditEntries": 1267,
+      "chainValid": true,
+      "auth": "loopback-only/not-mounted/unverified",
+      "load": {
+        "psBridgePending": 0,
+        "llmPid": 13084,
+        "llmRestarts": 0
+      },
+      "ok": true
+    }
+  },
+  "attribution": [
+    {
+      "kind": "C1-evicted-in-window",
+      "id": "efcf76c3-73db-49e7-bfa2-ac2d476681b0",
+      "hasResult": false,
+      "state": null,
+      "errorData": {
+        "code": "TaskNotFoundError",
+        "evicted": true
+      },
+      "errorMessage": "任务不存在或不可访问：efcf76c3-73db-49e7-bfa2-ac2d476681b0"
+    },
+    {
+      "kind": "C2-evicted-out-of-window",
+      "id": "28a822a0-5b88-4671-9ad9-7ac22d27a807",
+      "hasResult": false,
+      "state": null,
+      "errorData": {
+        "code": "TaskNotFoundError"
+      },
+      "errorMessage": "任务不存在或不可访问：28a822a0-5b88-4671-9ad9-7ac22d27a807"
+    },
+    {
+      "kind": "C3-never-existed",
+      "id": "t7-never-exists-00000000-0000-0000-0000-000000000000",
+      "hasResult": false,
+      "state": null,
+      "errorData": {
+        "code": "TaskNotFoundError"
+      },
+      "errorMessage": "任务不存在或不可访问：t7-never-exists-00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "kind": "C4-survivor-A",
+      "id": "7c7923aa-8440-48e7-98d3-8975c94c668f",
+      "hasResult": true,
+      "state": "working",
+      "errorData": null,
+      "errorMessage": null
+    }
+  ],
+  "summary": {
+    "aborted": false,
+    "overflowGateTriggeredInP1": true,
+    "p1FinalEvicted": 129,
+    "p3EvictedCountDelta": 25,
+    "p3LiveDelta": -24,
+    "p3LiveWithinMax": true,
+    "burstCollapsedToOneChainEntry": true,
+    "chainEntriesCount": 142,
+    "gates": {
+      "entries": 142,
+      "ttl": 0,
+      "overflow": 372,
+      "maxBatch": 63,
+      "sumCounted": 372,
+      "shapeOk": 142
+    },
+    "chainEntryShapeAllInternal": true,
+    "chainVsHealthSameRuler": {
+      "chainSumCounted": 372,
+      "healthEvictedCount": 372,
+      "equal": true
+    },
+    "evictedCountMonotonic": true,
+    "evictedCountFinal": 372,
+    "liveFinalWithinMax": true,
+    "ringWrapped": true,
+    "c1AllEvictedAttributed": true,
+    "c2NoneAttributedOutOfWindow": true,
+    "c3NoEvictedKey": true,
+    "c4Alive": true,
+    "chainValid": true,
+    "authTriple": "loopback-only/not-mounted/unverified",
+    "tasksHealthKeys": [
+      "live",
+      "maxTasks",
+      "terminalTtlMs",
+      "evictedCount"
+    ]
+  }
+}

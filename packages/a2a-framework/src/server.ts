@@ -596,10 +596,21 @@ export class A2AServer {
     return { jsonrpc: '2.0', id, error: { code, message, ...(data !== undefined ? { data } : {}) } };
   }
 
+  /**
+   * 错误 → JSON-RPC error 映射。
+   *
+   * P2-T7（L1，**纯附加**）：`TaskNotFoundError` 的 `data` 里带上 `evicted:true` —— 仅当该 id
+   * 落在 TaskStore 的驱逐归因窗口内（`error.evicted`）。设计要区分的两种事实由此在协议面上可分：
+   *  · 「从未存在的 id」⇒ `data` 逐字保持旧形状 `{code:'TaskNotFoundError'}`（键整体**缺席**，
+   *    不是写 `evicted:false` —— 显式 false 会让旧客户端的深比对与既有 fixture 全红）；
+   *  · 「已被有界化回收的 id」⇒ `data:{code:'TaskNotFoundError', evicted:true}`。
+   * 错误码与 HTTP 侧形状一律不动（A2A 规范内 `TASK_NOT_FOUND` 仍是同一码），只加一个判别键。
+   */
   private mapError(id: string | number | null, e: unknown): A2A.JsonRpcResponse {
     if (e instanceof TaskNotFoundError) {
       return this.fail(id, A2A.JSON_RPC_ERRORS.INVALID_PARAMS, e.message, {
         code: A2A.A2A_ERROR_CODES.TASK_NOT_FOUND,
+        ...(e.evicted ? { evicted: true } : {}),
       });
     }
     if (e instanceof TaskNotCancelableError) {

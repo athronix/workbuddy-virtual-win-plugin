@@ -107,6 +107,11 @@ import {
   bypassTagSink,
   wrapAuditSink,
 } from './delegation-audit.js';
+// Phase 2 · P2-T7（F3 / L1）：TaskStore 驱逐的链上取证（`ext.kind:'task-evicted'`）。
+// 条目构造纯函数 + 突发合并投递器都在新模块里（⇒ 零既有守卫文本面），本文件只做装配：
+// 把框架的 `onEviction` 结构化事件接到**原始 sink**。框架层不 import 审计语义（依赖方向铁律），
+// 「落不落链」由本层决定 —— 本批裁断：**落**（设计 §3.1-1；对账口径 = 链上与 /health.tasks 同计数源）。
+import { createTaskEvictedChainRecorder } from './task-evict-audit.js';
 
 export interface PendingApproval {
   readonly approvalId: string;
@@ -961,10 +966,30 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    * 而 `/health.tasks` 要如实报出「本次运行生效的上限」⇒ 与其在透出侧凭猜测复写数字
    * （漂移即说谎），不如在构造点把值钉成装配层的单一可见来源（行为与缺省逐字相同）。
    * **不新造 env 旋钮**（§8）；`service.limits` 配置面本批未开（设计 §1.6-2 列为可选）。
+   *
+   * P2-T7（L1，**纯附加**）：新增 `onEviction` —— 把框架的驱逐结构化事件接到链上取证
+   * （`ext.kind:'task-evicted'`，突发合并，写**原始** sink，O-7 审计自证）。
+   * 判据「累计驱逐数」的唯一来源仍是 `taskStore.evictedCount()`（构造点与 `/health.tasks`
+   * 共用同一读数 ⇒ 链上与体检面必然同口径，两处打架即说谎）。回调异常由框架吞掉，
+   * 取证失败**绝不影响**有界化本身。
    */
+  /**
+   * 驱逐落链投递器（先声明以便 `taskStore` 构造参数引用）。
+   * `isClosed` 复用 `serviceClosed` 位（P2-T5 收口纪律）⇒ 退出路径上不再往已关闭 sink 写条目。
+   */
+  const taskEvictChain = createTaskEvictedChainRecorder({
+    append: (entry) => audit.append(entry),
+    newTraceId,
+    newAuditId: () => newId('aud'),
+    // 闭包延迟读取：构造 taskStore 时本函数已存在，真正调用发生在 flush（此时 taskStore 已就绪）
+    evictedCount: () => taskStore.evictedCount(),
+    isClosed: () => serviceClosed,
+    warn: (msg, fields) => logger.warn(msg, fields),
+  });
   const taskStore = new TaskStore({
     maxTasks: TASK_STORE_MAX_TASKS,
     terminalTtlMs: TASK_STORE_TERMINAL_TTL_MS,
+    onEviction: taskEvictChain.onEviction,
     onApprovalTimeout: ({ taskId, approvalId, timedOutAfterMs, ttlMs }) => {
       // K5：登记超时事实，使协调器把 raise 的 false 细分成 'timeout'
       //（区别于宿主显式拒绝 'rejected'）；二者一律不放行、绝不重放。
@@ -1979,10 +2004,15 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       security: buildSecurityHealth(),
       // ENG-08：TaskStore 有界化事实（纯附加）。`live` 是内存驻留量，
       // 配合 `maxTasks` 让运维能看出「快到顶了」而不是等驱逐发生。
+      // P2-T7（L1，纯附加）：再补 `evictedCount` —— 「已经回收了多少」此前完全不可见
+      // （QA §4-B4 的病灶：驱逐无计数无日志无回调）。与链上 `task-evicted` 条目的
+      // `ext.evict.evictedTotal` 同一读数源（都是 `taskStore.evictedCount()`）⇒ 两面互为对账，
+      // 不可能出现「体检说逐了 5 条、链上账本说 8 条」的自相矛盾。
       tasks: {
         live: taskStore.size(),
         maxTasks: TASK_STORE_MAX_TASKS,
         terminalTtlMs: TASK_STORE_TERMINAL_TTL_MS,
+        evictedCount: taskStore.evictedCount(),
       },
       // CL-018 C1：常驻会话态（纯附加）。取自 provider 的**同步** SPI 成员，
       // 而不是 providerHealth —— 后者可能被短超时守卫替换为不含 llmSession 的降级快照。

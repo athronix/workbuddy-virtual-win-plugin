@@ -78,6 +78,22 @@ export type {
   HealthAuthMode,
 } from './http-guard.js';
 /**
+ * Phase 2 · P2-T7（F3 / L1）—— TaskStore **驱逐**的链上取证（`ext.kind:'task-evicted'`）。
+ * 与 http-guard / inner-reconnect-probe 同一纪律：条目构造是纯函数 ⇒ 判据可脱服务直测；
+ * 投递器只做「突发合并 + 原始 sink fire-and-forget」，零定时器零 I/O 依赖注入 ⇒ 离线全分支可测。
+ */
+export {
+  buildTaskEvictedAuditEntry,
+  createTaskEvictedChainRecorder,
+  TASK_EVICT_SAMPLE_LIMIT,
+} from './task-evict-audit.js';
+export type {
+  TaskEvictedAuditEntry,
+  TaskEvictedAuditInput,
+  TaskEvictedChainOptions,
+  TaskEvictedChainRecorder,
+} from './task-evict-audit.js';
+/**
  * ENG-01（T4）—— MCP 续跑令牌表的**有界化**登记处（裸 `Map` 的窄同签名替身 + TTL 清扫器）。
  * 同样为纯数据结构，零审计依赖（被逐条目回传调用方，由装配层落 `timeout` 决策）。
  */

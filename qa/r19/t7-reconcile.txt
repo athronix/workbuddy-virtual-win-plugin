@@ -1,0 +1,41 @@
+--- .generated dir census ---
+  1312B  start-hidden.ps1
+  1312B  start-hidden.ps1.bak-p2t5
+  1312B  start-hidden.ps1.bak-p2t6
+  4332B  task.xml
+  4606B  vm-service.runtime.json
+  1942B  vm-service.runtime.json.bak-on
+  4606B  vm-service.runtime.json.bak-p2t5
+  4606B  vm-service.runtime.json.bak-p2t6
+SHA256 f61dd89f9d558ef6b82dbeee35348eb5e21691c7e507db52cf103046c0b36d4e  4606B  C:\WinVMBridge\delivery\.generated\vm-service.runtime.json
+SHA256 801038bc95a21b6eb49596ebdab3e1ca43b30f3996247689f30359215ba55179  1312B  C:\WinVMBridge\delivery\.generated\start-hidden.ps1
+MISSING  C:\WinVMBridge\delivery\.generated\start-hidden.vbs
+SHA256 90fee7a47ea610411311795f2c447b8dc848d87254d490f6cbf7ebd024d42832  4332B  C:\WinVMBridge\delivery\.generated\task.xml
+--- /health final ---
+curl_rc=0
+ConvertFrom-Json : 传入的对象无效，应为“:”或“}”。 (723): {"ok":true,"provider":{"id":"workbuddy","state":"ready"},"
+providerApprovalTruth":{"mode":"on","enabled":true,"shadow":false},"session":{"sessionId":1,"windowStation":"WinSta0","
+desktop":"Default","interactive":true,"locked":false,"blackScreen":false,"state":"healthy","detail":"浼氳瘽鍋ュ悍锛孏UI
+ 鑳藉姏鍙敤"},"psBridge":{"state":"ready","uptimeMs":12692,"pending":0,"restarts":0},"capabilities":{"count":54,"avai
+lable":54},"audit":{"entries":2,"chainValid":true,"scope":"session","shardsVerified":1,"shardsTotal":83,"shardsArchived
+":82},"security":{"loopbackOnly":true,"boundLoopback":true,"authMode":"loopback-only","bearerSelfCheck":{"code":"not-mo
+unted","ok":true,"reason":"bearer 瀹堝崼鏈寕杞斤紙authMode鈮燽earer-enforced锛夛紝璺宠繃鎸傝浇姹傚�?},"innerReconnect
+":{"status":"unverified","reason":"authMode=loopback-only锛氬畧鍗湭鎸傝浇 鈬?鍥炶繛閫氳矾鏃犲垽瀹氭剰涔夛紙鍙娴嬩
+笉鏀瑰垽锛岄粯璁ゆ�佹亽涓嶆嫆鍚級"}},"tasks":{"live":0,"maxTasks":200,"terminalTtlMs":3600000,"evictedCount":0},"llmS
+ession":{"state":"starting","pid":12000,"restarts":0,"idleMs":8911},"logging":{"degraded":false,"dir":"C:\\Users\\User\
+\AppData\\Local\\WinVMBridge\\logs","level":"info"},"cache":{"netCfg":{"cached":true,"ageMs":341,"ttlMs":45000}},"expos
+ed":54}
+所在位置 C:\WinVMBridge\t7-reconcile.ps1:25 字符: 63
++ ... t-Content C:\WinVMBridge\t7-health-final.json -Raw | ConvertFrom-Json
++                                                          ~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [ConvertFrom-Json], ArgumentException
+    + FullyQualifiedErrorId : System.ArgumentException,Microsoft.PowerShell.Commands.ConvertFromJsonCommand
+ 
+tasks=
+authMode=
+bearerSelfCheck=
+innerReconnect=
+audit=
+provider= state=
+llmSession=
+psBridge=

@@ -1,0 +1,1469 @@
+=== STEP1: node process census (CommandLine) ===
+node_total=5
+  PID=16996 PPID=16260 CREATED=10/11/2026 11:40:37 CMD="C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node.exe"   "C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node_modules\@tencent-ai\codebuddy-code\bi
+  PID=1892 PPID=17016 CREATED=10/11/2026 11:41:01 CMD="C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node.exe"   "C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node_modules\@tencent-ai\codebuddy-code\bi
+  PID=15580 PPID=6184 CREATED=10/11/2026 11:42:35 CMD="C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node.exe"   "C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node_modules\@tencent-ai\codebuddy-code\bi
+  PID=18248 PPID=12616 CREATED=10/11/2026 11:44:00 CMD="C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node.exe"   "C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node_modules\@tencent-ai\codebuddy-code\bi
+  PID=21760 PPID=18260 CREATED=10/11/2026 11:44:49 CMD="C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node.exe"   "C:\Users\User\AppData\Local\Author Software\nvm\.nodejs\\node_modules\@tencent-ai\codebuddy-code\bi
+=== STEP2: port owner census ===
+owner_18443=
+=== STEP3: kill orphans whose parent is dead or is a lost-bridge child ===
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+无法对 Null 数组进行索引。
+所在位置 C:\WinVMBridge\t7-recover.ps1:19 字符: 81
++ ... rorAction SilentlyContinue)) { $livePids[[int]$p.ProcessId] = $true }
++                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArray
+ 
+不能对 Null 值表达式调用方法。
+所在位置 C:\WinVMBridge\t7-recover.ps1:24 字符: 7
++   if (-not $livePids.ContainsKey([int]$p.ParentProcessId)) {
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 
+不能对 Null 值表达式调用方法。
+所在位置 C:\WinVMBridge\t7-recover.ps1:24 字符: 7
++   if (-not $livePids.ContainsKey([int]$p.ParentProcessId)) {
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 
+不能对 Null 值表达式调用方法。
+所在位置 C:\WinVMBridge\t7-recover.ps1:24 字符: 7
++   if (-not $livePids.ContainsKey([int]$p.ParentProcessId)) {
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 
+不能对 Null 值表达式调用方法。
+所在位置 C:\WinVMBridge\t7-recover.ps1:24 字符: 7
++   if (-not $livePids.ContainsKey([int]$p.ParentProcessId)) {
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 
+不能对 Null 值表达式调用方法。
+所在位置 C:\WinVMBridge\t7-recover.ps1:24 字符: 7
++   if (-not $livePids.ContainsKey([int]$p.ParentProcessId)) {
++       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 
+killed_orphans=0
+=== STEP4: leftover ps-bridge ===
+=== STEP5: restart service task ===
+run => 成功: 尝试运行 "WinVMBridge.Service"。
+=== STEP6: poll port (up to 60s) ===
+  poll#3 LISTEN PID=560
+=== STEP7: health ===
+curl_rc=56
+=== STEP8: final node census ===
+node_total_after=6

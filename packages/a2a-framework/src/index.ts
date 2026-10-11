@@ -35,6 +35,9 @@ export type {
   ListResult,
   PendingApproval,
   TaskStoreOptions,
+  /** P2-T7（L1，纯附加）：驱逐闸门 / 单条驱逐事实（有界环形日志成员 = onEviction 入参） */
+  EvictionGate,
+  EvictionRecord,
 } from './task-store.js';
 
 export { A2AClient, A2AClientError } from './client.js';
