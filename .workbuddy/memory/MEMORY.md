@@ -12,6 +12,8 @@
 
 ## 关键坑（改码/联调前必扫）
 - 远端 shell=Git Bash(MSYS)：`/` 开头参数被路径转换→远端逻辑写 `.ps1`→scp(远端路径须 `C:/…`)→`powershell -NoProfile -ExecutionPolicy Bypass -File`；载荷 ASCII 防乱码。杀隧道勿 `pkill -f 'ssh -N -L'`(自杀)→直 kill PID。
+- **ssh `cmd &` 脱管（T7 实证双坑）**：ssh 退出后 Git Bash 后台进程**存活继续跑**，且"谁在跑什么"失去真相（成员对自家前轮 burst 探针失认）⇒ VM 长观测一律前台限时、或脚本自带 PID 落盘+心跳文件；真机窗口探针**串行化**。
+- **provider=workbuddy 禁批量 tasks/cancel（T7 真机红线）**：每个 requestCancel abort 打断**同一 LLM 常驻会话**当前轮⇒重建风暴⇒服务崩溃（实测 198×并发8 打挂+~90 孤儿 node）；单条 cancel 端到端 ~3.4s。filler 任务实况=working 数分钟自然收口（LLM 纯文本答完，非确定性执行器快速 failed）。
 - PS 5.1：`Sort-Object <裸键>` 对 `[ordered]@{}` 静默失效→`-Property { $_.key }`。
 - 沙箱：`/tmp` 只读(用 `$HOME/wbtmp`)；**git 不在 PATH 但二进制真实存在** `/storage/Users/currentUser/.harmonybrew/opt/git/bin/git`(v2.55.0)→用全路径 commit/log/show；`rm` shim 坏→用 `fs.unlinkSync`/`renameSync`；node 必须 `/data/storage/el1/bundle/libs/arm64/node/bin/node`；`getcwd` 偶发异常(用绝对路径)。
 - **单测绝不整批跑**→`node --test <单文件>`（`link-workspace.test.js` 的 junction 整批触发 `0xC0000005` 假全红）。
@@ -31,7 +33,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - **A5 / K-N1 / K-N2**：A5 L2 审批 `rejected` 置位路径真机不可达(activeTaskId 被 cancel 清掉)；K-N1 委派回合未发起 tools/call 致 K5 回执反查早退(0 执行仍 completed)；K-N2 dryRun 内层 success=false。均已有 `r19c-*` 单测覆盖。
 
 ## 关键口径
-- **测试基线 87 文件 / 1695 例（1693 pass/0 fail/2 skip）**（2026-10-11 Phase 2 · T6 收官 e0b6945 全仓逐文件 sweep；2 skip 恒 ssh2-resolve OFFLINE_SKIP；todo 差值口径见 §13.5）。旧口径依次留档：86/1657(T5 d277882)、85/1612(T4 cbd5dfd)、84/1558(T10 c5a9e40)、79/1457(Phase1 收官)、71/1247(Phase0)。Phase 2 已交付 T1–T6/T10+T3b（§13 裁决执行面，设计文档 §13.1–13.6 逐批登记）。根 `package.json` `layout` 脚本已删（指向不存在的 dep-lint；Phase 2 T11 规划）。
+- **测试基线 88 文件 / 1739 例（1737 pass/0 fail/2 skip）**（2026-10-11 Phase 2 · T7 收官 5199868 全仓逐文件 sweep；2 skip 恒 ssh2-resolve OFFLINE_SKIP；todo 差值口径见 §13.5）。旧口径依次留档：87/1695(T6 e0b6945)、86/1657(T5 d277882)、85/1612(T4 cbd5dfd)、84/1558(T10 c5a9e40)、79/1457(Phase1 收官)、71/1247(Phase0)。Phase 2 已交付 T1–T7/T10+T3b（§13 裁决执行面，设计文档 §13.1–13.7 逐批登记）。根 `package.json` `layout` 脚本已删（指向不存在的 dep-lint；Phase 2 T11 规划）。
 - 测试证据口径：每轮只留一份权威报告 `real-test-<date>-run<N>.md`；「未复现≠已修」须确定性注入回归；FAIL 给四元组(现象/根因/证据/路由)；证据目录删除必留痕。
 - 裁决必须落档再引用编号：权威层级=仓库文档>任务板>聊天；文档引用锚点段标签为主、行号(号)为辅（并行改动行号漂移）。
 - 证据文件「写完再读」：落在写入窗口内得 0B 假空→任何"为空/缺失"须二次确认(mtime+字节+进程存活)。
