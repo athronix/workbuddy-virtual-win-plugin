@@ -31,7 +31,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - **A5 / K-N1 / K-N2**：A5 L2 审批 `rejected` 置位路径真机不可达(activeTaskId 被 cancel 清掉)；K-N1 委派回合未发起 tools/call 致 K5 回执反查早退(0 执行仍 completed)；K-N2 dryRun 内层 success=false。均已有 `r19c-*` 单测覆盖。
 
 ## 关键口径
-- **测试基线 86 文件 / 1657 例（1655 pass/0 fail/2 skip）**（2026-10-11 Phase 2 · T5 收官 d277882 全仓逐文件 sweep；2 skip 恒 ssh2-resolve OFFLINE_SKIP；todo 差值口径见 §13.5）。旧口径依次留档：85/1612(T4 cbd5dfd)、84/1558(T10 c5a9e40)、79/1457(Phase1 收官)、71/1247(Phase0)。Phase 2 已交付 T1–T5/T10+T3b（§13 裁决执行面，设计文档 §13.1–13.5 逐批登记）。根 `package.json` `layout` 脚本已删（指向不存在的 dep-lint；Phase 2 T11 规划）。
+- **测试基线 87 文件 / 1695 例（1693 pass/0 fail/2 skip）**（2026-10-11 Phase 2 · T6 收官 e0b6945 全仓逐文件 sweep；2 skip 恒 ssh2-resolve OFFLINE_SKIP；todo 差值口径见 §13.5）。旧口径依次留档：86/1657(T5 d277882)、85/1612(T4 cbd5dfd)、84/1558(T10 c5a9e40)、79/1457(Phase1 收官)、71/1247(Phase0)。Phase 2 已交付 T1–T6/T10+T3b（§13 裁决执行面，设计文档 §13.1–13.6 逐批登记）。根 `package.json` `layout` 脚本已删（指向不存在的 dep-lint；Phase 2 T11 规划）。
 - 测试证据口径：每轮只留一份权威报告 `real-test-<date>-run<N>.md`；「未复现≠已修」须确定性注入回归；FAIL 给四元组(现象/根因/证据/路由)；证据目录删除必留痕。
 - 裁决必须落档再引用编号：权威层级=仓库文档>任务板>聊天；文档引用锚点段标签为主、行号(号)为辅（并行改动行号漂移）。
 - 证据文件「写完再读」：落在写入窗口内得 0B 假空→任何"为空/缺失"须二次确认(mtime+字节+进程存活)。
