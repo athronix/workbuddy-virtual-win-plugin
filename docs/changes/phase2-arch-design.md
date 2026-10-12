@@ -615,3 +615,19 @@ graph TD
 **主理人独立复核采信**：对 p2close-sweep.txt 全 92 行 awk 求和=tests 1889/pass 1887/fail 0/skip 2 与成员汇总逐字一致；`git status --porcelain -- packages/ scripts/ tests/ docs/ README.md package.json` 空输出=QA 棒零改动代码面实证；HEAD 对账 b23e87a=d1d34a6 之上 docs(memory)。证据归档 `qa/r19/p2close-{final-report,sweep,gate-full,gate-quick,files,spot,tsc,timeline}.{md,txt}` + `p2close-out/`（92 件原始 TAP）。
 
 **基线写数订正余量盘点**：README §8 与 06-OVERVIEW 自 T11 起已废静态数字（权威源=qa/ 最新 `*-sweep-result.txt`/sweep 汇总行）；phase0-delivery-summary/phase1-t5-notes 等历史批次留档数字属「历史留痕注记」不改写（各批 QA 收官注记已有演进链说明）。本段（§13.12）即 Phase 2 终态权威登记点：Phase 2 交付 T1–T12+T3b 全部收官，终态基线 **92/1889**。
+
+### 13.13 Phase 2 后全面体检（Phase 3 立项输入）登记（2026-10-12 23:5x）
+
+**主任务**：用户指令"全面检查项目，由产品功能/技术方案/技术实现/部署运维/测试验证/文档规范多维深入评估，找问题/缺失/待完善并制定完善路径"。判定=「仅需分析」部分工作流，七棒三域并行只读审计（PM×2/架构×3/QA×2），全程禁 git 写、禁改 REPO。
+
+**产出**：终版报告 `docs/audit/2026-10-12-full-audit.md`（统一 P0×4/P1×18/P2 族×10/升级触发器 T-1·T-2 台账+三大结构性结论+交叉验证改判记录+过程教训×5+Phase 3 批0-6 合并版含两处排期终裁）；原始七棒报告+tickets 归档 `docs/audit/2026-10-12-audit-raw/`（含 timeline .txt 化）。
+
+**P0 台账（PM 承诺尺）**：P0-1 审批闭环不可达（三棒独立复现+arch3 独家机理"批准即删 token⇒__approvalId 缺省死字段"）/P0-2 prepare-vm 部署断点/P0-3 失实承诺族（session-guard+Origin 两处亲验零实现；整改面 2→4 处；maxRisk 话术经主理人代码面坐实"封顶未接线"入族+1）/P0-4 真机验证断供 18 天。**架构尺 P0=空并存收录**（尺子不同：正在发生∧无人工规避），升级触发器 T-1（degraded 常态化）/T-2（取消风暴再发）作接口。
+
+**主理人反证改判**（§5 教训4 制度化）：pm2"伪造 maxRisk 逃逸"推翻（req.risk 服务端权威+fail-closed node 实测）→ 定性反转为 P1-M2"自报了也不生效"；PM"生产就绪 100% 必空转"P0→P1；"preflight 未覆盖已装"勘误（登录态非安装性）；QA⑥隧道 P0→P1；arch2 G-1"dep-lint 静默全绿"驳回（DIST_MISSING→exit2→UNJUDGED→RED 全链亲验）。
+
+**排期终裁**：批2（装得上）前置批1（批得准）——首日必撞优先；批1 出路 (c) 策略化+maxRisk 接线硬前置同一 CL。新纪律：每批收官必跑真机子集回归（P0-4 处方）；立项文档首节=「前序裁决时效性复核」（arch 元结论采纳）。
+
+**待用户裁三项**：T13 断片"只登记不修复"（arch 背书）/R-5 是否不等触发器直接批5 排期/teams 45 非 winvm 残骸清理。
+
+**门禁自证**：本报告为 docs-only 提交（新文件不改 src/scripts/tests），提交前 gate --quick 亲跑 VERDICT GREEN（tsc 12 包/dep-lint hard0 warn0 info11/config-keys 未知键0/guards 7 件 155/155），零 src 改动。
