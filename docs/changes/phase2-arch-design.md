@@ -607,3 +607,11 @@ graph TD
 **主理人独立核验全绿**：tsc -b 亲跑 RC=0；新件亲跑 32/32；gate --quick 亲跑 VERDICT GREEN 且数字与成员逐项一致（packages=12 语句边=39 包级边=22 审计符号=7 hard=0 warn=0 info=11 / 顶层段=9 白名单段=9 未知键=0 / guards 7 件 155/155）；`git diff --stat HEAD -- packages/` **空输出=src 零改动实证**（改动面=README/06-OVERVIEW/package.json/scripts//新测试/qa 证据）；PR9 亲验（scripts 四件对 `from '@winvm/` 仅 dep-lint 两行注释命中、零语句级 import）；dep-lint 11 条 info 逐条审读全为 DECLARED_UNUSED 合理型；占位符/TODO 亲 grep=0；文档 diff 逐字审（静态数字清除彻底+权威源锚定+门禁纪律块合规）。§13.11 登记后文档守卫复绿。证据归档 `qa/r19/t11-*` 二十件（design/baseline/gate-quick/gate-quick-rerun/gate-full-rerun(+stdout)/red1/red2/sweep-part1..3/sweep-result/sweep-lines/guards-rerun/chunk-aa..ac/timeline/lock-probe.txt(+json+evidence)/now-counts 等）。原子提交见当日 git log。
 
 **遗留与转登**：① dep-lint 的 C 判据对 type-only import 存在派生盲区（编译期擦除），已如实写入 GATE-POLICY 不假装覆盖，由 C2+判据 A 共同兜住；② vm-service→adapter-llm 声明边产物零命中（动态装载）登记为范围外观察非违规；③ gate ST3 七件清单含 assembly-guard/psmod-contract（原 design 候选六件+装配守卫实跑稳定后纳入），不进门禁项逐条理由见 GATE-POLICY。
+
+### 13.12 Phase 2 收官批·全量回归终判（2026-10-12 18:3x）
+
+**QA 终判（严过关独立棒，首启用 QA 角色收官）**：两条互不依赖路径同口径精确闭合——手工逐文件 sweep（独立 runner，92 件原始 TAP 全留档）= **92 文件 / 1889 例 / 1887 pass / 0 fail / 2 skip**；gate full 档内建 sweep=同数（DISK=92 RUN=92 MATCH VERDICT GREEN）；tsc RC=0；gate quick GREEN（ST3 7 件 155/155）；dep-lint hard=0 warn=0（info=11 全 DECLARED_UNUSED 合理型）；config-keys 未知键=0；门禁自证抽查 3 件（snapshot-truth 17/contract-schema 23/dep-direction 32）三路计数一致。skip 唯一来源 ssh2-resolve OFFLINE_SKIP（源文件 L30/L106/L122 核验设计内）。**IS_PASS: YES，Phase 2 收官批终判放行**。
+
+**主理人独立复核采信**：对 p2close-sweep.txt 全 92 行 awk 求和=tests 1889/pass 1887/fail 0/skip 2 与成员汇总逐字一致；`git status --porcelain -- packages/ scripts/ tests/ docs/ README.md package.json` 空输出=QA 棒零改动代码面实证；HEAD 对账 b23e87a=d1d34a6 之上 docs(memory)。证据归档 `qa/r19/p2close-{final-report,sweep,gate-full,gate-quick,files,spot,tsc,timeline}.{md,txt}` + `p2close-out/`（92 件原始 TAP）。
+
+**基线写数订正余量盘点**：README §8 与 06-OVERVIEW 自 T11 起已废静态数字（权威源=qa/ 最新 `*-sweep-result.txt`/sweep 汇总行）；phase0-delivery-summary/phase1-t5-notes 等历史批次留档数字属「历史留痕注记」不改写（各批 QA 收官注记已有演进链说明）。本段（§13.12）即 Phase 2 终态权威登记点：Phase 2 交付 T1–T12+T3b 全部收官，终态基线 **92/1889**。

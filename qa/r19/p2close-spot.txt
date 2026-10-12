@@ -1,0 +1,3 @@
+SPOT phase2-snapshot-truth.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+SPOT phase2-contract-schema.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+SPOT phase2-dep-direction.test.js rc=0 tests=32 pass=32 fail=0 skip=0
