@@ -28,6 +28,7 @@
 
 ## 里程碑（压缩）
 CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018常驻会话｜CL-019缓存新鲜度/routeMetric｜CL-020全通道采集+隧道生产化｜CL-021 R17审批卡原生渲染+诊断+K6。
+- **Phase 2 收官(2026-10-12)**：T1–T12+T3b 全部交付（§13.1–13.12）；T11 守卫基建四件套（dep-lint/config-key-lint/gate/lock-probe+GATE-POLICY「跳过门禁即未验收」）；QA 严过关终判 **IS_PASS=YES**（92/1889 双路径闭合，终态基线）；提交链 928f437(T8)→349ecc2(T9)→d1d34a6(T11)→2a11337(close)。**T13 候选在册未定夺**：audit-20260918.jsonl 断片（链断非篡改，analyze.out 定位 entry#512 prevHash 指错；Phase 1 已建 verifyArchive 片内校验框架可承载处置批）。winvm 停摆团队残骸已清 35 个（留痕 qa/r19/p2close-teams-cleanup.txt）；~/.workbuddy/teams 尚有 45 个非 winvm 历史残骸未动（待用户裁）。
 - **K2(2026-09-24 run7 全绿)**：A2A 冷启动停滞→启动期 fire-and-forget 预热 `provider.warmup()`（独立 `PersistentCliSession.warmup()`，超时不杀会话，env `WINVM_LLM_SESSION_WARMUP_MS` 默认180s，同 outputDir 单例）。
 - **K3 假成功根治(CL-K3R 2026-10-05~06)**：`bridge.ts` `!turn.ok` 补 shadow 门控 `reconcileApprovalWait`；灰度 `approvalTruth=on|shadow|off`；T05 真机 `on`×3 全 input-required。
 - **S-4(2026-10-07 已修✅)**：POLICY_DENIED 硬拒绝原零审计→注入 `recordPolicyDeniedAudit`(approval-replay.ts:150，经 index.ts:18 导出)于 `server.ts:605/837` 两处早退前；回归 `r19c-s4-policy-denied-audit.test.js`(245行)闭环。⚠ 曾因 grep 臆测旧函数名零命中误判"仍存"，以目录级 grep+源码裁定为 ✅。
