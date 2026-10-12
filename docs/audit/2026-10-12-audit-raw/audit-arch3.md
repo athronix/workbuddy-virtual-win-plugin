@@ -476,3 +476,51 @@
 上表按"裁定优先级"取前 15 项展示，未列入 Top 表的 8 条 P2（A-3/A-4/A-5/C-4/C-7/D-4 及 C-5/C-6 的合并行余下部分）详见各维问题清单原表。
 
 **两条 P0 的共同性质**（供裁定参考）：都不是"实现写坏了"，而是**"对外宣称的闸在实现里不存在"**——A-1 是批准位不可达但文档教续跑，E-1 是最小权限可填但不生效。这类问题的危害不在故障率，而在**使用者据以做安全假设**。两者修法都涉及"诚实化 vs 补齐"的路线选择，属主理人裁定项，不宜由实现默默选边。
+
+---
+
+## 8. 收尾核验补遗（第八节 · 对 E-1 的机理精确化 + 4 条新证）
+
+> 触发原因：交付后按锚点复核 E-1/A-1 的**配置面消费链**（前棒因故在配置面留有未验残留），亲验中发现 E-1 的"零消费者"表述需要收窄，同时暴露 4 条新事实。本节为**追加**，不改写上文任何结论。
+
+### 8-a. 对 E-1 / Top-2 的机理精确化（重要，不降级）
+
+复核 `defaultMaxRisk` 全链后，事实链修正如下（**结论仍是 P0，但根因表述要准**）：
+
+| 环节 | 亲验事实 | 证据 |
+|---|---|---|
+| 宿主声明 | `a2a.delegate` 有 `maxRisk`（enum L0–L3，缺省 L1）与 `allowedCapabilities` 两入参 | `host-a2a-bridge/src/tools.ts:368/373/400-405/428-430` |
+| 框架装配 | **`maxRisk` 恒被装配为"有值"**（宿主未声明 ⇒ 服务端 `defaultMaxRisk='L1'` 兜底注入），并非"可缺省" | `a2a-framework/src/server.ts:268-270`（send）、`:511-513`（stream）、`:134`、`vm-service/src/server.ts:1546`（`cfg.policy.defaultMaxRisk ?? 'L1'` 确被消费） |
+| 引擎判据 | 判据 5 的闸形是 `req.maxRisk !== undefined` —— 即**只要接线就必然生效**，且缺省值是**最严的 L1** | `engine.ts:759`（本棒上文写 `:758`，`:758` 为注释行，勘误）、注释 `:756-758` 自陈"若此处也套用 defaultMaxRisk，会导致 L2/L3 在直调通道永远无法执行" |
+| **断点所在** | **三处生产 `policy.evaluate` 实参均不含 `maxRisk`/`allowedCapabilities`** ⇒ 判据 5 与判据 1.5 在生产路径**恒不命中**（分支不可达），故"接线"不是已做待验证，而是**从未发生** | `server.ts:1060-1067`、`server.ts:1229-1236`、`adapter-agent-workbuddy/src/index.ts:295-301`；唯一喂入者 `tests/unit/policy.test.js:239/273` |
+| 唯一真实效果 | `allowedCapabilities` 只在**确定性 provider 的模板选择门**生效（不进策略引擎）：`goal.allowedCapabilities` 非空且不含 `storage.*`/`app.*` ⇒ 直接 `goalFail('UNSUPPORTED_GOAL')`，语义是"我不会做这个模板"而非"被策略拒绝" | `adapter-agent-workbuddy/src/index.ts:755-757`（`allowed()`）＋调用点 `:560/577/622/655` |
+| `maxRisk` 真实去向 | ①委派账本 `params.maxRisk`（纯记账，`delegation-audit.ts:653`）②LLM provider 合成步骤的 `risk` 字段展示（见 F-5）③宿主文案 | `tools.ts:389`、`bridge.ts:1526/1825` |
+
+⇒ **E-1 定性不变（P0）**，但根因从"宿主可填但执行面零消费者"精确为：**"值在框架侧已被强制装配（缺省 L1，最严档），却在服务端策略求值前被丢弃；因此既不存在'宽松逃逸'，也不存在'严格封顶'——宣称的闸物理上不在执行路径上，且一旦按推荐修法接线，缺省即等于全委派默认封顶 L1（静默收紧现网）"**。这也解释了为什么 `engine.ts:756-758` 注释要专门写"不要在这里套 defaultMaxRisk"——设计者知道框架缺省是 L1。
+
+### 8-b. 新证 4 条（纳入 Top 汇总外的增补清单）
+
+| 编号 | 级别 | 事实 | 证据 | 影响 / 建议 |
+|---|---|---|---|---|
+| **F-1** | **P1** | **`allowedCapabilities` 在缺省传输路径上被静默丢弃**：宿主 `a2a.delegate` 走 `message/stream`（`tools.ts:444` → `client.streamMessage` → `a2a-framework/src/client.ts:144-150` → `vm-service/src/server.ts:1764-1765 writeSse(a2a.handleStream(params))`），而 `handleStream` 构造 `GoalRequest` 时**只解析 `maxRisk`/`timeoutMs`，不解析 `metadata.allowedCapabilities`**；`handleSend` 才带 | `a2a-framework/src/server.ts:509-518`（无 allowedCapabilities）vs `:261-272`（有）；`client.ts:106` vs `:144` | 宿主工具 schema 里那个"本次允许的能力范围"参数**在主用通道上从未抵达 VM**；即使按 E-1 修法接线也接不上 ⇒ **E-1 落地的硬前置**（补 `handleStream` 同形解析，两处 goal 装配应共抽一个函数防再漂移） |
+| **F-2** | **P1** | **"按 dtid 回填 scope"这一推荐修法在最常用形态下物理不可实现**：常驻会话的 `mcp.json` 是**会话级共享文件**，`runPersistent` 调 `prepareMcpConfig(ctx.outputDir)` **不传 delegationId**（注释自陈"常驻路径不拼 dtid，归因由时间窗 wild 兜底，登记为设计偏差"），而 `WINVM_LLM_PERSISTENT` **缺省启用** | `bridge.ts:1399`（不传）、`:1115`（同样不传）、`:1367-1368`/`:1646-1649`（自陈偏差与单次路径才传）、`index.ts:463`（provider 只透 maxRisk） | 常驻形态下服务端 `ctx.delegationId` 缺席 ⇒ 令牌 `PendingApproval.delegationId` 缺席（`server.ts:1258/1620`）⇒ 真值归因整体退化到 R3 时间窗（`approval-replay.ts:367-372`），叠加 **E-5（R3 能力过滤喂全平台目录）** ⇒ 并发委派/并发直调场景存在**串台改判窗口**。修法：E-1 落地须在 `beginTask`/委派上下文登记 scope（服务端侧留存 goal.maxRisk+allowedCapabilities），按 `taskId` 或会话键回填，而非依赖 dtid；或先解决常驻 mcp.json 的 dtid 会话级共享问题 |
+| **F-3** | **P2** | **接线安全性**：因框架恒注入 `maxRisk`（缺省 L1），把 `req.maxRisk` 直接接入 `evaluate` 等于**当场把全部 L2/L3 委派动作改为默认拒绝**（`engine.ts:759` 判据只要 !==undefined 就生效），属"修安全承诺"顺手做成"可用性断崖" | `a2a-framework/src/server.ts:268-270/511-513` + `:134`（`?? 'L1'`）＋ `engine.ts:759` | 接线必须**区分"宿主未声明"与"服务端默认"**：框架在未声明时传 `undefined`（或 GoalRequest 带来源标记 `maxRiskSource:'host-declared'\|'server-default'`），配合灰度位；否则本条会以"修复"名义引入新 P0 级可用性回归 |
+| **F-5** | **P2** | **展示面语义混用**：LLM provider 两处合成步骤把 `risk` 写成**本次委派的上限**而非**该步骤实际风险**（`risk: input.maxRisk ?? 'L2'`），而该字段的注释宣称目的是"步骤 risk 如实化，避免被拦的 L2/L3 在宿主侧显示成 L1"——实际是把"上限"冒充"实测风险"，被拦的高危仍可能被展示为 L1 | `bridge.ts:1526`、`:1825`、`:98-105`（注释原文）；下游消费 `delegation-audit.ts:490 risk: entry.risk ?? 'L1'` | 步骤 `risk` 应取 `cap.risk`（服务端权威，已在 `server.ts:1063/1097/1118` 证明 req.risk 恒来自注册表）；`maxRisk` 只应作为"委派范围"独立字段透出，不得复用为风险值 |
+| F-4 | 勘误（不计新增计数） | 本棒上文 E-1/E-3 处"确定性 provider 把 `maxRisk` 用于模板门"表述有误：det provider **全文件零 `maxRisk` 引用**，模板门只用 `allowedCapabilities` | `git grep -n "maxRisk" -- packages/adapter-agent-workbuddy/src/index.ts` ⇒ 零命中；`index.ts:755-757` | 已在 8-a 修正；不影响 E-1/E-3 定级 |
+
+### 8-c. 正面结论与一处表述收窄（避免夸大）
+
+- **通道隔离在运行期是对的**（对 E-4 的有利修正）：A2A 续跑提示由桥侧模板合成，**逐字不含 `__approvalId`**，且有注释与 CL-016 A3 判据在册 —— 故"跨通道混用"**只存在于文档/SKILL 面**（`winvm-mcp-reference/SKILL.md:212-213`、`approval-card.md:33/60/142`），不在运行期输出。E-4 的建议不变（MCP 侧诚实化），但"两套协议互相污染"这一读感应收窄为"两套协议，其中一套已失效且文档仍在教"。
+- **A-1 锚点复核全绿**：`resumeHint` 文案在 `server.ts:1306`（上文记 `:1296-1303`，段号对、末行号偏差 3 行）；`__approvalId` 注入每个工具 inputSchema 在 `:1213`、服务 instructions 在 `:1361` —— 两处对外承诺确在，且均无对应可达实现，A-1 五步推导不受影响。
+- **`policy.defaultMaxRisk` 配置键不是死配置**：它经 `server.ts:1546` → 框架 `:134` → `:268-270/:511-513` 确实被消费（注入进 GoalRequest）。上文"引擎永不读 cfg.defaultMaxRisk"仅指 `engine.ts` 不读（`grep defaultMaxRisk engine.ts` 只命中注释），不构成缺陷，特此澄清以免误修。
+
+### 8-d. 更新后的分级合计
+
+新增 2 条 P1（F-1、F-2）、2 条 P2（F-3、F-5），F-4 为表述勘误不计计数：
+
+- **P0 2**（A-1、E-1，定性均不变，E-1 根因见 8-a）｜**P1 11**（原 9 + F-1、F-2）｜**P2 14**（原 12 + F-3、F-5）｜**合计 27**。
+- 增补建议顺序：**F-1/F-3 是 E-1 修法的硬前置**（先补 `handleStream` 装配 + 区分"宿主声明 vs 服务端默认"，再谈接线），**F-2 决定回填路径的可行性**（dtid 不可依赖 ⇒ 改服务端委派上下文留存 scope）。这三条若不同批，"补 maxRisk 接线"会立即触发全量 L2/L3 拒绝。
+
+### 8-e. 版本状态说明（供主理人处置）
+
+本报告已被主理人**逐字收录**至 `docs/audit/2026-10-12-audit-raw/audit-arch3.md`（`diff -q` 与本报告 00:39 版**完全一致**，478 行），并在 `docs/audit/2026-10-12-full-audit.md:23/59/169` 被引用（P0-1 的"arch3 独家机理"、M2 的三调用点亲验均已采纳，终裁取向 (c) 策略化 + M2 同 CL）。**本第八节为收录后追加**，仓库内副本未同步（只读纪律，我不写仓库文件）——若需终版含本补遗，请主理人重新同步该副本；否则请以 `/storage/Users/currentUser/wbtmp/audit-arch3.md`（含本节共 526 行 / 60,464 字符）为权威全量版。
