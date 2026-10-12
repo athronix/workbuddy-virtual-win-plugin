@@ -45,7 +45,13 @@ export function resolvePsBridgeHealthState(
   return probeTimedOut ? 'degraded' : 'ready';
 }
 
-/** 超时/失败回退的会话快照：state='unavailable'（结论未知，绝不猜测为健康） */
+/**
+ * 超时/失败回退的会话观测项：state='unavailable'（结论未知，绝不猜测为健康）。
+ *
+ * P2-T9（E-2）：本函数是「被迫填假值」制造点之二 —— 追加 `probeError`/`probeErrorCode`
+ * （码 `PROBE_TIMEOUT`）使「探测超时未得出结论」与「探测成功且确非交互」可区分。
+ * 既有八键值**逐字不变**（含 detail 原文案），两新键纯附加，fail-closed 方向零变化。
+ */
 export function timeoutSessionSnapshot(timeoutMs: number): SessionHealth {
   return {
     sessionId: 0,
@@ -56,6 +62,9 @@ export function timeoutSessionSnapshot(timeoutMs: number): SessionHealth {
     blackScreen: false,
     state: 'unavailable',
     detail: `会话子探针在 ${timeoutMs}ms 内未返回（WINVM_HEALTH_PROBE_TIMEOUT_MS 可调）：ps-bridge 可能未就绪，本次结论未知`,
+    // P2-T9（E-2 · 纯附加）：探测失败事实 + 机读码（与 detail 同源文案，语义独立信号）
+    probeError: `会话子探针在 ${timeoutMs}ms 内未返回，本次未取得结论`,
+    probeErrorCode: 'PROBE_TIMEOUT',
   };
 }
 

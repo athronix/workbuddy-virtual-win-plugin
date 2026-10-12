@@ -48,6 +48,9 @@ export class PsBridgeSessionProbe implements SessionProbe {
         ...(typeof raw['detail'] === 'string' ? { detail: raw['detail'] } : {}),
       };
     } catch (e) {
+      // P2-T9（E-2）：本 catch 是「被迫填假值」制造点之三 —— 追加 probeError/PROBE_EXCEPTION
+      // 把「ps-bridge 调用抛异常（未就绪且自愈失败等）」与「探测成功且确非交互」区分开。
+      // 既有七键值逐字不变；能力面消费判据（guiAllowed 等）行为不改。
       return {
         sessionId: 0,
         windowStation: '',
@@ -57,6 +60,8 @@ export class PsBridgeSessionProbe implements SessionProbe {
         blackScreen: false,
         state: 'unavailable',
         detail: `会话探针失败：${(e as Error).message}`,
+        probeError: `会话探针调用抛异常：${(e as Error).message}`,
+        probeErrorCode: 'PROBE_EXCEPTION',
       };
     }
   }

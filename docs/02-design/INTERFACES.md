@@ -290,3 +290,11 @@ submitted → working → input-required → working → completed
 ```
 
 > `session.state` 为 `unavailable`/`blackScreen` 时，GUI 能力全部返回 `SESSION_UNAVAILABLE` / `SESSION_BLACK_SCREEN`，**绝不静默返回黑图**。
+
+> **P2-T9（E-2）`session.probeError` / `session.probeErrorCode` 字段注**：`session` 块可能额外携带这两个
+> **纯附加可选**键。它们在场表示**本次探测未能得出结论**（探针未接入 `PROBE_NOT_WIRED` / 子探针超时
+> `PROBE_TIMEOUT` / 探针调用异常 `PROBE_EXCEPTION`），此时块内 `interactive`/`locked`/`blackScreen`
+> 为 fail-closed 保守填充值；两键缺席即结论真实，且整个块的形状与旧版本逐字节一致（旧读者零影响）。
+> GUI 门禁判据**不消费**这两个键 —— 无论探测失败还是确非交互，GUI 一律拒绝，字段只用于运维定位。
+> 另：`llmSession` 块（同端点，本样例未展开）P2-T9 起可携带纯附加 `firstCallLatencyMs`（服务生命周期内
+> 首个真实委派轮的入口→settle 毫秒数，一次性采样；缺席=尚未发生首调），用于对账预热是否兑现。

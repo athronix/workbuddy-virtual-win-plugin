@@ -205,6 +205,12 @@ codebuddy --goal "{goal}" --system-prompt "{prompt}" --mcp "{endpoint}" --output
 - 单元测试 143 项全绿（新增：委派桥 11 项、技能下发与 CLI 契约 5 项、双端脚本 6 项）
 - 端到端冒烟（真实进程）：宿主桥（stdio MCP）→ A2A → VM provider → ps-bridge → PowerShell，目标"查看系统信息"返回 `completed` 并带回产物
 - 断链修复后的双连接器：宿主安装器 dry-run 输出 **2 个增量补丁**（`connector:winvm`、`connector:winvm-a2a`）
+- **P2-T9（E-2/E-1）健康面判据登记**：`/health.session` 未知态由纯附加 `probeError`/`probeErrorCode`
+  显形（三码 `PROBE_TIMEOUT`/`PROBE_EXCEPTION`/`PROBE_NOT_WIRED`；两键缺席=结论真实，形状逐字节旧版），
+  宿主侧读者可据此区分「探测失败」与「会话确不可交互」；`guiAllowed` 判据一字未改（PR8，两种 false 都拒）。
+  `/health.llmSession` 追加纯附加 `firstCallLatencyMs` 冷启动度量位（只度量不优化）。
+  判据钉死于 `tests/unit/phase2-session-unknown.test.js`（A 形态/B 恒 false 矩阵/C 契约纯附加/D 度量形状/E 文档在位）。
+  本文档无 `/health.session` 专节，故诚实登记在验证面（口径详见 SECURITY-GOVERNANCE §5.3 与 INTERFACES IF-6）。
 
 ## 9. 风险与未验证项
 

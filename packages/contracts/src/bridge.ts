@@ -44,6 +44,24 @@ export interface SessionHealth {
   readonly blackScreen: boolean;
   readonly state: SessionState;
   readonly detail?: string;
+  /**
+   * P2-T9（E-2 · 纯附加可选）：会话探针**未能得出结论**时的一次性事实描述。
+   *
+   * - 在场 ⇒ 本报告其余布尔字段是 fail-closed 保守兜底值（**不是**观测值），运维应查探测通路；
+   * - 缺席 ⇒ 结论真实（旧形状逐字节，缺席即旧行为，对齐 CL-017/CL-018 增量约束）。
+   *
+   * 与 `detail` 的关系：`detail` 既有文案逐字保留（旧读者零影响），本字段是其旁边新增的
+   * **第二信号**，不是替换。GUI 门禁判据（`guiAllowed`）**不消费**本字段 ⇒ 行为零放宽。
+   */
+  readonly probeError?: string;
+  /**
+   * P2-T9（E-2 · 纯附加可选）：`probeError` 的稳定机读码（大写下划线枚举串）。
+   *
+   * 首批三码：`PROBE_TIMEOUT`（子探针在时限内未应答）、`PROBE_EXCEPTION`（探针调用抛异常）、
+   * `PROBE_NOT_WIRED`（探针未接入 / 非 Windows 环境）。
+   * 约定：本字段**不得脱离** `probeError` 单飞（两键成对出现，由测试 C 组钉）。
+   */
+  readonly probeErrorCode?: string;
 }
 
 export type ProviderState = 'ready' | 'degraded' | 'unavailable';
@@ -87,6 +105,17 @@ export interface LlmSessionHealth {
    * 会话被替换/终结后 `state` 会重置为如实的「未运行/探测中」，而失败痕迹由本字段保留。
    */
   readonly lastErrorAt?: string;
+  /**
+   * P2-T9（E-1 · 纯附加可选）：**服务生命周期内首个真实委派轮**（runTurn）从入口到本轮
+   * settle 的毫秒数。一次性采样，后续轮不覆盖；缺席 = 服务启动后尚未发生首调
+   * （含仅预热未投喂的窗口）。
+   *
+   * 度量语义（设计 §5.1：只度量不优化）：
+   *  - ≤ readyTimeoutMs ⇒ 首调到达时会话已 ready ⇒ **预热命中**；
+   *  - ≫ readyTimeoutMs ⇒ 首调付了完整进程级冷启动（auth probe + agent 端点 ≈75–107s 量级）
+   *    ⇒ **冷启动发生**，可据此对账 `WINVM_LLM_SESSION_WARMUP_MS`/`readyTimeoutMs` 两旋钮。
+   */
+  readonly firstCallLatencyMs?: number;
 }
 
 /**

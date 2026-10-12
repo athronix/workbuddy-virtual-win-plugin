@@ -212,6 +212,15 @@ export class PersistentCliSession {
   /** D11：最近一次失败**发生时刻**（ISO 8601，与 lastError 成对维护；恢复时一并清空） */
   private lastErrorAt: string | undefined;
   private lastUsedMs = 0;
+  /**
+   * P2-T9（E-1 · 纯观测）：**服务生命周期内首个真实委派轮**（`runTurn`）入口→settle 的毫秒数。
+   *
+   * 一次性采样：首调之后恒定不再覆盖（后续轮的耗时不属本指标语义）。`undefined` ⇒
+   * 服务启动后从未发生首调（含「仅预热未投喂」窗口）—— 透出时**键缺席**而非填 0。
+   * `restartFresh()` **不清零**本值：它度量的是「服务生命周期内的首调」，运维复位不等于
+   * 服务重启（保守口径，避免复位被误读为「冷启动已消失」）。
+   */
+  private firstCallLatencyMs: number | undefined;
   /** 累计 spawn 次数（含首次）；`restarts = spawnAttempts - 1` */
   private spawnAttempts = 0;
   private disposed = false;
@@ -281,6 +290,9 @@ export class PersistentCliSession {
       ...(this.lastError
         ? { lastError: this.lastError, ...(this.lastErrorAt ? { lastErrorAt: this.lastErrorAt } : {}) }
         : {}),
+      // P2-T9（E-1）：首调耗时一次性透出；**从未首调 ⇒ 键缺席**（不填 0——0 会被误读为
+      // 「首调极快」，缺席才是「尚未发生首调」的诚实形状）。
+      ...(this.firstCallLatencyMs !== undefined ? { firstCallLatencyMs: this.firstCallLatencyMs } : {}),
     };
   }
 
@@ -600,6 +612,37 @@ export class PersistentCliSession {
    * 崩溃场景下**至多重建 1 次**再重试该轮（重建次数计入 restarts 上限）。
    */
   runTurn(
+    prompt: string,
+    sink: { onStatus(state: TaskState, message?: string): void },
+    timeoutMs: number,
+  ): Promise<TurnResult> {
+    // P2-T9（E-1）：首调采样起点 = runTurn **入口**（排队前），settle 时一次性记录。
+    const entryMs = this.now();
+    const run = this.runTurnInner(prompt, sink, timeoutMs);
+    void run.then(
+      () => this.recordFirstCall(entryMs),
+      () => this.recordFirstCall(entryMs),
+    );
+    return run;
+  }
+
+  /**
+   * P2-T9（E-1）：记录首调耗时（幂等：已有值**绝不覆盖**；NaN/负值不采，观测代码
+   * 永不影响本轮结果 —— 拒绝路径同样在本方法内被调用方吞掉，不改写本轮 promise 链）。
+   */
+  private recordFirstCall(entryMs: number): void {
+    if (this.firstCallLatencyMs !== undefined) return;
+    const elapsed = this.now() - entryMs;
+    if (Number.isFinite(elapsed) && elapsed >= 0) this.firstCallLatencyMs = elapsed;
+  }
+
+  /** 首调指标是否已采样（确定性测试辅助；不参与业务逻辑） */
+  get firstCallSampled(): boolean {
+    return this.firstCallLatencyMs !== undefined;
+  }
+
+  /** runTurn 既有串行链主体（P2-T9 仅把外层包了首调采样，内部逻辑逐字未动） */
+  private runTurnInner(
     prompt: string,
     sink: { onStatus(state: TaskState, message?: string): void },
     timeoutMs: number,

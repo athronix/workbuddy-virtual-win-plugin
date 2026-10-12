@@ -14,7 +14,14 @@ export interface SessionProbe {
   probe(): Promise<SessionHealth>;
 }
 
-/** 非 Windows / 探针未接入时的兜底：会话不可用 */
+/**
+ * 非 Windows / 探针未接入时的兜底：会话不可用。
+ *
+ * P2-T9（E-2）：本类是「被迫填假值」制造点之一 —— 兜底里的 `interactive:false` 并非观测值，
+ * 而是「本次未能得出结论」的 fail-closed 填充。故追加 `probeError`/`probeErrorCode`
+ * （码 `PROBE_NOT_WIRED`）把「探测失败」与「探测成功且确非交互」区分开。
+ * 既有七字段值**逐字不变**（含 detail 原文案），两新键纯附加。
+ */
 export class UnavailableSessionProbe implements SessionProbe {
   constructor(private readonly detail = '会话探针未接入（非 Windows 环境或未初始化）') {}
   async probe(): Promise<SessionHealth> {
@@ -27,6 +34,9 @@ export class UnavailableSessionProbe implements SessionProbe {
       blackScreen: false,
       state: 'unavailable',
       detail: this.detail,
+      // P2-T9（E-2 · 纯附加）：探针未能得出结论的稳定事实 + 机读码
+      probeError: this.detail,
+      probeErrorCode: 'PROBE_NOT_WIRED',
     };
   }
 }
@@ -37,7 +47,20 @@ export interface SessionMonitorOptions {
   readonly onChange?: (next: SessionHealth, prev: SessionHealth | undefined) => void;
 }
 
-/** 会话状态对应的可用能力语义（§5.5 降级矩阵） */
+/**
+ * 会话状态对应的可用能力语义（§5.5 降级矩阵）。
+ *
+ * **P2-T9（E-2）判据注释 —— 本函数判据行一字未改（PR8 红线）**：
+ *  `probeError` 在场时本判据恒 false，靠的是三重冗余而非新增分支：
+ *  1. 三处假值制造点（PROBE_TIMEOUT / PROBE_EXCEPTION / PROBE_NOT_WIRED）的 `state`
+ *     都落非 `'healthy'` ⇒ 合取首项即短路拒绝；
+ *  2. 同三处的 `interactive` 恒为保守 `false` ⇒ 即使未来有人误改某条失败路径的 `state`，
+ *     第二项仍兜底；
+ *  3. 本判据**不读** `probeError` ⇒ 该字段在场与否都不可能被用来放行（无从放宽）。
+ *
+ * 因此 E-2 只是将「为何被拒」的原因显形（探测失败 vs 确非交互），**不改变任何放行结论**。
+ * `probeError` 的用途是运维定位（该查探测通路还是查会话配置），不是门禁输入。
+ */
 export function guiAllowed(session: SessionHealth): boolean {
   return session.state === 'healthy' && session.interactive && !session.blackScreen;
 }

@@ -295,6 +295,17 @@ record_n.prevHash = hash_(n-1)
 | **屏幕非黑屏** | 截图后算像素方差；方差 ≈ 0 → 黑屏 | 黑屏 → `blackScreen` |
 | Explorer 存活 | `Get-Process explorer` | 无 → `degraded` |
 
+> **探测失败 ≠ 会话不可交互（P2-T9 · E-2 判据升级）**：上表的每一项都只在**探针真正应答**时才是观测值。
+> 探针未接入（`PROBE_NOT_WIRED`）、子探针在时限内未返回（`PROBE_TIMEOUT`）、探针调用抛异常
+> （`PROBE_EXCEPTION`）三种情形下，`/health` 的 `session.interactive`/`locked`/`blackScreen` 是按
+> fail-closed 方向填的**保守兜底值**，不是「会话确实不交互」的结论。此时响应带 `probeError`
+> （一次性事实描述）+ `probeErrorCode`（稳定机读码）；**两键缺席即结论真实**（旧读者形状逐字节不变）。
+> 运维据此应查**探测通路**（ps-bridge 是否就绪），而不是查会话配置。
+>
+> **门禁行为不受本升级影响（PR8 红线）**：`guiAllowed` 判据行一字未改，`probeError` **不是**门禁输入 ——
+> 「探测失败」与「探测成功且确非交互」两种情形**都拒绝** GUI，本字段只负责把被拒原因显形。
+> 判据钉死见 `tests/unit/phase2-session-unknown.test.js`（B 组恒 false 矩阵）。
+
 ### 5.4 恢复动作
 
 | 场景 | 动作 |

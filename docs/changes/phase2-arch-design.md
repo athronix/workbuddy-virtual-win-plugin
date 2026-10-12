@@ -572,3 +572,17 @@ graph TD
 **证据归档**：wbtmp 关键件复制入 `qa/r19/t8-{design,green-baseline1,green-baseline2,sweep-result,guards1,guards2,timeline-eng1,timeline-eng2,lead-sweep-part1..3}`（十一件）。
 
 **基线 89/1751 → 90/1809（+58 精确对账，0 fail，2 skip 恒 OFFLINE_SKIP）**。
+
+### 13.10 P2-T9 交付与主理人核验（2026-10-12 15:5x）
+
+**停摆形态（T8 假死型复现+接力成功免双写）**：第一棒（step0 14:30 完成 GREEN 基线 27 件全绿 794 例后）进入 step4 前静默，14:49 主理人探测时 SendMessage 报"Not in a team"（团队句柄跨会话失效）⇒TeamCreate 重挂（renamed t9-6b1c）+**接力重派**极窄任务书（step4 起、design/baseline/guard-list 三件 wbtmp 即全部输入、timeline 新文件 p2t9b、并发保险条款=发现他人新写入立即停写回报）。第二棒接力全程零双写（旧棒未复活）。心跳纪律见效：每文件编辑即落一行，step4→9 全程密集。附带环境事故：step8 真机顺带时隧道 daemon（38438）已死（07:40 后无日志）——成员按铁律**只回报不自启**（正确行为），主理人带全参复活（新 pid 51633，/health ok=true session 块 healthy 全字段=**probeError 缺席=成功路径旧形状零回归的真机直证**）。
+
+**交付实质（E-2 未知态 + E-1 度量）**：E-2=`SessionHealth` 契约区末位 +`probeError?`/`probeErrorCode?`（纯附加；interactive 保持必填 boolean——design 明令禁三态，isGuiAllowed 判据一字未改）；三失败路径假值块改 probeError 形态：`PROBE_NOT_WIRED`（core UnavailableSessionProbe，design §1 裁断纳入=兜底探针同为病灶点）、`PROBE_TIMEOUT`（vm-service timeoutSessionSnapshot，既有八键逐字不变）、`PROBE_EXCEPTION`（vm-capabilities PsBridgeSessionProbe catch）；语义=probeError 在场⇒其余布尔字段是保守兜底值非观测值；成功路径两键缺席=旧形状逐字节。`vm-service/src/server.ts` **零改动**（design §3 只读核对=session 引用直传+llmSession spread 自动透出）。E-1=`LlmSessionHealth` +`firstCallLatencyMs?`（服务启动后首个 runTurn 整轮耗时一次性采样，起点=runTurn 入口含排队，settle 含成功/降级双路 recordFirstCall；从未首调=**缺席非 0**——0 会被误读"首调极快"）；`snapshot()` 条件展开透出；度量语义=≤readyTimeout⇒预热命中、≫⇒冷启动发生，可与 restarts/idleMs 并读对账。**本批只度量不优化**（K2 遗留的 idle 回收后深度空闲冷启动留观察数据）。PR8 红线=新测试 B 组矩阵钉 probeError 存在×各布尔组合 isGuiAllowed 恒 false+结构性论证（state 恒非 healthy⇒判据首合取消除即拒）。
+
+**测试**：`phase2-session-unknown.test.js` 48 例五组（A 三码形态+成功缺席逐字节/B 恒 false 矩阵/C 契约纯附加旧字段零变化/D firstCallLatencyMs 形状与缺席语义/E 组装链透出）；node --check 先行自证（T8 教训内化）。**零改钉**：27 件守卫复跑 794/794 全绿无 amendments。文档三件（HOST-A2A-BRIDGE §8 注册行+口径升级划线留痕、SECURITY §5.3 probeError 判据注、INTERFACES IF-6 字段注），守卫字样规避事前核读 snapshot-truth §4。真机顺带=隧道复活后 /health 直证（session 块 healthy 无 probeError=成功路径零回归实况）。
+
+**主理人独立核验全绿**：tsc 由成员 step6 RC=0+主理人亲跑新件 48/48+关键守卫 12 件亲跑（snapshot-truth 17/cl019-health-ageMs 14/cl018-persistent-session 19/health-probe-timeout 20/contract-fidelity 22/contract-schema 23/truth-mcp-direct 58/bearer-selfcheck 45/inner-credential 38/a5-coordinator 22/host-a2a-bridge 39/evict-observe 44）+红线静态对账（guiAllowed 判据行零命中——diff 仅注释块；全 diff snapshot 字样 0、占位符 0；T5/T7/T8 契约区+server.ts 零触碰）+**全仓 sweep 亲跑**（31/31/29 三片）= **91 文件 / 1857 例 / 0 fail / 2 skip（恒 ssh2-resolve OFFLINE_SKIP）**，394+834+629=1857 与成员实测吻合，1809+48 精确对账。
+
+**证据归档**：wbtmp 复制入 `qa/r19/t9-{design,green-baseline,guards-rerun,sweep-result,timeline-eng1,timeline-eng2,lead-sweep-part1..3}`（九件）。
+
+**基线 90/1809 → 91/1857（+48 精确对账，0 fail，2 skip 恒 OFFLINE_SKIP）**。

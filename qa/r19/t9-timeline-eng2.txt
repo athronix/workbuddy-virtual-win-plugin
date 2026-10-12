@@ -1,0 +1,13 @@
+2026-10-12T14:55:26+08:00 step4 start: design read, HEAD=31f6e45 confirmed clean, guard-list entries=27
+2026-10-12T15:02:18+08:00 step4 contracts/bridge.ts edited (SessionHealth +probeError?/probeErrorCode? at block tail; LlmSessionHealth +firstCallLatencyMs?; existing 7 fields verbatim untouched)
+2026-10-12T15:02:52+08:00 step4 core/session/health.ts edited (UnavailableSessionProbe +probeError/PROBE_NOT_WIRED; guiAllowed criteria line verbatim unchanged, only doc comment added above)
+2026-10-12T15:03:24+08:00 step4 vm-service/health-probe.ts edited (timeoutSessionSnapshot +probeError/PROBE_TIMEOUT, 8 old keys verbatim; diff shows guiAllowed criteria line zero hits = 一字未改实证)
+2026-10-12T15:09:20+08:00 step4 persistent-session.ts edited (E-1: field + runTurn wrapper w/ entry sampling + recordFirstCall + snapshot conditional key; inner logic verbatim)
+2026-10-12T15:15:20+08:00 step4 docs edited (SECURITY §5.3 probeError criteria note; INTERFACES IF-6 field note; HOST-A2A-BRIDGE §8 registration line; guard-word avoidance verified by snapshot-truth §4 reading)
+2026-10-12T15:15:46+08:00 step4 tsc -b run (rc above)
+2026-10-12T15:31:10+08:00 step4 new test file written + node --check ok, first run below
+2026-10-12T15:33:33+08:00 step4 done: new test 48/48 green; step5 guard rerun start
+2026-10-12T15:35:17+08:00 step5 guards 27/27 GREEN 794/794 (no amendments); step6 tsc -b rc=0
+2026-10-12T15:41:11+08:00 step7 sweep result written (91/1857/0/2)
+2026-10-12T15:42:25+08:00 step9 self-audit: hunks pure-additive; forbidden zones 0 hits; server.ts/engine.ts zero-touch; guiAllowed criteria line 0 diff
+2026-10-12T15:43:02+08:00 step9 complete + step8 skipped (tunnel 18443 conn refused rc=7, per铁律只回报不自启); final report next
