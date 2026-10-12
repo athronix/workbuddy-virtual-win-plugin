@@ -17,7 +17,8 @@
 - PS 5.1：`Sort-Object <裸键>` 对 `[ordered]@{}` 静默失效→`-Property { $_.key }`。
 - 沙箱：`/tmp` 只读(用 `$HOME/wbtmp`)；**git 不在 PATH 但二进制真实存在** `/storage/Users/currentUser/.harmonybrew/opt/git/bin/git`(v2.55.0)→用全路径 commit/log/show；`rm` shim 坏→用 `fs.unlinkSync`/`renameSync`；node 必须 `/data/storage/el1/bundle/libs/arm64/node/bin/node`；`getcwd` 偶发异常(用绝对路径)。
 - **单测绝不整批跑**→`node --test <单文件>`（`link-workspace.test.js` 的 junction 整批触发 `0xC0000005` 假全红）。
-- **注释文本也是静态守卫输入面**（Phase1 T1 D-5）：`r19c-a5` C3 全仓扫源码含注释的标识符计数——写病灶注释引用被守卫的字段名前，先 grep 同名静态断言。
+- **注释文本也是静态守卫输入面**（Phase1 T1 D-5：`r19c-a5` C3 全仓扫源码含注释的标识符计数；T8 活例：delegation-audit 注释含 DelegationTerminalSnapshot 字样触 `phase2-snapshot-truth` 白名单守卫=全仓 src 大小写不敏感扫 snapshot 命中文件集须恰 12 白名单，名单外任何新文件含 snapshot 字样即红）：写病灶注释引用被守卫的字段名前，先 grep 同名静态断言。
+- **慢执行假死→熔断误判→双棒并发（T8 新型）**：LLM 成员 step4 长静默写作期（闷头写码 20+ 分钟零落盘）与网络致死窗口外观同形；重派后旧棒可能自察复活⇒违反"同任务严禁双进程并发"。预防=任务书内置"每文件编辑即 timeline 心跳"；判活优先看**双 timeline+git status 差异**而非只看 mtime；已发 shutdown 后翻 timeline 必须复核（shutdown_request 可撤回改指令）。
 - **Grep 工具对大文件/多词 `|` 搜索假阴性**→用目录级 grep / Read / Glob；仓库清点用 `git ls-files`/`git grep` 而非 FS find/grep（getcwd 失效下 FS 搜索产假象）。
 - **版本指纹 > uptime**：`psBridge.uptimeMs` 只证明重启时间，证明版本须用**行为/字段指纹**（如 `/health` 开关字段、`steps[0].risk`）。
 - **VM 侧运行态开关切法**：走 provider options（`.generated/vm-service.runtime.json` 的 `agent.providers.<id>.options.<key>`，provider 级浅合并、未知键保留）→ adapter 内 `opts.X ?? resolveX(process.env)`。重启只用 `kill-restart.ps1`（不重跑 install-vm）；⚠ `deploy-vm.mjs --apply` 重新生成运行时配置⇒顺序铁律：先部署→后打补丁→再 kill-restart。
@@ -33,7 +34,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - **A5 / K-N1 / K-N2**：A5 L2 审批 `rejected` 置位路径真机不可达(activeTaskId 被 cancel 清掉)；K-N1 委派回合未发起 tools/call 致 K5 回执反查早退(0 执行仍 completed)；K-N2 dryRun 内层 success=false。均已有 `r19c-*` 单测覆盖。
 
 ## 关键口径
-- **测试基线 89 文件 / 1751 例（1749 pass/0 fail/2 skip）**（2026-10-12 Phase 2 · T12 收官 3fbaea6，sweep 主理人亲跑；2 skip 恒 ssh2-resolve OFFLINE_SKIP；todo 差值口径见 §13.5）。旧口径依次留档：88/1739(T7 5199868)、87/1695(T6 e0b6945)、86/1657(T5 d277882)、85/1612(T4 cbd5dfd)、84/1558(T10 c5a9e40)、79/1457(Phase1 收官)、71/1247(Phase0)。Phase 2 已交付 T1–T7/T10/T12+T3b（§13 裁决执行面，设计文档 §13.1–13.8 逐批登记）。根 `package.json` `layout` 脚本已删（指向不存在的 dep-lint；Phase 2 T11 规划）。
+- **测试基线 90 文件 / 1809 例（1807 pass/0 fail/2 skip）**（2026-10-12 Phase 2 · T8 收官 928f437，sweep 主理人亲跑；2 skip 恒 ssh2-resolve OFFLINE_SKIP；todo 差值口径见 §13.5）。旧口径依次留档：89/1751(T12 3fbaea6)、88/1739(T7 5199868)、87/1695(T6 e0b6945)、86/1657(T5 d277882)、85/1612(T4 cbd5dfd)、84/1558(T10 c5a9e40)、79/1457(Phase1 收官)、71/1247(Phase0)。Phase 2 已交付 T1–T8/T10/T12+T3b（§13 裁决执行面，设计文档 §13.1–13.9 逐批登记）。注：90 文件=tests/unit 目录全部（基线口径恒含 .test.mjs）；node 24 默认 reporter 计数前缀为 `ℹ tests`（`--test-reporter=tap` 才是 `# tests`），runner 已显式 tap。根 `package.json` `layout` 脚本已删（指向不存在的 dep-lint；Phase 2 T11 规划）。
 - 测试证据口径：每轮只留一份权威报告 `real-test-<date>-run<N>.md`；「未复现≠已修」须确定性注入回归；FAIL 给四元组(现象/根因/证据/路由)；证据目录删除必留痕。
 - 裁决必须落档再引用编号：权威层级=仓库文档>任务板>聊天；文档引用锚点段标签为主、行号(号)为辅（并行改动行号漂移）。
 - 证据文件「写完再读」：落在写入窗口内得 0B 假空→任何"为空/缺失"须二次确认(mtime+字节+进程存活)。
