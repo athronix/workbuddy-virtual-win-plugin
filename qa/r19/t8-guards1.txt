@@ -1,0 +1,13 @@
+GREEN tests/unit/phase2-approval-wait-fallback.test.js rc=0 tests=24 pass=24 fail=0 skip=0
+GREEN tests/unit/cl-k3r-runpersistent-approval-routing.test.js rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-approval-truth.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-approval-wait.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-bridge-integ.test.js rc=0 tests=2 pass=2 fail=0 skip=0
+GREEN tests/unit/k5-replay.test.js rc=0 tests=41 pass=41 fail=0 skip=0
+GREEN tests/unit/approval-audit.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/phase2-contract-code-fidelity.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-e-shape.test.js rc=0 tests=33 pass=33 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-e-mutation.test.js rc=0 tests=54 pass=54 fail=0 skip=0
+GREEN tests/unit/phase1-t4-assembly.test.js rc=0 tests=45 pass=45 fail=0 skip=0
+GREEN tests/unit/phase2-bearer-selfcheck.test.js rc=0 tests=45 pass=45 fail=0 skip=0
+FILES=12 FAILED_FILES=0 TOTAL_TESTS=307 TOTAL_PASS=307 TOTAL_FAIL=0 TOTAL_SKIP=0

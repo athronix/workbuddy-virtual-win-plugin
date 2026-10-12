@@ -501,6 +501,8 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
         steps: res.steps,
         error: res.error,
         ...(res.degraded ? { degraded: res.degraded } : {}),
+        // P2-T8 G-b：归因事实透传（兜底/结构化改判后的失败态同样要能入链计数）
+        ...(res.approvalTruth ? { approvalTruth: res.approvalTruth } : {}),
       };
     }
     return {
@@ -510,6 +512,8 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
       steps: res.steps,
       // K-N1 §4.4：降级事实透传到 GoalResult（服务端 observer 落 ext.downgraded 的唯一来源）
       ...(res.degraded ? { degraded: res.degraded } : {}),
+      // P2-T8 G-b：真值判据归因透传到 GoalResult（服务端 observer 落 ext.approvalTruth 的唯一来源）
+      ...(res.approvalTruth ? { approvalTruth: res.approvalTruth } : {}),
     };
   }
 

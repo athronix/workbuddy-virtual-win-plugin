@@ -1,0 +1,15 @@
+GREEN tests/unit/phase2-inner-credential.test.js rc=0 tests=38 pass=38 fail=0 skip=0
+GREEN tests/unit/phase2-task-store-evict-observe.test.js rc=0 tests=44 pass=44 fail=0 skip=0
+GREEN tests/unit/phase1-t3-cancel-bounded.test.js rc=0 tests=29 pass=29 fail=0 skip=0
+GREEN tests/unit/phase2-dead-config.test.js rc=0 tests=14 pass=14 fail=0 skip=0
+GREEN tests/unit/phase2-contract-schema.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/phase2-snapshot-truth.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/r19c-a5-approval-coordinator.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+GREEN tests/unit/host-a2a-bridge.test.js rc=0 tests=39 pass=39 fail=0 skip=0
+GREEN tests/unit/llm-provider.test.js rc=0 tests=20 pass=20 fail=0 skip=0
+GREEN tests/unit/hermes-provider.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/phase2-progress-message.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase2-mcp-signal.test.js rc=0 tests=54 pass=54 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-a-pure.test.js rc=0 tests=76 pass=76 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-b-bridge.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+FILES=14 FAILED_FILES=0 TOTAL_TESTS=421 TOTAL_PASS=421 TOTAL_FAIL=0 TOTAL_SKIP=0

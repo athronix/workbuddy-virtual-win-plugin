@@ -21,6 +21,7 @@
  */
 
 import type {
+  ApprovalTruthAttribution,
   ApprovalWaitQuery,
   DelegationActivityCount,
   DelegationTruthProbe,
@@ -125,9 +126,14 @@ export async function reconcileDelegationTruth(
  * `reconcileApprovalTruth` 的委派入参面（只需判定所需字段；与 `LlmGoalInput` 结构化兼容）。
  */
 export interface ApprovalTruthInput {
-  /** A2A 任务 id；缺席（纯 MCP 直调 / 非委派）⇒ 门 1 直接回退文本兜底 */
+  /**
+   * A2A 任务 id。
+   * P2-T8（G-a）起，门 1 的归属键为 **`taskId ?? traceId`**：本键与 `traceId` **双缺**
+   * 才回退文本兜底（SK-1「无归属不介入」逐字保留）；只有 `traceId`（纯 MCP 直调 /
+   * 委派 CLI 回连形态）⇒ 进入结构化反查，经 R1 精确归因或 R3 窗口归因命中。
+   */
   readonly taskId?: string;
-  /** 委派 traceId（R1 精确归因键） */
+  /** 委派 traceId（R1 精确归因键；G-a 后同时是门 1 的兜底归属键） */
   readonly traceId?: string;
   /** 委派能力面（R3 收窄串台；空/缺席 ⇒ 不按能力过滤） */
   readonly capabilities?: readonly string[];
@@ -192,6 +198,22 @@ export interface ApprovalTruthDeps {
   /** 服务端探针（顶层形态；缺席时回退 `ctx.delegationProbe` / `input.probe`） */
   readonly probe?: DelegationTruthProbe;
   readonly warn?: (msg: string, meta?: Record<string, unknown>) => void;
+  /**
+   * P2-T8（G-b，**纯附加可选出参**）：决策出口回调 —— 每次判定**恰好调用一次**，
+   * 将「本结论由哪一侧作出 + 在哪个门退场/命中」作为**事实**透出给调用方（桥写进
+   * `RunContext.approvalTruth` → `LlmGoalResult` → `GoalResult` → 服务端
+   * `delegation.complete` 的 `ext.approvalTruth`，从而可入链计数）。
+   *
+   * 为什么走 deps 出参而**不是**返回值字段（红线，设计定稿 §0 实证）：
+   *  - `phase2-approval-wait-fallback` D1 钉门 0 `out === base` **引用相等** ⇒ 门 0 绝不能在
+   *    `base` 上新增任何键；
+   *  - 同文件 D3b 钉门 3「回退兜底且 **warns.length === 0**」⇒ 归因不得伪装成 warn；
+   *  - 兜底路径（`reconcileApprovalWait`）的返回值形状受 SK-9 文案钉约束，不得夹带新键。
+   *  ⇒ 唯一**零回归**通道是 deps 上的回调。
+   *
+   * 缺席即零行为变化（纯附加：不改判定、不改 warn 计数、不改返回值）。
+   */
+  readonly onTruthDecision?: (d: ApprovalTruthAttribution) => void;
 }
 
 /** 命中改判时的 steps 文案（与文本兜底路径**可区分**，便于取证归因）。 */
@@ -206,7 +228,11 @@ const APPROVAL_TRUTH_SOURCE = 'server-ledger';
  *
  * 判定表（自上而下短路，设计 §5.3）：
  *   门 0 `!base.ok` → 透传（已是失败态，不重复改判；**D-1 结论优先**）；
- *   门 1 无 `taskId`（非委派 / 纯 MCP 直调）→ 回退文本兜底（SK-1：无归属不介入）；
+ *   门 1 归属键**双缺**（`taskId` 与 `traceId` 都拿不到 = 非委派、无 trace 的裸调用）
+ *     → 回退文本兜底（SK-1：无归属不介入）。**P2-T8 G-a**：归属键由「必须有 `taskId`」
+ *     扩为 **`taskId ?? traceId`** ⇒ 纯 MCP 直调 / 委派 CLI 回连（无 `taskId` 有 `traceId`）
+ *     同样进入结构化反查；串台安全由 `collectApprovalFacts` / `LedgerRegistry.blockedFor`
+ *     的 **R2 精确排除**（他人 dtid 的未决审批绝不落到本回合）+ **R3 窗口 + 能力面过滤**兜住；
  *   门 2 灰度开关 `off` → 回退文本兜底（一键回滚面）；
  *   门 3 无 probe 或 `probe.approvalWait` 缺席 → 回退文本兜底（兼容旧服务端 / 单测，**绝不 warn**）；
  *   门 4 探针抛错 → 回退文本兜底 + **warn 恰一条**（fail-open，绝不挂死委派）；
@@ -227,13 +253,50 @@ export async function reconcileApprovalTruth(
   finalText: string,
   deps: ApprovalTruthDeps = {},
 ): Promise<LlmGoalResult> {
-  if (!base.ok) return base; // 门 0：已是失败态（含 D-1 两道门的结论）→ 绝不重复改判
+  /* ---------------------------------------------------------------------------
+   * P2-T8（G-a + G-b）：归属键与归因出口**前置**声明。
+   *
+   * 为什么必须前置：G-b 的 `emit` 要在**门 0** 就能报出 `taskIdPresent` /
+   * `traceIdPresent`，而 G-a 的门 1 判据本身就要读 `traceId`。原实现把 `taskId`
+   * 声明在 `runFallback` 之后（设计定稿 §0 记为「TDZ 隐患」），本次一并消除该隐患
+   * —— 声明序调整不改变任何判定结论（门序、返回值、warn 计数逐字不变）。
+   * ------------------------------------------------------------------------- */
+  const input = deps.input;
+  const ctx = deps.ctx;
+  const taskId = typeof input?.taskId === 'string' && input.taskId ? input.taskId : undefined;
+  // G-a：归属键 = `taskId ?? traceId`（两者都要求**非空串**，与 taskId 判序逐字同构）
+  const traceId = typeof input?.traceId === 'string' && input.traceId ? input.traceId : undefined;
+
+  /**
+   * G-b：把本次判定的**出口**写成可计数事实（每条路径恰一次；纯附加，回调缺席即零变化）。
+   * 走 deps 出参而非返回值 —— 门 0 的「引用相等」钉（D1）与门 3 的「绝不 warn」钉
+   * （D3b）都不受影响，见 `ApprovalTruthDeps.onTruthDecision` 注释。
+   */
+  const emit = (
+    decidedBy: ApprovalTruthAttribution['decidedBy'],
+    gate: string,
+    approvalId?: string,
+  ): void => {
+    deps.onTruthDecision?.({
+      decidedBy,
+      gate,
+      taskIdPresent: !!taskId,
+      traceIdPresent: !!traceId,
+      ...(approvalId ? { approvalId } : {}),
+    });
+  };
+
+  if (!base.ok) {
+    emit('pass-through', '门0');
+    return base; // 门 0：已是失败态（含 D-1 两道门的结论）→ 绝不重复改判
+  }
 
   // E-2：文本兜底经**依赖注入**取得（deps 显式传入 > bridge 模块级注册 > 恒等透传）
   // E-2b：第三级「恒等透传」不再静默 fail-open —— 命中时（fallback 缺席）按实际触发的门
   // emit 恰一条可检索 warn（文案与 meta 见任务书 §E-2b），返回值仍为 base（判定逐字不变）。
   const fallback = deps.reconcileApprovalWait ?? approvalWaitFallback;
   const runFallback = (gate: string, b: LlmGoalResult, text: string): LlmGoalResult => {
+    emit('text-fallback', gate);
     if (!fallback) {
       deps.warn?.('[k3r] 文本兜底缺席（未注入且未注册）→ 恒等透传，等同无兜底旧行为', {
         gate,
@@ -249,10 +312,8 @@ export async function reconcileApprovalTruth(
   // （任务书 §E-2b 的 gate 枚举为 门1/门2/门3/门5/门6，刻意不含门4）
   const fallbackOrIdentity4: ApprovalWaitFallback = fallbackOrIdentity;
 
-  const input = deps.input;
-  const ctx = deps.ctx;
-  const taskId = typeof input?.taskId === 'string' && input.taskId ? input.taskId : undefined;
-  if (!input || !taskId) return runFallback('门1', base, finalText); // 门 1：无归属不介入
+  // 门 1（G-a）：归属键 `taskId ?? traceId` **双缺**才回退 —— SK-1「无归属不介入」逐字保留
+  if (!input || (!taskId && !traceId)) return runFallback('门1', base, finalText);
 
   if (deps.enabled === false) return runFallback('门2', base, finalText); // 门 2：一键回滚
 
@@ -283,6 +344,9 @@ export async function reconcileApprovalTruth(
       taskId,
       error: String(e),
     });
+    // G-b：归因走 emit（**不得**再走 runFallback ⇒ 不会叠加 E-2b warn，门 4 的
+    // 「恰一条 warn」纪律逐字保持；emit 不是 warn）
+    emit('text-fallback', '门4');
     return fallbackOrIdentity4(base, finalText);
   }
 
@@ -314,6 +378,9 @@ export async function reconcileApprovalTruth(
         : 'waiting-approval',
       others: rest.map((f) => f.approvalId),
     });
+    // G-b：shadow 命中 = 「结构化说该改判、但灰度只记不判」，归因单列一类
+    // （不得写成 text-fallback —— 那会把对拍样本混进兜底命中率）
+    emit('shadow', 'shadow-hit', fact.approvalId);
     return base;
   }
 
@@ -325,6 +392,9 @@ export async function reconcileApprovalTruth(
       others: rest.map((f) => f.approvalId),
     });
   }
+
+  // G-b：结构化命中（服务端权威改判）—— 与「兜底救了」可区分的**唯一**计数依据
+  emit('server', '命中', fact.approvalId);
 
   return {
     ...base,

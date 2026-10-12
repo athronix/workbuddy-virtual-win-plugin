@@ -423,6 +423,37 @@ export interface GoalStep {
   readonly error?: BridgeError;
 }
 
+/**
+ * P2-T8（G-b，**纯附加可选**）：审批真值判据的**归因事实**。
+ *
+ * 背景（缺口）：CL-K3R 把「服务端结构化未决审批反查」升为第一判据、文本启发式
+ * `reconcileApprovalWait` 降为兜底后，链上与回包上都**看不出**某一次 `ok:false`
+ * 到底是「结构化救回来的」还是「兜底救回来的」—— 两判据的命中率为对拍目的
+ * （SK-K2 shadow 轮）只提供过程日志，不提供可入链的终态事实。
+ *
+ * 本形状把每次判定的**决策出口**固化为一条可计数事实：
+ *  - `decidedBy` —— 最终结论由哪一侧作出：
+ *    · `'server'` = 结构化反查命中并改判（服务端权威）；
+ *    · `'text-fallback'` = 结构化判据在某个门退场，回退文本启发式（含兜底缺席时的恒等透传）；
+ *    · `'shadow'` = shadow 态命中（只 warn 不改判，结论仍是 base 本体）；
+ *    · `'pass-through'` = 门 0（`!base.ok`）恒等透传，本判据**未参与**结论；
+ *  - `gate` —— 退场/命中的门号（`'门0'`…`'门6'` / `'命中'` / `'shadow-hit'`），
+ *    与源码判定表一一对应，供 grep 计数；
+ *  - `taskIdPresent` / `traceIdPresent` —— 归属键是否在场（G-a 后「无 taskId 有 traceId」
+ *    的纯 MCP 直调形态也能被区分出来）；
+ *  - `approvalId` —— 命中时采信的服务端权威 approvalId（缺席即未命中/退场）。
+ *
+ * 纪律（与 K-N1 §4.4 / P2-T6 同族）：**纯附加**——缺席即旧行为，既有构造点零改动；
+ * 判定面（`reconcileApprovalTruth` 的返回值、门 3 的 warn 计数）不得因本字段而变。
+ */
+export interface ApprovalTruthAttribution {
+  readonly decidedBy: 'server' | 'text-fallback' | 'shadow' | 'pass-through';
+  readonly gate: string;
+  readonly taskIdPresent?: boolean;
+  readonly traceIdPresent?: boolean;
+  readonly approvalId?: string;
+}
+
 export interface GoalResult {
   readonly ok: boolean;
   readonly summary: string;
@@ -438,6 +469,17 @@ export interface GoalResult {
    * 缺席即旧行为（不改动任何既有构造点）。登记为实现偏差。
    */
   readonly degraded?: { readonly reason: string };
+  /**
+   * P2-T8 G-b（**纯附加可选**）：审批真值判据的归因事实（形状与取值纪律见
+   * `ApprovalTruthAttribution`）。链路：桥收口点 emit → `LlmGoalResult.approvalTruth`
+   * → provider 透传 → 本字段 → 服务端 `delegationObserver.onGoalTerminal` 落
+   * `delegation.complete` 的 `ext.approvalTruth`。
+   *
+   * 只在「本委派**真的经过**结构化判据收口且结果为 `ok:true` 路径」时落（判据的门 0
+   * 对失败态是恒等透传，不产出归因；取消/failedBase 等无判定路径同样不落）。
+   * 缺席即旧行为 —— 既有 `GoalResult` 构造点零改动。
+   */
+  readonly approvalTruth?: ApprovalTruthAttribution;
 }
 
 export interface ProgressSink {

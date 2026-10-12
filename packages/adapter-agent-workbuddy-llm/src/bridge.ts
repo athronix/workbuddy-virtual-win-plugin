@@ -14,6 +14,7 @@ import { delimiter, dirname, extname, isAbsolute, join, resolve } from 'node:pat
 import type {
   ApprovalCoordinator,
   ApprovalRequest,
+  ApprovalTruthAttribution,
   Artifact,
   BridgeError,
   CapabilityId,
@@ -403,6 +404,17 @@ export interface LlmGoalResult {
    * provider 映射到 `GoalResult.degraded`，服务端 observer 落 `delegation.complete.ext.downgraded`。
    */
   readonly degraded?: { readonly reason: string };
+  /**
+   * P2-T8（G-b，**纯附加可选**）：审批真值判据的归因事实（服务端结构化命中 /
+   * 文本兜底退场 / shadow 只记不判 / 门 0 透传）。由 `reconcileApprovalTruth` 的
+   * `onTruthDecision` 回调写入 `RunContext.approvalTruth`，在两处 `ok:true` 收口点
+   * 条件展开进本结果 ⇒ provider 透传到 `GoalResult.approvalTruth` ⇒ 服务端 observer
+   * 落 `delegation.complete` 的 `ext.approvalTruth`。
+   *
+   * 只在「本次确实经过结构化判据且走上 ok:true 收口」时落；无判定路径
+   * （取消收口 / failedBase / 降级重跑前的中间态）不落 ⇒ 缺席即旧行为。
+   */
+  readonly approvalTruth?: ApprovalTruthAttribution;
 }
 
 export interface LlmBridge {
@@ -842,6 +854,13 @@ interface RunContext {
    * 非 readonly —— 与 `lastFinalText` 同为「跨层写入」字段（先例见 `:650`）。
    */
   replayActive: boolean;
+  /**
+   * P2-T8（G-b）：本轮审批真值判据的**归因事实**（由 `reconcileApprovalTruth` 的
+   * `onTruthDecision` 回调写入；续跑轮会覆写 ⇒ 留下的是最后一轮的值，与
+   * `lastFinalText` 同一时序纪律）。非 readonly，同为「跨层写入」字段。
+   * 缺席 ⇒ 收口点不落 `approvalTruth` 键（默认态逐字节旧行为）。
+   */
+  approvalTruth?: ApprovalTruthAttribution;
 }
 
 /**
@@ -932,6 +951,12 @@ export class CliLlmBridge implements LlmBridge {
    * 把「服务端结构化未决审批」翻译成 `base.error`（`APPROVAL_REQUIRED` + 服务端权威
    * `approvalId`/`risk`），使**既有**的 `maybeResume` → raise → `input-required` 链路原样工作。
    * 结构化判据任一门退场时回退文本启发式 `reconcileApprovalWait`（**函数体一字不改**，SK-9）。
+   *
+   * P2-T8：
+   *  - **G-a** 让纯 MCP 直调 / 委派 CLI 回连（无 `taskId` 有 `traceId`）的回合也能进结构化反查
+   *    —— 桥侧**不需要**任何新接线（`input` 里本来就有 `traceId`，判据在 delegation-truth 侧）；
+   *  - **G-b** 在本方法里构造 `onTruthDecision` 出参回调，把归因事实写进 `ctx.approvalTruth`
+   *    （随 ctx 生灭 ⇒ 并发委派互不干扰），由两处 `ok:true` 收口点条件展开进结果。
    */
   private async reconcileApprovalTruth(
     base: LlmGoalResult,
@@ -948,6 +973,10 @@ export class CliLlmBridge implements LlmBridge {
       ...(this.approvalTruthShadow ? { shadow: true } : {}),
       // fail-open 告警出口：provider 注入的服务 logger.warn 优先，缺席回退会话日志出口
       warn: input.warn ?? this.onSessionLog ?? undefined,
+      // G-b：归因事实写进本次委派的 RunContext（**纯附加**，不改判定、不改 warn 计数）
+      onTruthDecision: (d: ApprovalTruthAttribution): void => {
+        ctx.approvalTruth = d;
+      },
     });
   }
 
@@ -1504,13 +1533,32 @@ export class CliLlmBridge implements LlmBridge {
           turn.text,
           input,
           ctx,
-        ),
+        ).then((r) => this.attachTruthAttribution(r, ctx)),
         input,
         sink,
         ctx,
         'persistent',
       ),
     };
+  }
+
+  /**
+   * P2-T8（G-b）：把本轮真值判据的归因事实**条件展开**进收口结果。
+   *
+   * 为什么单独成方法而不是在两处收口点各写一遍 spread：两处必须**逐字同形**
+   * （常驻 / 单一是同一外部语义，见 `runGoal` 注释），复制两处即漂移隐患。
+   *
+   * 三条纪律：
+   *  1. `ctx.approvalTruth` 缺席 ⇒ **连键都不新增** ⇒ 默认态（无判定路径：取消收口 /
+   *     failedBase / 门 0 之外的非 ok:true 分支）逐字节旧行为；
+   *  2. 结果已是 `ok:false` 且由**判据自身**改判（`decidedBy='server'` / `'shadow'` 之外的
+   *     兜底改判）时同样只附加归因，**不参与**任何判定（单向 fail-closed 纪律不变）；
+   *  3. 续跑轮（`maybeResume` → `runOneShot`/`runPersistent`）会重新经过收口点 ⇒
+   *     留下的是**最后一轮**的归因，与 `lastFinalText` / `ctx.receipts` 同一时序语义。
+   */
+  private attachTruthAttribution(result: LlmGoalResult, ctx: RunContext): LlmGoalResult {
+    if (!ctx.approvalTruth) return result;
+    return { ...result, approvalTruth: ctx.approvalTruth };
   }
 
   /**
@@ -1763,6 +1811,7 @@ export class CliLlmBridge implements LlmBridge {
           finish(
             await this.maybeResume(
               await this.reconcileApprovalTruth(
+                /* G-b：本收口点与常驻路径共用 `attachTruthAttribution`（两处逐字同形） */
                 {
                   ok: true,
                   summary: `LLM 运行时完成目标：${input.goal}` + (artifacts.length ? `（产出 ${artifacts.length} 个文件）` : ''),
@@ -1783,7 +1832,7 @@ export class CliLlmBridge implements LlmBridge {
           stdoutText,
           input,
           ctx,
-        ),
+        ).then((r) => this.attachTruthAttribution(r, ctx)),
         input,
         sink,
         ctx,

@@ -170,6 +170,8 @@
 
 审批记录包含：审批者、时间、预览内容哈希、审批结果（**批准 / 拒绝 / 超时 / 取消** 四态，不得折叠为「未批准」）。
 
+> **审批真值层的覆盖面（P2-T8 · 2026-10-12 口径更新）**：CL-K3R `reconcileApprovalTruth`（桥侧对 LLM 完成声称的结构化反查，服务端账本为唯一权威）的门 1 归属键已由「必须有 `taskId`」放宽为 **`taskId ?? traceId`** ⇒ 上表 **MCP 直调 / 委派 CLI 回连**（无 `taskId` 有 `traceId`）的回合同样进入结构化反查覆盖面；串台安全由服务端归因规则 R2 精确排除 + R3 时间窗/能力面过滤兜住，SK-1「无归属不介入」逐字保留（归属键**双缺**即回退文本兜底，且探针零调用）。文本启发式 `reconcileApprovalWait` 降为**兜底，且已知会漏同义改写**（六条漏判反例钉在 `tests/unit/phase2-truth-mcp-direct.test.js` D 组——属**诚实登记边界**，不是已修复；关键词集合钉 `[APPROVAL_REQUIRED, 等待审批]`，新增须同批改测试）⇒ **不得以兜底命中作为主要取证面**。归因可观测：每条 `delegation.complete` 可带 `ext.approvalTruth = { decidedBy:'server'|'text-fallback'|'shadow'|'pass-through', gate, taskIdPresent, traceIdPresent, approvalId? }`（纯附加可选，缺席即链上逐字节旧形状），使「结构化救回来的 vs 兜底救回来的」可计数、兜底命中率可监控。灰度 `WINVM_APPROVAL_TRUTH=on|shadow|off`（缺省 `on`；`shadow` 只记不判、`off` 一键回滚）语义不破。详见 `K5-server-replay-approval.md` §7。
+
 预览内容哈希（`previewHash`）**V1 由宿主侧计算并记录**，落点 `packages/host-a2a-bridge/src/approval-audit.ts`，算法为 `sha256(canonicalJson({ capabilityId, risk, preview, impact }))`；用于比对「当时给用户看的」与「实际执行的」（哈希不一致即标记，不静默通过）。凭据类字段（`password` / `privateKey` / `passphrase` / token / secret）**永不入账**。
 
 ### 3.4 关键红线

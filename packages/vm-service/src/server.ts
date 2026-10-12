@@ -1435,6 +1435,11 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
                 'EXECUTION_FAILED');
       // 降级标记（T03 结构化；运行时经 LlmGoalResult 携带，缺席即 undefined → ext 不落该键）
       const degraded = (result as { degraded?: { reason: string } } | undefined)?.degraded;
+      /* P2-T8 G-b：审批真值判据归因（provider 透传 GoalResult.approvalTruth）。
+       * 与 degraded 同一手法：observer 只**搬运事实**、不做二次判定；缺席 ⇒ ext 不落该键
+       * ⇒ 链上条目逐字节不变。读值走契约字段（不是桥内类型）—— 框架快照的 result 是
+       * `GoalResult`，桥内 `LlmGoalResult` 服务端看不见（K-N1 §4.4 同一依赖方向纪律）。 */
+      const approvalTruth = result?.approvalTruth;
 
       void audit
         .append(
@@ -1451,6 +1456,8 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
             ok,
             ...(errorCode ? { errorCode } : {}),
             ...(degraded ? { downgraded: true, downgradeReason: degraded.reason } : {}),
+            // P2-T8 G-b（纯附加）：真值判据归因入链 → ext.approvalTruth（缺席即不落键）
+            ...(approvalTruth ? { approvalTruth } : {}),
             ...(result && result.steps.length > 0
               ? {
                   steps: result.steps.map((s) => ({

@@ -195,6 +195,26 @@ export interface AuditExt {
     /** 终态分布聚合（completed/failed/canceled/rejected 各自条数） */
     readonly terminalStates: Readonly<Record<string, number>>;
   };
+  /**
+   * P2-T8（G-b，**纯附加可选**）：审批真值判据的**归因事实**（仅
+   * `kind === 'delegation-complete'` 时有意义，来自 `GoalResult.approvalTruth`）。
+   *
+   * 回答的问题：这次委派的终态结论是**结构化反查**作出的、还是**文本启发式兜底**
+   * 作出的、还是根本没参与（门 0 透传 / shadow 只记不判）？此前该事实只存在于
+   * 过程日志里，链上无从计数（对拍只能 grep warn 文案，随文案漂移即失效）。
+   *
+   * 取值口径与 `bridge.ts` 的 `ApprovalTruthAttribution` 逐字同形
+   * （此处刻意写成**内联结构**而非 import 该类型：`audit.ts` 被 `bridge.ts` 依赖，
+   * 反向 import 会构成契约内环）。写入方（服务端 observer）**原样搬运**，
+   * 不做二次判定；缺席即旧行为 ⇒ 链上条目逐字节不变。
+   */
+  readonly approvalTruth?: {
+    readonly decidedBy: 'server' | 'text-fallback' | 'shadow' | 'pass-through';
+    readonly gate: string;
+    readonly taskIdPresent?: boolean;
+    readonly traceIdPresent?: boolean;
+    readonly approvalId?: string;
+  };
 }
 
 export interface AuditRecord {

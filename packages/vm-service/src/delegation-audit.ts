@@ -560,6 +560,14 @@ export interface DelegationAuditEntryInput {
   readonly resultSummary?: string;
   /** 执行主体（与 recordBlockedApprovalAudit 同口径：VM 侧用户） */
   readonly user?: string;
+  /**
+   * P2-T8（G-b，**纯附加可选**）：审批真值判据的归因事实（来自
+   * `GoalResult.approvalTruth`，由 server.ts 的 `delegationObserver.onGoalTerminal`
+   * 原样搬运）。observer 是**框架层类型**（终态快照的 `result: GoalResult`），
+   * 故归因走契约字段而非桥内类型（同 `degraded` → `ext.downgraded` 的先例，K-N1 §4.4）。
+   * 缺席 ⇒ `ext` **连键都不新增** ⇒ 既有链上条目逐字节不变。
+   */
+  readonly approvalTruth?: AuditExt['approvalTruth'];
 }
 
 /**
@@ -603,6 +611,8 @@ export function buildDelegationAuditEntry(
             ? { downgradeReason: sanitizeText(input.downgradeReason, 'downgradeReason', MAX_SUMMARY_CHARS) }
             : {}),
           ...(input.terminalState ? { terminalState: input.terminalState } : {}),
+          // P2-T8 G-b：真值判据归因（原样搬运，observer 不做二次判定；缺席即不落键）
+          ...(input.approvalTruth ? { approvalTruth: input.approvalTruth } : {}),
           ...(input.steps && input.steps.length > 0
             ? {
                 stepsSummary: input.steps.slice(0, MAX_STEPS_SUMMARY).map((s) => ({

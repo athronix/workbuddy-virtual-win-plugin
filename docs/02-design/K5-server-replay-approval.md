@@ -99,5 +99,40 @@ A2A 委派「卸载VM企业微信」完整闭环：宿主批准后任务转 `com
 - 回滚保险：`WINVM_APPROVAL_REPLAY=off` 时协调器跳过重放直接 resolve（退回 K4 提示词行为，灰度开关）。
 
 ## 6. 不做什么
-- 不改 A2A 协议线格式、不动 waitApproval TTL（P3 已做）、不碰 MCP 直调通道行为。
+- 不改 A2A 协议线格式、不动 waitApproval TTL（P3 已做）。
+- ~~不碰 MCP 直调通道行为~~ → **P2-T8 口径更新（2026-10-12，见 §7）**：真值层（CL-K3R `reconcileApprovalTruth`）的**判定覆盖面**已扩展到 MCP 直调 / 委派 CLI 回连形态（无 `taskId` 有 `traceId` 的回合）。此处"不碰"当时指的是 K5 重放机制自身不改 MCP 直调通道行为——该部分依然成立（重放闸、`hostApproved` 严格闸、协议线格式一字未动）；变的是**审批真值反查不再只服务有 `taskId` 的 A2A 委派回合**。划线留痕，不改写历史结论。
 - 不引入桥对 /mcp 的直连 client（执行权在服务进程内，无需跨 HTTP 自调）。
+
+## 7. P2-T8 现状对齐：真值层覆盖面 + 兜底归因可观测（2026-10-12）
+
+CL-K3R 真值层（§2 末段「回执反查」的结构化实现，落点
+`packages/adapter-agent-workbuddy-llm/src/delegation-truth.ts` 的 `reconcileApprovalTruth`）
+本批三项增量，均为**纯附加**，判定方向仍是单向 fail-closed（只 `ok:true → ok:false`）：
+
+- **G-a（覆盖面扩展）**：门 1 归属键由「必须有 `taskId`」放宽为 **`taskId ?? traceId`**
+  （两者均须非空串）。此前「无 `taskId`、有 `traceId`」的回合——纯 MCP 直调、委派 CLI 回连——
+  一律在门 1 退场回文本兜底，而服务端 `collectApprovalFacts` / `LedgerRegistry.blockedFor`
+  早已能按 traceId 归因（R1 精确 / **R2 他人精确排除** / R3 时间窗 + 能力面过滤）：缺的不是
+  新数据源，是新调用点。串台安全由 R2 精确排除 + R3 窗口收窄兜住（钉在
+  `tests/unit/phase2-truth-mcp-direct.test.js` A4/A5）。SK-1「无归属不介入」逐字保留：
+  归属键**双缺**仍回退兜底，且探针零调用（取证发生在门之后）。灰度三态
+  `approvalTruth=on|shadow|off`（env `WINVM_APPROVAL_TRUTH`，缺省 `on`）对新形态同样成立，
+  G-a 只扩归属面、不扩判定面（同件 C 组）。`/mcp` 桥接层与 dtid 钉（`bridge.ts` 的
+  `?dtid=` 注入）一字未动。
+- **G-b（兜底归因可观测）**：新增 `deps.onTruthDecision` **出参回调**（刻意不是返回值字段——
+  门 0 的引用相等钉、门 3 的「绝不 warn」钉、SK-9 文案钉都不允许被触碰），每次判定
+  **恰好一次**透出 `{ decidedBy, gate, taskIdPresent, traceIdPresent, approvalId? }`：
+  `decidedBy ∈ 'server' | 'text-fallback' | 'shadow' | 'pass-through'`。链路
+  `RunContext.approvalTruth → LlmGoalResult → GoalResult → delegation.complete` 的
+  `ext.approvalTruth`（服务端 observer 只搬运事实、不做二次判定）。回调缺席 ⇒ 零行为变化；
+  归因缺席 ⇒ 链上条目逐字节旧形状（同件 E2「零 undefined 键」钉）。可计数价值在于：
+  运维能区分「结构化救回来的」与「兜底救回来的」，兜底命中率从此可监控、可退役论证。
+- **G-c（兜底边界补强，诚实红线）**：文本启发式 `reconcileApprovalWait` **函数体一字未动**
+  （SK-9）。新增反例集钉住「同义改写确实漏判」——六条新构造措辞（人工核验流程 / 门禁拦下 /
+  pending authorization / 管理员点头等）逐条断言**仍然漏**，作为已知边界登记，而不是把它
+  当缺陷"修好"；关键词集合钉 `[APPROVAL_REQUIRED, 等待审批]`（新增关键词必须同批改测试）。
+  漏判风险由 G-a 扩展后的结构化反查承担——这正是真值层推到 MCP 直调的意义（同件 D 组）。
+
+验收：`node --test tests/unit/phase2-truth-mcp-direct.test.js` 全绿（A~F 组）；既有
+24 例 `phase2-approval-wait-fallback`、11 例 `r19c-k3r-approval-truth` 等 26 件守卫清单
+逐文件复跑零回归；`tsc -b` 0 error。

@@ -1,0 +1,18 @@
+step0b 续跑批开工: HEAD=7429090 对账OK(工作区仅 memory/噪音零代码改动); 基线 307+421=728 有效不重跑; 开始读源码定位落点
+2026-10-12T12:05:31+08:00 step4a 已改 contracts/bridge.ts(ApprovalTruthAttribution 新导出+GoalResult 末尾可选键)+contracts/audit.ts(AuditExt.approvalTruth 末位可选键)+delegation-truth.ts(G-a 门1归属键 taskId??traceId 前置声明消 TDZ; G-b deps.onTruthDecision emit 七出口: 门0/门1/门2/门3/门4/门5/门6/命中/shadow-hit)
+2026-10-12T12:15:56+08:00 step4b 已改 bridge.ts(LlmGoalResult.approvalTruth 末尾+RunContext.approvalTruth+reconcileApprovalTruth 构造 onTruthDecision+attachTruthAttribution 私有方法+两处收口点 then 挂载)/index.ts(provider 两处 return 条件展开透传)/delegation-audit.ts(EntryInput.approvalTruth+ext 条件展开)/server.ts(onGoalTerminal 读 result.approvalTruth 搬运入 complete 条目)
+2026-10-12T12:36:45+08:00 step4c 新测试 phase2-truth-mcp-direct.test.js 已落（A8/B12/C4/D8/E7 组）；tsc 复跑 RC=0
+2026-10-12T12:40:26+08:00 step4d 新测试 43 例全绿(A9/B12/C4/D11/E7 组) tsc RC=0；补 F 组(桥两收口点 attachTruthAttribution 端到端接线，fake CLI 离线)
+2026-10-12T12:58:50+08:00 step4 完成：7 文件编辑+新测试落盘(58 例全绿 A9/B12/C4/D11/E7/F8/G7 组)；开始 step5 守卫 26 件逐件复跑
+2026-10-12T13:02:52+08:00 step5b 续跑：前半12件已GREEN(307例,与baseline.txt逐项一致,零改钉)；现复跑后半14件(baseline2 421例)，先 tsc -b 保 dist 最新
+2026-10-12T13:03:39+08:00 step5 完成：26 件守卫逐件全 GREEN，TOTAL 307+421=728 例 0 fail 0 skip，与 baseline/baseline2 逐文件例数完全一致 ⇒ 零改钉、零 RED 基线取证
+2026-10-12T13:03:39+08:00 step6 tsc -b tsconfig.build.json RC=0；复跑定向新测试 phase2-truth-mcp-direct
+2026-10-12T13:05:05+08:00 step7 全仓 sweep 开始：清单核对 90 文件=磁盘实存(新增 phase2-truth-mcp-direct)，分 3 片(30/30/30)逐片跑避免长跑静默
+2026-10-12T13:06:41+08:00 sweep part1 done: FILES=30 GREEN30 TOTAL_TESTS=386 FAIL=0 SKIP=0
+2026-10-12T13:07:44+08:00 sweep part2 done: FILES=30 GREEN30 TOTAL_TESTS=736 FAIL=0 SKIP=0 (累计1122)
+2026-10-12T13:09:01+08:00 step7 完成：全仓 sweep 90 文件全 GREEN，1809 例(=1751+58Δ) 0 fail 2 skip，对账 MATCH；产物 p2t8b-sweep-result.txt
+2026-10-12T13:12:17+08:00 step7.5 逐文件例数对账：89 基线件 tests/skip 全部零漂移，唯一增项 phase2-truth-mcp-direct(+58) ⇒ 1751+58=1809 精确吻合
+2026-10-12T13:20:30+08:00 step8 自审完成：diff 对账(9改+1新,+250/-11)、SK-9 函数体 HEAD vs 现逐字相同(24行)、dtid 双参钉逐字在(:1649)、server.ts 红线行 1684→1691 纯位移(+7=本次行数,内容逐字同)、mcp-framework 零改动、index 空(零 git 写)、占位符 0(唯一命中=K5 doc:3 存量"待实现"非本次改动,hunk 仅 @@102/@@105)、每 return 出口 emit 恰一次(11 return 全覆盖)、26 守卫零改钉
+2026-10-12T13:20:30+08:00 step8b docs 复核：K5 §6 划线留痕+§7 新增；SECURITY-GOVERNANCE §3.3 覆盖面注；grep 确认无测试断言消费"不碰 MCP 直调"字串(仅 tests 消费 summary 文案,不受影响) ⇒ IS_PASS=YES
+2026-10-12T13:27:21+08:00 step8c 补充自审：index.ts 导出数 HEAD=11/CUR=11(公共面零扩张,O-3 保持)；dist 未被 git 跟踪(零脏项)；reconcileApprovalWait 未从 index 导出(仍走 bridge-internals 取包内面)；测试组例数 A9/B12/C4/D11/E6(+1?实为E组6test+5漏判=11叶子)/F8/G7 ⇒ TAP tests=58 suites=7
+2026-10-12T13:30:25+08:00 回报已发出 team-lead（八项齐全，IS_PASS=YES）；等待指示/shutdown，本会话不再有磁盘写入即视为完成
