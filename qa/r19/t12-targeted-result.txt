@@ -1,0 +1,13 @@
+GREEN tests/unit/host-a2a-bridge.test.js rc=0 tests=39 pass=39 fail=0 skip=0
+GREEN tests/unit/protocols.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/k4-p3.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/k5-replay.test.js rc=0 tests=41 pass=41 fail=0 skip=0
+GREEN tests/unit/phase1-t5-provider-cancel.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase1-t5-cancel-consume.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/phase1-t5-llm-cancel.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase2-mcp-signal.test.js rc=0 tests=54 pass=54 fail=0 skip=0
+GREEN tests/unit/hermes-provider.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/llm-provider.test.js rc=0 tests=20 pass=20 fail=0 skip=0
+GREEN tests/unit/phase2-contract-code-fidelity.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+GREEN tests/unit/cl018-persistent-session.test.js rc=0 tests=19 pass=19 fail=0 skip=0
+FILES=12 FAILED_FILES=0 TOTAL_TESTS=285 TOTAL_PASS=285 TOTAL_FAIL=0 TOTAL_SKIP=0

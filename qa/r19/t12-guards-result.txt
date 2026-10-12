@@ -1,0 +1,13 @@
+GREEN tests/unit/phase2-progress-message.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase2-task-store-evict-observe.test.js rc=0 tests=44 pass=44 fail=0 skip=0
+GREEN tests/unit/phase1-t3-cancel-bounded.test.js rc=0 tests=29 pass=29 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-e-shape.test.js rc=0 tests=33 pass=33 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-e-mutation.test.js rc=0 tests=54 pass=54 fail=0 skip=0
+GREEN tests/unit/phase1-t4-assembly.test.js rc=0 tests=45 pass=45 fail=0 skip=0
+GREEN tests/unit/phase2-bearer-selfcheck.test.js rc=0 tests=45 pass=45 fail=0 skip=0
+GREEN tests/unit/phase2-inner-credential.test.js rc=0 tests=38 pass=38 fail=0 skip=0
+GREEN tests/unit/phase2-dead-config.test.js rc=0 tests=14 pass=14 fail=0 skip=0
+GREEN tests/unit/phase2-contract-schema.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/phase2-snapshot-truth.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/r19c-a5-approval-coordinator.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+FILES=12 FAILED_FILES=0 TOTAL_TESTS=376 TOTAL_PASS=376 TOTAL_FAIL=0 TOTAL_SKIP=0

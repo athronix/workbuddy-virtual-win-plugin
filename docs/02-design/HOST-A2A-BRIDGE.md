@@ -108,6 +108,31 @@
 
 超时保护：外层 deadline，超时返回 `timedOut: true` + `taskId`，可用 `a2a.task.get` 续取。
 
+#### 4.3.1 progress 回显口径（wire 形状契约，P2-T12）
+
+`progress[]` 的可达性依赖一条**跨包 wire 形状契约**：VM 侧写入 `status.message` 的值必须是合规
+`A2A.Message`（`parts[]` 至少一个 `text` part）——宿主 `extractText` 只认该形状（首行判据
+`if (!message?.parts) return ''`，该判据是对的，宿主侧不改）。框架侧 `createProgressSink.onStatus`
+对契约形参 `message?: string` 做**类型整形**（唯一裁决点在 sink 层，`TaskStore.updateStatus` 本体
+签名与行为不动），三分支：
+
+| 入参形态 | 整形结果 |
+|---|---|
+| 非空 string | 构造 `{kind:'message', role:'agent', messageId: 新 UUID, taskId, parts:[{kind:'text', text: 原文案}]}`（对照 `approvalMessage`/`resultMessage` 等既有正确样板） |
+| 空串 / 仅空白 | 与缺席等价 ⇒ `status.message` 键整体不写（宿主端不可分：修复前后 `extractText` 均返 `''`，均不入 `progress[]`） |
+| 对象形态（第三方直传 Message） | **verbatim 透传**，零重复包装（幂等，引用不变） |
+
+- **确定性路径实时进度自 P2-T12 起恢复可见**。~~此前 sink 层把 string as-cast 成 `A2A.Message` 直存，
+  wire 上是裸字符串 ⇒ 宿主 `extractText` 恒空 ⇒ 有态进度文案对两种 provider 的生产呈现面均不可达
+  （含 delegate 实时回显与 §4.5 有态取消文案的派生输入）~~ —— P2-T12 订正注记（2026-10-11）：缺陷已修复，
+  原文不删、划线留痕。判据 = `tests/unit/phase2-progress-message.test.js`（A 组 wire 逐键 + 缺席语义 +
+  透传幂等 + 病灶对照组；B 组经 `createProgressSink` 真实装配与 `message/stream` 完整通路喂宿主
+  `a2a.delegate`，断言 `progress[]` 非空与 `executedBeforeCancel` 有态可达）。修复前 wire 实况与
+  真机实证见 `qa/r19/t5-l2d-deterministic-evidence.md`。
+- 审批链路不经本整形（`waitApproval` 直传 store，本就产合规 Message），零影响。
+- completed/failed 终态收口由 server 侧 `resultMessage`/`errorMessage` 直传 store，不经 sink ⇒ 其
+  `text + data` 双 part 形态逐字节不变（宿主既有消费面零回归）。
+
 ### 4.4 审批闸
 
 任务挂起 → 宿主**必须先向用户展示影响清单** → 取得确认后才调 `a2a.approval.reply`。桥只做搬运，不代为决策；VM 侧超时按拒绝处理（fail-closed）。

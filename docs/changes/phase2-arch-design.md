@@ -202,6 +202,8 @@ backlog 给的临时口径"先做文档级注明：仅 `state==='healthy'` 才�
 
 **L2 余项更新（2026-10-10 12:0x，主理人复核工程师真机构造后追加）**：有态样本**已构造完成并归档**（`qa/r19/t5-l2d-deterministic-evidence.md/.json`，attempt1/2 双复现，现场喂现网 derive ⇒ `{steps:1,artifacts:0}` 有态文案成立，VM 复原三值实测干净）。**同时补强一条比 `1faec49` 架构结论更深的实况**：同任务上生产 `a2a.delegate` 实测 progress=0/ebc=null——根因是 **sink→wire 类型级谎报**：契约 `onStatus(message?: string)`（contracts/bridge.ts:381）→ 确定性模板传 string（adapter-workbuddy/index.ts:418）→ `createProgressSink` as-cast 成 `A2A.Message` 直存（a2a-framework/task-store.ts:630-631）→ wire 裸字符串（探针 msgType=string 实证）→ 宿主 `extractText` 只认 `Message.parts`（host-a2a-bridge/tools.ts:45-46）⇒ 恒空。**有态在生产呈现面对两种 provider 均不可达**（LLM 路径另有 steps 恒空红线；确定性路径栽在此 as-cast），"只在确定性模板路径可达"须精确化为"只在 derive 函数层面可达"。对照旁证：框架自有 `approvalTimeoutMessage`（task-store.ts:439）正确构造 Message ⇒ as-cast 处是疏漏非设计；且该缺口**同样吞掉确定性路径 delegate 的实时进度回显**（不止取消文案）。审批链路不受影响（独立通路）。**建议新增任务 P2-T12**：`createProgressSink.onStatus` 构造合规 Message（纯框架侧一处），同批回归 delegate progress 呈现；归属 F3，与 P2-T7 同文件（task-store.ts 单写者）⇒ 排 T7 同批串行。**L2 余项从真机清单移除（已闭环）**，同窗口四件事减为三件。
 
+> **前向指针订正（2026-10-11，P2-T12 交付）**：上条登记的 sink→wire 类型谎报（"有态在生产呈现面对两种 provider 均不可达"）**已修复**——`createProgressSink.onStatus` 现经唯一裁决点 `toStatusMessage` 三分支整形（非空 string ⇒ 合规 Message；空串/仅空白 ⇒ 与缺席等价；对象形态 ⇒ verbatim 透传），`TaskStore.updateStatus` 与宿主 `extractText` 均零触碰。确定性路径实时进度恢复可见，有态取消文案派生输入随之可达。判据 `tests/unit/phase2-progress-message.test.js`（含修复前 RED 基线复现病灶），口径落 `HOST-A2A-BRIDGE.md` §4.3.1。原文按留痕纪律不回改（K-20）。
+
 P2 的诚实处置（GUI 部分不变）：
 - **不在离线测试里假装覆盖**（现有 GUI 用例走的是探测形态，不是真点击）；
 - 交付一条**锁屏前置探针**：真机窗口开工前先跑会话交互性探测（`meta.session.status` / `health-probe` 的 `interactive`），若判非交互 ⇒ **立即标记该轮 GUI 端到端为 BLOCKED 并停手**，而不是跑出假红再分诊（Phase 1 §5 经验："见到红必须先分诊"；能提前判 BLOCKED 就别浪费档期）；
@@ -544,3 +546,13 @@ graph TD
 **主理人独立核验**：tsc exit 0；复跑新件 44/44 + t3-cancel-bounded 29/29 + §5 八守卫（shape33/mutation54/assembly45/selfcheck45/inner38/dead14/schema23/snapshot17）+ r19c-a5-approval-coordinator 22/22（成员回报名简写，全路径复验绿）；代码抽验（唯一删除路径三面对账/窗外语义/合并投递器/health 同读数源）；VM 终态 curl 实测与证据互证。**基线 87/1695 → 88/1739（+44 精确对账，0 fail，2 skip 恒 OFFLINE_SKIP；成员 sweep 落盘 p2t7-sweep-result.txt FILES=88 FAILED=0）**。零改钉实证（dtid 行 :1684 逐字节、innerReconnectObserved 6 处、freshChainOnStart/storedState/cancelRequested 恰 4 行全在位）。
 
 **转正事项**：①(a) 批量 cancel 红线 → backlog（收官批定夺是否立项"取消 SLA/会话打断放大"修复）；②工作流纪律"真机窗口串行化探针"写入 QA 手册口径；③T12（同文件 task-store.ts as-cast 修复）前置条件已满足，T7 为唯一写者收官。
+
+### 13.8 P2-T12 交付与主理人核验（2026-10-12 09:4x）
+
+**停摆形态（新型：网络故障致死，非上下文断流）**：实例 240m 后 framework 报 failed（`getaddrinfo EAI_AGAIN` 上游 token-plan 端点解析失败）。磁盘取证=**离线面实际完成至 step5**：timeline 止 step3c（19:55 GREEN），但守卫 12 件（p2t12-guards-result 19:59）、定向 12 件（20:05）、HOST-A2A-BRIDGE §4.3.1（20:21）、§3.4 前向指针订正（20:28）、sweep 文件清单 89 项（20:23）均已落盘——成员死在 sweep 执行步之前。**处置=主理人亲跑收尾**（续跑通道对网络死实例无意义，工作区文件即全部真相）：tsc 0 复验、关键回归六件复跑（progress-message 12 / evict-observe 44 / t3-cancel-bounded 29 / host-a2a-bridge 39 / k5-replay 41 / mcp-signal 54 全绿）、全仓 sweep 主理人亲跑（runner=p2t7 复制）= **89 文件 / 1751 例 / 0 fail / 2 skip**（88/1739+12 精确对账，SKIP 恒 ssh2-resolve）。
+
+**交付实质**：`toStatusMessage(taskId, message)` 三分支唯一裁决点（非空 string⇒对照 approvalMessage/resultMessage 四样板构造合规 Message；空串/仅空白⇒缺席（与修复前宿主行为等价性论证成立）；对象形态⇒verbatim 透传幂等；契约外杂值归缺席）。`createProgressSink.onStatus` 经整形后才进 `updateStatus`——**`TaskStore.updateStatus` 本体与宿主 `extractText` 零触碰**；生产透传链（server.ts handler verbatim 转 sink.onStatus）自动覆盖 message/send、message/stream、tasks/subscribe 全入口。测试 A 组（wire 逐键/缺席语义/透传幂等/**病灶对照组**——复刻裸 as-cast 钉 extractText 恒空）+ B 组（A2AServer+message/stream 完整 SSE 通路喂宿主 a2a.delegate 断言 progress 非空）——穿过 as-cast 层而非手工拼对象，正对 T5 真机病灶面。RED 基线留档（12 例 9 fail，A1 actual='string' 复现病灶）。零改钉（既有测试无钉裸 string 形态，侦查实证）。文档：HOST-A2A-BRIDGE 新增 §4.3.1 wire 形状契约三分支表+划线诚实化（K-20 留痕，原文不删）；本文档 §3.4 前向指针订正。真机顺带**不做**（离线 SSE 通路已完整覆盖生产形态；VM 侧改动风险>收益）——主理人认可该裁断，L2-D 派生的"确定性路径实时进度恢复可见"由 B 组端到端断言背书。
+
+**证据归档**：wbtmp 关键五件复制入 `qa/r19/t12-{design,red-baseline,guards-result,targeted-result,sweep-result}`（同 T5 health-after 处置惯例）。
+
+**基线 88/1739 → 89/1751（+12 精确对账，0 fail，2 skip 恒 OFFLINE_SKIP）**。

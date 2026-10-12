@@ -775,13 +775,66 @@ export class TaskStore {
 }
 
 /**
+ * P2-T12（L2-D）：把 `onStatus` 的进度文案整形为**合规** `A2A.Message`（wire 形状的唯一裁决点）。
+ *
+ * 病灶（真机实证 `qa/r19/t5-l2d-deterministic-evidence.md`）：契约声明 `onStatus(message?: string)`
+ * （contracts/bridge.ts）→ provider 全部传 string → 旧实现把 string **裸 as-cast** 成
+ * `A2A.Message` 直存 ⇒ wire 上是裸字符串 → 宿主 `extractText` 只认 `Message.parts[]`
+ * （host-a2a-bridge/tools.ts）⇒ 恒空。有态进度文案（含确定性路径 delegate 的实时回显与
+ * 有态取消文案的派生输入）对两种 provider 的生产呈现面均不可达。
+ *
+ * 三分支（形态对照本文件 `approvalMessage` / `approvalTimeoutMessage` 与 server.ts
+ * `resultMessage` / `errorMessage` 四个既有正确样板）：
+ *  · `string` 且 trim 后非空 ⇒ 构造 `{kind:'message', role:'agent', messageId: 新 UUID,
+ *    taskId, parts:[{kind:'text', text: 原文案}]}`。role=agent：进度文案是 Agent 侧叙述；
+ *    携带 taskId：四样板一致；text 用**原文**（trim 只用于判空，文案逐字保真——
+ *    脱敏归宿主侧 scrubText，本层不加工）；单 text part：本路径不产 data part
+ *    （审批结构由 `waitApproval` 独立通路，不受本修复影响）。
+ *  · `string` 为空串/仅空白 ⇒ **缺席**（返回 undefined）。等价性论证：修复前空串 as-cast 后
+ *    宿主 `extractText` 恒返 `''` ⇒ `if (text)` 不 push；修复后若不判空，`parts:[{text:''}]`
+ *    经 join+trim 仍为 `''` ⇒ 同样不 push。两形态宿主端不可分 ⇒ 取最保守的「键整体缺席」
+ *    （status 不写 message 键，emit/投影与 `onStatus(state)` 裸调用逐字同形）。
+ *  · 缺席（undefined / null）⇒ 原样缺席（既有裸 `onStatus('working')` 调用面零变化）。
+ *
+ * 防御性宽容：其余对象形态 **verbatim 透传**（第三方 provider 若已按正确形态直传
+ * Message，零重复包装、引用不变 —— 契约虽只声明 string，修复前的运行时形态本就是
+ * 「任意值直存」，此处保持对合法 Message 输入幂等，同时把它显式化为一等分支）。
+ * 非 string / 非 object 的杂值（number / boolean 等）归缺席 —— 契约外形态，宁可缺席
+ * 也不给宿主一个谎称 Message 的脏值。
+ *
+ * 签名用 `unknown` 而非契约的 `string | undefined`：契约参数名 `message` 语义即
+ * "状态消息"，运行时历史形态是直存任意值；以 `unknown` 收口才能把三分支写成
+ * 类型完备的裁决函数（调用点上下文类型不变，纯内部收窄）。
+ */
+function toStatusMessage(taskId: string, message: unknown): A2A.Message | undefined {
+  if (typeof message === 'string') {
+    if (message.trim() === '') return undefined;
+    return {
+      kind: 'message',
+      role: 'agent',
+      messageId: randomUUID(),
+      taskId,
+      parts: [{ kind: 'text', text: message }],
+    };
+  }
+  if (message !== null && typeof message === 'object') {
+    return message as A2A.Message;
+  }
+  return undefined;
+}
+
+/**
  * 把 TaskStore 包装为 ProgressSink 供 provider 使用。
  * provider 只调用 sink，不直接接触 TaskStore —— 保持桥接层解耦。
+ *
+ * P2-T12：`onStatus` 的文案经 {@link toStatusMessage} 整形后才进 `updateStatus`
+ * （旧裸 as-cast 是 L2-D 病灶；`TaskStore.updateStatus` 签名与行为**不动** ——
+ * 终态收口等直传 store 的调用点本就传合规 Message，不经本闸）。
  */
 export function createProgressSink(store: TaskStore, taskId: string): ProgressSink {
   return {
     onStatus(state, message) {
-      store.updateStatus(taskId, state as A2A.TaskState, message as A2A.Message | undefined);
+      store.updateStatus(taskId, state as A2A.TaskState, toStatusMessage(taskId, message));
     },
     onArtifact(artifact) {
       store.addArtifact(taskId, {

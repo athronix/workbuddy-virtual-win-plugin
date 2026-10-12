@@ -1,0 +1,266 @@
+TAP version 13
+# Subtest: P2-T12 A 组：sink.onStatus(string) ⇒ 存储/透出对象恰为合规 Message
+    # Subtest: A1 逐键钉：kind/role/messageId/taskId/parts —— 不再是裸 string
+    not ok 1 - A1 逐键钉：kind/role/messageId/taskId/parts —— 不再是裸 string
+      ---
+      duration_ms: 5.895156
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:115:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        wire 必须是对象（病灶形态是裸 string，msgType=string 实证过）
+        
+        'string' !== 'object'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 'object'
+      actual: 'string'
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:123:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1106:25)
+        Test.start (node:internal/test_runner/test:1003:17)
+        node:internal/test_runner/test:1516:71
+        node:internal/per_context/primordials:466:82
+        new Promise (<anonymous>)
+        new SafePromise (node:internal/per_context/primordials:435:3)
+        node:internal/per_context/primordials:466:9
+        Array.map (<anonymous>)
+      ...
+    # Subtest: A2 SSE status-update 事件同样携带合规 Message（宿主消费的是这一帧）
+    not ok 2 - A2 SSE status-update 事件同样携带合规 Message（宿主消费的是这一帧）
+      ---
+      duration_ms: 0.510468
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:134:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        SSE 帧上不得是裸 string
+        
+        'string' !== 'object'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 'object'
+      actual: 'string'
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:147:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1106:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:788:18)
+        Test.postRun (node:internal/test_runner/test:1235:19)
+        Test.run (node:internal/test_runner/test:1163:12)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1518:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)
+      ...
+    # Subtest: A3 messageId 每次新建（同文案两次调用不得复用同一 id）
+    not ok 3 - A3 messageId 每次新建（同文案两次调用不得复用同一 id）
+      ---
+      duration_ms: 1.260625
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:152:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The input did not match the regular expression /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/. Input:
+        
+        'undefined'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected:
+      actual: 'undefined'
+      operator: 'match'
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:162:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1106:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:788:18)
+        Test.postRun (node:internal/test_runner/test:1235:19)
+        Test.run (node:internal/test_runner/test:1163:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:788:7)
+      ...
+    # Subtest: A4 message 缺席 ⇒ status.message 键整体缺席（缺席语义逐字旧行为，条件展开不写显式 undefined）
+    ok 4 - A4 message 缺席 ⇒ status.message 键整体缺席（缺席语义逐字旧行为，条件展开不写显式 undefined）
+      ---
+      duration_ms: 0.282343
+      type: 'test'
+      ...
+    # Subtest: A5 空串/仅空白 ⇒ 与缺席等价（宿主端不可分：修复前后 progress.push 判据 `if (text)` 行为一致）
+    not ok 5 - A5 空串/仅空白 ⇒ 与缺席等价（宿主端不可分：修复前后 progress.push 判据 `if (text)` 行为一致）
+      ---
+      duration_ms: 0.275157
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:178:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        仅空白同样缺席（trim 后为空 ⇒ 无可呈现文本）
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:187:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1106:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:788:18)
+        Test.postRun (node:internal/test_runner/test:1235:19)
+        Test.run (node:internal/test_runner/test:1163:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:788:7)
+      ...
+    # Subtest: A6 对象形态 verbatim 透传（第三方 provider 直传 Message ⇒ 零重复包装，幂等）
+    ok 6 - A6 对象形态 verbatim 透传（第三方 provider 直传 Message ⇒ 零重复包装，幂等）
+      ---
+      duration_ms: 0.299687
+      type: 'test'
+      ...
+    # Subtest: A7 病灶对照组：修复前的失败形态仍在 store 层可复现（证明本测试穿过 as-cast 那一层）
+    ok 7 - A7 病灶对照组：修复前的失败形态仍在 store 层可复现（证明本测试穿过 as-cast 那一层）
+      ---
+      duration_ms: 0.31875
+      type: 'test'
+      ...
+    # Subtest: A8 消费侧联动：经生产 sink 的文案过宿主 extractText 非空；终态收口路径 wire 形状不受影响
+    not ok 8 - A8 消费侧联动：经生产 sink 的文案过宿主 extractText 非空；终态收口路径 wire 形状不受影响
+      ---
+      duration_ms: 0.507344
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:244:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        T5 病灶的验收判据：宿主提取结果非空
+        + actual - expected
+        
+        + ''
+        - '执行 storage.disk.list：查盘'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: '执行 storage.disk.list：查盘'
+      actual: ''
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:250:12)
+        Test.runInAsyncScope (node:async_hooks:214:14)
+        Test.run (node:internal/test_runner/test:1106:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:788:18)
+        Test.postRun (node:internal/test_runner/test:1235:19)
+        Test.run (node:internal/test_runner/test:1163:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:788:7)
+      ...
+    1..8
+not ok 1 - P2-T12 A 组：sink.onStatus(string) ⇒ 存储/透出对象恰为合规 Message
+  ---
+  duration_ms: 11.811406
+  type: 'suite'
+  location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:114:1'
+  failureType: 'subtestsFailed'
+  error: '5 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+# Subtest: P2-T12 B 组：有态进度经生产通道在宿主呈现面可达
+    # Subtest: B1 working 文案 ⇒ delegate 的 progress[] 非空（修复前恒空 —— 本断言即 T5 病灶的正靶）
+    not ok 1 - B1 working 文案 ⇒ delegate 的 progress[] 非空（修复前恒空 —— 本断言即 T5 病灶的正靶）
+      ---
+      duration_ms: 4.836094
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:320:3'
+      failureType: 'testCodeFailure'
+      error: 'progress 必须含两条 working 文案，实得 1（恒空=T5 病灶复发）'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:328:12)
+        async Test.run (node:internal/test_runner/test:1113:7)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1518:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+      ...
+    # Subtest: B2 有态取消经生产通道：executedBeforeCancel 出现且 steps 与模板步数一致
+    not ok 2 - B2 有态取消经生产通道：executedBeforeCancel 出现且 steps 与模板步数一致
+      ---
+      duration_ms: 86.072812
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:335:3'
+      failureType: 'testCodeFailure'
+      error: '取消前两条 working 进度必须可达（旧缺陷下此数组恒空）'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:361:12)
+        async Test.run (node:internal/test_runner/test:1113:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:788:7)
+      ...
+    # Subtest: B3 a2a.task.get 的实时进度透出非空（tools.ts:582 同款消费点）
+    not ok 3 - B3 a2a.task.get 的实时进度透出非空（tools.ts:582 同款消费点）
+      ---
+      duration_ms: 1.825781
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:367:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        task.get 的 message 键 = scrubText(extractText(status.message))，修复后非空
+        + actual - expected
+        
+        + undefined
+        - '执行 app.inventory.list：查清单'
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: '执行 app.inventory.list：查清单'
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:386:12)
+        async Test.run (node:internal/test_runner/test:1113:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:788:7)
+      ...
+    # Subtest: B4 derive 语义级联：execution-steps 载体在场时优先于 progress 派生（两路可分）
+    not ok 4 - B4 derive 语义级联：execution-steps 载体在场时优先于 progress 派生（两路可分）
+      ---
+      duration_ms: 1.509062
+      type: 'test'
+      location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:390:3'
+      failureType: 'testCodeFailure'
+      error: 'working 文案可达'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:417:12)
+        async Test.run (node:internal/test_runner/test:1113:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:788:7)
+      ...
+    1..4
+not ok 2 - P2-T12 B 组：有态进度经生产通道在宿主呈现面可达
+  ---
+  duration_ms: 94.811562
+  type: 'suite'
+  location: '/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-progress-message.test.js:270:1'
+  failureType: 'subtestsFailed'
+  error: '4 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..2
+# tests 12
+# suites 2
+# pass 3
+# fail 9
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 458.450781
