@@ -1,0 +1,4 @@
+lock-probe · http://127.0.0.1:18443/health（只读前置探针）
+  session: state=healthy interactive=true locked=false blackScreen=false sessionId=1
+  · guiAllowed 判据成立（state=healthy ∧ interactive ∧ !blackScreen）
+VERDICT: GO

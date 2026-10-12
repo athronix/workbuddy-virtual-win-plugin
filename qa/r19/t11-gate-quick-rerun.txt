@@ -1,0 +1,23 @@
+# gate QUICK · 2026-10-12T09:45:16.457Z
+# node=/data/storage/el1/bundle/libs/arm64/node/bin/node cwd=/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin
+=== WinVM Bridge 门禁（QUICK）· 2026-10-12T09:45:16.458Z ===
+[ST1 tsc] node_modules/typescript/bin/tsc -b tsconfig.build.json …
+[ST2 dep-lint] node scripts/dep-lint.mjs …
+[ST2b config-keys] node scripts/config-key-lint.mjs --json …
+[ST3 guards] 进门禁守卫件 7 件（逐文件）…
+GREEN tests/unit/phase2-snapshot-truth.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/phase2-dead-config.test.js rc=0 tests=14 pass=14 fail=0 skip=0
+GREEN tests/unit/phase2-contract-schema.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/phase2-contract-code-fidelity.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+GREEN tests/unit/phase2-session-unknown.test.js rc=0 tests=48 pass=48 fail=0 skip=0
+GREEN tests/unit/assembly-guard.test.js rc=0 tests=24 pass=24 fail=0 skip=0
+GREEN tests/unit/psmod-contract.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+
+GREEN     tsc — 12 包编译通过（K-3 第一步；dep-lint 读 dist 的前置，PR9）
+GREEN     dep-lint — packages=12 语句边=39 包级边=22 审计符号=7 hard=0 warn=0 info=11
+GREEN     config-keys — 顶层段=9 白名单段=9 未知键=0
+GREEN     guards — files=7 failed=0 tests=155 pass=155 fail=0 skip=0
+
+FILES=7 FAILED_FILES=0 TOTAL_TESTS=155 TOTAL_PASS=155 TOTAL_FAIL=0 TOTAL_SKIP=0
+VERDICT: GREEN
+（GATE-POLICY.md：跳过门禁即视为未验收；本文件即该批次的门禁证据）

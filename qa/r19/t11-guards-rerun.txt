@@ -1,0 +1,13 @@
+rc=0 tests=17 pass=17 fail=0 skip=0  phase2-snapshot-truth.test.js
+rc=0 tests=14 pass=14 fail=0 skip=0  phase2-dead-config.test.js
+rc=0 tests=23 pass=23 fail=0 skip=0  phase2-contract-schema.test.js
+rc=0 tests=22 pass=22 fail=0 skip=0  phase2-contract-code-fidelity.test.js
+rc=0 tests=48 pass=48 fail=0 skip=0  phase2-session-unknown.test.js
+rc=0 tests=9 pass=9 fail=0 skip=0  enabled-plugins.test.js
+rc=0 tests=8 pass=8 fail=0 skip=0  deploy-shared-skills.test.js
+rc=0 tests=5 pass=5 fail=0 skip=0  setup-devqa-manifest.test.js
+rc=0 tests=19 pass=19 fail=0 skip=0  setup-env.test.js
+rc=0 tests=9 pass=9 fail=0 skip=0  path-util.test.js
+rc=0 tests=16 pass=16 fail=0 skip=0  link-workspace.test.js
+rc=0 tests=24 pass=24 fail=0 skip=0  assembly-guard.test.js
+rc=0 tests=7 pass=7 fail=0 skip=0  psmod-contract.test.js

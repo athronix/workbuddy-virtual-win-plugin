@@ -1,0 +1,29 @@
+# P2-T11 锁屏前置探针（E-3）只读实跑证据 · HEAD=349ecc2(refs/heads/main=0abdfa2 docs-only) · 2026-10-12T17:55:13+08:00
+# 消费方：Phase 2 真机窗口开工前置判定（设计 §3.4 E-3；gate --lock-probe / npm run lock-probe）
+# 本探针零写面：仅 GET /health（VM 侧未动，宿主未动）
+lock-probe · http://127.0.0.1:18443/health（只读前置探针）
+  session: state=healthy interactive=true locked=false blackScreen=false sessionId=1
+  · guiAllowed 判据成立（state=healthy ∧ interactive ∧ !blackScreen）
+VERDICT: GO
+----
+{
+  "verdict": "GO",
+  "code": 0,
+  "reasons": [
+    "guiAllowed 判据成立（state=healthy ∧ interactive ∧ !blackScreen）"
+  ],
+  "session": {
+    "sessionId": 1,
+    "windowStation": "WinSta0",
+    "desktop": "Default",
+    "interactive": true,
+    "locked": false,
+    "blackScreen": false,
+    "state": "healthy",
+    "detail": "会话健康，GUI 能力可用"
+  },
+  "http": {
+    "baseUrl": "http://127.0.0.1:18443",
+    "status": 200
+  }
+}

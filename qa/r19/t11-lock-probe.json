@@ -1,0 +1,21 @@
+{
+  "verdict": "GO",
+  "code": 0,
+  "reasons": [
+    "guiAllowed 判据成立（state=healthy ∧ interactive ∧ !blackScreen）"
+  ],
+  "session": {
+    "sessionId": 1,
+    "windowStation": "WinSta0",
+    "desktop": "Default",
+    "interactive": true,
+    "locked": false,
+    "blackScreen": false,
+    "state": "healthy",
+    "detail": "会话健康，GUI 能力可用"
+  },
+  "http": {
+    "baseUrl": "http://127.0.0.1:18443",
+    "status": 200
+  }
+}

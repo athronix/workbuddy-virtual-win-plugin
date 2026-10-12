@@ -1,7 +1,10 @@
 # 交付概览 · WinVM 跨机 Agent 插件（1+5 双通道方案）
 
 > 让宿主机 WorkBuddy 完全操作一台 Windows 虚拟机的完整实现已交付。
-> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，**79 文件 / 1457 例（1455 pass / 0 fail / 2 skipped；skip 恒为 `ssh2-resolve` 离线用例）**（2026-10-10 Phase 1 T5 收官 QA 独立复跑基线 = `.test.js` 71 文件 1387 例 + `.test.mjs` 8 文件 70 例；演进链 1247(Phase 0)→1253(T1/T2)→1283(T3)→1400(T4)→1456(T5)→1457(T5 收官小修)）。覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R、Phase 0 安全守卫 U-P0-1 路径穿越 / U-P0-3 dry-run A1 / psmod 契约 / 装配点，以及 Phase 1 安全兑现批 T1–T5（链范围透出 / 审批三态入链 / `/health.audit.scope` / 非回环 fail-closed / ARCH-22 真取消：执行体消费取消 + LLM 双路打断 + 宿主事实化呈现 + `--token-env` 通路）。
+> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，单元测试与端到端全绿
+> （**测试基线数字的权威源 = `qa/` 下最新一轮 `*-sweep-result.txt` 汇总行**，本文件不静态维护
+> 文件数/例数以防漂移；查法见 `README.md` §8。skip 恒为 `ssh2-resolve` 离线用例 OFFLINE_SKIP）。
+> 覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R、Phase 0 安全守卫 U-P0-1 路径穿越 / U-P0-3 dry-run A1 / psmod 契约 / 装配点、Phase 1 安全兑现批 T1–T5（链范围透出 / 审批三态入链 / `/health.audit.scope` / 非回环 fail-closed / ARCH-22 真取消：执行体消费取消 + LLM 双路打断 + 宿主事实化呈现 + `--token-env` 通路），以及 Phase 2 守卫基建批 P2-T11（分层方向 dep-lint / 配置全键白名单 config-key-lint / 本地门禁 gate / 锁屏前置探针 lock-probe）。
 > 已补齐"操作 Windows 软件应用进行生产活动"这一被遗漏的关键维度（appops 域 + winvm-app-operation Skill + LLM provider 开放任务路径）。
 > **VM 侧 AI Agent 已可经 `agent.provider` 一键切换**：`workbuddy-deterministic`（确定性，默认）/ `workbuddy`（LLM Agent，V1 已实现）/ `hermes-agent`（Nous Research Hermes Agent，MCP 预注册）。
 > **双通道已完整闭环**：简单任务 → 宿主 MCP client 直调 VM 的 MCP 工具；复杂任务 → 宿主经 A2A 委派桥（`host-a2a-bridge`）把目标交给 VM 内 AI Agent，过程与产物按 A2A 规范回流。
@@ -59,7 +62,8 @@
 | 项 | 结果 |
 |----|------|
 | 全量编译 `tsc -b` | ✅ 12/12 包通过 |
-| 单元测试 + 端到端 | ✅ **79 文件 / 1457 例（1455 pass / 0 fail / 2 skipped；skip 恒为 `ssh2-resolve` 离线用例）**（2026-10-10 Phase 1 T5 收官 QA 独立复跑基线 = `.test.js` 71 文件 1387 例 + `.test.mjs` 8 文件 70 例；演进链 1247(Phase 0)→1253(T1/T2)→1283(T3)→1400(T4)→1456(T5)→1457(T5 收官小修)；覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R、Phase 0 安全守卫 U-P0-1/U-P0-3/psmod 契约/装配点，以及 Phase 1 安全兑现批 T1–T5（含 ARCH-22 真取消），无回归） |
+| 单元测试 + 端到端 | ✅ 全绿（**逐文件**方式跑，`FILES` / `TOTAL_TESTS` / `TOTAL_FAIL=0` / `TOTAL_SKIP=2` 的当前数值以 `qa/` 最新 `*-sweep-result.txt` 汇总行为权威源，本表不静态维护数字；skip 恒为 `ssh2-resolve` 离线用例 OFFLINE_SKIP；覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R、Phase 0 安全守卫 U-P0-1/U-P0-3/psmod 契约/装配点、Phase 1 安全兑现批 T1–T5（含 ARCH-22 真取消），以及 Phase 2 守卫基建批 P2-T11，无回归） |
+| 本地门禁 `npm run gate` | ✅ 五段流水线 GREEN：`tsc -b` → `dep-lint`（分层方向/反向边/框架审计边）→ `config-key-lint`（配置全键白名单）→ 契约/schema 守卫件 → 全仓逐文件 sweep；判据清单与"不进门禁项"见 `scripts/GATE-POLICY.md`（跳过门禁即视为未验收） |
 | ps-bridge 真实链路 | ✅ 真实 PowerShell 5.1，五大模块加载，返回真实系统数据 |
 | 安装器 dry-run | ✅ 6 Skill / 7 文件 / 1 增量补丁 / 静态禁用 8 高危工具 |
 | VM 服务配置校验 | ✅ 0 错误 0 警告，强制回环绑定 |
@@ -103,6 +107,8 @@ re-export（P2-T10 的 `reconcileApprovalWait` 不进 ⇒ 对外契约面零变�
 **交付（delivery/）**：`setup.mjs`（双端一键：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行，读 `.env`）· `install-host.mjs` / `install-vm.mjs`（幂等/增量/dry-run/--provider/--cli/--skills-root/--skip-skills/--skip-install/--skip-links/uninstall）· `link-workspace.mjs`（VM 侧 @winvm workspace junction 软链，免 npm ci/免联网，修复远程分发链路缺 node_modules 的根因）· `deploy-shared-skills.mjs`（共享 Skills 发布 + 各候选 Agent symlink 规划，可 `--apply`）· `vm-service.config.json`（含三 provider 定义：`workbuddy-deterministic` / `workbuddy` / `hermes-agent`）· `.env.example`
 
 **DDD 索引（.dev/ 6 文件）**：README / project-dir-file-index / docs-index / project-dev-status / changed-log / changing-log
+
+**守卫基建（scripts/，P2-T11）**：`dep-lint.mjs`（分层方向 / 反向边 / 框架层审计边，读各包 dist 编译产物，语句锚定解析不受字符串字面量干扰）· `config-key-lint.mjs`（`ServiceConfig` 全键白名单守卫，白名单派生自 TS 类型而非硬编码清单）· `gate.mjs`（本地门禁聚合器，`--quick` / 全量两档，逐文件 spawn）· `lock-probe.mjs`（锁屏前置探针，只读 `/health`，fail-closed）· `GATE-POLICY.md`（进门禁判据权威清单 + 不进门禁项与理由；**跳过门禁即视为未验收**）
 
 ---
 

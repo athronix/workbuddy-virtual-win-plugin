@@ -586,3 +586,24 @@ graph TD
 **证据归档**：wbtmp 复制入 `qa/r19/t9-{design,green-baseline,guards-rerun,sweep-result,timeline-eng1,timeline-eng2,lead-sweep-part1..3}`（九件）。
 
 **基线 90/1809 → 91/1857（+48 精确对账，0 fail，2 skip 恒 OFFLINE_SKIP）**。
+
+### 13.11 P2-T11 交付与主理人核验（2026-10-12 18:1x）
+
+**停摆形态（心跳前移双源判活纪律复验成功）**：单棒全程 96 分钟（16:09–17:57）零停摆。timeline 行数稀疏但**磁盘产物面持续活跃**（dep-lint 16:37→lock-probe/gate 16:44→config-key-lint 16:54→GATE-POLICY 17:02→脚本群 17:10–13 迭代→新测试 17:21→gate 17:32→docs 17:43→sweep 17:51→step9 自查 17:57）——主理人判活按 T8 教训执行**双源口径**（timeline+产物 mtime 差异），写作期长静默窗口未误判熔断、零重派。写作期两红点自查自修（red1/red2 留档：U-3 框架越界 fixture 判据面首跑断言 0≠1，成员修 dep-lint 语句锚定后主理人亲验 32/32 绿）。
+
+**交付实质（守卫基建四件套+门禁纪律+防漂移口径）**：
+- `scripts/dep-lint.mjs`（=恢复的 layout）：读 `packages/*/dist` 编译产物，**语句锚定**解析 import/export-from/require（防 core/config 动态 provider 装载的字符串字面量假命中——step1 key-finding 实证内化；design §4 坑清单）。三判据：A 分层方向（rank 表，package.json `layer` 字段=机检事实源单一；同层互依不判违规）；B 反向边（dist 语句边 vs package.json 声明面白名单 ⇒ 幽灵依赖 hard；「声明有产物无」判 info 不 hard——provider 动态装载属设计选择，实测 11 条 DECLARED_UNUSED 全此型，逐条审读合理）；C 框架层审计边（**审计符号清单派生自 core/contracts dist 导出而非硬编码**——core 新增 audit 导出自动进判据面，正是对"第四种静默失效状态"的防御；framework→业务包 hard=ARCHITECTURE §2.1 显式铁律、框架 import 审计符号 warn=Q7 首月）。exit 三态 0/1/**2 判不了**（ROOT_UNREADABLE/DIST_MISSING/LAYER_UNKNOWN——「门禁被跳过的失效不得伪装成绿」，U-4 专组钉；未知 layer 前缀 hard 防新增层位静默漏判）。
+- `scripts/config-key-lint.mjs`（gate ST2b）：ServiceConfig 全键白名单守卫，**白名单派生自 TS 类型**非手写清单（§13.2-② 裁决落地；注入假 policy 键必精准命中=裁决原文「任意未知键仍静默透传」病灶的显形装置）。
+- `scripts/gate.mjs`：五段流水线 ST1 tsc -b（PR9：dep-lint 读 dist 的前置）→ST2 dep-lint→ST2b config-keys→ST3 进门禁守卫件 7 件逐文件→ST4 全仓逐文件 sweep（--quick 止于 ST3）；逐文件 spawn 代码级杜绝 glob（K-2 内建）；TAP 计数解析 `# tests` 与 `ℹ tests` 双前缀兼容、解析失败判红不当 0 例通过（U-5 钉）；进门禁表与磁盘一致性自钉（表漂移=门禁自己被静默跳过的对冲面）。
+- `scripts/lock-probe.mjs` + `gate lock-probe` 子命令：E-3 锁屏前置探针，只读 `/health`→与 core guiAllowed 同判据的纯函数（U-7 五例：GO/BLOCKED(locked)/BLOCKED(blackScreen∨interactive 各自单独足以判停)/UNKNOWN(probeError 在场**绝不 GO**——T9 兜底值不是观测值)/缺字段 UNKNOWN 不猜形状）；非交互 exit 1=停手信号非代码红；零 VM 侧写。真机只读 GO 留档（sessionId=1，healthy/interactive/unlocked/blackScreen=false）。
+- `scripts/GATE-POLICY.md`：进门禁表+**不进门禁清单逐条带理由**（真机/VM/网络依赖件、纯 delivery 平台件）；「跳过门禁即视为未验收」入 README 门禁纪律块=本批的制度交付。
+- `tests/unit/phase2-dep-direction.test.js` 32 例七组（U-1 rank 表/U-2 幽灵边与 info 型/U-3 审计边含**派生性自证「非恒绿」**（同一判据喂假图必红）+真仓反证/U-4 exit 2 面/U-5 gate 表参数与 TAP 解析/U-6 config-keys 注入命中/U-7 探针纯函数）；fixture 走 os.tmpdir 构造假包图 spawnSync 跑 dep-lint，**不 import 被测包**（PR9 红线）。
+- `package.json`：`layout` 恢复指向真实存在的 dep-lint（历史「脚本指向不存在文件→写了没人能跑→被删」病灶闭环——T11 立项动机的兑现）+新增 `gate`/`gate:quick`/`lock-probe`；`test:unit` 字面量零触碰（r19b-s5 断言 6 钉+gate 复刻同约束）。
+- 文档防漂移口径：README §8 / `docs/06-OVERVIEW.md` **废弃静态基线数字**，改为锚定「权威源=`qa/` 最新 `*-sweep-result.txt` 汇总行」+给出查法命令；1457 等旧叙事降为演进记录不作事实源；06-OVERVIEW 交付表新增「本地门禁」行+守卫基建段；删除「dep-lint 属 Phase 2 规划/当前人工核对」失效句。
+- 守卫输入面自查（K-8）：snapshot-truth/dead-config 只扫 `packages/*/src` ⇒ scripts/ 不在扫描面（design §8 侦查确认）；新测试含 "snapshot" 相关组名？——无（U 组命名避讳事前核读）；qa/probes glob 不受 evidence 新文件影响（step8c 实测）。
+
+**测试与门禁**：新件 32 例；基线 **91/1857 → 92/1889（1887 pass / 0 fail / 2 skip）**，sweep 三片 394+808+687 对账=1857+32 精确闭合，gate full 档独立复跑同数据双路径互证（DISK=92 RUN=92 MATCH VERDICT GREEN）；13 件守卫复跑 222/222 与开工基线 diff IDENTICAL 零改钉。
+
+**主理人独立核验全绿**：tsc -b 亲跑 RC=0；新件亲跑 32/32；gate --quick 亲跑 VERDICT GREEN 且数字与成员逐项一致（packages=12 语句边=39 包级边=22 审计符号=7 hard=0 warn=0 info=11 / 顶层段=9 白名单段=9 未知键=0 / guards 7 件 155/155）；`git diff --stat HEAD -- packages/` **空输出=src 零改动实证**（改动面=README/06-OVERVIEW/package.json/scripts//新测试/qa 证据）；PR9 亲验（scripts 四件对 `from '@winvm/` 仅 dep-lint 两行注释命中、零语句级 import）；dep-lint 11 条 info 逐条审读全为 DECLARED_UNUSED 合理型；占位符/TODO 亲 grep=0；文档 diff 逐字审（静态数字清除彻底+权威源锚定+门禁纪律块合规）。§13.11 登记后文档守卫复绿。证据归档 `qa/r19/t11-*` 二十件（design/baseline/gate-quick/gate-quick-rerun/gate-full-rerun(+stdout)/red1/red2/sweep-part1..3/sweep-result/sweep-lines/guards-rerun/chunk-aa..ac/timeline/lock-probe.txt(+json+evidence)/now-counts 等）。原子提交见当日 git log。
+
+**遗留与转登**：① dep-lint 的 C 判据对 type-only import 存在派生盲区（编译期擦除），已如实写入 GATE-POLICY 不假装覆盖，由 C2+判据 A 共同兜住；② vm-service→adapter-llm 声明边产物零命中（动态装载）登记为范围外观察非违规；③ gate ST3 七件清单含 assembly-guard/psmod-contract（原 design 候选六件+装配守卫实跑稳定后纳入），不进门禁项逐条理由见 GATE-POLICY。

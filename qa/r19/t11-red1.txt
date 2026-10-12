@@ -1,0 +1,73 @@
+    not ok 1 - 框架 import 具体业务包（adapter-* / vm-service / vm-capabilities）⇒ FRAMEWORK_TO_BUSINESS hard
+    not ok 3 - 框架 import 审计符号 ⇒ AUDIT_EDGE_IN_FRAMEWORK warn；--strict-warn 下升为 hard
+not ok 5 - P2-T11 · U-3 框架层审计边（设计 §254 末句 + §258 第 3 条；Q7 首月 warn）
+  ✖ 框架 import 具体业务包（adapter-* / vm-service / vm-capabilities）⇒ FRAMEWORK_TO_BUSINESS hard (186.049062ms)
+  ✔ 审计符号清单**派生**自 dist 导出（不硬编码 ⇒ core 新增 audit 导出会自动进判据面） (264.956875ms)
+  ✖ 框架 import 审计符号 ⇒ AUDIT_EDGE_IN_FRAMEWORK warn；--strict-warn 下升为 hard (1.401719ms)
+  ✔ 真仓反证：当前框架 dist 零审计边命中（**非恒绿** —— 上条已证同一判据喂假图必红） (265.322031ms)
+✖ P2-T11 · U-3 框架层审计边（设计 §254 末句 + §258 第 3 条；Q7 首月 warn） (718.396406ms)
+▶ P2-T11 · U-4 判不了 ≠ 违规（exit 2 面；「无 CI 时门禁被跳过」的失效不得伪装成绿）
+  ✔ 根无 packages ⇒ exit 2 + ROOT_UNREADABLE (174.193438ms)
+  ✔ dist 缺失 ⇒ exit 2 + DIST_MISSING（PR9：dep-lint 读 dist 依赖 build 产物） (191.639844ms)
+  ✔ 未知 layer 前缀 ⇒ hard LAYER_UNKNOWN（新增层位须同步登记 rank，防静默漏判） (185.019844ms)
+✔ P2-T11 · U-4 判不了 ≠ 违规（exit 2 面；「无 CI 时门禁被跳过」的失效不得伪装成绿） (551.250469ms)
+▶ P2-T11 · U-5 门禁 gate.mjs 关键判据（只断表与参数面；全量 sweep 归 ST4，本文件绝不跑）
+  ✔ gate 导出的「进门禁表」与磁盘一致（表漂移 = 门禁自己被静默跳过，PR9 对冲面） (6.573594ms)
+  ✔ gate 导出「不进门禁」清单且逐条带理由（PR9 的文档对冲面） (1.105469ms)
+  ✔ gate TAP 计数解析：tap 前缀 `# tests` 与 node24 默认 `ℹ tests` 两种都认（解析失败⇒判红，不得当 0 例通过） (9.311406ms)
+  ✔ gate --help 面：quick 与全量两档存在，且全量档参数不含目录式整批 glob（K-2 内建约束） (18780.099375ms)
+✔ P2-T11 · U-5 门禁 gate.mjs 关键判据（只断表与参数面；全量 sweep 归 ST4，本文件绝不跑） (18797.77375ms)
+▶ P2-T11 · U-6 配置全键集白名单（设计 §13.2-②「policy 全键集白名单守卫 ⇒ 列入 gate 候选判据」）
+  ✔ 真机配置资产全键在白名单内 ⇒ GREEN（非恒绿：下条注入假键必红） (28.682187ms)
+  ✔ 注入假 policy 键 ⇒ 精准命中（裁决原文的「任意未知键仍静默透传」在此显形） (11.282968ms)
+  ✔ 顶层段名与注释键判定面：未知段 ⇒ 命中；$schema/comment ⇒ 放行 (7.635469ms)
+  ✔ 白名单派生自 TS 类型而非手写清单：段数 ≥9 且每段非空（漂移即显形） (6.510625ms)
+✔ P2-T11 · U-6 配置全键集白名单（设计 §13.2-②「policy 全键集白名单守卫 ⇒ 列入 gate 候选判据」） (54.449375ms)
+▶ P2-T11 · U-7 锁屏前置探针判据（设计 §3.4 E-3；纯函数，不碰网络/VM）
+  ✔ GO：healthy ∧ interactive ∧ !blackScreen（现网真机实况形状） (77.01625ms)
+  ✔ BLOCKED：locked=true ⇒ exit 1 并点出锁屏（"能提前判 BLOCKED 就别浪费档期"） (0.386094ms)
+  ✔ BLOCKED：blackScreen=true（Session 0 / 会话挂起形态）与 interactive=false 各自单独足以判停 (0.300781ms)
+  ✔ UNKNOWN：probeError 在场 ⇒ exit 3 且**绝不**判 GO（P2-T9 兜底值不是观测值，不得据此开工） (0.264063ms)
+  ✔ 缺 session 字段 ⇒ UNKNOWN（响应形状不符契约不猜）；纯函数零 I/O (0.166406ms)
+✔ P2-T11 · U-7 锁屏前置探针判据（设计 §3.4 E-3；纯函数，不碰网络/VM） (78.341719ms)
+ℹ tests 32
+--
+✖ failing tests:
+
+test at tests/unit/phase2-dep-direction.test.js:333:3
+✖ 框架 import 具体业务包（adapter-* / vm-service / vm-capabilities）⇒ FRAMEWORK_TO_BUSINESS hard (186.049062ms)
+  AssertionError [ERR_ASSERTION]: 框架越界应恰 1 条，实际 []
+  
+  0 !== 1
+  
+      at TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-dep-direction.test.js:346:14)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.start (node:internal/test_runner/test:1003:17)
+      at node:internal/test_runner/test:1516:71
+      at node:internal/per_context/primordials:466:82
+      at new Promise (<anonymous>)
+      at new SafePromise (node:internal/per_context/primordials:435:3)
+      at node:internal/per_context/primordials:466:9
+      at Array.map (<anonymous>) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at tests/unit/phase2-dep-direction.test.js:369:3
+✖ 框架 import 审计符号 ⇒ AUDIT_EDGE_IN_FRAMEWORK warn；--strict-warn 下升为 hard (1.401719ms)
+  Error: ENOENT: no such file or directory, open '/data/storage/el2/base/cache/p2t11-dep-KNPJEM/packages/core/dist/audit/chain.js'
+      at writeFileSync (node:fs:2427:20)
+      at makeFixture (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-dep-direction.test.js:103:7)
+      at TestContext.<anonymous> (file:///storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/tests/unit/phase2-dep-direction.test.js:370:16)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Suite.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    errno: -2,

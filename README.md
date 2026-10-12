@@ -270,26 +270,35 @@ npm run typecheck            # 同上，类型检查
 # ⚠️ 测试须逐文件跑（沙箱约束）：整批 node --test 会因 link-workspace 的 symlink(junction)
 # 触发进程访问违例、连带判死所有文件。务必逐文件（`.js` 与 `.mjs` 两类都要覆盖）：
 for f in tests/unit/*.test.js tests/unit/*.test.mjs; do node --test "$f"; done
+
+# 本地门禁（Phase 2 起为一等公民，推荐用它代替上面手工循环 ——
+# gate 内部即为「每文件独立子进程」spawn，代码层面杜绝整批 glob）：
+npm run gate:quick            # 快档：tsc -b → dep-lint → config-key-lint → 契约/schema 守卫件
+npm run gate                  # 全量档：快档四段 + 全仓逐文件 sweep（汇总行口径同 qa sweep-result）
+npm run layout                # 只跑分层方向守卫（scripts/dep-lint.mjs，读各包 dist 编译产物）
+npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 能力可用性前置判定）
 ```
 
-当前测试基线（2026-10-10 Phase 1 T5 收官 QA 独立复跑 · 逐文件方式）：
-**79 个测试文件 / 1457 例（1455 pass / 0 fail / 2 skipped；skip 恒为 `ssh2-resolve` 离线用例）**
-= `tests/unit/*.test.js` **71 文件 / 1387 例** ＋ `tests/unit/*.test.mjs` **8 文件 / 70 例**，
-覆盖契约、策略、审计、双协议、审批链（K3/K4/P3/K5/A5/K-N1/K-N2/S-4/CL-K3R）、Phase 0 安全守卫
-（U-P0-1 路径穿越 / U-P0-3 dry-run A1 / psmod 契约 / S-4·A5 装配点），以及 Phase 1 安全兑现批
-（T1–T5：链范围透出 / 审批三态入链 / `/health.audit.scope` / 非回环 fail-closed / **真取消 ARCH-22**
-—— 执行体消费取消 + LLM 双路打断 + 宿主事实化呈现 + `--token-env` 通路）等核心模块。
+> **门禁纪律（P2-T11）**：任何批次的交付**必须**先跑 `npm run gate`（或至少 `gate:quick`）并 GREEN
+> 方可进入验收——**跳过门禁即视为未验收**。哪些判据进门禁、哪些明确不进（及不进的覆盖去处），
+> 权威清单见 `scripts/GATE-POLICY.md`。
 
-> 旧口径「**1054/1054（59 个文件）**」为 2026-10-07 只统计 `*.test.js` 的快照，已随 Phase 0 守卫测试
-> 合入过时（增量来源：R1 psmod 54 能力契约 + R2 S-4/A5 装配点 + U-P0 穿越/dry-run 84 例；
-> R3 `c10a400` 修复根 `package.json` 测试脚本）。2026-10-08 体检曾修正为"60 个 `.test.js`"
-> （`docs/audit/2026-10-08-test-docs-audit.md` §1）；skip 数 3→2 系 assembly-guard 的 dry-run
-> 软探针随 `ba02fbb` 落地转硬断言通过。Phase 0 收官实跑的 **71 / 1247（1245+2 skip）** 曾是权威口径，
-> 现已由 Phase 1 安全兑现批推进（演进链 **1247(Phase 0) → 1253(T1/T2) → 1283(T3) → 1400(T4) →
-> 1456(T5) → 1457(T5 收官小修)**）；当前权威口径见本节首行，逐文件实跑留档见
-> `docs/changes/CL-022/QA-REPORT.md`（QA 独立复跑栏）。
-> 另注：根 `package.json` 的 `layout` 脚本（曾指向不存在的 `scripts/dep-lint.mjs`）已删除 ——
-> 依赖方向守卫 `dep-lint` 属 **Phase 2 规划**，当前请人工核对包间依赖方向。
+**测试基线的权威口径**：本文件**不静态维护**测试文件数/例数——任何"当前基线 = N 文件 / M 例"的
+叙述都会随批次漂移并造成文档与实跑不一致。唯一权威源是 `qa/` 下**最新一轮** `*-sweep-result.txt`
+的汇总行（`FILES=` / `TOTAL_TESTS=` / `TOTAL_FAIL=` / `TOTAL_SKIP=`，逐文件 TAP 计数可复核）。
+查当前基线：`ls -1 qa/*/sweep-result.txt qa/*/*-sweep-result.txt | sort | tail -1` 后读其汇总行。
+最近一轮（P2-T11 守卫基建，2026-10-12）逐文件实跑的完整留档随该批证据归档，其 `BASELINE`
+对账行锚定的上一权威基线为 `qa/r19/t9-sweep-result.txt` = **91 文件 / 1857 例**，本批唯一增项
+`tests/unit/phase2-dep-direction.test.js`。历史上曾出现过 1054 / 1247 / 1457 等多版数字，
+一律以最新 sweep 留档为准，旧文档叙述仅作演进记录、不作事实源。
+
+> 覆盖范围（定性）：契约、策略、审计、双协议、审批链（K3/K4/P3/K5/A5/K-N1/K-N2/S-4/CL-K3R）、
+> Phase 0 安全守卫（U-P0-1 路径穿越 / U-P0-3 dry-run A1 / psmod 契约 / S-4·A5 装配点）、
+> Phase 1 安全兑现批（T1–T5：链范围透出 / 审批三态入链 / `/health.audit.scope` / 非回环
+> fail-closed / **真取消 ARCH-22** —— 执行体消费取消 + LLM 双路打断 + 宿主事实化呈现 +
+> `--token-env` 通路），以及 Phase 2 守卫基建批（P2-T11：分层方向 dep-lint / 配置全键白名单
+> config-key-lint / 门禁聚合 gate / 锁屏前置探针 lock-probe）。skip 恒为 `ssh2-resolve`
+> 离线用例（OFFLINE_SKIP，见 sweep 留档 `SKIP_ATTRIBUTION` 行）。
 
 ---
 

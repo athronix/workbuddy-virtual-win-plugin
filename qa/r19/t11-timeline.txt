@@ -1,0 +1,21 @@
+2026-10-12T16:09:39+08:00 step0 start: HEAD reconcile + tunnel precheck
+2026-10-12T16:09:49+08:00 step0 done: HEAD=349ecc2 ok, tunnel ok=true locked=false
+2026-10-12T16:10:45+08:00 step1 recon: no scripts/ dir; 91 unit files; dist ESM imports '@winvm/*'
+2026-10-12T16:17:53+08:00 step1 key-finding: dist has string-literal '@winvm/adapter-*' in core/config (dynamic provider loader) => dep-lint MUST anchor to import/require statement syntax, not substring
+2026-10-12T16:24:57+08:00 step2 done: design note at wbtmp/p2t11-design.md
+2026-10-12T17:15:33+08:00 step4b dep-lint+config-key-lint+gate+lock-probe written; new test written
+2026-10-12T17:36:57+08:00
+2026-10-12T17:36:57+08:00 step4c docs: begin README/06-OVERVIEW baseline correction
+2026-10-12T17:43:12+08:00 step4c done: README.md 8 (gate usage + baseline authority-source rewrite, removed stale layout/dep-lint-planning note); 06-OVERVIEW.md line4+table+deliverables rewritten to non-static baseline
+2026-10-12T17:44:28+08:00 step5: rerun 4-guard-checklist (13 files) post-deliverables
+2026-10-12T17:45:16+08:00 step5 done: guards rerun IDENTICAL to baseline (13 files 222 tests 0 fail)
+2026-10-12T17:45:16+08:00 step6a: gate --quick (intentional, post-fix) with --out
+2026-10-12T17:46:38+08:00 step8a: lock-probe read-only real run
+2026-10-12T17:46:55+08:00 step6b: gate FULL (intentional, post-fix) with --out — background
+2026-10-12T17:48:55+08:00 step6b done: gate full exit=0
+2026-10-12T17:49:29+08:00 step7a: full sweep 3-chunk (independent of gate) → p2t11-sweep-result.txt — background
+2026-10-12T17:51:47+08:00 step7a done: 3 chunks finished
+2026-10-12T17:53:05+08:00 step7b done: p2t11-sweep-result.txt assembled (92/1889/0fail/2skip, BASELINE MATCH, gate crosscheck noted)
+2026-10-12T17:54:23+08:00 step8b: lock-probe --json captured (GO)
+2026-10-12T17:55:13+08:00 step8c: lock-probe evidence archived qa/r19/t11-lock-probe-evidence.txt (qa/probes glob unaffected)
+2026-10-12T17:57:30+08:00 step9 done: self-audit passed (src zero-change via mtime; no git binary this session - documented; TODO=0; test imports=fixture strings only)
