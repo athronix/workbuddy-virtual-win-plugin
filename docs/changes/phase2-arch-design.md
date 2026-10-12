@@ -631,3 +631,5 @@ graph TD
 **待用户裁三项**：T13 断片"只登记不修复"（arch 背书）/R-5 是否不等触发器直接批5 排期/teams 45 非 winvm 残骸清理。
 
 **门禁自证**：本报告为 docs-only 提交（新文件不改 src/scripts/tests），提交前 gate --quick 亲跑 VERDICT GREEN（tsc 12 包/dep-lint hard0 warn0 info11/config-keys 未知键0/guards 7 件 155/155），零 src 改动。
+
+**13.13 补记（2026-10-13 00:5x）**：arch3 熔断撤棒后**复活完赛**——交付维⑤全量版（88,028B 四维+八项式），此前"缺维⑤由棒1/棒2 兜底"判定作废，归档已替换。终版台账随之增补：P1 18→29（新增 A2-12 GUI 判据零消费/A2-13 probeError 死判据上移/A2-14 审计链零保留期/A2-15 E-2 缺省 step 不挂起（主理人裁维持 P1）/A2-16 hermes 掉档根因=SPI 无协商/A2-17 ARCH-09 previewHash 旧账未清，及 M 系/Q 系交叉收录合计）；P0-3 失实承诺族并入 **E-1 双闸未接线**（allowedCapabilities+maxRisk 两闸唯一喂入者=测试，5 处文档写成安全机制，我 grep 独立复核坐实——arch3 判"七棒安全语义最重"）；P2 族 10→14；待用户裁 3→5 项（+保留期产品裁定/ARCH-09 路线）。教训节增第 6 条"判停≠死亡第四次复现，熔断兜底判定须设计为可撤销"。补提交见当日 git log。

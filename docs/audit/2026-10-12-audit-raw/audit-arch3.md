@@ -325,3 +325,154 @@
 | D-4 | P2 | oh-tunnel.mjs:170/537-546；tunnel-daemon.mjs:235-247；packages 零消费 | 缺省 giveup 不可达（**待裁定旧账未清**：tunnel-crash-fix-progress.md:153）；隧道健康面为孤岛 | host 侧失败路径透传 tunnel.state；maxAttempts 缺省结果写进配置注释 |
 | D-5 | P2 | pending-approvals.ts:32-36 + server.ts:946/464 + pruneDecided | 重放不 settle ⇒ token+去重项永久驻留，且无任何信号（依赖"重放有界"这一未证明前提） | 豁免二次上限 + replay 外层超时 + `/health.approvals.inFlightCount/oldestPendingAgeMs` |
 | D-6 | P2 | a2a-framework/server.ts:546-585；vm-service/server.ts:1823-1840/2111-2125 | SSE 客户端断开后 500ms 空转永不停止 + 事件数组滞留；优雅关闭不摘连接，`process.exit(0)`/`logger.close()` 可能到不了 | `req.on('close')→it.return()`；空闲上限；`closeAllConnections()` |
+
+---
+
+## 维⑤ 双通道对等性与 provider 抽象
+
+### 结论先行
+
+1. **"同一能力经 MCP 或 A2A 调用，风险分级、白名单、审批、审计完全一致"（`ARCHITECTURE.md:165`）这句话在实现上站不住**：两通道**都**以 `/mcp` 为唯一执行入口（委派内层回连也是 `/mcp?dtid=`，`server.ts:1213+`），差别只在"谁替宿主行使批准权"。而**替宿主批准的能力只有 A2A 通道有**（`approval.reply` 只挂在 `/a2a`），于是"完全一致"在审批维度上其实是"MCP 通道缺整个批准面"（维② A-1）。
+2. **本次审计最重的新发现是一个"最小权限宣称链断裂"（E-1，P0）**：宿主在 `a2a.delegate` 上能填 `allowedCapabilities`/`maxRisk`、文档把它们写成安全机制（`SECURITY-GOVERNANCE.md:53`、`SPEC-SKILLS.md:124-125`、`DEPLOYMENT.md:279`"需审批 + 宿主显式 `maxRisk` 授权"），但**这两个字段没有任何一条执行路径消费**——三处 `policy.evaluate` 生产调用点（`server.ts:1060`、`server.ts:1229`、`adapter-agent-workbuddy/src/index.ts:295`）都不传 `maxRisk`/`allowedCapabilities`，`a2a-framework` 里 `maxRisk` 只做透传与记账，provider 的 `GoalRequest.allowedCapabilities` 只用于模板选择。2026-10-08 旧审计 §3.2-1 讨论的是"maxRisk 只有 A2A 侧传入、MCP 直调不受约束"——**该前提今天已不成立（A2A 侧也不传了）**，属旧账失效 + 新 P0。
+3. **provider SPI 只声明"能做什么"（`declareCapabilities`），不声明"怎么做安全"**：批准位、审批续跑协议、真值反查、审批灰度指纹都是 provider 的**自愿实现细节**，SPI 无一约束 ⇒ 换 provider = 换安全等级，而**对外零信号**。
+4. **hermes 的"静默安全掉档"根因是 SPI 缺 capability-negotiation，不是 `--yolo` 本身**：`--yolo` 只是关掉了 VM 内 CLI 自己的审批提示；真正的掉档在于 `HermesAgentProvider` 从不 `setApprovalCoordinator`（全文件 0 处 `approval`）、不传 `probe`/`allowedCapabilities`/`maxRisk`/`taskId` ⇒ 走 hermes 时**既不会挂起 input-required、也没有真值反查**，而宿主看到的工具面与走 workbuddy-llm 时**完全一样**（三 provider `declareCapabilities()` 返回值**逐字相同**：`['meta.*','system.*','app.*','storage.*','gui.*','appops.*']`）。
+5. **进度三要素里"进度"在 MCP 侧结构性缺失**（维②已记 A-5）；**取消**在两侧对齐得较好（同一 `req.signal` 消费面，`adapter-agent-workbuddy/src/index.ts:503-508` 注释自证）；**审批**是唯一的严重不对等面。
+
+### E-1（P0）`allowedCapabilities` / `maxRisk` 最小权限宣称在整条执行链上没有消费者
+
+**宣称面（宿主与文档都以为它在生效）**：
+
+| 宣称 | 位置 |
+|---|---|
+| 工具入参 `allowedCapabilities`（"本次委派允许的能力范围"）、`maxRisk`（"本次委派允许的最高风险，默认 L1"） | `host-a2a-bridge/src/tools.ts:368/373`，且 `:400-404/:428-430` 真实读取并放入请求 metadata |
+| "委派携带 allowedCapabilities + maxRisk" | `docs/02-design/SECURITY-GOVERNANCE.md:53` |
+| "最小权限：委派时通过 allowedCapabilities 限定本次可用能力" / "风险上限：委派时通过 maxRisk 限定（默认 L1）" | `docs/02-design/SPEC-SKILLS.md:124-125` |
+| "L3 … 需审批 + **宿主显式 `maxRisk` 授权**" | `docs/05-peripherals/DEPLOYMENT.md:279` |
+| 示例请求体带 `"allowedCapabilities": ["app.*","system.process.*"], "maxRisk": "L1"` | `docs/02-design/INTERFACES.md:195-196`、`docs/05-peripherals/SCENARIOS.md:144-145/210-211` |
+| 契约字段存在且注释为"最小权限" | `contracts/src/bridge.ts:434-437`（GoalRequest）、`:673-676`（PolicyEvaluateInput） |
+
+**实现面（亲验，逐跳）**：
+
+1. **框架收下但不执行**：`a2a-framework/src/server.ts:265-270`（`tasks/send`）与 `:511-513`（流式入口）把 metadata 里的 `allowedCapabilities`/`maxRisk` 抄进 `GoalRequest`；`git grep -rn "maxRisk" packages/a2a-framework/src/task-store.ts` ⇒ **零命中**；`defaultMaxRisk`（`server.ts:92/126/134`）**只被用来填 `GoalRequest.maxRisk` 这一个默认值**，框架自身不做任何风险判定；`handler:runGoal`（`vm-service/src/server.ts:1533-1544`）原样转发。
+2. **策略引擎的两个闸从未被生产喂入**：`engine.ts:758-771`（`req.maxRisk !== undefined && risk ≥ L2 && maxRisk < risk` ⇒ `POLICY_DENIED`）与 `:602-615`（`allowedCapabilities` 非空且不含该能力 ⇒ `POLICY_DENIED`）——**生产代码里唯一的三个 `policy.evaluate` 调用点**：
+   - `server.ts:1060-1067`（重放段 `executeCapability`）实参 `capabilityId/params/risk/approved/approvalId/capabilityPolicy`，**无 maxRisk/allowedCapabilities**；
+   - `server.ts:1229-1236`（MCP handler 审批闸）同上，**无**；
+   - `adapter-agent-workbuddy/src/index.ts:295-301`（provider 内联策略）同上，**无**。
+   ⇒ 两个分支的**唯一喂入者是单元测试**（`tests/unit/policy.test.js:239-248/273-282` 手工传 `maxRisk:'L1'`）。测试全绿、引擎正确、**但链路上没人调用**——这是典型的"单元完备、集成断链"。
+3. **provider 侧同样只用于模板门**：确定性 provider 的 `this.allowed(goal, capId)`（`index.ts:754-759`）只用来决定**是否尝试某模板**（不匹配就落到下一个模板/`UNSUPPORTED_GOAL`），不是能力级门禁；LLM provider 的 `goal.maxRisk` 一路透传后，**唯一真实消费者是审计展示**——`bridge.ts:1526`/`:1825` 把它当 `GoalStep.risk` 的缺省值写进 steps（即"上报的风险等级"），以及 `server.ts:1387/1450` 写进 delegation 审计条目。`allowedCapabilities` 在 LLM 路径上更是**只进审计**（同两处），执行面无人消费。
+4. **委派内层回连（`/mcp?dtid=`）也不带最小权限**：`server.ts:1229` 那次评估没有 maxRisk 输入，而 CLI 在 VM 内能调到**任意暴露能力**（`exposedIds` 全量），不受"本次委派允许范围"约束 ⇒ 委派的最小权限与内层能力面之间**没有任何交集约束**（除 provider 自己传不传 `allowed`，而那只有模板门作用）。
+
+**为什么定 P0**：这不是"少一个便利特性"，而是**对外安全契约的假承诺**。三处文档 + 一个工具入参 schema + 一个示例体共同告诉宿主"你可以把这次授权收窄到 L1/某些域"，宿主照做后**行为不变**：`storage.file.delete`(L2) 在 `maxRisk:'L1'` 的委派里依旧只被审批闸拦（可被批准），而不是被硬拒；若宿主以为"我给了 L1 所以删除类不可能发生"而放宽人工审批习惯，就是**用假安全换真风险**。按本团队的分级口径——"对外宣称的闸实际不存在"= P0（与维② A-1 同一族：能力宣称断裂）。
+
+**与前棒的衔接（非重复）**：前棒（棒 1）维① 的 §3.2-1 记录的是**旧代码事实**"maxRisk 只有 A2A 侧传入，MCP 直调不受约束"，并判定"符合 ADR 精神、只是文档未披露"。**今天的实际是两侧都不传**——旧结论的**前提已失效**（我核对了 `engine.ts` 行号迁移：旧文 `:578/:412-611` → 现 `:752-772`，语义未变但消费点归零）。因此本报告不把它当旧账重复，而是登记为**旧账失效 + 升级后的新 P0**。
+
+**建议（三选一，按成本排序）**：
+① 最小诚实化：`tools.ts:368/373` 描述、`SECURITY-GOVERNANCE.md:53`、`SPEC-SKILLS.md:124-125`、`DEPLOYMENT.md:279`、`INTERFACES.md:195` 全部改口径为"仅审计记账，不作强制"；契约注释加"当前无执行消费者"警示。**不建议**长期停在此档（等于把已宣称的闸永久降级为记账）。
+② 补最小接线（推荐）：委派进入时把 `(maxRisk, allowedCapabilities)` 随 delegation 上下文登记（`server.ts` 已有 `pendingApprovals` 的 `delegationId` 归因范式与 `ledgerReg.begin(...)`，扩展同构；`GoalRequest.traceId` 即键），三处 `policy.evaluate` 按 `dtid`/`delegationId` 查表回填这两参——与现有 K-N1 通道 2 精确归因**同一条链路**，不需要新契约字段。
+③ 结构性修法：把最小权限并入 `McpRequestContext`（`buildMcpRequestContext(dtid, signal)`，`server.ts:1213` 调用点），使 `ToolContext` 天然携带本次 scope，handler 传给 evaluate。**注意**：`ExecutionSegment.verdict?: PolicyVerdict`（`server.ts:1038`，注释"由调用方传入，避免二次评估漂移"）只有 `:1347` 一个生产者、`:1190` 段不带 ⇒ 一旦接线，重放段与 handler 段必须同口径回填，否则把"漂移"从"都不查"变成"一段查一段不查"（后者更难诊断）。
+**风险提醒**：补接线后 L2/L3 能力在 `maxRisk:'L1'`（宿主工具缺省值，`host-a2a-bridge/cli.ts:64`）的委派里会被硬拒 ⇒ 现有委派类目标的行为会收紧，需要灰度开关 + 文档同步；这是**必要的收紧**，但要按团队的变更纪律来。
+
+### E-2（P0→P1 判读，最终记 **P1**）确定性 provider 的 A2A 审批半区不可达（且 MCP 半区正常）
+
+**现场**：`runGoal` 的 `step()` 咽喉点恒传 `approved: false`（`adapter-agent-workbuddy/src/index.ts:498`），provider 内联策略随后（`:295`）。对 L0/L1 能力放行；对 L2/L3 命中 `engine.ts:795` 的审批闸 ⇒ `verdict.error = APPROVAL_REQUIRED` ⇒ `fail()` ⇒ 模板把它当失败收口（如模板 1 `goalFail(...)` `:559`；`allowed()` 只门模板选择，不产生审批语义）。
+
+**关键差异（这是判读核心）**：同一段 L2 能力**走 MCP 直调是能挂起审批的**——`server.ts:1238-1239` 命中 `verdict.requiresApproval` 后 `pendingApprovals.set(...)`（`:1242`，含 `hostApproved:false`/`preview`/`impact`/`underlying`/`delegationId`）+ `recordBlockedApprovalAudit`（`:1267`）+ 返回 `structuredContent.approval.{approvalId, resumeHint}`（`:1296-1303`）。也就是说：
+- 确定性 provider **经 MCP 暴露面**（宿主直调 / VM 内 CLI 回连 `/mcp?dtid=`）时，审批链**完整可用**（拦截、留痕、回执、（灰度 off 时）`__approvalId` 续跑）；
+- 确定性 provider **经 `provider.runGoal` 直接执行**时，跳过服务端审批闸，L2/L3 **既不执行也不挂起，只报失败**。
+
+**影响分级**：因为方向是 fail-closed（绝不放行高危），且**缺省 provider 正是 `workbuddy-deterministic`**（`core/src/config/index.ts:167`），后果是：用缺省配置做 A2A 委派时，凡触及 L2/L3 的目标都注定失败且不提示"需审批"这一真实原因（`GoalStep.error` 里有 APPROVAL_REQUIRED 码，`templateError` 保留，但宿主文案是"搜索失败：…"/"安装失败：…"式的模板措辞）。**这是可用性/文案面问题而非安全破口** ⇒ 记 **P1**（我明确不同意把它写成 P0；它和 A-1/E-1 的"假承诺"性质不同）。
+
+**建议**：`step()` 收口时对 `error.code === 'APPROVAL_REQUIRED'` 走专门分支——不 `goalFail`，而是 `sink.onStatus('input-required'?...)`/返回带 `APPROVAL_REQUIRED` 的 `GoalResult`（`bridge.ts:1201` 同款判据：`base.error?.code === 'APPROVAL_REQUIRED'`），让框架层（或宿主文案层）知道"这是等待审批而不是失败"；确定性 provider 若确认不支持委派内审批，就在 `runGoal` 入口直接对"目标可能触发 L2+"给出前置说明，别让它跑到一半静默失败。
+
+### 三 provider 能力/行为差集（亲验；`declareCapabilities()` 三家逐字相同，差集全在行为面）
+
+| 行为面 | workbuddy-deterministic | workbuddy-llm（`adapter-agent-workbuddy-llm`） | hermes-agent | 证据 |
+|---|---|---|---|---|
+| 审批协调器接线 | 不需要（不走 raise） | `if (ctx.approvalCoordinator) this.bridge.setApprovalCoordinator?.(...)` | **全文件零 `approval` 命中 ⇒ 从不接线** | `adapter-agent-workbuddy-llm/src/index.ts:274-276`；`git grep -in "approval" packages/adapter-agent-hermes/src/index.ts` ⇒ 空 |
+| 委派内审批挂起 | 不可达（E-2） | 可达（`maybeResume`→`raise`→input-required，`bridge.ts:1232`） | **不可达**（coordinator undefined ⇒ `bridge.ts:1202` `if (!blocked \|\| !this.coordinator) return base`） | 同左 |
+| K5 服务端重放 | 不适用 | 支持（`reconcileExecutionTruth` `:1275`） | **无调用点**（`runGoalInner` 在 llm 文件里；hermes 只调 `this.bridge.runGoal` ⇒ 其实会走同一 `CliLlmBridge`，但 **taskId/probe 不传** ⇒ 见下两行） | `adapter-agent-hermes/src/index.ts:185-196` |
+| `GoalRequest.taskId` 透传 | — | 透传（`index.ts:460`） | **不传** ⇒ `beginTask('')`、审批挂接退化共享 `activeTaskId`（维② A-3 同源） | `adapter-agent-hermes/src/index.ts:185-196` vs llm `:458-465` |
+| `probe`（委派账本/未决审批反查）透传 | — | 透传（`index.ts:466`） | **不传** ⇒ `reconcileDelegationTruth` 门 3 退场（`delegation-truth.ts:322`：`typeof approvalWait !== 'function'` → 回退文本兜底），**K3R 结构化真值层对 hermes 整条不生效** | `bridge.ts:1040-1045`（依赖 `input.probe`）；hermes 未提供 |
+| `maxRisk`/`allowedCapabilities` 透传 | 用于模板门 | 透传给桥（仅记账/展示） | **不传** | 同 E-1 |
+| CLI 审批提示 | 不适用 | codebuddy 常驻会话（受 prompt 纪律约束，`bridge.ts:491-496`） | `--yolo`（跳过 hermes 自身危险命令审批） | `adapter-agent-hermes/src/index.ts:38/46` |
+| `approvalTruth` 健康指纹 | 无 | `health()` 透出（`/health.providerApprovalTruth`，`server.ts:1979`） | `health()` 只覆写 `provider.state`，**不透出** ⇒ 该 provider 在用时，`/health` 的真值三态字段静默缺席 | `adapter-agent-hermes/src/index.ts:153-167` |
+| 目标理解能力 | 5 个正则模板，未匹配即 `UNSUPPORTED_GOAL`（`:665-678`） | LLM 自主规划 | LLM（hermes CLI）自主规划 | `index.ts:553-678` |
+
+**E-3（P1）"静默安全掉档"的根因是 SPI 缺 capability-negotiation，不是 `--yolo`**：
+- `BridgeContext.approvalCoordinator?: ApprovalCoordinator`（`contracts/src/bridge.ts:751-753`）是**可选注入**，provider 用不用**无任何对外表达面**；`AgentServiceProvider` 的必填成员只有 `declareCapabilities/init/execute/runGoal/health/shutdown`（`:770-780`），SPI **没有任何"我是否支持委派内审批 / 是否实现真值反查 / CLI 是否自带审批"的声明位**。
+- 三 provider 的 `declareCapabilities()` 返回值**逐字相同** ⇒ 宿主无法从能力面区分；`/health.provider.approvalTruth` 只在 llm provider 存在（hermes 的 `health()` 不透出）⇒ 连健康面也不提示。
+- `provider.kind` 只用于一处优化：`server.ts:672` `if (provider.kind === 'llm-agent') void provider.warmup?.()`。`ProviderKind` 枚举（`contracts/src/bridge.ts:766`）被当成"是否 LLM"用，**没被当成安全能力协商面用**。
+- 结论：把 `--yolo` 单独当问题修（比如禁掉这个参数）既不能修好（hermes 非交互遇审批会永久挂起，`:38` 注释自陈这是**非交互必须**），也不能防止下一个 provider 以同样方式掉档。**要修的是 SPI**：给 `AgentServiceProvider` 增可选 `securityProfile?`（例如 `{ inDelegationApproval: boolean; truthReconciliation: boolean; cliSelfApproval: 'none'|'host-delegated'|'bypassed' }`），`loadProvider` 后与服务端策略求校：`bypassed` 或 `inDelegationApproval:false` 时**在服务端 fail-closed**（对 L2+ 一律要求 MCP 通道审批或直接拒），并把结论透出到 `/health.provider`。这样"换 provider 换安全等级"至少变成**可见、可判定、可拒启**的事实，而不是运维事后发现。
+
+### E-4（P2）双通道审批续跑协议不统一 + `verdict` 复用面不完整
+
+- **两套续跑协议**：MCP 用工具入参 `__approvalId`（`server.ts:1213` 解构、`:1361` instructions 说明），A2A 用 `a2a.approval.reply`（`a2a-framework/src/server.ts:301` → `task-store.ts:550`）。二者语义、幂等性、失败返回形状都不同；`skills/winvm-mcp-reference/SKILL.md:213` 给的续跑指引跨通道混用。叠加维② A-1（缺省 replay=on 时 `__approvalId` 为死字段），**当前 MCP 侧续跑协议事实上不可用而文档仍教它**。建议：A2A 为唯一审批续跑通道，MCP 侧要么补 `/approvals/reply`，要么删除 `__approvalId` 宣称（与 A-1 同一裁定）。
+- **`ExecutionSegment.verdict` 只有一个生产者**（`:1347`；`:1190` 的重放段不带）⇒ 同一次调用可能被评估两次（handler 一次 + executeCapability 一次）或一次，取决于走哪条路；两处输入完全相同所以当前等价，但**这个"复用避免漂移"的设计只覆盖了一半路径**。E-1 修法②落地时必须两处同时补 scope，否则漂移面扩大。
+
+### E-5（P2）K3R 能力面过滤形同虚设：`q.capabilities` 喂的是全平台目录
+
+`ApprovalWaitQuery.capabilities` 注释（`contracts/src/bridge.ts:858-862`）明确"非空 ⇒ 只认落在能力面的未决审批（R3 收窄串台）"；`collectApprovalFacts` 确实在 R3 分支 `caps.has(entry.capabilityId)` 过滤（`approval-replay.ts:367`）。但喂入值是 `input.capabilities`（`delegation-truth.ts:331-334`），而 provider 构造 `catalog = this.ctx.capabilities.list()` 后装入 input（`adapter-agent-workbuddy-llm/src/index.ts:441` → `:453`；hermes 同形 `:177` → `:188`）——`ctx.capabilities` 注入的是**整个注册表**（`server.ts:599 capabilities: registry`），`registry.list()` 返回**全部已注册能力**（`core/src/registry/capability-registry.ts:56-58`），**不是**本次委派的能力面。⇒ R3 的能力过滤恒等于"全部通过"，**串台收窄实际未生效**（好在 R1/R2 的 `delegationId` 精确排除仍有效，常驻路径 dtid 不生效时才落到 R3）。注释与契约意图（`allowedCapabilities`）不一致；一旦 E-1 修法落地，应把 `q.capabilities` 改喂 `goal.allowedCapabilities`。
+
+### 维⑤ 问题清单
+
+| 编号 | 级别 | 位置 | 影响 | 建议 |
+|---|---|---|---|---|
+| **E-1** | **P0** | tools.ts:368-430 → a2a-framework/server.ts:265-270/511-513（仅透传）→ server.ts:1060/1229 + provider:295（三处 evaluate **均不传**）；engine.ts:602-615/752-772 唯一喂入者为测试；文档 SECURITY-GOVERNANCE:53 / SPEC-SKILLS:124-125 / DEPLOYMENT:279 / INTERFACES:195 | 宿主可填、被记账、但**不生效**的最小权限——对外安全契约假承诺；旧审计 §3.2-1 前提已失效（两侧都不传） | 推荐修法②：委派上下文登记 scope，三处 evaluate 按 dtid 回填（复用 K-N1 归因链）；两处评估必须同补（E-4）；灰度+文档同步 |
+| E-2 | P1 | adapter-agent-workbuddy/src/index.ts:498（恒 false）vs server.ts:1238-1266（MCP 半区完好）；缺省 provider=config/index.ts:167 | 缺省配置下 A2A 委派遇 L2/L3 注定失败，且文案归因到"执行失败"而非"需审批" | step() 对 APPROVAL_REQUIRED 专分支；或入口声明"本 provider 不支持委派内审批" |
+| E-3 | P1 | contracts/bridge.ts:751-753（coordinator 可选）+ :770-780（SPI 无安全声明位）+ 三 provider declareCapabilities 逐字相同 + hermes 全文件 approval 零命中 + hermes health() 不透出 approvalTruth | 换 provider=换安全等级且**无任何对外信号**；hermes `--yolo` 只是表象，SPI 缺 capability-negotiation 是根因 | SPI 增 `securityProfile?`；loadProvider 后与服务端策略求校（bypassed ⇒ L2+ fail-closed）+ 透出 /health |
+| E-4 | P2 | server.ts:1213/1361 vs a2a-framework/server.ts:301→task-store.ts:550；ExecutionSegment.verdict 仅 :1347 一个生产者 | 双通道两套续跑协议，MCP 侧当前不可用而 skills 文档仍教；漂移防护只覆盖一半路径 | 裁定 A2A 为唯一审批续跑通道；verdict 两处同补 |
+| E-5 | P2 | delegation-truth.ts:331-334 ← llm/index.ts:442 ← server.ts:599（registry）← registry/capability-registry.ts:56 | K3R R3 能力面过滤恒全通过，串台收窄未生效（R1/R2 仍有效） | `q.capabilities` 改喂 `goal.allowedCapabilities`（与 E-1 修法一并做） |
+
+---
+
+## 6. 前棒侦查笔记逐条对账（`audit-arch-timeline.log` 20:30:44 行六条，全部 git grep 亲验）
+
+| # | 棒 1 笔记原文（要点） | 亲验结论 | 消化去向 / 是否照抄 |
+|---|---|---|---|
+| 1 | "K3 兜底（G-a/b/c 已由 P2-T8 闭环，残余=措辞面诚实登记）" | **部分采纳，表述需修正**。G-a（归属键扩为 `taskId ?? traceId`）与 G-b（归因事实写 `ctx.approvalTruth`）确已在 `bridge.ts:955-958/1040-1045`、`delegation-truth.ts:300-345` 落地，闭环成立。但"残余只在措辞面"不准确：**存在活性残余**——`q.capabilities` 喂的是全平台注册表面（`llm/index.ts:441→:453`，`ctx.capabilities`=整 registry，`server.ts:599`），使 R3 的能力收窄恒真通过。这是实现缺口不是文案缺口 | 维⑤ **E-5**（P2）。**未照抄**，且对该条结论做了修正 |
+| 2 | "approval-replay 早退 4 处零审计（PROVIDER_UNAVAILABLE×2 / CAPABILITY_NOT_EXPOSED / UNKNOWN_CAPABILITY），replay 拒绝对照 S-4 同类缺口" | **采纳并扩容为 5 处**。四处逐一复核成立（`server.ts:1161-1168`、`:1169-1177`、`:1103-1112` 重放段、`:1534` 区 provider 缺席）。新增第 5 处笔记未含：`raise` 的 `no-active-task` 早退（`server.ts:351-363`）仅 `logger.warn`，链上零条目；另发现"`server.ts:441` token 已被 TTL 抢先 ⇒ 返回 `rejected` 而链上已记 `timeout`"的**两侧口径错位**（笔记未涉） | 维② **A-2**（表列 5 条）+ 维③ **C-4**。**未照抄**，扩容 + 新增 |
+| 3 | "probeError 同名异义实锤（语义对偶非冲突）" | **确证同名异义；"语义对偶非冲突"需修正**。两处定义复核无误（`contracts/bridge.ts:56` vs `http-guard.ts:236`）。但"非冲突"只覆盖了命名面，**没覆盖活性面**：`InnerReconnectView.probeError/probeStatus` **零生产喂入点**（`resolveInnerReconnect(` 全仓唯一调用 `server.ts:785` 只传两键；运行期探针 `:2066` 返回 `InnerReconnectHealth` 直接赋观测变量，不回灌），且注释（`http-guard.ts:232-233`）承诺"由调用方回填"**从未发生** ⇒ 死判据 + 虚假注释承诺 | 维③ **C-2**（P1）。**修正前棒表述**（与棒 2 的 ⓪-b 分歧登记一致：活性面按本条升 P1，改名面可保留"不改"） |
+| 4 | "dead-config 核心面已闭环" | **不完全成立**。TTL 死旋钮（120s）确已删（`pending-approvals.ts:16-19` 自陈 P2-T2 删除）。但本棒新查出**两处"写了没接"的活性缺口**属同族：①审批规模零观测——两个 `size` getter 零消费者 + `/health` 无 `approvals` 块（同函数 `tasks/audit/security/cache/logging` 齐全）；②**`maxRisk`/`allowedCapabilities` 全链路无执行消费者**（三处 evaluate 均不传，唯一喂入者是测试），而五处文档/工具 schema 把它们写成安全机制。后者按团队分级是 P0 | 维③ **C-5** + 维⑤ **E-1（P0）**。**修正前棒"已闭环"结论** |
+| 5 | "E-1 度量落地零数据，restartFresh 不清 firstCall 口径已文档化" | **采纳，并发现同源新面**。`persistent-session.ts:220` 确实把"restartFresh 不清零 firstCall"写成明文口径（已登记，不算债）。但 **ps-bridge 侧同类计数器无此口径说明**：`restarts` 单调永不清零（`ps-bridge.ts:108/251/256/278/283`）且经 `/health.psBridge.restarts` 透出，无窗口化、无"重启后计数含义"注释 ⇒ 长跑后可读性比 LLM 会话面更差 | 维④ **D-2**（第 3 点）。**未照抄**，做同族延伸 |
+| 6 | "restartFresh（管理端点 → llmSessionReset → restartFresh）" | **采纳并复核链路**：`/admin/llm-session/reset`（`server.ts:1789`）→ `bridge.ts:1077-1081` → `persistent-session.ts:988`，链路存在且唯一。补充：该端点是**全服务唯一的运维复位入口**，ps-bridge 无对应端点（改 psmod 只能重启服务，见维⑤/维④ D-3） | 维④ **D-3** 建议段引用。**未照抄**，作对称性延伸 |
+
+### 6-b. 与棒 2（`audit-arch2.md`，其维②–⑦与本棒②–⑤重叠）的去重登记
+
+棒 2 在其 ⓪-b 节（22:45 补）登记了与本棒的交叉。本棒侧确认如下，供主理人合并：
+
+| 主题 | 关系 | 处置 |
+|---|---|---|
+| 早退零审计（本棒 A-2 / 棒 2 的 2.b） | **同一缺陷**，棒 2 亦含 `raise` no-active-task 一条 | 合并为一条；本棒多出的 `server.ts:441` 口径错位（本棒 C-4）棒 2 未覆盖，保留为独立 P2 |
+| `probeError`（本棒 C-2 / 棒 2 的 2.e） | **实质分歧已由棒 2 自我让位**（其建议"按棒 3 的活性结论升 P1，命名结论保留不改名"） | 采纳棒 2 的处置：活性面 P1（本棒 C-2），改名不做 |
+| 取消链（本棒维②"扎实+两小口子" / 棒 2 的 4.8 R-5 并发取消放大重建风暴） | **不矛盾、必须并列**（棒 2 原话）——本棒审单笔取消语义正确性，棒 2 审并发资源放大 | 合并时并列，勿互相覆盖 |
+| 隧道 giveup/`maxAttempts`（本棒 D-4 / 棒 2 的 4.7 真机归因） | 互补：本棒给"缺省 Infinity + state 文件零消费者"的代码面结论，棒 2 给现网死因归因 | 合并为一条，取两者证据 |
+| psmod 版本漂移（棒 2 的 4.5+）与本棒 D-3（psmod 生命周期硬耦合/无 reload） | **不同侧面**：棒 2 审"无内容指纹"，本棒审"改动必须重启 + 加载失败被永久化 + `__meta` 无 reload/moduleStatus" | 两条并列，不合并 |
+| **本棒独占**（棒 1/棒 2 均未覆盖） | **E-1（P0，maxRisk/allowedCapabilities 全链无消费者）**、A-1（P0，hostApproved 可达性 + `__approvalId` 缺省死字段）、C-1（guiAllowed 三判据零调用）、C-3（ExecutedResult.error 裸串抹码）、D-1（审计链零保留期治理）、D-2（自愈窗口快速失败+归因失真）、D-5（O-10 豁免叠加无容量界）、D-6（SSE 无停止位/关闭不摘连接）、E-2（确定性 provider 审批半区）、E-3（SPI 无 capability-negotiation）、E-5（K3R R3 能力过滤虚设） | 其中 **E-1 是本报告唯一由"旧审计前提失效"升级出的新 P0**，建议主理人优先裁定 |
+
+---
+
+## 7. 架构维 Top 问题汇总（四维合并，按裁定优先级排序）
+
+| 序 | 编号 | 级别 | 一句话 | 证据锚点 | 建议处置（裁定项） |
+|---|---|---|---|---|---|
+| 1 | **A-1** | **P0** | `hostApproved` 在纯 MCP 直调下无任何宿主可达路径置真；缺省 `replay=on` 时 `__approvalId` 续跑为死字段，而三处文档/SKILL 仍承诺可用 | `server.ts:424/464/1227/348`、`bridge.ts:1232`、`index.ts:275`、`a2a-framework/server.ts:301`、`INTERFACES.md:212`、`skills/winvm-mcp-reference:213` | **三选一裁定**：①诚实化（文档改口径）②补 `/approvals/reply` 端点③明确 A2A-only。先做①+文档同步，②③由主理人裁定 |
+| 2 | **E-1** | **P0** | `allowedCapabilities`/`maxRisk` 是宿主可填、链上记账、但**执行面零消费者**的最小权限假承诺（旧审计"仅 MCP 不传"前提已失效） | 三处 evaluate 实参（`server.ts:1060/1229`、`provider:295`）均无两参；`engine.ts:602-615/752-772` 唯一喂入者 `tests/unit/policy.test.js:239/273`；宣称面 5 处（SECURITY:53/SPEC-SKILLS:124-125/DEPLOYMENT:279/INTERFACES:195/tools.ts:368-373） | 推荐"委派上下文登记 scope + 按 dtid 回填三处 evaluate"（复用 K-N1 归因链，无新契约字段）；须带灰度（缺省 maxRisk=L1 会收紧现网） |
+| 3 | A-2 | P1 | replay 三早退 + provider 缺席 + `raise` no-active-task 共 5 处"批了但没动静"零链上证据；修法现成（S-4 同类已修） | `server.ts:1161/1169/1103/351/441`；对照 `:1075/1313` + `approval-replay.ts:151` | 复用 `recordApprovalDecisionAudit`（`actor:'replay-guard'`）或新增 `recordReplayRejectedAudit`；写原始 sink（O-7） |
+| 4 | C-1 | P1 | 探测未知被误归为"确不可用"；契约层三个官方判据函数导出后**零调用**，注释护栏无从生效 | `core/session/health.ts:64/68/72`（零 src 消费）vs `adapter-agent-workbuddy/src/index.ts:325-336`（内联只看 `state`）；`health-probe.ts:63-67`（PROBE_TIMEOUT） | 门禁不改判（PR8 红线）；`probeError` 在场时改错误码/detail；三函数**要么接上要么删**（导出不用是最坏档） |
+| 5 | C-2 | P1 | `probeError` 同名异义 + `InnerReconnectView.probeError/probeStatus` 为零喂入死判据，注释还承诺从未发生的回填 | `contracts/bridge.ts:56` vs `http-guard.ts:236`；`server.ts:785`（两键实参）/`:2066`（覆盖不回灌） | 删两键+死判序，或让覆盖路径复用同一函数；文档说明"实证优先"当前如何实现 |
+| 6 | C-3 | P1 | `ExecutedResult.error` 裸字符串抹掉错误码/可重试性；两处旁路 `makeError` 造出"第三种形态" | `contracts/bridge.ts:358-364`；`server.ts:1109/1299`；`approval-replay.ts:211-216`（丢 code） | 追加 `errorCode`/`retryable` 纯附加 + 旁路改走 `makeError` |
+| 7 | E-2 | P1 | 缺省 provider 的 A2A 审批半区不可达（L2/L3 既不执行也不挂起，文案归因"执行失败"）；MCP 半区完好 | `adapter-agent-workbuddy/src/index.ts:498`（恒 false）vs `server.ts:1238-1303`（完整挂起+留痕）；缺省 provider `config/index.ts:167` | `step()` 对 `APPROVAL_REQUIRED` 专分支（判据同 `bridge.ts:1201`）；或入口声明不支持委派内审批 |
+| 8 | E-3 | P1 | SPI 无 capability-negotiation ⇒ 换 provider=换安全等级且对外零信号（hermes `--yolo` 只是表象：不接 coordinator、不传 probe/taskId/maxRisk、health 不透 approvalTruth，而三家 `declareCapabilities` 逐字相同） | `contracts/bridge.ts:751-753/770-780`；三家 `declareCapabilities`（hermes:124 / llm:249 / det:236）；`hermes/index.ts:185-196`（input 缺四项）；`bridge.ts:1202`（无 coordinator 即透传） | SPI 增 `securityProfile?`；`loadProvider` 后与服务端策略求校（bypassed ⇒ L2+ fail-closed）+ 透出 `/health.provider` |
+| 9 | D-1 | P1 | 审计链分片只增不减，全仓零保留期实现；`/health.audit` 无体积字段、docs 无留存口径；磁盘写满会反向打断取证落链（自我加重） | `core/audit/chain.ts:337-339/443-452`；`git grep retentionDays/cleanup/unlink` 在 audit 目录零命中；对照 `delegation-audit.ts:694-695`（设计者明知链体积敏感） | 先补事实字段（`bytesTotal/oldestDay/shardCount`）+ 留存约定；删片须与 ARCH-06 跨轮证据一并裁定（产品级决定） |
+| 10 | D-2 | P1 | 自愈窗口（最长 60s）内每个调用快速失败且文案"自愈失败"（实为在途），`lastError` 残值冒充现因；`restarts` 单调无窗口 | `ps-bridge.ts:115/239-240/471-477/292-296`（真机 restarts=17 自锁史）；`server.ts:1932` | `selfHeal` 三态返回 + `PSBRIDGE_RECOVERING`/`retryAfterMs`；`restarts` 窗口化 |
+| 11 | D-3 | P1 | psmod 与子进程硬耦合且**无 reload 动词**：改 `.ps1` 不重启即静默不生效；启动期加载失败被永久化；`ping.loaded` 只报成功集不点名失败 | `ps-bridge.ps1:100`（命中即早退）/`:232-243`（启动期 dot-source）/`:111-135`（`__meta` 仅 ping+listModules） | `__meta` 增 `moduleStatus`/`reload`；文档登记"改 psmod 须重启服务/schtasks /Run" |
+| 12 | D-6 | P2 | SSE 客户端断开后生成器 500ms 空转无停止位；`close()` 不摘连接 ⇒ 优雅关闭可被一条挂着的 SSE 永久卡住（现场表现"被强杀"，`logger.close()` 未必执行） | `a2a-framework/server.ts:546-585`；`server.ts:1823-1840`（不监听 close）/`:2111-2125`（无 `closeAllConnections`）；`cli.ts:238-244` | `req.on('close')→it.return()`；空闲上限；`server.closeAllConnections?.()` |
+| 13 | D-5 | P2 | O-10 在途豁免 + 令牌表无容量界 ⇒ 重放不 settle 即永久驻留（token + 去重项），且零信号；有界性依赖"重放是有界 await"这一未证明前提 | `pending-approvals.ts:32-36`；`server.ts:946-949`（无容量参）/`:464`/`:268-276` | 豁免二次上限 + `replay` 外层超时 + `/health.approvals.inFlightCount/oldestPendingAgeMs` |
+| 14 | C-4/C-5/C-6 | P2 | 审批三处可观测/一致性小面：API 面 `rejected` vs 链面 `timeout`；`/health` 缺 `approvals` 块（两个 size getter 死代码）；host 审批留痕无界 Map 不落盘 + `previewHash` 恒 `''`（**ARCH-09 旧账未清**） | `server.ts:441` vs `:1611-1624`；`pending-approvals.ts:135`、`server.ts:280`、`buildHealth:1971-2034`；`host-a2a-bridge/approval-audit.ts`；旧审计 ARCH-09 | 补 `expired` 归因；补 `approvals` 块；ARCH-09 按旧建议落地（登记时算、执行时重算比对） |
+| 15 | E-4/E-5 | P2 | 双通道两套审批续跑协议（MCP 侧当前不可用而 SKILL 仍教）；K3R R3 能力过滤喂全平台目录 ⇒ 收窄虚设 | `server.ts:1213/1361` vs `a2a-framework/server.ts:301→task-store.ts:550`；`delegation-truth.ts:331-334` ← `llm/index.ts:441→:453` ← `server.ts:599` ← `capability-registry.ts:56` | 裁定 A2A 为唯一审批续跑通道；`q.capabilities` 改喂 `goal.allowedCapabilities`（与 E-1 同批） |
+
+**分级合计（维②–⑤，共 23 条）**：P0 **2**（A-1、E-1）｜P1 **9**（A-2、C-1、C-2、C-3、D-1、D-2、D-3、E-2、E-3）｜P2 **12**（A-3、A-4、A-5、C-4、C-5、C-6、C-7、D-4、D-5、D-6、E-4、E-5）。
+**按维计数（P0/P1/P2）**：维② 1/1/3 ＝ 5｜维③ 0/3/4 ＝ 7｜维④ 0/3/3 ＝ 6｜维⑤ 1/2/2 ＝ 5。
+上表按"裁定优先级"取前 15 项展示，未列入 Top 表的 8 条 P2（A-3/A-4/A-5/C-4/C-7/D-4 及 C-5/C-6 的合并行余下部分）详见各维问题清单原表。
+
+**两条 P0 的共同性质**（供裁定参考）：都不是"实现写坏了"，而是**"对外宣称的闸在实现里不存在"**——A-1 是批准位不可达但文档教续跑，E-1 是最小权限可填但不生效。这类问题的危害不在故障率，而在**使用者据以做安全假设**。两者修法都涉及"诚实化 vs 补齐"的路线选择，属主理人裁定项，不宜由实现默默选边。

@@ -8,7 +8,7 @@
 
 ## 0. TL;DR
 
-项目**门禁之内极稳、门禁入口与门禁之外缺可验证性**。离线基线 92 文件 / 1889 例全绿、守卫基建四件套真实生效；但对外承诺面存在 4 个 P0（审批闭环不可达、部署首步断裂、两处失实承诺文档、真机验证断供 18 天），承诺兑现与代码实况之间缺少一根"诚实性"守卫。完善路径给出 7 个批次（批0–批6），以"文档止血→装得上→停得下→批得准→生产生态→验证面恢复→深债"为用户价值主轴，两处排期分歧已由主理人终裁。
+项目**门禁之内极稳、门禁入口与门禁之外缺可验证性**。离线基线 92 文件 / 1889 例全绿、守卫基建四件套真实生效；但对外承诺面存在 4 个 P0（审批闭环不可达、部署首步断裂、失实承诺族——含"最小权限双闸写而未接线"、真机验证断供 18 天），承诺兑现与代码实况之间缺少一根"诚实性"守卫。完善路径给出 7 个批次（批0–批6），以"文档止血→装得上→停得下→批得准→生产生态→验证面恢复→深债"为用户价值主轴，两处排期分歧已由主理人终裁。
 
 ---
 
@@ -20,7 +20,7 @@
 | PM 接力棒 pm2 | `raw/audit-pm2.md` §2/§8×2/§9/§10 | 55.8KB | 交叉验证+对抗复核附件，已撤 |
 | 架构前棒（高见远） | `raw/audit-arch.md` 维①–⑦+裁决 | 88.5KB | 架构主干，已撤 |
 | 架构接力棒 arch2 | `raw/audit-arch2.md` 维②–⑦差分 | 59.2KB | 交叉验证附件，已撤 |
-| 架构接力棒 arch3 | `raw/audit-arch3.md` 维②③④（独家机理 A-1/A-2/C-2/D-2~D-6） | 53.5KB | 熔断撤棒；缺维⑤由棒1/棒2 交叉覆盖，无缺口 |
+| 架构接力棒 arch3 | `raw/audit-arch3.md` **四维全量版（维②③④⑤+E-1..E-5 双通道对等/provider 抽象）** | 88KB | 熔断判停后**复活完赛**（首例），全维收录；23:08 残版已被 00:39 全量版替换归档 |
 | QA 前棒（严过关） | `raw/audit-qa.md` ①–⑫+汇总 | 72.9KB | 测试/运维/文档主干，已撤 |
 | QA 接力棒 qa2 | `raw/audit-qa2.md` ⑥–⑫差分+勘误节 | 41.4KB | 交叉验证附件，已撤 |
 
@@ -46,7 +46,7 @@
 - 但最后一次**全量真机 E2E=run7（2026-09-24）**，其后 59 批提交/98 文件（含 psmod 三批）零真机回归；1889 例全绿与"VM 里能不能装个软件"之间没有一根线；psmod-contract 守卫自述零 spawn，只证命名一致性；e2e/smoke 16 例与 delivery/__tests__ 8 例是"从未被任何门禁跑到"的沉默孤儿。
 
 ### 结论三：高纪律、低索引
-26 条 K-x 执行留痕充分（"写了未执行"仅 2 条），但**入口文档不参与任何门禁 ⇒ 最先腐化**：`.dev` 断供、ARCHITECTURE 分层三源矛盾、K5 状态行停更 13 天、11 条审批卡死链污染宿主+VM 双侧运行态、session-guard/Origin 两处失实承诺。失实承诺家族（宣称有→代码零实现）是同一根因：**没有"宣称-实现一致性"守卫**。
+26 条 K-x 执行留痕充分（"写了未执行"仅 2 条），但**入口文档不参与任何门禁 ⇒ 最先腐化**：`.dev` 断供、ARCHITECTURE 分层三源矛盾、K5 状态行停更 13 天、11 条审批卡死链污染宿主+VM 双侧运行态、session-guard/Origin/最小权限双闸三处失实承诺。失实承诺家族（宣称有→代码零实现）是同一根因：**没有"宣称-实现一致性"守卫**；"写了没接"在实现面同样成族（wsProbe/两 size getter/C-1 三判据/E-1 双闸四例——arch3 对旧审计"dead-config 已闭环"判"不完全成立"，经我 grep 复核坐实）。
 
 ---
 
@@ -56,14 +56,14 @@
 
 | # | 条目 | 口径 | 证据锚点（主理人亲验） | 出路 |
 |---|---|---|---|---|
-| **P0-1** | **审批闭环不可达**：L2/L3 能力"宿主批准→续跑"在生产路径无入口 | PM 承诺尺（PM+pm2+arch3 三棒独立复现） | 唯一置位点 `vm-service/server.ts:424`（raise 批准分支）；`raise` 生产调用点全仓唯一 `bridge.ts:1232`（maybeResume）=自引用闭环缺外部入口；tests 无闭环用例；**arch3 独家机理**：批准即删 token（`server.ts:449-464`"无论成功失败都删除 token"）⇒缺省态 `__approvalId`（constants.ts:216 APPROVAL_REPLAY_DEFAULT=true）为死字段，仅灰度 off 时 token 存活；K5 文档 :67/:91 自相矛盾 | 批1，出路 **(c) 策略化**（主理人终裁，见 §6），硬前置=maxRisk 接线（P1-M2）同一 CL |
+| **P0-1** | **审批闭环不可达**：L2/L3 能力"宿主批准→续跑"在生产路径无入口 | PM 承诺尺（PM+pm2+arch3 三棒独立复现） | 唯一置位点 `vm-service/server.ts:424`（raise 批准分支）；`raise` 生产调用点全仓唯一 `bridge.ts:1232`（maybeResume）=自引用闭环缺外部入口（全仓 `raise(` 仅 3 命中：契约:588/实现:345/调用:1232，arch3 复核）；`approval.reply` 仅走 `/a2a`（a2a-framework/server.ts:301→task-store.ts:550）⇒**纯 MCP 直调无任何宿主可达置批路径**；tests 无闭环用例；**arch3 独家机理**：批准即删 token（`server.ts:464`"无论成功失败都无条件删除"）⇒缺省灰度 on 下 `__approvalId` 续跑为**事实死字段**，而 **四处文档仍在承诺**（INTERFACES.md:212、winvm-mcp-reference:213、server.ts:1213 inputSchema、:1361 instructions）；K5 文档 :67/:91 自相矛盾 | 批1，出路 **(c) 策略化**（主理人终裁，见 §6），硬前置=maxRisk 接线（P1-M2）同一 CL；四处承诺文案随批0 一并订正 |
 | **P0-2** | **prepare-vm 部署断点**：新用户从零到能操作 VM 在准备步断裂 | PM 承诺尺 | `raw/audit-pm.md` §4 DB-1..12 部署断点清单（其中"VM 内 codebuddy 未预检"一条经 pm2 勘误+我亲验修正为：安装性已覆盖 `preflight.mjs:119-195` checkLocalVmDeps 三项 blocking + `install-vm.mjs:643-652` 运行期硬门禁；**缺的是登录态/可用性探测**） | 批2（主理人终裁前置批1，见 §6） |
-| **P0-3** | **失实承诺族**：对外文档宣称的安全/能力无实现支撑 | PM 承诺尺（QA ⑪、arch③ 交叉命中） | ①session-guard：`ARCHITECTURE.md:71/276-278` 宣称 tscon/自动登录/禁休眠，代码零命中（grep 词边界精确化后零；首轮 tsconfig 命中系子串假阳）——且 `docs/audit/2026-10-08` A-14 旧账在册=**旧账未清+后续复宣**；②Origin 校验：`SECURITY-GOVERNANCE.md:38` 宣称"HTTPS+bearer+Origin 校验（HTTP 模式）"，vm-service/host-a2a-bridge 源码零命中（我 23:4x 亲验）。整改面 **2→4 处**（pm2 §9② 补 `gui SKILL:32` tscon 配方行、`approval-card.md:33/60/142` 用户照做文案） | 批0 文档止血（诚实化先行）；实现侧包级立项降 P2（powercfg 三行+文档已够，pm2 改档采纳） |
+| **P0-3** | **失实承诺族**：对外文档宣称的安全/能力无实现支撑 | PM 承诺尺（QA ⑪、arch③、arch3 维⑤ 交叉命中） | ①session-guard：`ARCHITECTURE.md:71/276-278` 宣称 tscon/自动登录/禁休眠，代码零命中（grep 词边界精确化后零；首轮 tsconfig 命中系子串假阳）——且 `docs/audit/2026-10-08` A-14 旧账在册=**旧账未清+后续复宣**；②Origin 校验：`SECURITY-GOVERNANCE.md:38` 宣称"HTTPS+bearer+Origin 校验（HTTP 模式）"，vm-service/host-a2a-bridge 源码零命中（我 23:4x 亲验）；③**最小权限双闸写而未接线（E-1，arch3 独家、七棒安全语义最重）**：`allowedCapabilities`+`maxRisk` 宿主可填（tools.ts:368/373/400-430）、框架透传不判（a2a-framework/server.ts:265-270/511-513，task-store 零命中）、三处生产 `policy.evaluate` 实参均不含两键、`engine.ts:603-615/759` 两闸**唯一喂入者=测试**（policy.test.js:239/273）——而 5 处文档写成安全机制（SECURITY-GOVERNANCE:53、SPEC-SKILLS:124-125、DEPLOYMENT:279、INTERFACES:195-196、SCENARIOS:144/210）；我 grep 独立复核一致。整改面 2→**4 处**（pm2 §9② 补 `gui SKILL:32` tscon 配方行、`approval-card.md:33/60/142` 用户照做文案） | **批0 文案诚实化 + 批1 接线补齐（同一 CL 两副面孔，"诚实化 vs 补齐"合并专项——arch3 主张采纳）**；session-guard 实现侧包级立项降 P2（powercfg 三行+文档已够，pm2 改档采纳） |
 | **P0-4** | **真机验证断供 18 天**：离线全绿与真实链路健康之间无线 | QA 取证尺 | run7=09-24 后 59 批提交/98 文件、psmod 3 批零真证；T4 三条真机遗留零闭合、T7 曲线未产；CL-017"18/18"不可引用为现状；smoke/e2e 不在门禁枚举面 | 批5 验证面恢复 + **新纪律：每批收官必跑真机子集回归**（写入验收判据） |
 
 **架构尺口径声明（保留原文）**：架构棒（前棒+arch2）按"正在发生 ∧ 影响安全承诺/审计可信/服务可用 ∧ 无人工规避手段"三条尺裁**维⑦ P0=空**，附升级触发器（§3.4）。与 PM 尺 P0×4 并存不矛盾——分属承诺兑现面与故障现场面，本台账按条目合并标注。
 
-### 3.2 P1（18 项，按六维分组）
+### 3.2 P1（29 项，按六维分组）
 
 **产品/交互维**
 | # | 条目 | 锚点 |
@@ -91,6 +91,12 @@
 | A2-9 | B-1' enforceBearer 缺 config-lint 硬前置（双条件齐误开 ⇒ 委派零副作用虚假完成，R4 在册根治=B3 实测） | 批6 |
 | A2-10 | N-1 expandEnvPath 6 份实现，仅 constants.ts:31 走权威通路 ⇒ 默认 Windows 模板值在 POSIX 宿主创建 `%LOCALAPPDATA%/`+`C:/` 垃圾目录（项目快照两目录仍在互证）；处置=import 用起来而非删幽灵声明 | 批6 |
 | A2-11 | wsProbe 死配置：`persistent-session.ts:93` 定义+tick 消费，全仓生产注入点零命中（我亲验）⇒工作集护栏永不生效 | 批6（接线或显式删除） |
+| A2-12 | C-1 GUI 门禁判据三函数零消费：`guiAllowed/nonGuiAllowed/describeSessionState` 导出后全仓 src 零调用点（我亲验，命中仅注释/再导出/文档）；真实门禁 adapter index.ts:325-336 把**探测未知误归"确不可用"** | 批3（判据接线+未知态语义） |
+| A2-13 | C-2 probeError **死判据活性面**（自 P2 命名族上移）：`InnerReconnectView.probeError/probeStatus` 零生产喂入（server.ts:785 只传两键、:2066 覆盖不回灌，注释承诺从未发生的回填）——inner-reconnect-probe.ts:24 注释自证判决面只按配置面 | 批6（接线或删除判据） |
+| A2-14 | D-1 审计链分片**全仓零保留期实现**：chain.ts:337-339 只增不减，verifyArchive 是限数校验非回收，docs/04-ops 零 retention 条文 | 批5（保留期方案属产品裁定，见 §7 第4项） |
+| A2-15 | E-2 缺省 provider `step()` 恒传 `approved:false`（index.ts:498 + config/index.ts:167）⇒A2A 委派遇 L2/L3 **既不执行也不挂起**（MCP 半区 server.ts:1238-1303 完好）；方向 fail-closed+默认全 L0/L1 不触闸 ⇒ **主理人裁维持 P1 不升**（arch3 自请考虑升 P0 的口径我驳回，与 P0-1 爆炸半径实测同据） | 批1 顺带（与审批闭环同域） |
+| A2-16 | E-3 hermes 掉档根因=**SPI 无 capability-negotiation**（三家 declareCapabilities() 逐字相同、approvalCoordinator 可选注入无对外表达面、hermes 不传 probe/taskId/maxRisk 且 health 不透 approvalTruth）；`--yolo` 只是表象——provider 分级 B- 的机理性解释 | 批4（SPI 协商面，与差集显形同批） |
+| A2-17 | **ARCH-09 旧账未清**（2026-10-08 旧审计在册）：previewHash 服务端恒 `''`、"预览≠执行"比对从未实现（server.ts:250/1187 注释自证"预留供 ARCH-09 批次复用"），两侧数据物理上永不相遇+host 侧仅进程内 Map | 批6（或明确裁"承诺降级"改口） |
 
 **测试/运维维**
 | # | 条目 | 锚点 |
@@ -103,8 +109,8 @@
 
 **文档维**：J-1..J-7 漂移族（分层三源矛盾/K5:3 状态行停更 13 天/CAPABILITY-MODEL §7 路径漂移/overview 双概览）+ GATE-POLICY:98 静态"17 例"违自家 K-18 ⇒ 全部并入批0 文档止血。
 
-### 3.3 P2 族（10 项，登记不展开）
-D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（additionalProperties:false 零兑现）｜probeError 双定义命名族（`InnerReconnectView.probeError` 零生产喂入=死判据，inner-reconnect-probe.ts:24 注释自证）｜SessionHealth 无法表达"未知"态｜dep-lint"缺包 vs 缺 dist"形态差（meta=null 静默 continue 不触发 DIST_MISSING；消费方应查 `!==0` 非 `===1`）——**G-1 主案被驳回后的残余窄面**｜cfg-* 已 tracked ⇒ .gitignore 无效，改 fixture/tmpdir｜238 个 tests/*.log 夹具归档规则化｜凭据面 P2×3（扫描合格，加分项留档）｜`.workbuddy/**` 与仓库根 `v3-kn2.*`/`commit_msg*` 卫生项入 .gitignore 或移出（14 项脏文件噪声削弱 git status 判据可执行性）｜K3 兜底启发式根治（bridge 直读 MCP 结构化结果）+reconcileApprovalWait 直接单测｜预热 idle 回收后深度空闲首调冷启动（K2 只覆盖重启后）。
+### 3.3 P2 族（14 项，登记不展开）
+D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（additionalProperties:false 零兑现）｜SessionHealth 无法表达"未知"态｜dep-lint"缺包 vs 缺 dist"形态差（meta=null 静默 continue 不触发 DIST_MISSING；消费方应查 `!==0` 非 `===1`）——**G-1 主案被驳回后的残余窄面**｜cfg-* 已 tracked ⇒ .gitignore 无效，改 fixture/tmpdir｜238 个 tests/*.log 夹具归档规则化｜凭据面 P2×3（扫描合格，加分项留档）｜`.workbuddy/**` 与仓库根 `v3-kn2.*`/`commit_msg*` 卫生项入 .gitignore 或移出（14 项脏文件噪声削弱 git status 判据可执行性）｜K3 兜底启发式根治（bridge 直读 MCP 结构化结果）+reconcileApprovalWait 直接单测｜预热 idle 回收后深度空闲首调冷启动（K2 只覆盖重启后）｜C-3 `ExecutedResult.error?: string` 裸串抹码+两处旁路 makeError（server.ts:1109/1299）｜C-5 `/health` 缺 approvals 观测块+两 size getter 死代码（同病未同治对照 ENG-08）｜E-5 K3R R3 能力过滤喂全平台目录⇒收窄虚设（**旧审计"K3 残余只在措辞面"被 arch3 判为有活性残余**）｜D-4' 隧道 maxAttempts 默认 Infinity=待决旧账（tunnel-crash-fix-progress.md:153 明写"主理人裁定"从未裁——我此裁：维持 Infinity 但在配置注释显式化缺省语义）｜restartFresh 口径坑延伸（ps-bridge restarts 单调无窗口且无对应运维复位端点，arch3 同族延伸）。
 
 ### 3.4 升级触发器（在册机制，两棒共认）
 - **T-1**：D-2 终态拒绝零审计 ⇒ 若 degraded 常态化（有实例进入 degraded 且无自动恢复），即升 P0；
@@ -121,6 +127,8 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 | PM 前棒"preflight 未覆盖 VM 内 codebuddy 已装" | **勘误改述** | checkLocalVmDeps:119-195 三项 blocking+install-vm.mjs:643-652 运行期硬门禁存在；真实缺口=登录态探测 |
 | QA 前棒⑥ 隧道 P0 | **改裁 P1（Q1）** | 人工规避手段在（watchdog 自动化+复活配方），不满足 arch 尺"无人工规避" |
 | arch2 G-1"dep-lint 无 dist 静默全绿" | **驳回，残余窄面降 P2** | dep-lint:347→exit2→gate UNJUDGED→RED 全链 fail-loud，双通路亲验 |
+| arch3 自请"若按缺省配置功能断裂口径 E-2 可升 P0" | **驳回，维持 P1** | 默认 provider 全 L0/L1 永不触闸（PM 风险分布实测+我复核），默认形态不发生，方向 fail-closed |
+| 我对 arch3 的 41 分钟熔断判停+"缺维⑤由棒1/棒2 兜底" | **判停≠死亡：arch3 00:39 复活完赛，维⑤全量独立成稿转为主干**；缺口判定作废，归档替换 | 88KB 四维全量版落盘+八项式回报；教训第 6 条登记 |
 | arch2"38 分钟零心跳判死"/qa 前棒"completed 无回报" | **复活误判登记** | 磁盘实况=持续心跳/五连增长；教训：判活双源（timeline+产物 mtime），熔断线 20 分钟执行但停摆≠死亡 |
 
 ---
@@ -130,7 +138,8 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 2. **LLM 成员长静默写作期与致死窗口外观同形**（arch3 两次 41 分钟零落盘）——唯一解药是任务书内置"每文件/半节即落盘心跳"；判活优先看双 timeline+git status 差异。
 3. **跨棒信息一律经主理人中转**（pm2 直发前棒 maxRisk 硬事实，违反协议且可能唤醒已撤棒）——不追责，登记。
 4. **成员"更严重新发现"必须过主理人反证关才能进台账**（P0 攻防两例）——本报告 §4 即反证留痕。
-5. **失实承诺家族是系统性根因**（session-guard/Origin/maxRisk 话术三例同族）——Phase 3 立项文档增加"**前序裁决时效性复核**"环节（arch 前棒元结论采纳：任务书 5 处前提过时）。
+5. **失实承诺家族是系统性根因**（session-guard/Origin/最小权限双闸三例同族+arch3 判词"危害不在故障率而在使用者据以做安全假设"）——Phase 3 立项文档增加"**前序裁决时效性复核**"环节（arch 前棒元结论采纳：任务书 5 处前提过时；arch3 实证一例=旧审计 §3.2-1"maxRisk 只 A2A 侧传"前提今天两侧都不再传，登记为"旧账失效+升级新 P0"而非重复报旧账）。
+6. **判停≠死亡第四次复现且本次为"撤棒令后复活完赛"**：arch3 被 23:51 熔断撤棒后 00:39 交付 88KB 全量四维版（含独家最重发现 E-1）——熔断处置的"缺维兜底"判定须设计为可撤销（本次兜底声明即时作废、归档替换、台账增补，成本可控）；对复活棒的产出**全量收录不追责**，其纪律自证（八项式+局限声明四条）反而是全部七棒中格式最完备的一份。
 
 ---
 
@@ -142,13 +151,13 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 
 | 批 | 内容 | 台账映射 | 改动面 | 可证伪验收 |
 |---|---|---|---|---|
-| **批0 文档止血** | 失实承诺诚实化 4 处（session-guard/Origin/gui:32/approval-card）+K5:3 状态行+分层三源统一+CAPABILITY-MODEL §7+GATE-POLICY:98+基线查法 sort -V+SKILL 三处 powershell 教学订正 | P0-3、M5（文案半）、J-1..7 | ~7 文件 | 词边界 grep 宣称项=命中实现或文档改口；`docs-link-reachability` 新守卫（候选，派生式）进门禁 |
+| **批0 文档止血** | 失实承诺诚实化 **9 处**（session-guard/Origin/gui:32/approval-card×3/INTERFACES:212/mcp-reference:213+inputSchema:1213+instructions:1361 四处续跑承诺）+**E-1 五处最小权限话术改口**（SECURITY-GOVERNANCE:53/SPEC-SKILLS:124-125/DEPLOYMENT:279/INTERFACES:195-196/SCENARIOS:144·210）+K5:3 状态行+分层三源统一+CAPABILITY-MODEL §7+GATE-POLICY:98+基线查法 sort -V+SKILL 三处 powershell 教学订正 | P0-3、M5（文案半）、J-1..7 | ~10 文件 | 词边界 grep 宣称项=命中实现或文档改口；`docs-link-reachability`+`SKILL 点分 token∈注册 id∪白名单` 两新守卫（候选，派生式，pm2 提出）进门禁 |
 | **批2 部署可达** | prepare-vm 修复+preflight 登录态探测+R-4 版本指纹（/health 增 psmod hash+service build）+install-host 哈希防呆+Q4 死链清理+Q5 winget /T+隧道启动重试+runbook 成文 | P0-2、A2-4、Q1、Q4、Q5 | ~11 文件 | 全新宿主一键到"可枚举能力"零手工；psmod 改后 /health 指纹变化可见 |
-| **批3 速赢交互包** | M1 取消接通（单文件）+M4 receipt 桥接+M8 审批卡 TTL 槽/拒绝回执+健康门 degraded 降级路径 | M1、M4、M8、M5（健康门） | ~15 文件 | 直调取消端到端 cancelled=true；degraded 下 Agent 有可执行的降级指引非自锁 |
-| **批1 审批闭环** | 出路(c) 策略化+maxRisk 接线（engine 调用点三处补传+端到端用例）+A2-1 早退审计顺带 | **P0-1**、M2、A2-1 | ~6-10 文件 | L2 能力直调批准→续跑闭环测试用例存在且绿；maxRisk:L1 委派下 L2 步 POLICY_DENIED 实锤 |
-| **批4 生产生态** | M6 挂载 4 写侧+M3 3a 最小修（预检改 app.inventory.list）+M7 provider 差集显形/hermes 接线或显形+USER-MANUAL | M3、M6、M7 | ~12 文件 | workflow 模板实体≥1 真机跑通；切换 provider 能力差集有回执字段 |
-| **批5 验证面恢复** | P0-4 真机 E2E 回归批（5域×2通道最小 18 例重跑+T4 三条闭合+T7 曲线）+Q2 守卫三修+Q3 孤儿接线+A2-3/A2-5/A2-6/A2-7 长跑四债+A2-2 取消风暴门禁化+A2-8 E-1 读数 | P0-4、A2-2/3/5/6/7/8、Q2、Q3 | ~8 文件+qa 证据 | **每批收官必跑真机子集**新纪律生效；real-test 命名合规（K-18） |
-| **批6 深债** | A2-9 bearer 自检+config-lint 硬前置+A2-10 expandEnvPath 统一+A2-11 wsProbe 接线或删除+D-3 schema 裁断（接入运行期校验或删除）+P2 族清扫 | A2-9/10/11、D-3 | 按需 | dep-lint 消费 schema 或 schema 删除；单实现 expandEnvPath 全仓唯一 |
+| **批3 速赢交互包** | M1 取消接通（单文件）+M4 receipt 桥接+M8 审批卡 TTL 槽/拒绝回执+健康门 degraded 降级路径+A2-12 GUI 判据接线（未知态≠确不可用） | M1、M4、M8、M5（健康门）、A2-12 | ~15 文件 | 直调取消端到端 cancelled=true；degraded 下 Agent 有可执行的降级指引非自锁；guiAllowed 出现生产调用点 |
+| **批1 审批闭环** | 出路(c) 策略化+maxRisk **与 allowedCapabilities 双闸**接线（三调用点补传+端到端用例）+A2-1 早退审计顺带+E-2 缺省 step approved:false 挂起语义对齐 | **P0-1**、M2、A2-1、A2-15 | ~8-12 文件 | L2 能力直调批准→续跑闭环测试用例存在且绿；maxRisk:L1 委派下 L2 步 POLICY_DENIED 实锤；allowed 白名单外能力 DENY 实锤 |
+| **批4 生产生态** | M6 挂载 4 写侧+M3 3a 最小修（预检改 app.inventory.list）+M7 provider 差集显形/hermes 接线或显形（A2-16 SPI 协商面为其根因处方）+USER-MANUAL | M3、M6、M7、A2-16 | ~12-14 文件 | workflow 模板实体≥1 真机跑通；切换 provider 能力差集有回执字段；declareCapabilities 差异真实可表达 |
+| **批5 验证面恢复** | P0-4 真机 E2E 回归批（5域×2通道最小 18 例重跑+T4 三条闭合+T7 曲线）+Q2 守卫三修+Q3 孤儿接线+A2-3/A2-5/A2-6/A2-7 长跑四债+A2-2 取消风暴门禁化+A2-8 度量读数（**注：此 A2-8=P-6/E-1 度量，非 arch3 E-1**）+A2-14 保留期落地（方案待 §7 第4项裁） | P0-4、A2-2/3/5/6/7/8/14、Q2、Q3 | ~8-10 文件+qa 证据 | **每批收官必跑真机子集**新纪律生效；real-test 命名合规（K-18）；磁盘占用有 retention 上限 |
+| **批6 深债** | A2-9 bearer 自检+config-lint 硬前置+A2-10 expandEnvPath 统一+A2-11 wsProbe 接线或删除+A2-13 probeError 死判据接线或删除+**A2-17 ARCH-09 previewHash 比对补建或裁"承诺降级"改口**+D-3 schema 裁断（接入运行期校验或删除）+P2 族清扫（C-3 裸串抹码/C-5 approvals 观测块/E-5 收窄实装） | A2-9/10/11/13/17、D-3、P2 族 | 按需 | dep-lint 消费 schema 或 schema 删除；单实现 expandEnvPath 全仓唯一；死判据清零 |
 
 **依赖主线**：批0 ∥ 批2 → 批3 → 批1（M2 同 CL）→ 批4 → 批5（真机面全程互锁）→ 批6。立项文档首节=「前序裁决时效性复核」。
 
@@ -158,6 +167,8 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 1. **T13 审计断片处置**：arch 前棒独立裁决=**只登记不修复**（chainOk=false∧hashOk=true=并发写分叉非篡改；修历史=制造篡改事实；Phase 1 verifyArchive 框架可承载处置批）——建议采信销账。
 2. **R-5 取消风暴**：是否不等"再发生"、直接随批5 排期门禁化（真机实证过一次崩溃，触发器 T-2 属被动）。
 3. **~/.workbuddy/teams 45 个非 winvm 历史残骸**：清理与否（winvm 停摆残骸 35 个已清，留痕 qa/r19/p2close-teams-cleanup.txt）。
+4. **审计链保留期**（A2-14，arch3 D-1 提出）：哈希链历史证据是否永久留存？"永久"=磁盘无上界增长，"保留期"=放弃老证据的可验证性——产品级裁定，批5 落地前需定向。
+5. **ARCH-09 路线**（A2-17）：previewHash"预览≠执行"比对=补建（两侧数据打通+哈希绑定，工程量中等）还是裁"承诺降级"随批0 改口？旧审计在册、代码注释两处"预留供 ARCH-09 批次复用"，属悬而未决的最老债。
 
 ---
 
