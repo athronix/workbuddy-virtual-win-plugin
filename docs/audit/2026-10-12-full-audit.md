@@ -210,7 +210,7 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 | 批5-2 R-5+A2-3 | ✅ 完赛 | `da4abc4` | R-5 取消风暴门禁化（用户 B）、A2-3 idle 回收不占故障预算（判别性测试） | Q3 孤儿接线、真机 E2E |
 | 批4 M7 provider 差集 | ✅ 完赛（离线面） | `0fc388e` | M7（/health.capabilitiesProfile 派生+install-vm 横幅+SKILL 对照表，三面同源）、A2-16 | M3 预检改 app.inventory.list、M6 三成品绑定 → 阻塞于真机窗口 |
 | 批6 A2-10 expandEnvPath | ✅ 完赛 | `e72c1d8` | 包内 src 单源化（hermes 幽灵声明边转真实，dep-lint info 11→10 铁证） | A2-9/A2-11/A2-17/D-3（待后续批6 项） |
-| QA 独立回归（启动批） | ✅ IS_PASS=YES | `ed07434` | 新基线 99/1945 重锚、六发现 D-1~D-6 全裁处（含 D-3 补 ST3 双写、D-5 活锁 kill-0） | 全量重锚 105/1993（`d09caab`） |
+| QA 独立回归（启动批） | ✅ IS_PASS=YES | `ed07434` | 新基线 99/1945 重锚、六发现 D-1~D-6 全裁处（含 D-3 补 ST3 双写、D-5 活锁 kill-0） | 批3/5 全量重锚 105/1993（`d09caab`）→ **批4/6 收官重锚 106/1999（1997 pass/0 fail/2 skip，gate-b46-full.txt，VERDICT GREEN）** |
 
 **P0 收敛态势**：P0-2 ✅ / P0-3 ✅ / P0-1（审批闭环，待批1）/ P0-4（真机断供，待真机窗口）。**永久纪律**（用户追加，§7-③）：`~/.workbuddy/teams` 非 winvm 域任何批次不得触碰。
 
