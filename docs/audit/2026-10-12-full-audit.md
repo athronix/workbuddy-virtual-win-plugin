@@ -208,6 +208,10 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 | 批3 速赢交互包 | ✅ 完赛 | `2bfaf95` | M1 notifications/cancelled 主动取消接通、M4 audit.receipt 桥、M8 TTL 槽、A2-12 GUI 三判据接线+probeError 归因分流 | — |
 | 批5-1 保留期+防分叉 | ✅ 完赛 | `6f350de` | A2-14（90天∧<2GB 五安全红线）、T13 防再发（写路径串行锁死+跨片接链回归） | Q2 守卫三修、A2-5/6/7 长跑债 |
 | 批5-2 R-5+A2-3 | ✅ 完赛 | `da4abc4` | R-5 取消风暴门禁化（用户 B）、A2-3 idle 回收不占故障预算（判别性测试） | Q3 孤儿接线、真机 E2E |
-| QA 独立回归（启动批） | ✅ IS_PASS=YES | `ed07434` | 新基线 99/1945 重锚、六发现 D-1~D-6 全裁处（含 D-3 补 ST3 双写、D-5 活锁 kill-0） | — |
+| 批4 M7 provider 差集 | ✅ 完赛（离线面） | `0fc388e` | M7（/health.capabilitiesProfile 派生+install-vm 横幅+SKILL 对照表，三面同源）、A2-16 | M3 预检改 app.inventory.list、M6 三成品绑定 → 阻塞于真机窗口 |
+| 批6 A2-10 expandEnvPath | ✅ 完赛 | `e72c1d8` | 包内 src 单源化（hermes 幽灵声明边转真实，dep-lint info 11→10 铁证） | A2-9/A2-11/A2-17/D-3（待后续批6 项） |
+| QA 独立回归（启动批） | ✅ IS_PASS=YES | `ed07434` | 新基线 99/1945 重锚、六发现 D-1~D-6 全裁处（含 D-3 补 ST3 双写、D-5 活锁 kill-0） | 全量重锚 105/1993（`d09caab`） |
 
 **P0 收敛态势**：P0-2 ✅ / P0-3 ✅ / P0-1（审批闭环，待批1）/ P0-4（真机断供，待真机窗口）。**永久纪律**（用户追加，§7-③）：`~/.workbuddy/teams` 非 winvm 域任何批次不得触碰。
+
+**⚠ 真机窗口 BLOCKED（2026-10-13 18:1x 复核）**：隧道 daemon pid 4357 存活（DEGRADED/reconnecting），但 VM `172.16.100.2` 网络层不可达（ping 100% 丢包 + ssh Host is unreachable）= **VM 已关机/掉线**，无法从鸿蒙沙箱内启动。待用户拉起 VM 后一并执行：批2 psmod/ps-bridge 新逻辑生效（kill-restart 一次→psmod-drift 转 PASS+fingerprint 非空）、批4 M3 预检改 `app.inventory.list`、批4 M6 三成品绑定+参数运行期验证+54 计数三处同步、批5 真机 E2E（5域×2通道 18 例）+ V1-V13 清单。离线可验证项已全部交付完毕。
