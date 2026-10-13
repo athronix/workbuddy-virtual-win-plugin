@@ -165,7 +165,7 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 
 ---
 
-## 7. 待用户裁断（3 项）
+## 7. 待用户裁断（5 项）
 1. **T13 审计断片处置**：arch 前棒独立裁决=**只登记不修复**（chainOk=false∧hashOk=true=并发写分叉非篡改；修历史=制造篡改事实；Phase 1 verifyArchive 框架可承载处置批）——建议采信销账。
 2. **R-5 取消风暴**：是否不等"再发生"、直接随批5 排期门禁化（真机实证过一次崩溃，触发器 T-2 属被动）。
 3. **~/.workbuddy/teams 45 个非 winvm 历史残骸**：清理与否（winvm 停摆残骸 35 个已清，留痕 qa/r19/p2close-teams-cleanup.txt）。
