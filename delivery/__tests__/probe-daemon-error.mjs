@@ -22,11 +22,31 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import net from 'node:net';
 
 import { runDaemon } from '../tunnel-daemon.mjs';
 
 const SIM_ERR_MSG = 'No response from server';
 const DEFAULT_OBSERVE_MS = 3_000;
+
+/**
+ * 取一个即时空闲端口（listen :0 → 读口 → 关掉）。
+ * 历史病灶：本探针曾**硬编码 18443**，与常驻隧道 daemon（真机常态占用）端口冲突 ⇒
+ * 环境性假红（EADDRINUSE 时新码走启动退避（state=DEGRADED+startAttempt），旧码 shutdown→exit(0) 删文件，
+ * 两种失败形态都过不了"RUNNING+pidfile 在位"断言）。端口自分配后判活与 daemon 在位与否解耦。
+ * 竞态说明：close→runDaemon 重新 bind 之间存在理论争用窗口（单机开发环境概率极低）。
+ * @returns {Promise<number>}
+ */
+async function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const port = srv.address().port;
+      srv.close(() => resolve(port));
+    });
+  });
+}
 
 const INJECTS = {
   'forward-out-error': 'forwardOutError',
@@ -136,12 +156,14 @@ export async function runProbe(o) {
 
   const { deps, state } = makeDeps(injectKind);
 
+  // 动态空闲端口（解耦真机 daemon 对 18443 的常态占用；见 getFreePort 头注）。
+  const localPort = await getFreePort();
   const argv = [
     '--vm-host', '172.16.100.2',
     '--vm-user', 'User',
     // 不传 --key：改用环境变量 WINVM_VM_PASSWORD 走通启动路径（凭据仅经 env 传入）。
-    '--local-port', '18443',
-    '--remote-port', '18443',
+    '--local-port', String(localPort),
+    '--remote-port', String(localPort),
     '--pidfile', pidfile,
   ];
 
@@ -168,7 +190,7 @@ export async function runProbe(o) {
   } else if (injectKind === 'forwardOutError') {
     // 由 OhSshTunnel 内部持有 client；通过反射拿到最后一个 client 实例触发
     const net = await import('node:net');
-    const sock = net.connect(18443, '127.0.0.1');
+    const sock = net.connect(localPort, '127.0.0.1');
     sock.on('error', () => {});
     await new Promise((resolve) => {
       sock.once('connect', resolve);

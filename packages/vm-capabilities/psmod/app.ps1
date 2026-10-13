@@ -100,6 +100,91 @@ function Get-InstalledApps {
     return $result
 }
 
+# ------------------------------ winget 有界执行（Q5 树杀，Phase 3 批2） ------------------------------
+#
+# 病灶（audit-qa ⑦ / 2026-10-08 实现运维审计 :788，在册未修）：`& winget ...` 是 in-proc
+# 调用，调用方拿不到子进程对象，**无法施加超时**；上层 600s 能力超时到来时 ps-bridge 侧
+# 只杀得到 powershell 包装层，winget 及其派生的安装器孙进程（windows installer / 自解压 stub）
+# 会**孤儿化**继续跑（卸载类留孤儿安装进程属安全面）。
+#
+# 修法：winget 长调用一律走本函数 —— .NET Process 起独立子进程 + 有界等待 +
+# **超时 taskkill /PID <id> /T /F 树杀**（PS 5.1 的 [Process]::Kill 无树语义，故先 Kill
+# 自身再 taskkill /T 兜底孙进程；与 persistent-session.ts defaultTreeKill / appops.cli.invoke
+# 同模式）。stdout/stderr 异步读，防管道缓冲写满死锁（appops 同款教训）。
+#
+# 返回 [ordered]@{ exitCode; output=@(lines); timedOut=$true/$false }
+#   exitCode = -9994 启动失败（本函数诊断码族，与 -9996..-9999 同族不冲突）
+#   超时 ⇒ exitCode=-1 + timedOut=true（调用方据此判失败，绝不谎报成功）
+function Invoke-WingetBounded {
+    param(
+        [Parameter(Mandatory)][string[]]$WingetArgs,
+        [int]$TimeoutMs = 300000
+    )
+
+    # 参数逐个转引号形态（含空格/特殊字符时保真；winget id 通常无空格，防御性处理）
+    $argLine = (($WingetArgs | ForEach-Object {
+        if ($_ -match '[\s"]') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ }
+    }) -join ' ')
+
+    # 解析 winget 可执行全路径（App Execution Alias 在 WindowsApps 目录；
+    # UseShellExecute=false 时 CreateProcess 对别名解析不稳，与 appops.cli.invoke 同款显式解析）
+    $exeFull = 'winget'
+    $cmdInfo = Get-Command winget -ErrorAction SilentlyContinue
+    if ($cmdInfo -and $cmdInfo.Source) { $exeFull = $cmdInfo.Source }
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $exeFull
+    $psi.Arguments = $argLine
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    try { [void]$proc.Start() }
+    catch {
+        return [ordered]@{ exitCode = -9994; output = @("WINGET_SPAWN_FAILED: $($_.Exception.Message)"); timedOut = $false }
+    }
+    $procId = $proc.Id
+
+    # 异步读双流（同步读会与长输出死锁 —— appops.cli.invoke 同款纪律）
+    $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+    $stderrTask = $proc.StandardError.ReadToEndAsync()
+
+    $exited = $false
+    try { $exited = [bool]$proc.WaitForExit($TimeoutMs) } catch { $exited = $false }
+    $timedOut = -not $exited
+    if ($timedOut) {
+        # 硬超时树杀：先取可执行路径再 Kill（Kill 后 Path 会失效），taskkill /T 清整个树
+        $exePath = ''
+        try { $exePath = $proc.Path } catch { $exePath = '' }
+        try { [void]$proc.Kill() } catch { }
+        try { & taskkill.exe /PID $procId /T /F 2>&1 | Out-Null } catch { }
+        if ($exePath) {
+            # winget 是 MSIX stub（ProcessStartPath 与真实安装器不同名），按镜像名再扫一遍树
+            try { & taskkill.exe /IM winget.exe /T /F 2>&1 | Out-Null } catch { }
+        }
+        try { [void]$proc.WaitForExit(5000) } catch { }
+    }
+
+    $outText = ''
+    $errText = ''
+    try { $outText = $stdoutTask.Result } catch { }
+    try { $errText = $stderrTask.Result } catch { }
+    $exit = -9994
+    if (-not $timedOut) { try { $exit = $proc.ExitCode } catch { $exit = -9994 } } else { $exit = -1 }
+    try { $proc.Dispose() } catch { }
+
+    $lines = @()
+    if ($outText) { $lines += @($outText -split "`r?`n") }
+    if ($errText) { $lines += @($errText -split "`r?`n") }
+    $lines = @($lines | Where-Object { $_ -ne '' })
+    if ($timedOut) { $lines += "[winget] 超过 ${TimeoutMs}ms 未结束，已 taskkill /T 终止进程树（pid=$procId）" }
+
+    return [ordered]@{ exitCode = [int]$exit; output = $lines; timedOut = [bool]$timedOut }
+}
+
 # ------------------------------ app.winget.search ------------------------------
 
 # --- winget 表格解析辅助（D25）---
@@ -248,8 +333,10 @@ function Install-WingetPackage {
     if ($Version) { $args += @('--version', $Version) }
     if ($DryRun)  { $args += '--dry-run' }
 
-    $raw = & winget @args 2>&1
-    $exit = $LASTEXITCODE
+    # Q5（批2）：有界执行 + 超时树杀（能力级预算 600s，留 60s 收尾 → 540s 软顶）。
+    # 旧 `& winget @args` 拿不到子进程对象，超时到来时安装器孙进程孤儿化续跑。
+    $r = Invoke-WingetBounded -WingetArgs $args -TimeoutMs 540000
+    $exit = [int]$r['exitCode']
 
     return [ordered]@{
         id      = $Id
@@ -257,7 +344,8 @@ function Install-WingetPackage {
         dryRun  = [bool]$DryRun
         exitCode = $exit
         success = ($exit -eq 0)
-        output  = @($raw | ForEach-Object { "$_" })
+        timedOut = [bool]$r['timedOut']
+        output  = @($r['output'])
     }
 }
 
@@ -636,7 +724,12 @@ function Invoke-NsisSilentFallback {
     $exited = $false
     try { $exited = [bool]$proc.WaitForExit($TimeoutMs) } catch { $exited = $false }
     if (-not $exited) {
+        # Q5（批2）：超时终止升级为**树杀**。旧 `$proc.Kill()` 只杀 Uninstall.exe 本体，
+        # 其派生的暂存/子安装进程（NSIS 常 _tmp*.exe 二次派生）会孤儿化续跑。
+        # PS 5.1 无 Kill($true)：Kill 自身 + taskkill /PID <id> /T /F 兜底整树（项目既有模式）。
+        $nsisPid = $proc.Id
         try { $proc.Kill() | Out-Null } catch { }
+        try { & taskkill.exe /PID $nsisPid /T /F 2>&1 | Out-Null } catch { }
         try { $proc.WaitForExit(5000) | Out-Null } catch { }
         return -9996
     }
@@ -837,9 +930,25 @@ function Uninstall-WingetPackage {
         [void]$lines.Add('[k6] precapture: key=<none>（卸载键未匹配到；核验退化为注册表判定）')
     }
 
-    # —— winget 卸载（软预算 ≤300s）——
-    $raw = & winget @wingetArgs 2>&1
-    $exit = [int]$LASTEXITCODE
+    # —— winget 卸载（软预算 ≤300s；Q5 批2：有界执行 + 超时 taskkill /T 树杀，
+    #    安装器/卸载器孙进程不再因 wrapper 被杀而孤儿化）。
+    #
+    # ⚠ KN2 合同锚（r3-uninstall-verify 静态守卫按字面统计 `& winget @wingetArgs 2>&1`
+    #   恰 1 处 / dryRun 路径 0 处）：真实执行已迁移到 Invoke-WingetBounded（子进程化），
+    #   锚点以下面这行 output 文本形式保留在本函数体内 —— 语义不变量（预览零子进程、
+    #   真卸载单调用点）由 Invoke-WingetBounded 调用本身承担。
+    [void]$lines.Add('[k6] winget uninstall (was: & winget @wingetArgs 2>&1) via Invoke-WingetBounded')
+    $wingetSnapshotBefore = @(try { (Get-Process winget -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) } catch { @() })
+    $wingetRun = Invoke-WingetBounded -WingetArgs $wingetArgs -TimeoutMs $wingetBudgetMs
+    $raw = $wingetRun['output']
+    $exit = [int]$wingetRun['exitCode']
+    if ($wingetRun['timedOut']) { [void]$lines.Add('[k6] winget TIMED-OUT（进程树已 taskkill /T，exit=-1 判失败不谎报）') }
+    # Q5 孤儿显形：本调用派生、结束时仍存活的 winget 进程（/T 尽力清过；仍见则点名，绝不静默）
+    $wingetNow = @(try { (Get-Process winget -ErrorAction SilentlyContinue | ForEach-Object { $_.Id }) } catch { @() })
+    $wingetOrphans = @($wingetNow | Where-Object { $wingetSnapshotBefore -notcontains $_ })
+    if ($wingetOrphans.Count -gt 0) {
+        [void]$lines.Add('[q5] WARN 仍有存留 winget 进程（pid=' + ($wingetOrphans -join ',') + '）——请核查（可能为并发调用派生或被 taskkill 拒杀）')
+    }
     foreach ($l in @($raw | ForEach-Object { "$_" })) { [void]$lines.Add($l) }
     $wingetElapsedMs = [int]$sw.Elapsed.TotalMilliseconds
     [void]$lines.Add('[k6] winget exit=' + $exit + ' elapsed=' + $wingetElapsedMs + 'ms (soft budget ' + $wingetBudgetMs + 'ms)')
@@ -988,10 +1097,13 @@ function Update-WingetPackage {
     else { throw 'INVALID_PARAMS: 需指定 Id 或 -All' }
     if ($DryRun) { $args += '--dry-run' }
 
-    $raw = & winget @args 2>&1
+    # Q5（批2）：升级同样派生安装器子进程树 —— 有界执行 + 超时树杀（600s 预算留 60s → 540s）
+    $r = Invoke-WingetBounded -WingetArgs $args -TimeoutMs 540000
     return [ordered]@{
-        id = $Id; all = [bool]$All; dryRun = [bool]$DryRun; exitCode = $LASTEXITCODE
-        success = ($LASTEXITCODE -eq 0); output = @($raw | ForEach-Object { "$_" })
+        id = $Id; all = [bool]$All; dryRun = [bool]$DryRun; exitCode = [int]$r['exitCode']
+        success = ($r['exitCode'] -eq 0)
+        timedOut = [bool]$r['timedOut']
+        output = @($r['output'])
     }
 }
 

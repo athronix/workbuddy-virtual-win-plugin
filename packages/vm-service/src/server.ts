@@ -1210,7 +1210,7 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       // 审批续跑字段：宿主确认后带上 approvalId 重发同一请求
       properties: {
         ...((cap.input['properties'] as Record<string, unknown>) ?? {}),
-        __approvalId: { type: 'string', description: '审批通过后用于续跑执行' },
+        __approvalId: { type: 'string', description: '审批续跑标记（批1 放行闭环在建：当前批准后重发仍需审批，勿依赖此参数续跑）' },
       },
     },
     annotations: {
@@ -1358,7 +1358,7 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     logger,
       instructions:
       'WinVM Bridge：通过 MCP 工具操作 Windows 虚拟机（系统/应用/存储/GUI/应用生产）。' +
-      '工具名即能力 ID（如 system.service.control、appops.workflow.run）。风险等级 L2/L3 需先取 approvalId 再续跑。',
+      '工具名即能力 ID（如 system.service.control、appops.workflow.run）。风险等级 L2/L3 需先取 approvalId 走审批；批准后自动续跑放行闭环批1 在建，当前重发仍需审批。',
   });
 
   /* ================================ A2A ================================ */
@@ -1919,12 +1919,23 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     // D2：psBridge 附带回传 restarts / lastError（纯增量，既有字段语义不变）。
     // P2：state 经 resolvePsBridgeHealthState 映射 —— 桥 down → 'unavailable'（不变）；
     // 桥 ready 但子探针超时 → 'degraded'，且附 probe:'timeout' 可辨识降级原因。
+    // R-4（Phase 3 批2，纯附加）：fingerprint 透传 ps-bridge.ps1 启动期 psmod 文件
+    // SHA256 快照 —— "改 psmode 不重启静默不生效"的显形面（宿主侧 tools/psmod-drift.mjs
+    // 拿它与源仓哈希比对，不一致 ⇒ 报"漂移未生效"）。旧版 ps-bridge 不带该键时字段缺席。
     const probeDegraded = probes.sessionTimedOut && bridgeHealth.state === 'ready';
     const psBridge: NonNullable<HealthStatus['psBridge']> & {
       restarts?: number;
       lastError?: string;
       /** P2 扩展：会话子探针在短超时内未应答（降级原因标识；按时应答时字段缺省） */
       probe?: 'timeout';
+      /** R-4 扩展：psmod 启动期版本指纹（ping/fingerprint 应答途经捕获，进程期恒定） */
+      fingerprint?: {
+        files: Record<string, string>;
+        capturedAt: string;
+        pid?: number;
+        psVersion?: string;
+        failedLoads?: string[];
+      };
     } = {
       state: resolvePsBridgeHealthState(bridgeHealth.state === 'ready' ? 'ready' : 'down', probes.sessionTimedOut),
       uptimeMs: bridgeHealth.uptimeMs,
@@ -1932,6 +1943,7 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       restarts: bridgeHealth.restarts,
       ...(bridgeHealth.lastError ? { lastError: bridgeHealth.lastError } : {}),
       ...(probeDegraded ? { probe: 'timeout' as const } : {}),
+      ...(bridgeHealth.fingerprint ? { fingerprint: bridgeHealth.fingerprint } : {}),
     };
 
     // CL-018 C1：同步取常驻会话态（不 await provider.health()，避免被 5s 护栏吞掉）。

@@ -737,6 +737,18 @@ export interface BridgeHandle {
     readonly restarts?: number;
     /** 最近一次自愈/重启失败原因（CL-017 D2，纯增量） */
     readonly lastError?: string;
+    /**
+     * psmod 版本指纹（Phase 3 批2 R-4，纯增量可选）：ps-bridge.ps1 启动期对各能力
+     * .ps1 文件算的 SHA256 快照。进程存活期间恒定 ⇒ deploy 推新文件而未 kill-restart
+     * 时此处仍报**旧哈希**，宿主侧与源仓比对即显形"漂移未生效"。旧版 ps-bridge 不带 ⇒ 字段缺席。
+     */
+    readonly fingerprint?: {
+      readonly files: Record<string, string>;
+      readonly capturedAt: string;
+      readonly pid?: number;
+      readonly psVersion?: string;
+      readonly failedLoads?: string[];
+    };
   };
 }
 

@@ -194,6 +194,62 @@ export function checkLocalVmDeps({ provider = 'workbuddy-deterministic', cli, mi
 }
 
 /**
+ * Agent CLI **登录态/可用性**探测（Phase 3 批2 · DB-4/D-1 勘误口径）。
+ *
+ * 勘误背景：VM 内 codebuddy **安装性**检查已在两处覆盖（checkLocalVmDeps 的 vm-agent-cli
+ * blocking 项 + install-vm 运行期硬门禁）；真实缺口是**登录态**——provider=workbuddy 未登录时
+ * 直到首个委派才暴露为 LLM_SESSION/ENOENT。
+ *
+ * 真机实测局限（2026-10-13 VM 只读探针）：codebuddy CLI **无非交互身份命令**
+ *（--help 全量子命令=config/mcp/sandbox/plugin/project/doctor/update/install/cleanup/daemon/
+ *  ps/logs/attach/kill/stop/rm/respawn/agents/auto-mode，无 whoami/auth status/login status）。
+ * 故登录态**不可被机械确证**，本函数实现的是**降级探测 + 局限显形**：
+ *   - verdict='installed-unverified'：CLI 可跑（--version 通）但登录态无从证明 ⇒ WARNING，
+ *     文案明说局限（红字"你现在是 deterministic；切 LLM 需先交互登录"由调用方打印）；
+ *   - verdict='config-dir-present'：CLI 可跑 ∧ 配置根存在（~/.codebuddy 有 settings.json/user-state.json）
+ *     ⇒ 仍只到"大概率登录过"，**不确证**（凭据不落可见文件，实测如此）；
+ *   - verdict='cli-missing'：CLI 不可跑 ⇒ 由安装性检查阻断，本函数不重复定罪。
+ * 注入点：runProbe 便于单测（默认不探测，返回 null=不可得）。
+ *
+ * @param {{provider?:string, cliExists?:boolean, configDirExists?:boolean, markerFiles?:string[]}} opts
+ * @returns {{verdict:string, blocking:boolean, detail:string, remedy:string}}
+ */
+export function evaluateAgentLogin({ provider = 'workbuddy-deterministic', cliExists = false, configDirExists = false, markerFiles = [] } = {}) {
+  const isLlm = provider === 'workbuddy' || provider === 'hermes-agent';
+  if (!isLlm) {
+    return {
+      verdict: 'not-applicable',
+      blocking: false,
+      detail: `provider=${provider} 不依赖 Agent CLI 登录态（确定性执行器）`,
+      remedy: '',
+    };
+  }
+  if (!cliExists) {
+    return {
+      verdict: 'cli-missing',
+      blocking: false, // 缺 CLI 由安装性检查定罪，此处不重复阻断
+      detail: 'CLI 不可跑（安装性缺口，见 vm-agent-cli 检查项）',
+      remedy: '先装 CLI，再谈登录态。',
+    };
+  }
+  const hasMarkers = configDirExists && markerFiles.some((f) => f);
+  if (hasMarkers) {
+    return {
+      verdict: 'config-dir-present',
+      blocking: false,
+      detail: `CLI 可跑 ∧ 配置根含标记文件 ⇒ 大概率已登录；⚠ 局限：codebuddy 无非交互身份命令（实测 --help 无 whoami/auth status），凭据不落可见文件，登录态无法机械确证`,
+      remedy: '若委派报 LLM_SESSION/鉴权失败：VM 内交互跑一次 `codebuddy` 完成微信/GitHub 登录（结构性不可脚本化，DB-4）。',
+    };
+  }
+  return {
+    verdict: 'installed-unverified',
+    blocking: false,
+    detail: 'CLI 可跑（--version 通）但登录态无从证明（配置根/标记文件未见）',
+    remedy: 'provider=workbuddy 需 VM 内已完成交互式登录（跑一次 `codebuddy` 走微信/GitHub 登录）。当前若为 deterministic 则不受影响。',
+  };
+}
+
+/**
  * 渲染可读报告，每项一行：`[OK]/[缺失(阻断)]/[警告] label — detail`。
  * 不满足项额外附一行处置指引；末尾给整体结论。
  * @param {{ok:boolean, checks:Check[]}} result

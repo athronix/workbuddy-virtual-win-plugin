@@ -1086,7 +1086,21 @@ async function spawnTunnelDaemon(vm, a) {
     await new Promise((r) => setTimeout(r, 400));
   }
   if (!open) {
-    console.error('隧道启动超时（20s 内端口未就绪）。详见日志：' + TUNNEL_LOG());
+    // Q1（批2）：daemon 现在启动期失败进退避重试而不退出进程。
+    // 端口 20s 未就绪时先分辨「daemon 仍在后台自愈」与「daemon 已放弃」两种终局：
+    //   - pidfile 存在且进程存活 ⇒ daemon 活着、正按指数退避重试（VM 未醒场景），
+    //     报告"自愈中"并返回 0（不再是"启动超时=失败"的误导口径）；
+    //   - 进程已不在 ⇒ 真失败（参数错误/重试上限放弃），返回 1 并指到 STOPPED state 留痕。
+    const pidObj = readJsonSafe(TUNNEL_PIDFILE());
+    if (pidObj?.pid && isPidAlive(pidObj.pid)) {
+      console.log(`隧道尚未就绪（20s 内端口未监听），但守护进程存活（pid ${pidObj.pid}）——` +
+        `正在按指数退避后台自愈（VM 可能未醒）。详见日志：${TUNNEL_LOG()}；` +
+        `tunnel status 可随时查最新态。`);
+      return 0;
+    }
+    const stObj = readJsonSafe(TUNNEL_STATE());
+    const reason = stObj?.reason ? `（state.reason=${stObj.reason}）` : '';
+    console.error('隧道启动失败：守护进程已退出' + reason + '。详见日志：' + TUNNEL_LOG());
     return 1;
   }
   console.log(`隧道已启动：127.0.0.1:${localPort} → ${vm.user}@${vm.host}:${vm.sshPort ?? 22} → 127.0.0.1:${remotePort}`);

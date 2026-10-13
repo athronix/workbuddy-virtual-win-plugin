@@ -28,6 +28,7 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, copyFileSync, renameSync, readdirSync, cpSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,12 +46,206 @@ import { addToUserPath, removeFromUserPath } from './path-util.mjs';
 import { resolveAccountIds } from './account-resolve.mjs';
 import { checkHostDeps, printChecks, assertDeps } from './preflight.mjs';
 
+/* ------------------------------ 版本单一事实源（Q3/R-4 批2 防呆 b） ------------------------------
+ * 病灶（audit-qa ⑧）：'0.1.0' 曾在三处硬编码（缓存路径段 / 生成的 bridge package.json /
+ * manifest version），版本语义与发布物脱钩、改版本必漏改其一。
+ * 单源化：**根 package.json 的 version 字段为唯一事实源**（QA 建议口径）；
+ * 读取失败 fail-loud 抛错（宁可安装中止，绝不静默回落 '0.1.0' 造出"看起来成功"的错位分发）。
+ *
+ * 注意行为变化：升 root version ⇒ 缓存路径段随之变化（plugins/cache/winvm/winvm-bridge/<ver>），
+ * 卸载路径同样从本函数取版本 ⇒ 安装/卸载天然同版本对称；旧版本缓存目录由
+ * uninstallDirectories 的通配/显式清理承担（本批不新增跨版本清理，避免误删）。 */
+const FALLBACK_VERSION_FILE = join(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'package.json');
+
+/**
+ * 读版本单一事实源（根 package.json → version）。
+ * @param {string} [repoRoot] 仓库根（默认脚本上级）
+ * @returns {string} 形如 '0.1.0'
+ */
+export function resolvePluginVersion(repoRoot) {
+  const p = repoRoot
+    ? join(repoRoot, 'package.json')
+    : FALLBACK_VERSION_FILE;
+  let v = '';
+  try {
+    v = String(JSON.parse(readFileSync(p, 'utf8')).version ?? '').trim();
+  } catch {
+    v = '';
+  }
+  if (!/^\d+\.\d+\.\d+[-.\w]*$/.test(v)) {
+    throw new Error(`版本单一事实源不可用：${p} 的 version 缺失或非法（收到 "${v}"）。请修复 package.json，绝不回落硬编码。`);
+  }
+  return v;
+}
+
 /**
  * 插件缓存根（含 winvm-plugin 启动器）的版本化路径。
- * 与 resolveWorkBuddyPaths 产出的 paths.pluginRoot 同源，供卸载时精确移除 PATH。
+ * 与 resolveWorkBuddyPaths 产出的 paths.pluginRoot 同源（同读 plugin.manifest.version），
+ * 供卸载时精确移除 PATH；version 缺省时现场读单一事实源。
  */
-function pluginCacheRoot(home) {
-  return join(home, '.workbuddy', 'plugins', 'cache', 'winvm', 'winvm-bridge', '0.1.0');
+function pluginCacheRoot(home, version) {
+  const ver = version ?? resolvePluginVersion();
+  return join(home, '.workbuddy', 'plugins', 'cache', 'winvm', 'winvm-bridge', ver);
+}
+
+/* ------------------------------ 复制内容哈希校验（批2 防呆 a） ------------------------------
+ * 病灶（audit-qa ⑧ / DEP-02/DEP-05）：install-host 对 dist 仅做**存在性**校验
+ *（grep createHash=0 实测），陈旧/半截复制静默通过，"实跑了吗"无法机械回答。
+ * 本组纯函数：枚举「源文件→缓存文件」对 → 两侧 SHA256 逐一比对 → 差异清单。
+ * 用在两处：
+ *   1) 安装尾相位断言（verifyInstallFreshness）：当场证明"缓存=源"；不一致 ⇒ FAIL 退出码。
+ *   2) `--check-fresh` 独立模式：不安装也能回答"缓存是否落后于仓库构建物"（DEP-02 解药）。
+ */
+
+/** 递归列目录内全部相对文件路径（排序，稳定）。 */
+export function walkFiles(dir) {
+  const out = [];
+  const stack = [{ abs: dir, rel: '' }];
+  while (stack.length) {
+    const { abs, rel } = stack.pop();
+    let entries;
+    try { entries = readdirSync(abs, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) stack.push({ abs: join(abs, e.name), rel: r });
+      else if (e.isFile()) out.push(r);
+    }
+  }
+  return out.sort();
+}
+
+/**
+ * 由「源目录→目标目录」映射对展开成文件级比对对。
+ * @param {Array<{srcDir:string,dstDir:string,label:string}>} dirPairs
+ * @returns {Array<{src:string,dst:string,rel:string,label:string}>}
+ */
+export function planIntegrityPairs(dirPairs) {
+  const pairs = [];
+  for (const { srcDir, dstDir, label } of dirPairs) {
+    if (!existsSync(srcDir)) continue;
+    for (const rel of walkFiles(srcDir)) {
+      pairs.push({ src: join(srcDir, rel), dst: join(dstDir, rel), rel, label });
+    }
+  }
+  return pairs;
+}
+
+/** 单文件 SHA256（读失败返回 null ⇒ 计 missing）。 */
+function sha256File(p) {
+  try {
+    return createHash('sha256').update(readFileSync(p)).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 核心对账（纯函数，注入哈希器便于单测）：
+ * 两侧都读得到且相等 ⇒ pass；目标缺失 ⇒ missing；不等 ⇒ mismatch。
+ * @param {Array<{src:string,dst:string,rel:string,label:string}>} pairs
+ * @param {(p:string)=>string|null} [hasher]
+ * @returns {{ok:boolean, checked:number, mismatches:Array<{rel:string,label:string}>, missing:Array<{rel:string,label:string}>}}
+ */
+export function verifyCopyIntegrity(pairs, hasher = sha256File) {
+  const mismatches = [];
+  const missing = [];
+  for (const { src, dst, rel, label } of pairs) {
+    const a = hasher(src);
+    if (a === null) continue; // 源不可读属上游问题，不计入（源缺失有独立门禁）
+    const b = hasher(dst);
+    if (b === null) missing.push({ rel, label });
+    else if (a !== b) mismatches.push({ rel, label });
+  }
+  return {
+    ok: mismatches.length === 0 && missing.length === 0,
+    checked: pairs.length,
+    mismatches,
+    missing,
+  };
+}
+
+/**
+ * 枚举「仓库构建物 → 插件缓存」的文件级比对对（Q3 防呆 a 的对账面定义）。
+ * 与安装期的复制面**一一同源**（三组面）：
+ *   - A2A 桥：packages/host-a2a-bridge/dist/** → <cache>/a2a-bridge/**
+ *   - 桥自包含依赖：packages/<name>/dist/** → <cache>/a2a-bridge/node_modules/@winvm/<name>/dist/**
+ *     （package.json 单文件同理）
+ *   - 隧道运行时 + hooks：delivery/<rel> → <cache>/<rel>（deployWinvmPlugin extraFiles 面）
+ * 不在面内：ssh2 vendor/node_modules（上游 best-effort）、运行态生成物（.in_use /
+ * .winvm-context.json / winvm-plugin 启动器 / plugin.json——它们由 Renderer/启动器生成，
+ * 非"仓库构建物逐字节复制"，对其做哈希对比语义错误）。
+ * @param {string} cacheRoot 插件缓存根（含版本号段）
+ * @param {string} repoRoot 仓库根
+ * @returns {Array<{src:string,dst:string,rel:string,label:string}>}
+ */
+export function buildIntegrityFilePairs(cacheRoot, repoRoot) {
+  /** @type {Array<{src:string,dst:string,rel:string,label:string}>} */
+  const pairs = [];
+  const pushDir = (srcDir, dstDir, label) => {
+    if (!existsSync(srcDir)) return;
+    for (const rel of walkFiles(srcDir)) {
+      pairs.push({ src: join(srcDir, rel), dst: join(dstDir, rel), rel: `${label}/${rel}`, label });
+    }
+  };
+  const pushFile = (src, dst, name) => {
+    if (existsSync(src)) pairs.push({ src, dst, rel: name, label: name });
+  };
+
+  // 1) A2A 桥 dist 整面
+  pushDir(join(repoRoot, 'packages', 'host-a2a-bridge', 'dist'), join(cacheRoot, 'a2a-bridge'), 'a2a-bridge');
+
+  // 2) 桥的 @winvm 自包含依赖（dist 整面 + package.json）
+  const bridgePkgPath = join(repoRoot, 'packages', 'host-a2a-bridge', 'package.json');
+  let deps = [];
+  try {
+    deps = Object.keys(JSON.parse(readFileSync(bridgePkgPath, 'utf8')).dependencies ?? {})
+      .filter((d) => d.startsWith('@winvm/'));
+  } catch { /* 交给上游存在性门禁报缺源 */ }
+  for (const dep of deps) {
+    const name = dep.replace(/^@winvm\//, '');
+    const pkgDir = join(repoRoot, 'packages', name);
+    pushDir(join(pkgDir, 'dist'), join(cacheRoot, 'a2a-bridge', 'node_modules', '@winvm', name, 'dist'), `@winvm/${name}/dist`);
+    pushFile(join(pkgDir, 'package.json'), join(cacheRoot, 'a2a-bridge', 'node_modules', '@winvm', name, 'package.json'), `@winvm/${name}/package.json`);
+  }
+
+  // 3) 隧道运行时 + hooks 单文件面（与 deployWinvmPlugin extraFiles 名单一致）
+  for (const rel of ['winvm-plugin.mjs', 'oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh']) {
+    pushFile(join(repoRoot, 'delivery', rel), join(cacheRoot, rel), rel);
+  }
+
+  return pairs;
+}
+
+/**
+ * 只读新鲜度对账（--check-fresh / 安装尾断言共用）。返回 {ok, lines, result}。
+ * @param {string} home 宿主 home（推导缓存根）
+ * @param {string} repoRoot 仓库根
+ * @returns {{ok:boolean, lines:string[], result:object|null}}
+ */
+export function runFreshnessCheck(home, repoRoot) {
+  const cacheRoot = pluginCacheRoot(home);
+  if (!existsSync(cacheRoot)) {
+    return { ok: false, lines: [`FAIL：插件缓存不存在（${cacheRoot}）。先跑 node delivery/install-host.mjs --apply --yes。`], result: null };
+  }
+  const filePairs = buildIntegrityFilePairs(cacheRoot, repoRoot);
+  if (filePairs.length === 0) {
+    return { ok: false, lines: ['FAIL：对账面为空（仓库 dist 未构建？先 npm run build）。'], result: null };
+  }
+  const result = verifyCopyIntegrity(filePairs);
+  const lines = [];
+  lines.push(`对账面：${result.checked} 个文件（源=仓库构建物 dist/delivery，目标=${cacheRoot}）`);
+  if (result.ok) {
+    lines.push('FRESH：缓存与仓库构建物逐文件 SHA256 全部一致（"实跑了 install-host 且此后未改 dist"已被当场证明）。');
+  } else {
+    if (result.missing.length) {
+      lines.push(`MISSING（${result.missing.length}）：缓存缺文件 —— ${result.missing.slice(0, 10).map((m) => m.rel).join(', ')}${result.missing.length > 10 ? ' …' : ''}`);
+    }
+    if (result.mismatches.length) {
+      lines.push(`MISMATCH（${result.mismatches.length}）：内容与仓库不一致 —— ${result.mismatches.slice(0, 10).map((m) => m.rel).join(', ')}${result.mismatches.length > 10 ? ' …' : ''}`);
+    }
+    lines.push('处置：先 npm run build（若改了 src），再 node delivery/install-host.mjs --apply --yes 重跑分发（缓存=运行态真相源，改 dist 不重跑不生效）。');
+  }
+  return { ok: result.ok, lines, result };
 }
 
 /**
@@ -148,6 +343,8 @@ function parseArgs(argv) {
     vmKey: undefined,
     noTunnel: false,
     noPreflight: false,
+    // Q3 防呆 a（批2）：只读新鲜度对账模式——不安装，只回答"缓存是否等于仓库构建物"
+    checkFresh: false,
     // CL-018 C2：A2A 委派超时（落点配置；env 打底，--a2a-timeout 可覆盖）
     a2aTimeoutMs: resolveA2aTimeoutFromEnv(),
   };
@@ -157,6 +354,7 @@ function parseArgs(argv) {
       case '--uninstall': out.uninstall = true; break;
       case '--purge-backups': out.purgeBackups = true; break;
       case '--no-tunnel': out.noTunnel = true; break;
+      case '--check-fresh': out.checkFresh = true; break;
       case '--no-preflight': out.noPreflight = true; break;
       case '--yes': out.yes = true; break;
       case '--trash-dir': out.trashDir = argv[++i]; break;
@@ -240,7 +438,8 @@ function installBridgeDeps(bridgeDest, repoRoot, deps, dryRun) {
   }
   writeFileSync(
     join(bridgeDest, 'package.json'),
-    JSON.stringify({ name: 'winvm-a2a-bridge', version: '0.1.0', type: 'module', private: true }, null, 2) + '\n',
+    // Q3 防呆 b：版本从单一事实源读（audit-qa ⑧：'0.1.0' 三处硬编码收敛）
+    JSON.stringify({ name: 'winvm-a2a-bridge', version: resolvePluginVersion(repoRoot), type: 'module', private: true }, null, 2) + '\n',
     'utf8',
   );
 }
@@ -723,7 +922,9 @@ async function buildPlugin(args, skillsRoot, effectiveVmKey) {
     throw new Error(`未找到任何 Skill（期望 ${skillsRoot}/<skill-id>/SKILL.md）`);
   }
 
-  const version = '0.1.0';
+  // Q3 防呆 b：版本单一事实源（audit-qa ⑧ 三处硬编码收敛，此为本函数第 3 处）。
+  // resolvePluginVersion() 缺省路径=本文件上级 package.json（import.meta.url 推导，对 cwd 不敏感）。
+  const version = resolvePluginVersion();
   const plugin = {
     manifest: {
       name: 'winvm-bridge',
@@ -794,6 +995,17 @@ async function main() {
   if (args.purgeBackups) {
     console.log('=== WinVM Bridge · 清理卸载备份 ===');
     purgeBackups(args.home, args.trashDir);
+    return;
+  }
+
+  /* ---- Q3 防呆 a（批2）：--check-fresh 只读新鲜度对账（不安装、不写盘） ----
+   * 回答 DEP-02 的老问题："插件缓存 0.1.0 dist 是否与仓库一致"以前**无法证明**；
+   * 现在一条命令当场证明（缓存↔仓库构建物逐文件 SHA256）。不一致 ⇒ 提示重跑安装 + 非零退出码。 */
+  if (args.checkFresh) {
+    console.log('=== WinVM Bridge · 分发新鲜度对账（只读，零写入） ===');
+    const res = runFreshnessCheck(args.home, repoRoot);
+    for (const l of res.lines) console.log(l);
+    process.exitCode = res.ok ? 0 : 1;
     return;
   }
 
@@ -1123,6 +1335,20 @@ async function main() {
       copySsh2Runtime(join(paths.pluginRoot, 'node_modules'), repoRoot, false);
     } catch (e) {
       console.log(`  ⚠ ssh2 依赖分发失败（隧道将不可用）：${e.message}`);
+    }
+    /* ---- Q3 防呆 a（批2）：安装尾缓存↔源哈希对账断言（audit-qa ⑧「一把钥匙」落地）----
+     * 把 DEP-02「缓存是否与仓库一致无法证明」变成**当场证明**：所有复制完成后逐文件 SHA256 比对。
+     * 不一致 ⇒ FAIL 退出码（陈旧/半截分发静默通过是"改了 dist 不生效"的根因）。
+     * 非致命面：本断言在复制全部完成后跑，绝不改动任何文件（纯只读）。 */
+    {
+      const fresh = runFreshnessCheck(args.home, repoRoot);
+      console.log('');
+      console.log('分发新鲜度 : 缓存↔仓库构建物哈希对账');
+      for (const l of fresh.lines) console.log(`  ${fresh.ok ? '✓' : '⚠'} ${l}`);
+      if (!fresh.ok) {
+        console.error('安装失败：缓存与仓库构建物不一致（陈旧 dist 或复制半截）。按上方处置重跑 build + install-host。');
+        process.exit(1);
+      }
     }
     /* ---- 常驻隧道 daemon 拉起（T12 / G2）----
      * 仅鸿蒙宿主（或因 WINVM_TUNNEL_BACKEND=ssh2 强制）且非 --no-tunnel 时，

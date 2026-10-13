@@ -41,8 +41,15 @@ import net from 'node:net';
 import readline from 'node:readline/promises';
 
 // Reuse existing delivery modules (no behavior change to them).
-import { parseEnv, loadEnvFile, resolveConfig } from './setup.mjs';
-import { checkHostDeps, printChecks } from './preflight.mjs';
+import { parseEnv, loadEnvFile, resolveConfig, runRemotePs1 } from './setup.mjs';
+import { checkHostDeps, printChecks, evaluateAgentLogin } from './preflight.mjs';
+// Phase 3 批2 · P0-2：prepare-vm 纯逻辑（探测/应用 .ps1 生成 + 计划解析），SSH 通道复用本文件既有模式。
+import {
+  buildPrepareVmProbePs1,
+  buildPrepareVmApplyPs1,
+  parsePrepareVmProbe,
+  planPrepareVm,
+} from './prepare-vm.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -272,6 +279,29 @@ async function cmdCheck() {
           blocking++;
         }
       }
+
+      // DB-4（批2/D-1 勘误口径）：安装性已过（上方），这里补**登录态降级探测**。
+      // 实测 codebuddy 无非交互身份命令 ⇒ 只判"配置根标记文件是否存在"，结论如实标注局限；
+      // provider=workbuddy ∧ 登录态未证实 ⇒ 红字播报「当前确定性可用；切 LLM 需 VM 内交互登录」。
+      {
+        const mk = runSsh(
+          ['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost,
+           'test -f ~/.codebuddy/settings.json || test -f ~/.codebuddy/user-state.json'],
+          { timeoutMs: 15_000 },
+        );
+        const verdict = evaluateAgentLogin({
+          provider: cfg.vmProvider,
+          cliExists: cb.ok,
+          configDirExists: mk.ok,
+          markerFiles: [mk.ok],
+        });
+        if (verdict.verdict !== 'not-applicable') {
+          log('  [LOGIN ' + verdict.verdict.toUpperCase().replace(/-/g, '_') + '] ' + verdict.detail);
+          if (verdict.remedy && !isDeterministic) {
+            log('         ↳ ' + verdict.remedy);
+          }
+        }
+      }
     }
   }
 
@@ -470,6 +500,140 @@ async function cmdEnv(argv) {
   return true;
 }
 
+/* ----------------------------- cmd: prepare-vm (Phase 3 批2 · P0-2) ----------------------------- */
+
+/**
+ * `prepare-vm`：VM 前置环境一键准备（把 DB-1/2/5/6(+可选3) 从纯手工压进一条命令）。
+ *
+ * 双相：
+ *   1) 只读轻探测（**零临时文件、零 PS 内联**——sc/netsh/powercfg/POSIX 命令族，
+ *      严守"本批零真机写"；打印各项现状 + 计划表 + DB-4 登录态降级判定）；
+ *   2) `--apply` 时经 setup.mjs runRemotePs1 通道推 prepare-vm.mjs 生成的 .ps1 执行
+ *      （幂等：每项先探测再动作，第二次全 [SKIP]；管理员面 DB-1/2/6 未提权则打印精确手工配方）。
+ *
+ * 鸡生蛋说明（诚实边界）：VM **从未装过 OpenSSH Server** 时 SSH 通道本身不存在，
+ * 本命令不可达 ⇒ DB-1 的"安装"步骤只在"能连上但服务未自动/未运行"场景自动化；
+ * 全新 VM 的首装仍需一次 VM 内/RDP 手工（INSTALL-GUIDE §1.1 一行命令），此后全部自动化。
+ *
+ * @param {string[]} argv
+ * @returns {Promise<boolean>}
+ */
+async function cmdPrepareVm(argv) {
+  const apply = argv.includes('--apply');
+  const ensureNode = argv.includes('--ensure-node');
+  hr('WinVM Bridge bootstrap prepare-vm (P0-2: DB-1/2/5/6 one-shot VM provisioning)' +
+     (apply ? ' [APPLY]' : ' [READ-ONLY PROBE]'));
+  const { env, source, isFallback } = loadEnvOrTemplate();
+  log('  env source: ' + source + (isFallback ? '  (fallback; run `env` to write a real .env)' : ''));
+  const cfg = resolveConfig(env, { apply });
+  if (!cfg.vmHost || !cfg.vmUser) {
+    log(' [ABORT] VM_HOST / VM_USER not configured. Next step: node delivery/bootstrap.mjs env');
+    return false;
+  }
+  const alive = await tcpProbe(cfg.vmHost, cfg.vmSshPort, 4000);
+  if (!alive) {
+    log(' [FAIL] VM unreachable at ' + cfg.vmHost + ':' + cfg.vmSshPort + '.');
+    log('        Chicken-and-egg boundary: if OpenSSH Server was NEVER installed in this VM,');
+    log('        the SSH channel itself does not exist. Do this ONCE inside the VM (RDP/控制台):');
+    log('          Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0');
+    log('          Start-Service sshd; Set-Service sshd -StartupType Automatic');
+    log('        (or Settings -> Optional Features -> OpenSSH Server). Everything else');
+    log('        (DB-2/5/6 + optional DB-3, sshd auto-start hardening) is then automated by THIS command.');
+    return false;
+  }
+  const target = cfg.vmUser + '@' + cfg.vmHost;
+  const sshBase = ['-p', String(cfg.vmSshPort), target];
+  const probe = (cmd, timeoutMs = 20_000) => runSsh([...sshBase, cmd], { timeoutMs });
+
+  // —— 只读轻探测（每条独立容错；判据只用退出码+输出正则，绝不信 stderr 单独定性）——
+  const rAdmin = probe('net session', 15_000); // 非管理员必 access denied(错误5)
+  const rSshdQ = probe('sc query sshd');
+  const rSshdC = probe('sc qc sshd');
+  const rFwSsh = probe(`netsh advfirewall firewall show rule name=WinVM-SSH-${cfg.vmSshPort}`);
+  const rFwSvc = probe(`netsh advfirewall firewall show rule name=WinVM-Service-${cfg.servicePort}`);
+  // DB-5 轻探测**不可行**（实测）：powercfg 的 /query 斜杠参数被远端 Git-Bash/MSYS 路径转换吞改
+  //（"invalid parameter" 乱码），而项目铁律禁 ssh 内联 PowerShell。⇒ 现状判定让位给
+  // apply .ps1 通道（powershell -File 无 MSYS 干扰；powercfg /change 本身幂等无害）。
+  const rNode = probe('node -v');
+  const rCli = probe(cfg.workbuddyCli + ' --version');
+  const rMarker = probe('test -f ~/.codebuddy/settings.json || test -f ~/.codebuddy/user-state.json', 15_000);
+
+  const sshdInstalled = !/1060|does not exist/i.test(rSshdQ.out + rSshdQ.err);
+  const sshdRunning = /RUNNING/i.test(rSshdQ.out);
+  const mStart = rSshdC.out.match(/START_TYPE\s*:\s*(\d)/);
+  const sshdAuto = mStart ? mStart[1] === '2' : false;
+  const fwHas = (r) => r.ok && !/No rules match/i.test(r.out);
+
+  const nodeVerStr = firstVersion(rNode.out);
+  const state = {
+    admin: rAdmin.ok,
+    sshd: { installed: sshdInstalled, state: sshdRunning ? 'Running' : 'Stopped', startMode: sshdAuto ? 'Auto' : 'Manual/Unknown' },
+    firewall: { ssh: fwHas(rFwSsh), service: fwHas(rFwSvc) },
+    node: { present: rNode.ok, version: nodeVerStr },
+    agentCli: rCli.ok,
+    agentConfigDir: rMarker.ok,
+    standbyLine: 'deferred-to-apply (MSYS 吞 powercfg 斜杠参数，现状判定走 .ps1 通道)',
+    defenderRead: true, // 轻探测面不含 Get-MpPreference（需 PS）；apply .ps1 内做幂等 delta
+  };
+
+  log('');
+  log(' [1/3] 探测现状（只读，零写入）：');
+  log('   ADMIN(elevated)  = ' + state.admin + (state.admin ? '' : '   (DB-1 服务面/DB-2 防火墙/DB-6 Defender 需管理员；apply 会打印手工配方)'));
+  log('   DB-1 sshd        = ' + (sshdInstalled ? `installed, ${state.sshd.state}, ${state.sshd.startMode}` : 'NOT installed (见上鸡生蛋配方，需 VM 内首装一次)'));
+  log('   DB-2 firewall    = ssh:' + (state.firewall.ssh ? 'OK' : 'MISSING') + ' service:' + (state.firewall.service ? 'OK' : 'MISSING'));
+  log('   DB-5 powercfg    = ' + state.standbyLine + '  (apply 无条件幂等置 0，改后 --apply 复跑即收敛)');
+  log('   DB-3 node        = ' + (state.node.present ? 'v' + state.node.version : 'MISSING') + (ensureNode ? '  (--ensure-node 已开)' : ''));
+  log('   DB-6 defender    = (轻探测跳过 Get-MpPreference，apply .ps1 内幂等处理)');
+
+  const plan = planPrepareVm({ servicePort: cfg.servicePort, sshPort: cfg.vmSshPort, ensureNode }, state);
+  log('');
+  log(' [2/3] 计划（幂等判据：全部就绪 ⇒ 第二遍全 [SKIP]）：');
+  for (const p of plan) {
+    // action 串自带 [SKIP]/[MANUAL] 前缀时不再叠加标签（防 "[SKIP] [SKIP] ..." 双打）
+    const auto = /^\[/.test(String(p.action));
+    const tag = auto ? '' : (p.manual ? 'MANUAL' : 'DO') + ' ';
+    log('   ' + p.db + ' ' + p.item + ' => ' + tag + p.action);
+  }
+
+  // DB-4 登录态（D-1 勘误口径：安装性已覆盖，此处只补"登录态无法确证"的显形）
+  const login = evaluateAgentLogin({
+    provider: cfg.vmProvider,
+    cliExists: state.agentCli,
+    configDirExists: state.agentConfigDir,
+    markerFiles: [state.agentConfigDir],
+  });
+  log('');
+  log(' [2.5/3] DB-4 codebuddy 登录态：verdict=' + login.verdict + ' —— ' + login.detail);
+  if (login.remedy) log('           ↳ ' + login.remedy);
+
+  if (!apply) {
+    log('');
+    log(' [3/3] READ-ONLY 完成（本模式绝不改 VM）。执行改动：');
+    log('   node delivery/bootstrap.mjs prepare-vm --apply' + (ensureNode ? ' --ensure-node' : ''));
+    log('   （apply 经 runRemotePs1 推 .ps1：DB-1 Automatic+Start / DB-2 防火墙 / DB-5 powercfg 三件套 /');
+    log('     DB-6 Defender delta / 可选 DB-3 winget node；每项先探测再动作=幂等）');
+    return true;
+  }
+
+  log('');
+  log(' [3/3] APPLY：推 prepare-vm .ps1 执行（远端逻辑走 .ps1+scp，勿内联 PS 铁律）...');
+  const ps1 = buildPrepareVmApplyPs1({
+    servicePort: cfg.servicePort,
+    sshPort: cfg.vmSshPort,
+    vmDeployDir: cfg.vmDeployDir,
+    ensureNode,
+  });
+  const r = await runRemotePs1(cfg, ps1, { timeoutMs: 300_000, log: (m) => log('   ' + m) });
+  log(String(r.out || '').trimEnd());
+  if (!r.ok) {
+    log(' [FAIL] apply .ps1 非零退出（code=' + r.code + '）。逐行看上方 [DB-x] 标记定位；权限面不足时按 [MANUAL] 配方手工补齐。');
+    return false;
+  }
+  log(' [DONE] prepare-vm apply 完成。复核：再跑一次 `node delivery/bootstrap.mjs prepare-vm`（只读）看收敛，');
+  log('        或再 apply 一次应全 [SKIP]/DONE。DB-4 登录仍需 VM 内交互一次（结构性手工，唯一残留人工项）。');
+  return true;
+}
+
 /* ----------------------------- cmd: all ----------------------------- */
 
 /**
@@ -553,6 +717,15 @@ function usage() {
   log('  env    Generate the project-root .env from delivery/env.example (interactive, or');
   log('         parameter mode: --vm-host=... --vm-user=... --vm-ssh-port=... --provider=...).');
   log('         Existing .env is backed up to .env.winvm-bak.<timestamp>.');
+  log('  prepare-vm [--apply] [--ensure-node]');
+  log('         P0-2 one-shot VM provisioning (Phase 3 批2): read-only probe by default');
+  log('         (sshd/firewall/powercfg/defender/node/login markers, ZERO VM writes);');
+  log('         --apply pushes an idempotent .ps1 via setup.mjs runRemotePs1 that automates');
+  log('         DB-1 (Automatic+start; install only if channel exists), DB-2 firewall rules,');
+  log('         DB-5 powercfg never-sleep trio, DB-6 Defender exclusion delta, optional DB-3');
+  log('         winget node. The ONLY structural manual residual is DB-4 codebuddy login');
+  log('         (interactive auth cannot be scripted) + first-time OpenSSH install on a VM');
+  log('         that never had the SSH channel (chicken-and-egg, one command printed).');
   log('  all    check -> trust -> env -> `node delivery/setup.mjs` (DRY-RUN).');
   log('         SECURITY: bootstrap never passes --apply; run setup.mjs --apply explicitly');
   log('         after reviewing the dry-run plan.');
@@ -572,6 +745,7 @@ async function main() {
     case 'check': return cmdCheck();
     case 'trust': return cmdTrust();
     case 'env': return cmdEnv(argv.slice(1));
+    case 'prepare-vm': return cmdPrepareVm(argv.slice(1));
     case 'all': return cmdAll();
     case 'help':
     case '--help':

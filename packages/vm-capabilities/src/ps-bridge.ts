@@ -75,6 +75,21 @@ export class PsBridgeError extends Error {
   }
 }
 
+/**
+ * R-4（Phase 3 批2）：ps-bridge.ps1 启动期采集的 psmod 版本指纹。
+ *
+ * `files` 为「文件名 → 启动期 SHA256（小写 hex）」；`capturedAt` 为桥进程启动时刻
+ *（进程存活期间恒定——这正是"漂移检测"的依据：deploy 覆盖磁盘文件后，未重启的进程
+ * 报的还是旧哈希）。`failedLoads` 点名启动期加载失败的模块（arch3 D-3 缺口）。
+ */
+export interface PsmodFingerprint {
+  readonly files: Record<string, string>;
+  readonly capturedAt: string;
+  readonly pid?: number;
+  readonly psVersion?: string;
+  readonly failedLoads?: string[];
+}
+
 let seq = 0;
 
 /** PowerShell 可执行文件名（跨平台可 fallback 到 pwsh） */
@@ -110,6 +125,14 @@ export class PsBridge {
   private lastError: string | undefined;
   /** 上次自愈尝试时间：用于退避，避免看门狗高频重试形成风暴 */
   private lastHealAttemptMs = 0;
+
+  /**
+   * R-4（Phase 3 批2）版本指纹：ps-bridge.ps1 **启动期**计算的各 psmod 模块文件 SHA256。
+   * 由 `dispatch` 在 `__meta` 应答（ping / fingerprint）途经点捕获 —— 进程存活期间恒定，
+   * kill-restart 后才刷新；deploy 推新文件而未重启时，此处仍是**旧哈希**，宿主侧
+   * （delivery/tools/psmod-drift.mjs）与源仓哈希比对即可显形"漂移未生效"。
+   */
+  private lastFingerprint: PsmodFingerprint | undefined;
 
   /** 自愈退避窗口（毫秒）：两次自愈尝试之间的最小间隔 */
   private static readonly HEAL_BACKOFF_MS = 3_000;
@@ -154,6 +177,9 @@ export class PsBridge {
   private async spawnAndReady(): Promise<void> {
     this.lastHeartbeatAtMs = Date.now();
     this.startedAtMs = Date.now();
+    // R-4：清旧实例指纹，待新进程握手 ping 途经重新捕获 —— 绝不拿"上一进程时代的哈希"
+    // 冒充当前进程版本（宁可短暂缺席，不可谎报）。
+    this.lastFingerprint = undefined;
 
     this.child = spawn(
       this.psExe,
@@ -339,6 +365,18 @@ export class PsBridge {
       this.lastHeartbeatAtMs = Date.now();
       return;
     }
+    // R-4：`__meta` 应答（ping/fingerprint）途经点顺带捕获启动期指纹。
+    // ping 被 ready()/watchdog 高频调用，指纹随 ping 回传 ⇒ 零额外往返即可刷新持有值。
+    // 仅当载荷带 fingerprint 结构才记录（旧版 ps-bridge 不带该键时行为逐字不变）。
+    const data = msg['data'];
+    if (
+      data &&
+      typeof data === 'object' &&
+      (data as Record<string, unknown>)['module'] === '__meta' &&
+      (data as Record<string, unknown>)['fingerprint']
+    ) {
+      this.lastFingerprint = (data as Record<string, unknown>)['fingerprint'] as PsmodFingerprint;
+    }
     const id = msg['id'];
     if (typeof id !== 'string') return;
     const waiter = this.pending.get(id);
@@ -508,6 +546,9 @@ export class PsBridge {
    * D2：新增 `restarts` / `lastError`（纯增量，既有字段语义不变），
    * 使「桥自愈了几次、上次为何失败」对上层（/health、meta.health.check）可见，
    * 避免故障时无从判断（旧实现把重启失败静默吞掉）。
+   *
+   * R-4（批2，纯附加）：`fingerprint` 为 ps-bridge.ps1 启动期 psmod 文件 SHA256 快照
+   *（经 ping/fingerprint 应答途经捕获；旧版 ps-bridge 不带该键时字段整体缺席 = 旧形状）。
    */
   health(): {
     state: 'ready' | 'down';
@@ -516,6 +557,7 @@ export class PsBridge {
     lastHeartbeatAgoMs: number;
     restarts: number;
     lastError?: string;
+    fingerprint?: PsmodFingerprint;
   } {
     return {
       state: this.running ? 'ready' : 'down',
@@ -524,6 +566,7 @@ export class PsBridge {
       lastHeartbeatAgoMs: this.lastHeartbeatAtMs === 0 ? -1 : Date.now() - this.lastHeartbeatAtMs,
       restarts: this.restarts,
       ...(this.lastError ? { lastError: this.lastError } : {}),
+      ...(this.lastFingerprint ? { fingerprint: this.lastFingerprint } : {}),
     };
   }
 }

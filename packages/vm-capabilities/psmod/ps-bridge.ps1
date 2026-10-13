@@ -42,6 +42,32 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 $script:ModulesRoot = Join-Path $PSScriptRoot ''
 $script:LoadedModules = @{}
 
+# ------------------------------ R-4 版本指纹（Phase 3 批2） ------------------------------
+# 病灶：改 psmode/*.ps1 不重启即静默不生效（ps-bridge 不可热更，K-7 铁律），且 /health 的
+# psBridge 只有 uptime，无法证明"VM 里跑的是哪一版模块"。
+# 方案：**启动期**对各 .ps1 文件算 SHA256 存为快照（进程存活期间不变）——deploy 推新文件后
+# 若未 kill-restart，进程报的还是启动期旧哈希，宿主侧比对源仓哈希即可显形"漂移未生效"。
+# 真值口径：Get-FileHash SHA256 对小写 hex；与宿主 Node createHash('sha256') 逐字节一致
+#（实测：VM 与源仓 psmode 文件经 tar 分发保持字节相同，无 CRLF 改写）。
+$script:PsmodFiles = [ordered]@{}
+foreach ($f in (Get-ChildItem -Path $PSScriptRoot -Filter '*.ps1' -File | Sort-Object -Property { $_.Name })) {
+    try {
+        $script:PsmodFiles[$f.Name] = (Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash.ToLower()
+    } catch {
+        # 单文件哈希失败不拖垮指纹：记空串，宿主比对会把它显形成 FAIL 项（宁可 loud）
+        $script:PsmodFiles[$f.Name] = ''
+    }
+}
+$script:FingerprintCapturedAt = [datetime]::UtcNow.ToString('o')
+
+function Get-PsmodFingerprint {
+    return [ordered]@{
+        files      = $script:PsmodFiles
+        capturedAt = $script:FingerprintCapturedAt
+        pid        = $PID
+    }
+}
+
 function Write-ProtocolLine {
     param([Parameter(Mandatory)][object]$Object)
     $json = $Object | ConvertTo-Json -Depth 30 -Compress
@@ -121,6 +147,27 @@ function Invoke-MetaCapability {
                 sessionId = (Get-CurrentSessionId)
                 psVersion = $PSVersionTable.PSVersion.ToString()
                 loaded    = @($script:LoadedModules.Keys)
+                # R-4：ping 也带指纹摘要（宿主高频面零额外成本拿到版本事实）
+                fingerprint = (Get-PsmodFingerprint)
+            }
+        }
+        'fingerprint' {
+            # R-4：显式指纹查询面（漂移比对工具用这条，语义单一）
+            $fp = Get-PsmodFingerprint
+            return [ordered]@{
+                ok            = $true
+                module        = '__meta'
+                function      = 'fingerprint'
+                bridgeScript  = $PSCommandPath
+                modulesRoot   = $PSScriptRoot
+                files         = $fp.files
+                capturedAt    = $fp.capturedAt
+                pid           = $fp.pid
+                psVersion     = $PSVersionTable.PSVersion.ToString()
+                # 启动期加载失败的模块点名（arch3 D-3："ping 不点名失败模块"缺口）
+                failedLoads   = @((Get-ChildItem -Path $PSScriptRoot -Filter '*.ps1' -File |
+                    Where-Object { $_.Name -ne 'ps-bridge.ps1' -and -not $script:LoadedModules.ContainsKey($_.BaseName) } |
+                    ForEach-Object { $_.BaseName }))
             }
         }
         'listModules' {
