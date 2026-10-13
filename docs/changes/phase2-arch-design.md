@@ -641,3 +641,14 @@ graph TD
 **用户终裁（全部五项 + 启动令）**：①T13=A 销账（历史只登记；新增要求=确保今后不再出现存档指向错乱⇒批5 加链写分叉防护/verifyArchive 扩展 prevHash 连续性判据）；②R-5=B 主动排期（触发器 T-2 作废，批5 直接门禁化）；③teams 非 winvm 残骸**一律不动**（永久纪律，后续任何批次不得触碰 `~/.workbuddy/teams` 非 winvm 域）；④审计链保留期=**90 天 ∧ 总大小 <2GB 双标准，超限删最老，处理方式=删除**（批5 retention 实现参数）；⑤ARCH-09=A 补建（批6；批0 文档按"绑定在建"措辞非降级）。**启动令：批0（文档止血）∥ 批2（装得上）双轨开工**。
 
 **组织**：新建团队 `software-winvm-p3`；寇豆码两棒并行（b0=docs/skills/tests 域，b2=delivery/packages 域）；**文件所有权切割令**：README.md/GATE-POLICY.md 归 b0；server.ts/src 全部字符串归 b2（b0 两处续跑话术文案由我代交）；tsc -b 与 gate 全量档 b2 独占（b0 禁跑防 tsbuildinfo 竞态）；两棒互不直连，经主理人中转。终版报告 §7 表格化+四处台账参数注入随本登记入库。
+
+### 13.15 Phase 3 启动批+批3+批5 交付登记（2026-10-13）
+
+**模式变更**：专家团模式取消后由主理人直接实现（批0/批2 团队模式已验证后转连续作业）。用户指令"继续批3，4，5，6"（批1=审批闭环 P0-1 暂缓，后续专项）。
+
+**已交付批次链**（每批 tsc RC=0+gate quick GREEN+新测亲跑+回归抽跑）：
+- 批3 `2bfaf95`：M1 取消接通（inflightCancels+cancelGate 竞速，不触碰 signal 监听摘除红线；composeSignals 方案试后作废留痕）/M4 audit.receipt 桥（bearer 复用权威 applyBearerHeader 三态 fail-loud 先于出网；宿主侧兜底脱敏）/M8 直调审批 TTL 槽（Infinity⇒键缺席零回归）/A2-12 GUI 三判据接线（**PR8 教训：`!guiAllowed&&!nonGuiAllowed` 会误放 black-screen——拒绝集必须显式保 black-screen**；probeError 走 D23 领域层 reason 不扩契约 10 码）+回归 9 件亲跑（mcp-signal 54 含既有"cancelled 通知返 null"钉不改判）。
+- 批5-1 `6f350de`：A2-14 保留期（用户参数 90d∧2GB 双标准；planShardPrune 纯函数+五安全红线：活动片永护/年龄取文件名日期非 mtime/minKeep 防误配清空/两阶段防混序/fail-safe；删除留痕入链=保留期非静默抹除通道；config 平铺三键出厂即启用）+T13 防再发（**亲验分叉根因修复早已在位=chain.ts:481-494 D30 串行闭包**，处方改"锁死成回归"：并发 50 齐射+maxFileBytes=200 逼跨片轮转+独立 prevHash 逐条复核+重启续链，共 3 例；不扩 verifyArchive 跨片比对=与 O-8 片内基线设计冲突，登记设计判断）。
+- 批5-2 `da4abc4`：R-5 取消风暴门禁化（用户 B；CancelRateLimiter 滑动窗口，超限拒在 requestCancel **之前**（ghost id 测试坐实），缺省 10/1000ms env 可覆盖含 0=禁用）+A2-3 idle 回收预算（plannedRecycles+recyclePending 消费制=一次回收只抵消一次重建绝不虚增；**restarts getter 不动保观测价值**，只改熔断判据；判别性测试=6 轮 idle 在 maxRestarts=2 永不停用（修复前必红）+纯故障仍熔断（未削弱保护）双向钉）。
+- 测试基线：99/1945（QA 重锚）→批3 +2 件 15 例→批5 +2 件 25 例（全量 sweep 重锚=qa/p3-batch-sweep/gate-full.txt，实跑数为准）。
+- 台账执行状态节=终版报告 §8 追加（原始判定不动）。
