@@ -110,6 +110,18 @@ export class McpServer {
   private readonly version: string;
   private readonly instructions?: string;
   private initialized = false;
+  /**
+   * P3-b3 M1（Phase 3 批3 · audit §3.2 M1）：**在途请求的取消登记表**。
+   *
+   * 旧实现把 `notifications/cancelled` 与 `notifications/initialized` 合并成一行
+   * `return null`——吞掉了协议里唯一**客户端主动取消在途 tools/call** 的通路
+   * （断连 abort 是被动面，取消通知是主动面；此前宿主直调 600s 长任务"停不下来"）。
+   *
+   * 键 = JSON-RPC 请求 id 的字符串形态（客户端命名空间；跨连接同名 id 属已知低概率互伤，
+   * 与 MCP SDK 同款妥协）。登记时机见 `callTool`，settle 必删（无界增长红线）。
+   * 值 = cancelGate 的 reject 句柄——**不动 signal 路径**（既有监听器摘除保证原样）。
+   */
+  private readonly inflightCancels = new Map<string, (e: Error) => void>();
 
   constructor(opts: McpServerOptions) {
     this.name = opts.name;
@@ -175,9 +187,27 @@ export class McpServer {
           });
 
         case 'notifications/initialized':
-        case 'notifications/cancelled':
         case 'initialized':
           return null;
+
+        case 'notifications/cancelled': {
+          // P3-b3 M1：此前与上两案合并 `return null`（吞没主动取消通路）。
+          // 协议语义：params.requestId 指向一条在途请求 ⇒ reject 其 cancelGate。
+          // 通知仍**无响应体**（返回 null 的既有钉 phase2-mcp-signal.test.js:576 不改判）。
+          const rid = params['requestId'];
+          if (rid !== undefined && rid !== null) {
+            const reject = this.inflightCancels.get(String(rid));
+            if (reject) {
+              const err = new Error('客户端已发送 notifications/cancelled，工具调用已中止');
+              err.name = 'AbortError';
+              (err as Error & { clientCancelled?: boolean }).clientCancelled = true;
+              reject(err);
+              this.logger.info('在途工具调用被客户端通知取消', { requestId: String(rid) });
+            }
+            // 未命中=在途表无该请求（已 settle 或从未存在）⇒ 静默，符合协议"未知 id 忽略"惯例。
+          }
+          return null;
+        }
 
         case 'ping':
           return this.result(id, {});
@@ -220,9 +250,20 @@ export class McpServer {
       ...(reqCtx?.signal ? { signal: reqCtx.signal } : {}),
     };
 
+    // P3-b3 M1：在途请求登记一个「取消闸门」reject 句柄（**不触碰 signal/raceAbort 路径**，
+    // 既有监听器摘除保证 phase2-mcp-signal 测试④ 原样不动）。取消通知命中 ⇒ reject 该 gate ⇒
+    // 与 handler 竞速，走既有 AbortError 取消语义出口。
+    let cancelReject: ((e: Error) => void) | undefined;
+    const cancelGate = new Promise<never>((_, rej) => {
+      cancelReject = rej;
+    });
+    const regKey = id !== null ? String(id) : undefined;
+    if (regKey !== undefined && cancelReject) this.inflightCancels.set(regKey, cancelReject);
+
     // ARCH-29 判据 1（**取消优先于执行**）：signal 在派发前就已 abort（宿主断连早于本行）
     // ⇒ 绝不发起 handler（零新副作用），与 Phase 1 `step()` 咽喉范式同一口径。
     if (ctx.signal?.aborted === true) {
+      if (regKey !== undefined) this.inflightCancels.delete(regKey);
       this.logger.warn('工具调用未发起：宿主连接已断开', { tool: name, traceId });
       return this.result(id, {
         content: [{ type: 'text', text: CANCELED_TEXT }],
@@ -231,9 +272,17 @@ export class McpServer {
     }
 
     try {
-      const res = ctx.signal
-        ? await raceAbort(tool.handler(args, ctx), ctx.signal)
-        : await tool.handler(args, ctx);
+      // 取消优先于执行：gate 命中即中止本地等待（handler 若自消费 signal 提前返回，
+      // 谁先 settle 谁定，不改写其返回值——与 raceAbort 同纪律）。
+      const handlerP = ctx.signal
+        ? raceAbort(tool.handler(args, ctx), ctx.signal)
+        : tool.handler(args, ctx);
+      // gate 抢先时 handlerP 可能日后 reject ⇒ 吞掉孤儿 rejection（结果已定，
+      // 无人消费其错误；不吞则 node 判 unhandledRejection 崩进程）。
+      handlerP.catch(() => {
+        /* 取消侧抢先，本错误无消费者 */
+      });
+      const res = await Promise.race([handlerP, cancelGate]);
       return this.result(id, {
         ...(res.content ? { content: res.content } : { content: [{ type: 'text', text: summarize(res.structuredContent) }] }),
         ...(res.structuredContent !== undefined ? { structuredContent: res.structuredContent } : {}),
@@ -241,13 +290,15 @@ export class McpServer {
       });
     } catch (e) {
       // ARCH-29 判据 2（在途中止留痕）：AbortError 走**取消语义**，不得伪装成「执行失败」
-      // —— 后者会被上游读成「这次调用出错了」，而真实事实是「宿主走了、本地停止等待」。
+      // —— 后者会被上游读成「这次调用出错了」，而真实事实是「宿主走了/被取消了、本地停止等待」。
       if ((e as Error)?.name === 'AbortError') {
-        this.logger.warn('工具调用因宿主断连而中止（VM 内在途副作用可能仍在继续）', {
-          tool: name,
-          traceId,
-          inFlightMayContinue: true,
-        });
+        const byNotification = (e as Error & { clientCancelled?: boolean }).clientCancelled === true;
+        this.logger.warn(
+          byNotification
+            ? '工具调用因客户端取消通知而中止（VM 内在途副作用可能仍在继续）'
+            : '工具调用因宿主断连而中止（VM 内在途副作用可能仍在继续）',
+          { tool: name, traceId, inFlightMayContinue: true, byNotification },
+        );
         return this.result(id, {
           content: [{ type: 'text', text: CANCELED_TEXT }],
           structuredContent: { traceId, ok: false, canceled: true, inFlightMayContinue: true },
@@ -259,6 +310,9 @@ export class McpServer {
         content: [{ type: 'text', text: `执行失败：${(e as Error).message}` }],
         isError: true,
       });
+    } finally {
+      // settle 必删：无界增长红线（HTTP keep-alive 长连接复用同一 McpServer 实例）。
+      if (regKey !== undefined) this.inflightCancels.delete(regKey);
     }
   }
 

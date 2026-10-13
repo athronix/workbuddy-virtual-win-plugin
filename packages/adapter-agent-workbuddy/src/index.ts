@@ -22,7 +22,7 @@ import {
   makeError,
   riskAtLeast,
 } from '@winvm/contracts';
-import { newId, newTraceId } from '@winvm/core';
+import { newId, newTraceId, guiAllowed, nonGuiAllowed, describeSessionState } from '@winvm/core';
 import { PsBridge, type PsBridgeOptions } from '@winvm/vm-capabilities';
 
 export const PROVIDER_ID = 'workbuddy-deterministic';
@@ -322,18 +322,48 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     }
 
     // —— 会话守卫：GUI 能力在无交互式会话时必须明确报错，绝不静默黑屏 ——
+    // P3-b3 A2-12（audit §3.2）：三判据真实接线 +「探测未知」与「确不可用」错误语义分流。
+    //   拒绝面 = 旧态逐字一致（仅 unavailable/black-screen 拒 ⇒ 零行为回归，锁屏下只读探测类
+    //   能力照旧可跑）；guiAllowed 作为「完全健康」正向判据消费，degraded/非交互的带通过
+    //   经 warn 日志显形（不再是静默通过；扩 CapabilityResult 契约入回执属过度设计，不做）；
+    //   describeSessionState 提供人读态；probeError
+    //   在场 ⇒ 布尔是 fail-closed 兜底值（契约原文），改报可重试的 SESSION_PROBE_FAILED，
+    //   旧实现把它误归"确不可用"（A2-12 病灶）。**放行结论零放宽**（PR8 红线：变的只是归因与显形）。
     if (cap.requiresSession) {
       const session = await this.sessionHealth();
-      if (session.state === 'unavailable' || session.state === 'black-screen') {
+      if (session.probeError) {
+        // 契约层不扩码（10 码封闭面）：code 沿用 SESSION_UNAVAILABLE（本就 retryable:true），
+        // 归因显形走 CL-017 D23 的领域层 reason='SESSION_PROBE_FAILED'——调用方/审计据此
+        // 区分「探测通路故障（查 runbook）」vs「确不可用（恢复会话）」，正是 reason 字段的设计用途。
+        const probeErr = makeError(
+          'SESSION_UNAVAILABLE',
+          `会话状态未能探得（非确不可用）：${session.probeError}${session.probeErrorCode ? ` [${session.probeErrorCode}]` : ''}。可稍后重试；持续失败请查会话探测通路（docs/04-ops runbook）。`,
+          { reason: 'SESSION_PROBE_FAILED' },
+        );
+        return this.fail(req, probeErr, started, ctx);
+      }
+      if (!nonGuiAllowed(session) || session.state === 'black-screen') {
+        // 拒绝集与旧手写 `state==='unavailable'||state==='black-screen'` **逐字等价**
+        // （degraded 只读探测带通过面不变——PR8 零放宽）；black-screen 显式保留：
+        // nonGuiAllowed 语义只排 unavailable，黑屏下截图/UIA 同样是瞎的。
         return this.fail(
           req,
           makeError(
             session.state === 'black-screen' ? 'SESSION_BLACK_SCREEN' : 'SESSION_UNAVAILABLE',
-            `GUI 能力需要交互式会话。当前：${session.state}。${session.detail ?? ''}`,
+            `GUI 能力需要交互式会话。${describeSessionState(session.state)}。${session.detail ?? ''}`,
           ),
           started,
           ctx,
         );
+      }
+      // 到达此 = 放行带（与旧逐字同集）；guiAllowed=false 的降级通过（如 degraded 锁屏下的
+      // 只读探测）记一条 warn 显形，不再是静默通过（审计归因可查）。
+      if (!guiAllowed(session)) {
+        ctx.logger.warn('GUI 能力在降级会话带通过（guiAllowed=false 但 nonGuiAllowed=true）', {
+          capabilityId: req.capabilityId,
+          state: session.state,
+          describe: describeSessionState(session.state),
+        });
       }
       // ARCH-29：会话探针本身是一段真实等待（ps-bridge 往返）。断连若发生在它期间，
       // 必须在**发起能力调用之前**再问一次 —— 这是「协作式中止在每个能力边界轮询」的

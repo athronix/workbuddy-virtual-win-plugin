@@ -1304,6 +1304,12 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
                 preview: buildPreview(cap, rest),
                 impact,
                 resumeHint: '确认后以 __approvalId 重发同一请求',
+                // P3-b3 M8（audit §3.2 M8）：审批卡 TTL 槽——卡片文案此前无"多久失效"位，
+                // 用户隔天下批准点下去恒返 APPROVAL_REQUIRED 而无归因。纯附加：
+                // ttl=Infinity（未启过期清扫）⇒ expiresAtMs 不写（缺席即旧形状）。
+                ...(Number.isFinite(pendingApprovals.ttl)
+                  ? { expiresAtMs: Date.now() + pendingApprovals.ttl, ttlMs: pendingApprovals.ttl }
+                  : {}),
               },
             },
           };

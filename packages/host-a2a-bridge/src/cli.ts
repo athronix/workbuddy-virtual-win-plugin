@@ -125,6 +125,8 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
     defaultMaxRisk: args.maxRisk,
     defaultTimeoutMs: args.timeoutMs,
     baseUrl: args.endpoint,
+    // P3-b3 M4：audit.receipt 与隧道请求共用同一 tokenEnv 语义（未给=不带凭据）
+    ...(args.tokenEnv ? { bearerTokenEnv: args.tokenEnv } : {}),
   });
 
   const server = new McpServer({

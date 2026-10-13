@@ -6,6 +6,7 @@
  */
 
 import type { McpContent, McpTool } from '@winvm/mcp-framework';
+import { applyBearerHeader } from '@winvm/core';
 import { A2A, type RiskLevel } from '@winvm/contracts';
 
 import type { A2aDelegateClient, DelegateStreamOptions } from './client.js';
@@ -286,6 +287,15 @@ export interface A2aBridgeToolOptions {
   readonly defaultTimeoutMs?: number;
   /** Agent Card 基址（HTTP 传输时用于探活） */
   readonly baseUrl?: string;
+  /**
+   * P3-b3 M4（audit §3.2 M4 / README"可审计"头条卖点）：`GET /audit/receipt` 桥接。
+   * VM 侧端点已建成（S-3，receiptCache+链上记录+委派展开）但宿主 Agent 零可达路径
+   * ——本工具把它包装成 `audit.receipt` MCP 工具，取证键=委派/调用 traceId。
+   * bearer 走与 `EstablishOptions.headers` 同一权威函数 `applyBearerHeader`（三态：
+   * 未给 tokenEnv ⇒ 无凭据可通；给了未设值 ⇒ fail-loud 转 AUTH_REQUIRED，绝不静默降级——
+   * 与 cli `--token-env` 帮助文本"给出后未设值直接报错"逐字同纪律）。
+   */
+  readonly bearerTokenEnv?: string;
 }
 
 function readStringArray(v: unknown): string[] | undefined {
@@ -800,5 +810,91 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
     },
   };
 
-  return [delegate, taskGet, approvalReply, cancel, health];
+  const receipt: McpTool = {
+    name: 'audit.receipt',
+    title: 'VM 侧审计取证回查',
+    description:
+      '按 traceId（a2a.delegate 返回的 delegationTraceId，或直调回执里的 traceId）回查 VM 侧审计链记录与字段级回执。' +
+      '只读；未命中返回空 records（HTTP 200 语义，不是错误）；委派级 traceId 命中壳条目时自动展开内层调用。',
+    inputSchema: {
+      type: 'object',
+      required: ['traceId'],
+      properties: {
+        traceId: { type: 'string', description: '委派 traceId（tr_…）或单次调用 traceId' },
+      },
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    handler: async (params, ctx) => {
+      const traceId = typeof params['traceId'] === 'string' ? params['traceId'].trim() : '';
+      if (!traceId) {
+        return { isError: true, structuredContent: { ok: false, error: { code: 'INVALID_PARAMS', message: 'traceId 必填' } } };
+      }
+      if (!opts.baseUrl) {
+        return {
+          isError: true,
+          structuredContent: { ok: false, traceId, error: { code: 'TRANSPORT_UNSUPPORTED', message: '当前 stdio 传输无 HTTP 基址，/audit/receipt 不可达' } },
+        };
+      }
+      const tokenEnvName = opts.bearerTokenEnv;
+      let authHeaders: Record<string, string>;
+      try {
+        // 与 establishTransport 同一权威 bearer 拼装函数（三态语义逐字一致：未配=无凭据、
+        // 给了未设值=TransportError fail-loud ⇒ 转 AUTH_REQUIRED，绝不静默降级）。
+        authHeaders = applyBearerHeader({ accept: 'application/json' }, tokenEnvName);
+      } catch (e) {
+        return {
+          isError: true,
+          structuredContent: { ok: false, traceId, error: { code: 'AUTH_REQUIRED', message: (e as Error).message } },
+        };
+      }
+      const url = `${opts.baseUrl.replace(/\/+$/, '')}/audit/receipt?traceId=${encodeURIComponent(traceId)}`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20_000);
+      try {
+        const res = await fetch(url, {
+          headers: authHeaders,
+          signal: controller.signal,
+        });
+        if (res.status === 401) {
+          return {
+            isError: true,
+            structuredContent: { ok: false, traceId, error: { code: 'AUTH_REQUIRED', message: 'VM 侧 enforceBearer 开启且本桥未配 token-env（cli --token-env）' } },
+          };
+        }
+        if (!res.ok) {
+          return {
+            isError: true,
+            structuredContent: { ok: false, traceId, error: { code: 'RECEIPT_FETCH_FAILED', message: `HTTP ${res.status} from ${url}` } },
+          };
+        }
+        // 呈现面统一脱敏（凭据键族），与审批卡同款纪律
+        const body = scrubText(await res.text());
+        let json: unknown;
+        try {
+          json = JSON.parse(body);
+        } catch {
+          return { isError: true, structuredContent: { ok: false, traceId, error: { code: 'RECEIPT_PARSE_FAILED', message: '回执体非 JSON（VM 版本过旧？）' } } };
+        }
+          const records = isRecord(json) && Array.isArray(json['records']) ? json['records'] : [];
+          const receipts = isRecord(json) && Array.isArray(json['receipts']) ? json['receipts'] : [];
+          // 呈现面兜底脱敏：端点级脱敏在 VM 侧，但旧版 VM 无此保证 ⇒ 宿主侧同族正则再扫一遍（双保险）。
+          const scrubbed = JSON.parse(scrubText(body)) as Record<string, unknown>;
+          return {
+            isError: false,
+            structuredContent: { ok: true, traceId, ...scrubbed, recordCount: records.length, receiptCount: receipts.length },
+          content: [{ type: 'text', text: `取证：链上记录 ${records.length} 条、字段级回执 ${receipts.length} 条${records.length === 0 ? '（未命中=该 traceId 从未到过 VM 或已过进程缓存窗口；链上为空才是硬未发生）' : ''}` }],
+        };
+      } catch (e) {
+        const msg = e instanceof Error && e.name === 'AbortError' ? '回查超时（20000ms）' : (e as Error).message;
+        return {
+          isError: true,
+          structuredContent: { ok: false, traceId, error: { code: 'TUNNEL_UNAVAILABLE', message: msg } },
+        };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
+
+  return [delegate, taskGet, approvalReply, cancel, health, receipt];
 }
