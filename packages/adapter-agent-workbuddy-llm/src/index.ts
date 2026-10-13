@@ -28,7 +28,7 @@ import {
   type ProgressSink,
   makeError,
 } from '@winvm/contracts';
-import { resolveApprovalTruth, type ApprovalTruthMode, type LlmSessionConfig } from '@winvm/core';
+import { resolveApprovalTruth, expandEnvPath, type ApprovalTruthMode, type LlmSessionConfig } from '@winvm/core';
 import type { PsBridgeOptions } from '@winvm/vm-capabilities';
 import { DeterministicAgentProvider } from '@winvm/adapter-agent-workbuddy';
 
@@ -71,10 +71,7 @@ const NON_DEGRADABLE_CODES: readonly string[] = [
   'TASK_CANCELED',
 ];
 
-/** 展开 %ENV% 占位符（与 outputDir 处理一致） */
-function expandEnvPath(p: string): string {
-  return p.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, n: string) => process.env[n] ?? m);
-}
+// A2-10（Phase 3 批6）：本地重复实现已收敛到 @winvm/core 权威 expandEnvPath（见文件头 import）。
 
 /** 极简 frontmatter 解析（仅取 name / description），避免依赖宿主侧 host-sdk */
 function parseFrontmatter(raw: string): { name?: string; description?: string } {

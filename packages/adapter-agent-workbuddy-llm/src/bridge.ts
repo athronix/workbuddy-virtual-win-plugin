@@ -31,6 +31,7 @@ import {
   resolveApprovalReplay,
   resolveApprovalTruth,
   resolveLlmSessionConfig,
+  expandEnvPath,
   type ApprovalTruthMode,
   type LlmSessionConfig,
 } from '@winvm/core';
@@ -288,7 +289,7 @@ function pathExts(): string[] {
  * 解析失败时返回 `resolved=false` 与探测清单，供调用方给出**可操作**错误。
  */
 export function resolveCliPath(input: string): CliResolveResult {
-  const expanded = input.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, n: string) => process.env[n] ?? m);
+  const expanded = expandEnvPath(input);
   let p = expanded;
   if (p === '~') p = homedir();
   else if (p.startsWith('~/') || p.startsWith('~\\')) p = join(homedir(), p.slice(2));
@@ -1003,7 +1004,7 @@ export class CliLlmBridge implements LlmBridge {
   /** runGoal 实际主体（K4：在 begin/endTask 之间执行，便于续跑 await 期间维持 activeTaskId） */
   private async runGoalInner(input: LlmGoalInput, sink: ProgressSink): Promise<LlmGoalResult> {
     const started = Date.now();
-    const outputDir = resolve(input.outputDir.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, n) => process.env[n] ?? m));
+    const outputDir = resolve(expandEnvPath(input.outputDir));
     const skillsDir = input.skillsDir ?? join(dirname(outputDir), '.winvm', 'skills');
 
     /* 下发技能规范：落盘到工作区供 VM 内 Agent 按规范拆解步骤（失败不阻断执行） */
@@ -1110,7 +1111,7 @@ export class CliLlmBridge implements LlmBridge {
     const cli = resolveCliPath(this.cliPath);
     if (!cli.resolved) return false;
     const outputDir = resolve(
-      this.outputDir.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, n: string) => process.env[n] ?? m),
+      expandEnvPath(this.outputDir),
     );
     const mcpConfigPath = await this.prepareMcpConfig(outputDir);
     if (!mcpConfigPath) return false;

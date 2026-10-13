@@ -29,6 +29,10 @@ export const DEFAULT_SHARED_SKILLS_ROOT = 'C:/WinVMBridge/shared-skills';
  * 未知/未安装 Agent 返回 dir=null，调用方跳过。
  */
 export function resolveAgentSkillDirs(env = process.env) {
+  // A2-10 边界注记：本文件是**自包含交付脚本**（运行环境未必能解析 @winvm/core dist，
+  // 这正是历史多份同语义拷贝的成因），故有意保留内联实现而**不引权威源**；
+  // 权威唯一化收敛范围=包内 src（core/constants.ts 单源，adapter/hermes/llm 已改引）。
+  // 语义与 core 逐字一致：`%NAME%`→env 值，未命中原样保留（绝不吞成空串）。
   const expand = (p) =>
     p.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, n) => env[n] ?? m);
 

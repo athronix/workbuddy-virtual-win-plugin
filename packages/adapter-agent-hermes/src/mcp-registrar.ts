@@ -25,10 +25,14 @@
 import { copyFile, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-/** 展开 %ENV% 占位符 */
-export function expandEnvPath(p: string, env: NodeJS.ProcessEnv = process.env): string {
-  return p.replace(/%([A-Za-z_][A-Za-z0-9_]*)%/g, (m, n: string) => env[n] ?? m);
-}
+import { expandEnvPath } from '@winvm/core';
+
+/**
+ * A2-10（Phase 3 批6）：本包曾是 `expandEnvPath` 的**重复实现地**（6 份同语义拷贝之一）。
+ * 权威实现唯一化到 `@winvm/core/constants.ts`（ARCH-17 T2 下沉位）；此处仅保留**再导出**
+ * 以维持 `HermesProvider`/包出口既有公共符号（index.ts:216 引用，删了即破坏 API 面）。
+ */
+export { expandEnvPath };
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
