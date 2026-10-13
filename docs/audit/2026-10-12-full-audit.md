@@ -81,7 +81,7 @@
 | # | 条目 | 锚点 |
 |---|---|---|
 | A2-1 | D-2/D-2⁺ 终态拒绝零审计（5 处：raise no-active-task 首位 + PROVIDER_UNAVAILABLE×2/CAPABILITY_NOT_EXPOSED/UNKNOWN_CAPABILITY；arch3 A-2 并入同条，含 `:441` "决议 true→token 消失→报 rejected 而链上 timeout 归因错"新发现） | 升级触发器 T-1；批1 顺带 |
-| A2-2 | R-5 并发取消风暴：真机实证 198 任务×并发 8 cancel ⇒ vm-service 崩溃+~90 孤儿 node，**目前仅口头纪律无门禁** | 升级触发器 T-2；批5 立项"取消风暴门禁化"（lock-probe 同族） |
+| A2-2 | R-5 并发取消风暴：真机实证 198 任务×并发 8 cancel ⇒ vm-service 崩溃+~90 孤儿 node，**目前仅口头纪律无门禁** | **已裁 B（§7-2）：不等触发器，批5 直接立项"取消风暴门禁化"**（限流+串行化判据，lock-probe 同族） |
 | A2-3 | A-1 idle 回收吃 maxRestarts 预算：`spawnOnce` 无条件 `spawnAttempts+=1`（persistent-session.ts:426），idle 软释放（:956-960 dispose 不清计数）⇒挂机长跑恒 disabled，仅 `POST /admin/llm-session/reset` 手工可解（我逐行亲验） | 批5；修复=idle 来源重建不计入故障预算（或窗口化） |
 | A2-4 | R-4 版本零指纹：psBridge 只有 uptime 无版本字段，改 psmod 不重启静默失效（arch3 D-3：psmod 变更不重启即不生效+启动期加载失败永久化+ping 不点名失败模块） | 批2 |
 | A2-5 | ps-bridge 自愈窗口快速失败且文案失实（"自愈失败"实为在途，lastError 残值冒充现因；arch3 D-2） | 批5 |
@@ -96,7 +96,7 @@
 | A2-14 | D-1 审计链分片**全仓零保留期实现**：chain.ts:337-339 只增不减，verifyArchive 是限数校验非回收，docs/04-ops 零 retention 条文 | 批5（保留期方案属产品裁定，见 §7 第4项） |
 | A2-15 | E-2 缺省 provider `step()` 恒传 `approved:false`（index.ts:498 + config/index.ts:167）⇒A2A 委派遇 L2/L3 **既不执行也不挂起**（MCP 半区 server.ts:1238-1303 完好）；方向 fail-closed+默认全 L0/L1 不触闸 ⇒ **主理人裁维持 P1 不升**（arch3 自请考虑升 P0 的口径我驳回，与 P0-1 爆炸半径实测同据） | 批1 顺带（与审批闭环同域） |
 | A2-16 | E-3 hermes 掉档根因=**SPI 无 capability-negotiation**（三家 declareCapabilities() 逐字相同、approvalCoordinator 可选注入无对外表达面、hermes 不传 probe/taskId/maxRisk 且 health 不透 approvalTruth）；`--yolo` 只是表象——provider 分级 B- 的机理性解释 | 批4（SPI 协商面，与差集显形同批） |
-| A2-17 | **ARCH-09 旧账未清**（2026-10-08 旧审计在册）：previewHash 服务端恒 `''`、"预览≠执行"比对从未实现（server.ts:250/1187 注释自证"预留供 ARCH-09 批次复用"），两侧数据物理上永不相遇+host 侧仅进程内 Map | 批6（或明确裁"承诺降级"改口） |
+| A2-17 | **ARCH-09 旧账未清**（2026-10-08 旧审计在册）：previewHash 服务端恒 `''`、"预览≠执行"比对从未实现（server.ts:250/1187 注释自证"预留供 ARCH-09 批次复用"），两侧数据物理上永不相遇+host 侧仅进程内 Map | 批6（**已裁 A 补建**：两侧数据打通+哈希绑定；批0 文档按"绑定在建"措辞） |
 | A2-19 | **F-1 主用通道静默丢弃**：`allowedCapabilities` 客户端两路都发（a2a-framework/client.ts:106/:144 亲验含此键），但服务端**流式路径 `handleStream` 装配 GoalRequest 只解析 maxRisk/timeoutMs 不解析 allowedCapabilities**（server.ts:509-518 vs 非流式 :261-272 亲验对比）⇒ 宿主工具 schema 里"本次允许的能力范围"在缺省主用通道（message/stream, tools.ts:444）上**从未抵达 VM**，即使按 E-1 修法接线也接不上 ⇒ **E-1/批1 落地的硬前置**（两处 goal 装配应共抽一函数防再漂移） | 批1（前置项） |
 | A2-18 | **F-2 回填路径物理不可达**：常驻形态（缺省启用）`prepareMcpConfig` 不传 delegationId（bridge.ts:1115/:1399 两处亲验），`__mcp__` 会话级共享 ⇒ 服务端 ctx.delegationId 缺席 ⇒ 真值归因退化到 R3 时间窗，叠加 E-5 收窄虚设 ⇒ 并发委派/直调存在**串台改判窗口**；"按 dtid 回填 scope"类修法在最常用形态下不成立，须服务端按 taskId/会话键留存 scope | 批1（与双闸接线同域，回填机制是审批闭环的归因地基） |
 
@@ -116,7 +116,7 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 
 ### 3.4 升级触发器（在册机制，两棒共认）
 - **T-1**：D-2 终态拒绝零审计 ⇒ 若 degraded 常态化（有实例进入 degraded 且无自动恢复），即升 P0；
-- **T-2**：R-5 并发取消风暴 ⇒ 再发生一次（尤其非压测场景），即升 P0 并立即排期。
+- **T-2**：R-5 并发取消风暴 ⇒ ~~再发生一次即升 P0~~ **2026-10-13 用户终裁：此被动触发器作废，直接随批5 门禁化（§7-2=B）**。
 
 ---
 
@@ -158,19 +158,24 @@ D-3 capability.schema.json 缺 appops 且全仓无运行期校验器消费（add
 | **批3 速赢交互包** | M1 取消接通（单文件）+M4 receipt 桥接+M8 审批卡 TTL 槽/拒绝回执+健康门 degraded 降级路径+A2-12 GUI 判据接线（未知态≠确不可用） | M1、M4、M8、M5（健康门）、A2-12 | ~15 文件 | 直调取消端到端 cancelled=true；degraded 下 Agent 有可执行的降级指引非自锁；guiAllowed 出现生产调用点 |
 | **批1 审批闭环** | 出路(c) 策略化+maxRisk **与 allowedCapabilities 双闸**接线（三调用点补传+端到端用例）+A2-1 早退审计顺带+E-2 缺省 step approved:false 挂起语义对齐 | **P0-1**、M2、A2-1、A2-15 | ~8-12 文件 | L2 能力直调批准→续跑闭环测试用例存在且绿；maxRisk:L1 委派下 L2 步 POLICY_DENIED 实锤；allowed 白名单外能力 DENY 实锤 |
 | **批4 生产生态** | M6 挂载 4 写侧+M3 3a 最小修（预检改 app.inventory.list）+M7 provider 差集显形/hermes 接线或显形（A2-16 SPI 协商面为其根因处方）+USER-MANUAL | M3、M6、M7、A2-16 | ~12-14 文件 | workflow 模板实体≥1 真机跑通；切换 provider 能力差集有回执字段；declareCapabilities 差异真实可表达 |
-| **批5 验证面恢复** | P0-4 真机 E2E 回归批（5域×2通道最小 18 例重跑+T4 三条闭合+T7 曲线）+Q2 守卫三修+Q3 孤儿接线+A2-3/A2-5/A2-6/A2-7 长跑四债+A2-2 取消风暴门禁化+A2-8 度量读数（**注：此 A2-8=P-6/E-1 度量，非 arch3 E-1**）+A2-14 保留期落地（方案待 §7 第4项裁） | P0-4、A2-2/3/5/6/7/8/14、Q2、Q3 | ~8-10 文件+qa 证据 | **每批收官必跑真机子集**新纪律生效；real-test 命名合规（K-18）；磁盘占用有 retention 上限 |
+| **批5 验证面恢复** | P0-4 真机 E2E 回归批（5域×2通道最小 18 例重跑+T4 三条闭合+T7 曲线）+Q2 守卫三修+Q3 孤儿接线+A2-3/A2-5/A2-6/A2-7 长跑四债+A2-2 取消风暴门禁化+A2-8 度量读数（**注：此 A2-8=P-6/E-1 度量，非 arch3 E-1**）+A2-14 保留期落地（**已裁：90 天 ∧ 总量 <2GB 双标准，超限删最老，处理方式=删除**）+T13 防再发（§7-1=A：历史只登记；新增链写分叉防护/verifyArchive 扩展 prevHash 连续性判据，确保不再出现存档指向错乱） | P0-4、A2-2/3/5/6/7/8/14、Q2、Q3 | ~8-10 文件+qa 证据 | **每批收官必跑真机子集**新纪律生效；real-test 命名合规（K-18）；磁盘占用有 retention 上限 |
 | **批6 深债** | A2-9 bearer 自检+config-lint 硬前置+A2-10 expandEnvPath 统一+A2-11 wsProbe 接线或删除+A2-13 probeError 死判据接线或删除+**A2-17 ARCH-09 previewHash 比对补建或裁"承诺降级"改口**+D-3 schema 裁断（接入运行期校验或删除）+P2 族清扫（C-3 裸串抹码/C-5 approvals 观测块/E-5 收窄实装） | A2-9/10/11/13/17、D-3、P2 族 | 按需 | dep-lint 消费 schema 或 schema 删除；单实现 expandEnvPath 全仓唯一；死判据清零 |
 
 **依赖主线**：批0 ∥ 批2 → 批3 → 批1（M2 同 CL）→ 批4 → 批5（真机面全程互锁）→ 批6。立项文档首节=「前序裁决时效性复核」。
 
 ---
 
-## 7. 待用户裁断（5 项）
-1. **T13 审计断片处置**：arch 前棒独立裁决=**只登记不修复**（chainOk=false∧hashOk=true=并发写分叉非篡改；修历史=制造篡改事实；Phase 1 verifyArchive 框架可承载处置批）——建议采信销账。
-2. **R-5 取消风暴**：是否不等"再发生"、直接随批5 排期门禁化（真机实证过一次崩溃，触发器 T-2 属被动）。
-3. **~/.workbuddy/teams 45 个非 winvm 历史残骸**：清理与否（winvm 停摆残骸 35 个已清，留痕 qa/r19/p2close-teams-cleanup.txt）。
-4. **审计链保留期**（A2-14，arch3 D-1 提出）：哈希链历史证据是否永久留存？"永久"=磁盘无上界增长，"保留期"=放弃老证据的可验证性——产品级裁定，批5 落地前需定向。
-5. **ARCH-09 路线**（A2-17）：previewHash"预览≠执行"比对=补建（两侧数据打通+哈希绑定，工程量中等）还是裁"承诺降级"随批0 改口？旧审计在册、代码注释两处"预留供 ARCH-09 批次复用"，属悬而未决的最老债。
+## 7. 待用户裁断（5 项）——**2026-10-13 已全部终裁**
+
+| # | 事项 | 用户终裁 | 落地批次 |
+|---|---|---|---|
+| 1 | T13 审计断片 | **A 销账**：历史只登记不修复；**确保今后不再出现存档指向错乱**（写路径加并发分叉防护+verifyArchive 判据扩展 prevHash 链连续性） | 登记随批5；防再发（链写入串行化/分叉检测告警）入批5 子项 |
+| 2 | R-5 取消风暴 | **B 主动排期**：不等触发器 T-2，直接随批5 门禁化（限流+串行化判据，lock-probe 同族） | 批5 |
+| 3 | teams 45 非 winvm 残骸 | **不动**：非 winvm 项目数据遗留一律不触碰 | —（触发器 T-2 作废保留于 winvm 自身域） |
+| 4 | 审计链保留期 | **双标准**：90 天 **且** 总大小 <2GB，超限时删除最老数据；处理方式=删除 | 批5（A2-14 retention 落地按此参数实现） |
+| 5 | ARCH-09 previewHash | **A 补建**：预览↔执行哈希绑定打通（两侧数据通路+绑定校验） | 批6（A2-17 由"或改口"改判为补建；批0 文档随之写"绑定在建"而非降级） |
+
+**Phase 3 启动令（同批下达）**：批0（文档止血）∥ 批2（装得上）双轨开工。
 
 ---
 
