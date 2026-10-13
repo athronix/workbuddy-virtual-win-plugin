@@ -563,9 +563,19 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     freshChainOnStart: true,
     ...(cfg.audit.maxFileBytes !== undefined ? { maxFileBytes: cfg.audit.maxFileBytes } : {}),
     ...(cfg.audit.redactParams !== undefined ? { redactParams: cfg.audit.redactParams } : {}),
+    // A2-14（Phase 3 批5 · 用户终裁 90 天 ∧ <2GB 超限删最老）：双标准从配置装配。
+    // 出厂默认即在位（config DEFAULT），两标准全 ≤0 ⇒ 禁用逐字旧行为。
+    ...(cfg.audit.retentionMaxAgeDays !== undefined || cfg.audit.retentionMaxTotalBytes !== undefined
+      ? {
+          retention: {
+            maxAgeDays: cfg.audit.retentionMaxAgeDays ?? 0,
+            maxTotalBytes: cfg.audit.retentionMaxTotalBytes ?? 0,
+            ...(cfg.audit.retentionMinKeepShards !== undefined ? { minKeepShards: cfg.audit.retentionMinKeepShards } : {}),
+          },
+        }
+      : {}),
   });
   const policy = new CorePolicyEngine({ registry, config: cfg.policy });
-
   /* ---- K-N1 取证件（进程内，全部有界） ----
    *  - `ledgerReg`：委派活动账本注册表 —— 每条**已落链**记录经 `wrapAuditSink` 回调喂入
    *    （通道 2 精确归因 `ext.delegationId` / 通道 1 时间窗 wild）；桥侧经
@@ -2061,6 +2071,35 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   const address = server.address();
   const port = typeof address === 'object' && address !== null ? address.port : cfg.server.port;
 
+  /* ---- A2-14（Phase 3 批5）：审计链保留期清理（listen 之后启动，低频 6h） ----
+   *
+   * 删除动作全部走 `pruneShards`（fail-safe：判据异常不抛、活动片+最新片+minKeep 三重保护、
+   * 年龄取文件名日期不取 mtime）。清理事实入审计链自身一条 `__meta.retention.prune` 记录
+   * （deleted/totalBytesBefore）——删证据这件事本身必须留痕，否则保留期成为静默抹除通道。
+   */
+  const stopRetention = audit.startRetentionSweep?.(6 * 60 * 60 * 1000, (deleted, totalBytesBefore) => {
+    const t0 = Date.now();
+    void audit
+      .append({
+        ts: new Date().toISOString(),
+        traceId: `retention_${Date.now().toString(36)}`,
+        auditId: newId('aud'),
+        principal: { host: 'vm-service', user: 'system', channel: 'internal' },
+        capabilityId: '__meta.retention.prune',
+        risk: 'L0',
+        // 清理事实放 params（分片名非敏感键，redact 原样保留）——不新增 ext 枚举成员，
+        // 保持契约 union 稳定（扩枚举需跨文件一致性，成本高于收益）。
+        params: { deletedShards: [...deleted], totalBytesBefore },
+        policyDecision: { allowed: true, matchedRule: 'retention-policy(user-adjudicated-2026-10-13)' },
+        result: { ok: true, summary: `保留期清理：删 ${deleted.length} 片（清理前合计 ${totalBytesBefore} 字节）` },
+        durationMs: Date.now() - t0,
+      })
+      .catch(() => {
+        /* 留痕失败不影响已删事实（拒绝语义优先同 S-4 纪律）；下轮 sweep 仍会跑 */
+      });
+    logger.info('审计链保留期完成', { deleted: deleted.length, totalBytesBefore });
+  });
+
   /* ---- P2-T6：VM 内回连**运行期探针**（listen 之后 fire-and-forget） ----
    *
    * 为什么必须放在 listen **之后**：这是自环探针（打自己的 `/mcp`），放在 listen 之前
@@ -2130,6 +2169,8 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       // P2-T5：先置收口位，使**在途**的自检 fire-and-forget 段（落链/告警）不再向已关闭的
       // sink 写条目、也不再往已 `logger.close()` 的出口打日志 —— 静默退化不允许出现在退出路径上。
       serviceClosed = true;
+      // A2-14：先停保留期清理定时器，使退出竞态里不再有"边关边删片"。
+      stopRetention?.();
       sessionMonitor.stop();
       // ENG-01（判据⑥）：先停 TTL 清扫定时器，使收尾竞态里不再有"边关边扫"的写链；
       // `unref()` 已保证未决审批不拖住退出，`close()` 再保证关闭后定时器不复活。

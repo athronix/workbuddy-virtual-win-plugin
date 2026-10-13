@@ -9,7 +9,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import { appendFile, mkdir, readFile, readdir, stat } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, stat, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { GENESIS_HASH, type AuditRecord } from '@winvm/contracts';
@@ -88,6 +88,11 @@ export interface AuditChainOptions {
    * **不再参与 verifyChain 判定** —— 已含断链的历史数据不会拖累新链的 chainValid。
    */
   readonly freshChainOnStart?: boolean;
+  /**
+   * A2-14（Phase 3 批5 · 用户裁决 90 天 ∧ <2GB）：保留期策略。
+   * 缺席 ⇒ 禁用（逐字旧行为）。见 {@link RetentionPolicy}。
+   */
+  readonly retention?: RetentionPolicy;
 }
 
 /** D30：链断裂原因 */
@@ -103,6 +108,92 @@ export type ChainBreakReason = 'HASH_MISMATCH' | 'SEQ_DUP' | 'SEQ_GAP' | 'CHAIN_
  * 且单次代价可控（每片一次 readFile + 一次线性哈希重算）。
  */
 export const ARCHIVE_VERIFY_MAX_SHARDS = 30;
+
+/* ------------------------------ A2-14 保留期（Phase 3 批5 · 用户裁决参数） ------------------------------ */
+
+/**
+ * 审计链保留期配置（用户 2026-10-13 终裁：**双标准 90 天 ∧ 总大小 <2GB，超限删除最老，处理方式=删除**）。
+ * 缺席（undefined）⇒ **完全禁用**，行为逐字等于本特性存在前（保护测试面 + 未显式配置的部署）。
+ */
+export interface RetentionPolicy {
+  /** 保留天数：文件名日期早于 `now - maxAgeDays` 的归档分片判过期。≤0/非有限 ⇒ 视为不设年龄限。 */
+  readonly maxAgeDays: number;
+  /** 总字节上限：所有分片之和超过此值时，从最老开始删，直到 ≤ 此值。≤0/非有限 ⇒ 视为不设体积限。 */
+  readonly maxTotalBytes: number;
+  /**
+   * 保留下限（分片数）：无论年龄/体积判为可删，**至少保留最近的 minKeep 片**（含活动片）。
+   * 防"配置写错/时钟漂移导致一次性清空整目录"。默认（构造缺席）=2。
+   */
+  readonly minKeepShards?: number;
+}
+
+/**
+ * 纯函数式保留期决策（不触盘、不删，只返回**应删除的相对文件名**）——单测可给定文件清单+stat
+ * 直接断言判定面，无需真建真删。
+ *
+ * 关键安全设计（都写进返回前的守卫）：
+ *  - `protectedNames` = 当前会话活跃分片（activeShards）∪ 列表中**最新**一片 —— 永不删；
+ *  - 年龄判据取**文件名日期**（`prefix-YYYYMMDD[-idx].jsonl`，UTC 编码）而非 mtime：
+ *    规避 QA 在基线查法里发现的"mtime 被 checkout/复制重置 ⇒ 判据失准"同族坑；文件名日期
+ *    与 mtime 冲突时，**取更近者**（对删除保守，宁可晚删不可早删）；
+ *  - 体积判据用 stat.size；
+ *  - `minKeepShards` 下限：可删集大小绝不让存活片数掉到下限之下；
+ *  - 两标准**各自独立**判定（超龄 OR 超体积），命中任一即入可删集，从最老边界起删。
+ */
+export function planShardPrune(
+  shards: readonly { name: string; size: number; date: string; idx: number }[],
+  opts: { policy: RetentionPolicy; protectedNames: ReadonlySet<string>; nowMs: number },
+): string[] {
+  const { policy, protectedNames, nowMs } = opts;
+  const minKeep = Number.isFinite(policy.minKeepShards ?? 2) ? Math.max(0, Math.floor(policy.minKeepShards ?? 2)) : 2;
+
+  // 按「日期升序、同日期 idx 升序」= 从最老到最新排
+  const ordered = shards.slice().sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.idx - b.idx));
+  const totalBytes = ordered.reduce((s, f) => s + f.size, 0);
+
+  // 第一阶段：两标准各自**标记**"该片该不该删"（不含 minKeep / protected 裁决，只判过期事实）。
+  const flagged = new Set<string>();
+
+  // 体积标准：从最老累计，超出 maxTotalBytes 的部分逐片标记（受保护片跳过标记）。
+  if (Number.isFinite(policy.maxTotalBytes) && policy.maxTotalBytes > 0 && totalBytes > policy.maxTotalBytes) {
+    let running = totalBytes;
+    for (const f of ordered) {
+      if (running <= policy.maxTotalBytes) break;
+      running -= f.size;
+      if (!protectedNames.has(f.name)) flagged.add(f.name);
+    }
+  }
+
+  // 年龄标准：文件名日期（当日 00:00 UTC）早于年龄界的标记。
+  if (Number.isFinite(policy.maxAgeDays) && policy.maxAgeDays > 0) {
+    const ageFloorMs = nowMs - policy.maxAgeDays * 24 * 60 * 60 * 1000;
+    for (const f of ordered) {
+      if (protectedNames.has(f.name)) continue;
+      const dateMs = shardDateToMs(f.date);
+      const effMs = Number.isNaN(dateMs) ? nowMs : dateMs; // 解析失败 ⇒ 视为"最新"绝不删
+      if (effMs < ageFloorMs) flagged.add(f.name);
+    }
+  }
+
+  // 第二阶段：从最老到最新落地 flagged，但守 minKeep 下限——存活数绝不低于 minKeep。
+  const removable: string[] = [];
+  for (const f of ordered) {
+    if (!flagged.has(f.name)) continue;
+    if (ordered.length - (removable.length + 1) < minKeep) break; // 再删即跌破下限 ⇒ 停（保留更新的）
+    removable.push(f.name);
+  }
+
+  return removable;
+}
+
+/** `YYYYMMDD` → 当日 00:00 UTC 毫秒；非法返 NaN */
+function shardDateToMs(date: string): number {
+  if (!/^\d{8}$/.test(date)) return Number.NaN;
+  const y = Number(date.slice(0, 4));
+  const mo = Number(date.slice(4, 6)) - 1;
+  const d = Number(date.slice(6, 8));
+  return Date.UTC(y, mo, d);
+}
 
 export interface ChainVerification {
   readonly valid: boolean;
@@ -143,6 +234,10 @@ export class HashChainAuditSink implements AuditSink {
   private readonly prefix: string;
   private readonly doRedact: boolean;
   private readonly freshChain: boolean;
+  /** A2-14：保留期策略（undefined ⇒ 禁用） */
+  private readonly retention?: RetentionPolicy;
+  /** A2-14：低频清理定时器（unref，不阻止进程退出） */
+  private pruneTimer: ReturnType<typeof setInterval> | undefined;
 
   private seq = 0;
   private lastHash: string = GENESIS_HASH;
@@ -158,10 +253,99 @@ export class HashChainAuditSink implements AuditSink {
     this.prefix = opts.prefix ?? 'audit';
     this.doRedact = opts.redactParams !== false;
     this.freshChain = opts.freshChainOnStart === true;
+    this.retention =
+      opts.retention !== undefined &&
+      ((Number.isFinite(opts.retention.maxAgeDays) && opts.retention.maxAgeDays > 0) ||
+        (Number.isFinite(opts.retention.maxTotalBytes) && opts.retention.maxTotalBytes > 0))
+        ? opts.retention
+        : undefined;
   }
 
   get directory(): string {
     return this.dir;
+  }
+
+  /**
+   * A2-14：启动低频保留期清理（装配点显式调用；仅当配置了 retention 才挂）。
+   * `unref()` ⇒ 定时器不阻止进程退出；`onPrune` 回调供上层记审计/日志。返回停止句柄。
+   */
+  startRetentionSweep(
+    intervalMs = 6 * 60 * 60 * 1000,
+    onPrune?: (deleted: readonly string[], totalBytesBefore: number) => void,
+  ): () => void {
+    if (!this.retention) return () => {};
+    this.stopRetentionSweep();
+    const tick = (): void => {
+      void this.pruneShards(onPrune).catch(() => {
+        /* fail-safe：清理异常绝不影响主写入路径 */
+      });
+    };
+    this.pruneTimer = setInterval(tick, intervalMs);
+    this.pruneTimer.unref?.();
+    // 启动后先跑一次（异步，不阻塞构造）
+    void this.pruneShards(onPrune).catch(() => {});
+    return () => this.stopRetentionSweep();
+  }
+
+  stopRetentionSweep(): void {
+    if (this.pruneTimer) {
+      clearInterval(this.pruneTimer);
+      this.pruneTimer = undefined;
+    }
+  }
+
+  /**
+   * A2-14：执行一次保留期清理。返回删除的分片名与清理前总字节。
+   * 禁用（无 retention）⇒ 空操作 `{ deleted: [], totalBytes: 0 }`。
+   */
+  async pruneShards(
+    onPrune?: (deleted: readonly string[], totalBytesBefore: number) => void,
+  ): Promise<{ deleted: string[]; totalBytes: number }> {
+    if (!this.retention) return { deleted: [], totalBytes: 0 };
+    await this.ensureLoaded();
+    const all = await this.listShards();
+    if (all.length === 0) return { deleted: [], totalBytes: 0 };
+
+    const info: { name: string; size: number; date: string; idx: number }[] = [];
+    let total = 0;
+    for (const name of all) {
+      let size = 0;
+      try {
+        size = (await stat(join(this.dir, name))).size;
+      } catch {
+        continue; // 读不到 stat ⇒ 保守不纳入清理判据（不删看不见的东西）
+      }
+      total += size;
+      const rest = name.slice(this.prefix.length + 1, -6);
+      const dash = rest.indexOf('-');
+      const date = dash === -1 ? rest : rest.slice(0, dash);
+      const idx = dash === -1 ? 0 : Number(rest.slice(dash + 1)) || 0;
+      info.push({ name, size, date, idx });
+    }
+
+    // 保护集：活动片 ∪ 最新一片（从判据面排除；planShardPrune 内另有 minKeep 兜底）
+    const protectedNames = new Set<string>(this.activeShards);
+    const newest = info.slice().sort((a, b) => (a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.idx - b.idx)).at(-1);
+    if (newest) protectedNames.add(newest.name);
+
+    const removable = planShardPrune(info, { policy: this.retention, protectedNames, nowMs: Date.now() });
+    const deleted: string[] = [];
+    for (const name of removable) {
+      try {
+        await unlink(join(this.dir, name));
+        deleted.push(name);
+      } catch {
+        /* 删失败（并发/权限）⇒ 跳过，下轮再试；绝不因单片失败中断整轮，也绝不抛给主路径 */
+      }
+    }
+    if (deleted.length > 0 && onPrune) {
+      try {
+        onPrune(deleted, total);
+      } catch {
+        /* 回调失败不影响已删事实 */
+      }
+    }
+    return { deleted, totalBytes: total };
   }
 
   /** 幂等加载（memoize）：freshChain 模式起新分片；否则扫描已有分片恢复最后一条的 seq 与 hash */

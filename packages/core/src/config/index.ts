@@ -59,6 +59,15 @@ export interface AuditConfig {
   readonly dir: string;
   readonly maxFileBytes?: number;
   readonly redactParams?: boolean;
+  /**
+   * A2-14 保留期（Phase 3 批5 · 用户裁决 2026-10-13：**90 天 ∧ 总大小 <2GB，超限删最老，删除处理**）。
+   * 平铺三键（不走嵌套对象，config-key-lint 白名单派生面最稳）。任一键 ≤0/缺席 ⇒ 对应标准不设限；
+   * 两标准全不设 ⇒ 等效禁用（逐字旧行为）。
+   */
+  readonly retentionMaxAgeDays?: number;
+  readonly retentionMaxTotalBytes?: number;
+  /** 保留下限片数（防误配清空），缺省 2 */
+  readonly retentionMinKeepShards?: number;
 }
 
 export interface SessionConfig {
@@ -185,7 +194,15 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
     },
   },
   policy: {},
-  audit: { dir: '%LOCALAPPDATA%/WinVMBridge/audit', redactParams: true },
+  // A2-14（用户 2026-10-13 终裁）：出厂默认即启用双标准保留期（90 天 ∧ 2GB，超限删最老）。
+  // 与 fail-closed 显式默认同族哲学："磁盘无上界增长"是默认事实，而非需要用户想起来配置。
+  audit: {
+    dir: '%LOCALAPPDATA%/WinVMBridge/audit',
+    redactParams: true,
+    retentionMaxAgeDays: 90,
+    retentionMaxTotalBytes: 2 * 1024 * 1024 * 1024,
+    retentionMinKeepShards: 2,
+  },
   session: { probeIntervalMs: 15_000 },
   // P2-T5：出厂默认把 fail-closed 显式写出来（true），使「默认即安全」成为可 grep 的事实、
   // 而不是隐式 undefined。`enforceBearer` 保持**缺席**（falsy）⇒ 现网默认仍是干净回环态。

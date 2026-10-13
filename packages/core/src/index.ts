@@ -52,11 +52,12 @@ export {
   computeRecordHash,
   redact,
   ARCHIVE_VERIFY_MAX_SHARDS,
+  planShardPrune,
 } from './audit/chain.js';
 // ARCH-06 A2 / D-4：`ArchiveVerification` 的**权威定义在 contracts（L0）**，此处只做再导出
 // （`AuditSink.verifyArchive?()` 的返回类型属 L0 契约面，不得引用 L1a 类型；core 复制同形
 // 结构会造成两份定义漂移）。消费方按既有 `from '@winvm/core'` 取名即可。
-export type { AuditChainOptions, ChainVerification, AppendAuditInput } from './audit/chain.js';
+export type { AuditChainOptions, ChainVerification, AppendAuditInput, RetentionPolicy } from './audit/chain.js';
 export type { ArchiveVerification } from '@winvm/contracts';
 
 /* ------------------------------ 会话 ------------------------------ */
