@@ -61,6 +61,8 @@ import { A2AServer, TaskStore, type DelegationObserver, type DelegationTerminalS
 import { McpServer, type McpTool, type McpToolResult } from '@winvm/mcp-framework';
 import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime } from '@winvm/vm-capabilities';
 import { raceHealthSubProbes, resolveHealthProbeTimeoutMs, resolvePsBridgeHealthState } from './health-probe.js';
+import { deriveCapabilitiesProfile } from './capabilities-profile.js';
+import type { CapabilitiesProfile } from './capabilities-profile.js';
 /**
  * Phase 2 · P2-T6（F2 Step 2）：VM 内回连**运行期探针**（自环带凭据回连 `/mcp`，
  * 实证优先升级 `/health.security.innerReconnect`；拒启判据不受其影响，见 server 装配点）。
@@ -1922,7 +1924,7 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     }) as SecurityHealth;
   }
 
-  async function buildHealth(): Promise<HealthStatus & { degradedReason?: string; exposed: number }> {
+  async function buildHealth(): Promise<HealthStatus & { degradedReason?: string; exposed: number; capabilitiesProfile?: CapabilitiesProfile }> {
     const probeTimeoutMs = resolveHealthProbeTimeoutMs();
     const activeProvider = provider;
     const probes = await raceHealthSubProbes({
@@ -2012,6 +2014,24 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       // providerHealth 顶层（HealthStatus.approvalTruth），此处不透传就会在最后一跳被丢弃
       //（T05 真机实测命中：/health.provider 缺 approvalTruth ⇒ shadow 轮不可证）。
       ...(providerHealth?.approvalTruth ? { providerApprovalTruth: providerHealth.approvalTruth } : {}),
+      /**
+       * M7（Phase 3 批4 · audit §3.2 M7）：**provider 能力画像**——把「安全特性随 provider
+       * 而异」显形为机器可读事实，消灭「用户以为常驻会话/真值层/预热跟通道走」的静默降级
+       * （PM §3 hermes-agent 安全特性静默缺失，P1 建议按 P0 排期讨论）。
+       *
+       * 判据来源=**provider SPI 可选成员的同步自省**（方法存在性），非按 kind 硬分：
+       * hermes 与 workbuddy-llm 同为 `kind='llm-agent'`，若按 kind 分正是本项要消灭的谎报。
+       * 三键各对应一个既有可选成员，零新增 SPI 面（provider SPI 零改动红线不破）：
+       *  - `persistentSession` ← `llmSessionHealth?()` 是否实现（CL-018 C1 LLM 常驻会话）；
+       *  - `warmup` ← `warmup?()` 是否实现（K2 冷启动预热）；
+       *  - `approvalTruth` ← `health()` 是否回报三态指纹（CL-K3R；provider 不实现 ⇒ null）。
+       * 全部同步/取自已算好的 `providerHealth`，不额外触 `health()` ⇒ 不受 5s 探针超时护栏影响。
+       * provider 未加载（degraded）⇒ null（provider.state 已另行如实报，见上 provider 段）。
+       */
+      // provider 未加载 ⇒ 整块缺席（"缺席即旧行为"纪律，同 providerApprovalTruth 条件展开）
+      ...(provider
+        ? { capabilitiesProfile: deriveCapabilitiesProfile(provider, providerHealth?.approvalTruth) }
+        : {}),
       session,
       psBridge,
       capabilities: { count: registry.size(), available: exposedIds.size },

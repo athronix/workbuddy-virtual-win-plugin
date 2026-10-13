@@ -141,6 +141,13 @@ relatedSkills:
   - `ok:true` ⇒ 放行，可调用 MCP / A2A 工具；
   - `ok:false` ⇒ **不要自锁等待等式成立**，按降级叙述处置：读 `provider.state`/`provider.detail` 归因（`unavailable` = provider 未加载，此时暴露面仅 `meta.*`，域能力调用会得到 `PROVIDER_UNAVAILABLE`/`CAPABILITY_NOT_EXPOSED`），先按上表 `tunnel ensure` + 必要时重启 VM 侧服务恢复 provider，恢复期间只保留 `meta.*` 健康自检调用并向用户如实报告 degraded；
   - provider 正常但 `available < count`（未来分级 provider 形态）⇒ 非门禁失败，按暴露面裁剪任务范围，勿循环重试健康确认。
+- **provider 能力子集（M7，切换 provider 前先读）**：安全/运维特性**随 provider 而异，不跟通道走**——`GET /health → capabilitiesProfile` 给出机器可读实况（三键派生自 provider 可选能力自省，非按类型猜）：
+  | provider | 审批真值反查 | LLM 常驻会话 | 冷启动预热 | 说明 |
+  |---|---|---|---|---|
+  | `workbuddy`（codebuddy LLM） | ✅ | ✅ | ✅ | 全特性 |
+  | `hermes-agent` | ❌ | ❌ | ❌ | ⚠ L2/L3 审批续跑与真值反查不可用，虽同为 LLM 类型但特性子集不同 |
+  | `workbuddy-deterministic` | ❌ | ❌ | ❌ | 确定性执行器，无 LLM 自主规划 |
+  切到非全特性 provider 处理 L2/L3 时，勿假设"批准即自动续跑/真值可反查"，如实告知用户当前能力子集。
 
 ## 通道选择（核心决策）
 

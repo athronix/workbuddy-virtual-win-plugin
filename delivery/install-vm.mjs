@@ -540,6 +540,23 @@ async function main() {
     process.exit(1);
   }
   console.log(`VM Agent   : agent.provider=${provider}${isLlmProvider ? `（LLM 运行时=${cli}）` : ''}`);
+  // M7（Phase 3 批4）：能力降级横幅——deploy 期按已知 provider 静态预告「安全/运维特性差异」，
+  // 与运行时 /health.capabilitiesProfile（SPI 自省派生）互补：此处是「装机前告知」，health 是「运行实况」。
+  // 病灶（PM §3）：hermes-agent 无审批真值反查、deterministic 无 LLM 自主规划，但 kind 相同/相近易被误认为
+  // 「安全特性跟通道走」的静默降级。三档能力画像为部署期常量（新增 provider 须同步本表，与 orchestrator SKILL 对照表同源）。
+  const PROFILE = {
+    'workbuddy-deterministic': { llm: false, persistentSession: false, warmup: false, truthLayer: false, note: '确定性执行器：无 LLM 自主规划/无常驻会话预热/无审批真值层' },
+    'workbuddy': { llm: true, persistentSession: true, warmup: true, truthLayer: true, note: 'codebuddy LLM：全特性（常驻会话+预热+审批真值三态）' },
+    'hermes-agent': { llm: true, persistentSession: false, warmup: false, truthLayer: false, note: 'Hermes LLM：⚠ 无常驻会话预热/无审批真值层（L2/L3 审批续跑与真值反查不可用）' },
+  };
+  const prof = PROFILE[provider];
+  if (prof && (!prof.persistentSession || !prof.warmup || !prof.truthLayer)) {
+    console.log('');
+    console.log('  ⚠ 能力降级提示（M7）：所选 provider 与 workbuddy LLM 的能力面并不相同——');
+    console.log(`     ${prof.note}`);
+    console.log('     切换 provider 会改变 L2/L3 审批续跑、审批真值反查、冷启动预热等特性；');
+    console.log('     运行期实况见 GET /health → capabilitiesProfile（三键派生自 SPI 可选成员自省，非按 kind 猜）。');
+  }
   console.log('');
   mark('参数解析完成');
   // ps-bridge 就绪超时放宽（run2/run3 取证：本 VM 上 powershell.exe 经 node spawn 进程创建
