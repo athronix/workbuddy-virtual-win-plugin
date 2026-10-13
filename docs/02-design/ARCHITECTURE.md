@@ -68,7 +68,7 @@
 │  └──────────────────────────┼───────────────────────────────────────────┘  │
 │                             ▼                                              │
 │               Windows 交互式会话（WinSta0\Default，Session 1+）             │
-│               ↑ session-guard 保活：自动登录 / tscon / 禁休眠               │
+│      ↑ 会话健康探针（在位）；session-guard 保活恢复＝规划项·未实现          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -101,9 +101,16 @@
        ┌────────────▼───────────────────────────────────────┐
        │ L2 适配层（可替换实现）                              │
        │  adapter-host-workbuddy    （宿主 V1）              │
-       │  adapter-agent-workbuddy   （VM Agent V1）          │
+       │  adapter-agent-workbuddy   （VM Agent V1·确定性）   │
+       │  adapter-agent-workbuddy-llm（VM Agent LLM 选型）   │
+       │  adapter-agent-hermes      （VM Agent Hermes 选型） │
        │  vm-service                （VM 服务编排）           │
        │  vm-capabilities           （Windows 能力实现）      │
+       └──────────────────────────┬─────────────────────────┘
+                                  │
+       ┌──────────────────────────▼─────────────────────────┐
+       │ L3 宿主侧桥（机检独立层 L3-host-bridge）             │
+       │  host-a2a-bridge           （宿主 A2A 委派桥）       │
        └─────────────────────────────────────────────────────┘
 
 依赖铁律：
@@ -123,10 +130,12 @@
 | L1b | `packages/a2a-framework` | **A2A 架构框架**：Agent Card 生成与签名、Task 状态机、`message/send`、`message/stream`(SSE)、`tasks/get`、`tasks/list`、`tasks/cancel`、`tasks/subscribe`、artifact 管理、`input-required` 审批闸 | A2A 架构框架 |
 | L1c | `packages/host-sdk` | **宿主机 Agent 插件规范 SDK**：抽象插件模型（PluginManifest / SkillBundle / ConnectorDecl / LifecycleHooks），负责把中性规范**渲染**为具体宿主格式 | 宿主插件规范 |
 | L2 | `packages/adapter-host-workbuddy` | **宿主 WorkBuddy 适配器**：产出 `.codebuddy-plugin/plugin.json`、`marketplace.json`、`connectors/.../mcp.json`（两个连接器：MCP 直调 + A2A 委派桥）、`connectors/skills/connector-winvm/<6 skills>` | 宿主 V1 |
-| L2 | `packages/host-a2a-bridge` | **宿主侧 A2A 委派桥**：以本地 stdio MCP server 形态补齐宿主的 A2A 一跳；对外暴露 `a2a.delegate` 等工具，内部用 `A2AClient` 调 VM 侧 `/a2a`，把进度/产物/审批事件翻译回 MCP 结果（见 `HOST-A2A-BRIDGE.md`） | 宿主 A2A 通道 |
+| **L3**（机检 `layer=L3-host-bridge`） | `packages/host-a2a-bridge` | **宿主侧 A2A 委派桥**：以本地 stdio MCP server 形态补齐宿主的 A2A 一跳；对外暴露 `a2a.delegate` 等工具，内部用 `A2AClient` 调 VM 侧 `/a2a`，把进度/产物/审批事件翻译回 MCP 结果（见 `HOST-A2A-BRIDGE.md`）。**分层口径订正（2026-10-13 批0，J-1）**：本表旧行标 L2，与 `package.json` `layer` 字段（机检唯一事实源，rank `L3=50`）不符——已按字段改标 L3；权威对照见 `README.md` §3.2 | 宿主 A2A 通道 |
 | L2 | `packages/vm-service` | **VM 侧标准 Agent 服务**：同时暴露 MCP `/mcp` 与 A2A `/a2a` + `/.well-known/agent-card.json`；编排 能力注册表→策略→审计→能力执行 | VM 服务层 |
 | L2 | `packages/vm-capabilities` | **Windows 能力实现**：`ps-bridge` 常驻 PowerShell 进程 + 五大能力域（system / app / storage / gui / appops）的 PowerShell 模块与安全封装 | 能力层 |
 | L2 | `packages/adapter-agent-workbuddy` | **VM 内 Agent 适配器 V1**：实现 `AgentServiceProvider` SPI；默认 `workbuddy-deterministic`（确定性轻量执行器，不依赖 LLM），可通过改 `agent.provider` 平滑升级为 LLM provider（如 VM 内 WorkBuddy `codebuddy` CLI，开放任务大脑） | VM Agent V1 |
+| L2（机检 `layer=L2-adapter-agent-llm`） | `packages/adapter-agent-workbuddy-llm` | **VM 内 LLM Agent 适配器**（`agent.provider=workbuddy` 选型）：复用确定性执行器，仅 `runGoal` 为 LLM 驱动（常驻 codebuddy 会话） | VM Agent LLM |
+| L2（机检 `layer=L2-adapter-agent-llm`） | `packages/adapter-agent-hermes` | **Hermes Agent 适配器**（`agent.provider=hermes-agent` 选型）：Nous Research Hermes，MCP 经 `config.yaml` 预注册（`HermesMcpRegistrar`） | VM Agent Hermes |
 
 ---
 
@@ -228,7 +237,7 @@ skills/<name>/
 | ID | 传输 | 形态 | 适用 | 网络暴露 |
 |---|---|---|---|---|
 | `ssh-tunnel` | **SSH 隧道（默认）** | VM 服务仅监听 `127.0.0.1:18443`；宿主 `ssh -L 18443:127.0.0.1:18443 user@vm` | 单客户端、本地/私有 VM | **VM 对外零端口** |
-| `streamable-http` | TLS + bearer | VM 监听内网口，强制 HTTPS + token + Origin 校验 | 多客户端/生产化 | 内网/VPN 限定 |
+| `streamable-http` | TLS + bearer | VM 监听内网口，强制 HTTPS + token；~~Origin 校验~~（**规划项·未实现**，源码零命中，2026-10-13 批0 诚实化） | 多客户端/生产化 | 内网/VPN 限定 |
 | `stdio` | 本地进程 | 宿主直接 spawn（含 `ssh vm ... --stdio` 变体） | 本地测试、极简部署 | 无 |
 
 ### 5.2 为什么默认 SSH 隧道
@@ -267,16 +276,16 @@ skills/<name>/
 
 **铁律：承载 GUI 的服务进程必须运行在交互式用户会话（WinSta0\Default, Session 1+），禁止注册为 Windows 服务。**
 
-`core/session` + `vm-capabilities/session-guard` 提供：
+> **诚实化订正（2026-10-13 · Phase 3 批0，P0-3 失实承诺族）**：下表曾把六项机制全部写作为 `core/session` + `vm-capabilities/session-guard` 的现存能力。实况按机制分列：**检测/告警/降级三项链路在位；"恢复"三件（tscon / 自动登录 / 禁休眠）为规划项，代码零实现**（`session-guard` 文件不存在；全仓 `tscon`/`AutoAdminLogon`/`powercfg` 真实现零命中——`setup.mjs` 的命中系 `tsconfig` 子串假阳，已排除；2026-10-08 旧审计 A-14 在册旧账）。设计意图保留如下，供后续批次实现时对照；当前 RDP 断开/会话挂起的恢复**只能人工在 VM 控制台操作**。
 
-| 机制 | 作用 |
-|---|---|
-| **会话健康探针** | 定期校验：当前 SessionId ≥ 1、窗口站 = WinSta0、桌面 = Default、屏幕非黑屏（截图熵检测） |
-| **黑屏检出即告警** | 检出"Session 0 / 会话已断开 / 截图纯黑"立即置服务为 degraded 并告警，**绝不静默返回黑图** |
-| **tscon 归还控制台** | RDP 断开后自动 `tscon <session> /dest:console` |
-| **自动登录配置** | 生成 Sysinternals Autologon 风格配置，重启后自动进入交互会话 |
-| **禁休眠/禁锁屏** | 电源与屏幕保护策略调整 |
-| **降级模式** | 无交互会话时，仅提供 L0/L1 无 GUI 能力，GUI 能力明确报"会话不可用"而非黑屏 |
+| 机制 | 状态 | 作用 |
+|---|---|---|
+| **会话健康探针** | ✅ 在位（`core/session/health.ts` + vm-capabilities PS 探针） | 定期校验：当前 SessionId ≥ 1、窗口站 = WinSta0、桌面 = Default、屏幕非黑屏（截图熵检测） |
+| **黑屏检出即告警** | ✅ 在位 | 检出"Session 0 / 会话已断开 / 截图纯黑"立即置服务为 degraded 并告警，**绝不静默返回黑图** |
+| **降级模式** | ✅ 在位 | 无交互会话时，GUI 能力明确报 `SESSION_UNAVAILABLE`/`SESSION_BLACK_SCREEN` 而非黑屏 |
+| **tscon 归还控制台** | ⚠️ **规划项（未实现）** | RDP 断开后自动 `tscon <session> /dest:console`（当前需人工在 VM 控制台执行） |
+| **自动登录配置** | ⚠️ **规划项（未实现）** | 生成 Sysinternals Autologon 风格配置，重启后自动进入交互会话（当前需人工配置） |
+| **禁休眠/禁锁屏** | ⚠️ **规划项（未实现）** | 电源与屏幕保护策略调整（后续批候选：`install-vm` 挂 `powercfg` 三行，见 2026-10-12 体检 pm2 §9.2 改档） |
 
 ---
 

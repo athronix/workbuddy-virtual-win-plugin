@@ -139,13 +139,19 @@ POST /a2a  (Agent Card: /.well-known/agent-card.json)
   "params": {
     "message": {
       "role": "user",
-      "parts": [{ "text": "登录 https://backoffice.example.com，把 1~50 页报表逐页截图存 out/" }]
+      "parts": [{ "kind": "text", "text": "登录 https://backoffice.example.com，把 1~50 页报表逐页截图存 out/" }]
     },
-    "context": { "allowedCapabilities": ["gui.*", "appops.gui.produce", "storage.*"] },
-    "maxRisk": "L1"
+    // 两键的契约真实载体是 params.metadata（服务端装配判序见 a2a-framework/server.ts:244-271，
+    // 示例口径对齐 INTERFACES §3.4；2026-10-13 批0 按实况订正旧 key 名 context→metadata）
+    "metadata": {
+      "allowedCapabilities": ["gui.*", "appops.gui.produce", "storage.*"],
+      "maxRisk": "L1"
+    }
   }
 }
 ```
+> **两键兑现现状（批0，E-1 定性，详见 `docs/02-design/SECURITY-GOVERNANCE.md` §2.3）**：`allowedCapabilities`/`maxRisk` 为**声明记录于审计链、服务端执行面尚未接线**（=Phase 3 批1 在建）；本示例展示可声明的字段形状，**不得**读作已生效的限权/封顶。真正拦阻 L2/L3 的现状仍是审批闸。
+
 流回：`tasks/subscribe` 收到 N 条 `working` + N 张截图 artifact，最终 `completed` 带汇总。
 
 ---
@@ -203,9 +209,11 @@ POST /a2a
   "params": {
     "message": {
       "role": "user",
-      "parts": [{ "text": "用 Photoshop 帮我把这张照片里的大山背景换成海洋，调色自然一点" }]
+      "parts": [{ "kind": "text", "text": "用 Photoshop 帮我把这张照片里的大山背景换成海洋，调色自然一点" }]
     },
-    "context": {
+    // 2026-10-13 批0 按实况订正：两键与 imageRef 的契约载体是 params.metadata
+    //（服务端 context 由 message.metadata 派生，见 a2a-framework/server.ts:264；旧示例误写独立 key "context"）
+    "metadata": {
       "imageRef": "artifact://host/upload/mountain.jpg",
       "allowedCapabilities": ["appops.*", "gui.*"],
       "maxRisk": "L2"
@@ -215,6 +223,7 @@ POST /a2a
 ```
 > 若 VM 仍是 V1 确定性，本目标会返回 `UNSUPPORTED_GOAL`，并附带明确引导：
 > ① 预置 `generic_production` 工作流；② 升级 `agent.provider` 为 LLM（框架零改动）。
+> **两键兑现现状（批0 E-1，同 §C 注与 `SECURITY-GOVERNANCE.md` §2.3）**：`allowedCapabilities`/`maxRisk` 当前**声明记录于审计链、执行面尚未接线**（批1 在建），不得读作已生效限权/封顶。
 
 ---
 

@@ -61,8 +61,8 @@
 - **策略引擎**：路径白名单、命令黑名单（正则）、进程白名单/黑名单、注册表根键白名单；**命令面只有黑名单**（`commandAllowlist` 已从契约/配置/schema 三处删除，ARCH-18）；**默认拒绝优先**。
 - **审批闸**：L2/L3 操作默认需人工确认（A2A `input-required` / MCP 侧前置确认）；支持按能力免审。
 - **防篡改审计**：结构化 append-only 日志，**哈希链**（每条含前一条 hash），篡改任意一条 → **本轮运行期内**校验立即失败；跨轮历史的证据是启动 `verifyArchive()` 落的 `chain-archive-verify` 条目，**不是** `chainValid`（限定语见 `SECURITY-GOVERNANCE.md` §4.3.1）。
-- **可观测**：全链路 `traceId` 贯穿 宿主→传输→VM 服务→能力执行；关键操作附 before/after 快照 artifact。
-- **网络安全**：VM 侧服务**仅监听 `127.0.0.1`**，且该约束**不可关**（非回环绑定 ⇒ 启动 `error`，`security.requireLoopbackBind=false` 不再能放宽）；SSH 隧道本地端口转发；Streamable HTTP 模式 TLS + Origin 校验 + **可选** bearer（`security.enforceBearer` 默认 `false`，宿主侧由 `--token-env` 给出环境变量名）；VM 对外零端口暴露。信任边界 = 回环 + SSH 隧道 + 审批闸（§2.1）。
+- **可观测**：全链路 `traceId` 贯穿 宿主→传输→VM 服务→能力执行；~~关键操作附 before/after 快照 artifact~~（**订正**：快照为**信息性声明、运行期不产**——用户裁决 Q2 2026-10-10 降级，`audit.snapshot` 声明只参与交付面形状校验；事后证据 = 哈希链 + `artifacts` 哈希，权威口径 `SECURITY-GOVERNANCE.md` §3.2，判据 `tests/unit/phase2-snapshot-truth.test.js`）。
+- **网络安全**：VM 侧服务**仅监听 `127.0.0.1`**，且该约束**不可关**（非回环绑定 ⇒ 启动 `error`，`security.requireLoopbackBind=false` 不再能放宽）；SSH 隧道本地端口转发；Streamable HTTP 模式 TLS + **可选** bearer（`security.enforceBearer` 默认 `false`，宿主侧由 `--token-env` 给出环境变量名）；~~Origin 校验~~（**规划项·未实现**，源码零命中，2026-10-13 批0 诚实化，见 `SECURITY-GOVERNANCE.md` §2 第 1 层）；VM 对外零端口暴露。信任边界 = 回环 + SSH 隧道 + 审批闸（§2.1）。
 
 ### 2.5 可替换的 Agent / 宿主
 
@@ -119,26 +119,28 @@
 │  └──────────────────────────┼───────────────────────────────────────────┘  │
 │                             ▼                                              │
 │               Windows 交互式会话（WinSta0\Default，Session 1+）             │
-│               ↑ session-guard 保活：自动登录 / tscon / 禁休眠               │
+│      ↑ 会话健康探针（在位）；session-guard 保活恢复＝规划项·未实现          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 3.2 分层包结构（12 包，依赖单向）
 
-| 层 | 包 | 职责 |
+> **分层口径（2026-10-13 批0 统一，J-1 三源矛盾收敛）**：下表"层"列与 `packages/*/package.json` 的 `layer` 字段**逐包对齐**——该字段是机检（`scripts/dep-lint.mjs`，rank 序 `L0 < L1a < L1b < L1c < L2 < L3`）的**唯一事实源**；`ARCHITECTURE.md` §2.2 同步此口径。任何散文与本字段分歧时，以字段为准并回改散文（这是 P2-T11 dep-lint 批承诺"口径注记显形"的兑现位）。
+
+| 层（`layer` 字段） | 包 | 职责 |
 |----|----|------|
-| **L0 规范** | `contracts` | 全系统唯一契约源：风险/能力/传输/审计/桥接/宿主/A2A 的 TS 类型 + JSON Schema |
-| **L1 核心** | `core` | transport（HTTP/SSH/stdio 抽象）、registry、policy（策略引擎）、audit（哈希链）、session（保活）、bridge（加载器）、config |
-| **L2 协议** | `mcp-framework` | MCP server/client（Streamable HTTP + stdio） |
-| | `a2a-framework` | A2A v1.0 server/client（AgentCard/message/send/stream/tasks/*/artifacts/input-required） |
-| **L3 宿主规范** | `host-sdk` | 中性插件模型 SDK（patch/skill-loader/渲染抽象） |
-| | `adapter-host-workbuddy` | 把中性模型渲染为 WorkBuddy 原生 plugin.json / marketplace.json / connector mcp.json（MCP 直调 + A2A 委派桥两个连接器） |
-| | `host-a2a-bridge` | stdio MCP server，暴露 `a2a.delegate` / `task.get` / `approval.reply` / `task.cancel` / `health`，内部用 A2A client 调 VM `/a2a`（补齐宿主→VM 的 A2A 一跳） |
-| **L3 VM 能力** | `vm-capabilities` | ps-bridge 常驻进程 + system/app/storage/gui/appops 五大 PowerShell 模块 + 能力注册表 + 空闲自愈 |
-| **L3 VM 适配** | `adapter-agent-workbuddy` | VM 内确定性执行器（`workbuddy-deterministic`，可替换） |
-| | `adapter-agent-workbuddy-llm` | VM 内 LLM 执行器（`workbuddy` 选型，V1 实现），复用确定性执行器、仅 `runGoal` 为 LLM 驱动 |
-| | `adapter-agent-hermes` | Hermes Agent 执行器（`hermes-agent` 选型），MCP 经 `config.yaml` 预注册 |
-| **装配** | `vm-service` | 同端口双协议服务端 + CLI 入口（`agent.provider` 总开关） |
+| **L0** `L0-contracts` | `contracts` | 全系统唯一契约源：风险/能力/传输/审计/桥接/宿主/A2A 的 TS 类型 + JSON Schema |
+| **L1a** `L1a-core` | `core` | transport（HTTP/SSH/stdio 抽象）、registry、policy（策略引擎）、audit（哈希链）、session（探针）、bridge（加载器）、config |
+| **L1b** `L1b-mcp-framework` | `mcp-framework` | MCP server/client（Streamable HTTP + stdio） |
+| **L1b** `L1b-a2a-framework` | `a2a-framework` | A2A v1.0 server/client（AgentCard/message/send/stream/tasks/*/artifacts/input-required） |
+| **L1c** `L1c-host-sdk` | `host-sdk` | 中性插件模型 SDK（patch/skill-loader/渲染抽象） |
+| **L2** `L2-adapter-host` | `adapter-host-workbuddy` | 把中性模型渲染为 WorkBuddy 原生 plugin.json / marketplace.json / connector mcp.json（MCP 直调 + A2A 委派桥两个连接器） |
+| **L3** `L3-host-bridge` | `host-a2a-bridge` | stdio MCP server，暴露 `a2a.delegate` / `task.get` / `approval.reply` / `task.cancel` / `health`，内部用 A2A client 调 VM `/a2a`（补齐宿主→VM 的 A2A 一跳。**注意：机检层=L3**，宿主侧桥不进入 VM 分层主体） |
+| **L2** `L2-vm-capabilities` | `vm-capabilities` | ps-bridge 常驻进程 + system/app/storage/gui/appops 五大 PowerShell 模块 + 能力注册表 + 空闲自愈 |
+| **L2** `L2-adapter-agent` | `adapter-agent-workbuddy` | VM 内确定性执行器（`workbuddy-deterministic`，可替换） |
+| **L2** `L2-adapter-agent-llm` | `adapter-agent-workbuddy-llm` | VM 内 LLM 执行器（`workbuddy` 选型，V1 实现），复用确定性执行器、仅 `runGoal` 为 LLM 驱动 |
+| **L2** `L2-adapter-agent-llm` | `adapter-agent-hermes` | Hermes Agent 执行器（`hermes-agent` 选型），MCP 经 `config.yaml` 预注册 |
+| **L2** `L2-vm-service` | `vm-service` | 同端口双协议服务端 + CLI 入口（`agent.provider` 总开关） |
 
 > 依赖方向单向：`contracts` ← `core/frameworks` ← `adapters/vm-service`，由 `scripts/dep-lint.mjs` 在本地把关（反向依赖即失败）。
 
@@ -286,7 +288,12 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 **测试基线的权威口径**：本文件**不静态维护**测试文件数/例数——任何"当前基线 = N 文件 / M 例"的
 叙述都会随批次漂移并造成文档与实跑不一致。唯一权威源是 `qa/` 下**最新一轮** `*-sweep-result.txt`
 的汇总行（`FILES=` / `TOTAL_TESTS=` / `TOTAL_FAIL=` / `TOTAL_SKIP=`，逐文件 TAP 计数可复核）。
-查当前基线：`ls -1 qa/*/sweep-result.txt qa/*/*-sweep-result.txt | sort | tail -1` 后读其汇总行。
+查当前基线：`ls -1 qa/*/sweep-result.txt qa/*/*-sweep-result.txt | sort -V | tail -1` 后读其汇总行。
+> **查法订正（2026-10-13 批0，J-7/Q3 基线倒挂实验）**：旧句式 `sort | tail -1` 按**字典序**排，
+> `t9` 排在 `t11`/`t12` **之后**（`9 > 1` 逐字符比较）⇒ 返回过期件；`ls -1t`（mtime 序）同样不可靠，
+> 因 mtime 会被 checkout 重置。`sort -V`（版本序）对 `t<数字>` 命名正确排序。取到最新文件后仍需**核对
+> `FILES=` 与 `BASELINE:` 对账行**：个别轮次是子集复跑（文件集小于当时磁盘全集，如 r19 内 t12=89 系
+> 批次窄口径），此时以最近一次**全枚举** sweep 为基线锚，并在提交叙事里显式说明。
 最近一轮（P2-T11 守卫基建，2026-10-12）逐文件实跑的完整留档随该批证据归档，其 `BASELINE`
 对账行锚定的上一权威基线为 `qa/r19/t9-sweep-result.txt` = **91 文件 / 1857 例**，本批唯一增项
 `tests/unit/phase2-dep-direction.test.js`。历史上曾出现过 1054 / 1247 / 1457 等多版数字，

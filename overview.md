@@ -98,7 +98,7 @@
 
 ## 九、后续轮次（与本文档不同步，以权威文档为准）
 
-> 本文件为早期会话总结，止于第三轮。后续的 **第四轮（`hermes-agent` 三选项 + 共享 Skills 独立部署）** 与 **第五轮（远程分发链路修复）** 已落地，权威记录见 `docs/06-OVERVIEW.md`（当前态：194/194 测试通过、12 包）与 `.dev/changed-log.md`（第四轮 / 第五轮章节）。
+> 本文件为早期会话总结，止于第三轮。后续的 **第四轮（`hermes-agent` 三选项 + 共享 Skills 独立部署）** 与 **第五轮（远程分发链路修复）** 已落地，权威记录见 `docs/06-OVERVIEW.md`（**订正注记 2026-10-13 批0，J-3：括注旧文"当前态：194/194 测试通过、12 包"系第三轮当时的口径、已废**——测试基线权威源 = `qa/` 最新全量 `*-sweep-result.txt`，查法见 `README.md` §8；本文其余静态数字同为历史快照）与 `.dev/changed-log.md`（第四轮 / 第五轮章节）。
 
 **第五轮关键修复（远程一键部署能跑起来）**：
 - 根因①远程产物缺 `node_modules` → `dist` 内裸包名 `from '@winvm/...'` 无法解析（`ERR_MODULE_NOT_FOUND`）。修复：新增 `delivery/link-workspace.mjs`，`install-vm.mjs` 在 `--skip-install` 时建 `@winvm/*` workspace junction 软链（免 npm ci / 免联网 / 幂等）；12 包全为内部依赖，junction 即可。

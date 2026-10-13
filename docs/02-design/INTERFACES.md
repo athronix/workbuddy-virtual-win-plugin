@@ -200,6 +200,8 @@ L2/L3 操作首次调用返回**待确认**（而非直接执行）：
 }
 ```
 
+> **两键兑现现状（2026-10-13 批0，E-1 定性，详见 `SECURITY-GOVERNANCE.md` §2.3）**：`allowedCapabilities` 与 `maxRisk` 当前为**声明记录于审计链、执行面尚未接线**——`policy.evaluate` 生产调用点不传两键，服务端不据此封顶/过滤；接线与端到端拦截用例 = **Phase 3 批1 在建**。本示例展示的是契约字段形状（宿主可填），不是已生效的安全闸。
+
 ### 3.5 任务状态与审批
 
 ```
@@ -210,6 +212,8 @@ submitted → working → input-required → working → completed
 **审批闸映射到 `input-required`**：需要人工确认时，任务置 `input-required` 并在 `status.message` 中给出 dry-run 预览与 `data` part（结构化影响清单）。宿主确认后发 `message/send` 带同一 `taskId` 继续。
 
 > **宿主桥义务**：宿主侧 A2A 桥（`packages/host-a2a-bridge`）必须**原样透传** VM 下发的 `preview` 与 `impact`（不得丢弃），并**按通道**给出正确的续跑提示 —— A2A 用 `a2a.approval.reply { taskId, approvalId, approved }`，**不得使用 MCP 通道的 `__approvalId`**。
+>
+> **`__approvalId` 续跑现状订正（2026-10-13 批0，与 K5 §4 安全纪律第 2 条订正口径一致）**：MCP 直调的"批准即附 `__approvalId` 重发"路径**当前实际不可达**——宿主批准后服务端**无条件删除审批令牌**（K5 一次性消费，`vm-service/server.ts:464`），`hostApproved=true` 的置位随即随令牌消失，缺省灰度（`WINVM_APPROVAL_REPLAY=on`）下重发恒返 `APPROVAL_REQUIRED`。续跑可达性 = **Phase 3 批1 审批闭环在建**（出路 (c) 策略化）。在此之前，文档与卡片不得把 `__approvalId` 直调续跑写成现在时可用的操作路径。
 
 ### 3.6 Artifact 约定（破除"委派黑盒"，NFR-509）
 

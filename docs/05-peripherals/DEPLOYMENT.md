@@ -276,7 +276,7 @@ ssh -f -N -L 18443:127.0.0.1:18443 vmadmin@192.168.1.77
 | L0 | meta.health.check, system.info.get | 直接放行 |
 | L1 | app.list, storage.disk.list, gui.window.list | 直接放行 |
 | L2 | app.install, storage.file.copy, gui.control.click | **需人工/审批闸** |
-| L3 | system.power.control, storage.file.delete, system.registry.write | 需审批 + 宿主显式 `maxRisk` 授权 |
+| L3 | system.power.control, storage.file.delete, system.registry.write | 需审批；宿主**可声明** `maxRisk`（**现状 2026-10-13 批0**：声明记录于审计链、服务端执行面尚未接线＝Phase 3 批1 在建，**不是已生效授权闸**，口径见 `docs/02-design/SECURITY-GOVERNANCE.md` §2.3） |
 
 - L2/L3 在 A2A 通道以 `input-required` 状态挂起，宿主确认后才 `tasks/resubscribe` 续跑
 - 审计链（哈希链，防篡改）落盘于配置指定路径，可随时核验

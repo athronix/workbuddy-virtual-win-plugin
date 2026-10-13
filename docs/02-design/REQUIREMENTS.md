@@ -82,7 +82,7 @@
 | NFR-507 | **最可监管 - 防篡改审计** | 结构化 append-only 审计日志，**哈希链**（每条含前一条 hash），支持事后校验 | 篡改任意一条 → 校验立即失败 |
 | NFR-508 | **最可监管 - 宿主侧静态风控** | 生成宿主插件时同步产出 `disabledTools` 建议清单（WorkBuddy 原生支持） | 高危工具默认在宿主侧静态禁用 |
 | NFR-509 | **最可监管 - 可观测** | 全链路 traceId 贯穿 宿主→传输→VM 服务→能力执行；~~关键操作附带 before/after 快照 artifact~~（**Q2 裁决：信息性声明、未实现且不实现** —— `audit.snapshot` 声明只参与交付面形状校验，运行期零消费、不产任何快照；事实化可观测面 = traceId 端到端检索 + 哈希链审计，判据 `tests/unit/phase2-snapshot-truth.test.js`，口径权威 `SECURITY-GOVERNANCE.md` §3.2） | 任一操作可按 traceId 端到端检索 |
-| NFR-510 | **安全性 - 网络** | VM 侧服务**仅监听 127.0.0.1**；SSH 隧道本地端口转发；严禁裸奔公网。Streamable HTTP 模式强制 TLS + bearer token + Origin 校验 | 端口扫描验证：VM 对外无监听端口 |
+| NFR-510 | **安全性 - 网络** | VM 侧服务**仅监听 127.0.0.1**；SSH 隧道本地端口转发；严禁裸奔公网。Streamable HTTP 模式强制 TLS + bearer token + Origin 校验（**注 2026-10-13 批0：Origin 校验为需求目标态、代码未实现/规划项**，实况口径见 `SECURITY-GOVERNANCE.md` §2 第 1 层） | 端口扫描验证：VM 对外无监听端口 |
 | NFR-511 | **安全性 - 鉴权** | SSH 密钥鉴权（默认）；HTTP 模式 bearer token + 可选 mTLS；`A2A-Version` 版本协商 | 无凭据访问全部拒绝 |
 | NFR-512 | **可维护性** | 全部契约以 JSON Schema 表达并集中存放；契约校验纳入 CI | 契约变更 → 校验失败即阻断 |
 | NFR-513 | **可测试性** | 核心模块（策略引擎、审计链、能力注册表、A2A 任务状态机、MCP 工具编排）必须有单元测试，覆盖率高优先级路径 | 见 `TEST-PLAN.md` |

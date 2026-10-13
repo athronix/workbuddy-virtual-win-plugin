@@ -29,7 +29,7 @@ relatedSkills:
 | 症状 | 根因 | 处置 |
 |---|---|---|
 | 截图全黑、键鼠 `Access denied` | 服务跑在 **Session 0**（被注册成了 Windows 服务） | 改为在用户登录会话内启动（登录自启 / 计划任务「仅在用户登录时运行」/ 托盘程序） |
-| 之前能用，RDP 断开后失效 | 会话被挂起为无头状态 | `tscon <sessionId> /dest:console` 归还控制台；或配置自动登录 |
+| 之前能用，RDP 断开后失效 | 会话被挂起为无头状态 | **需人工在 VM 物理控制台（或 Hyper-V 会话窗口）操作恢复**：`tscon <sessionId> /dest:console` 归还控制台属**手工配方**——本插件无自动恢复实现（session-guard 为规划项）、工具面也不透出 sessionId 数据源，**Agent 不可自动执行**，只向用户转述该人工路径；配置自动登录同理（人工） |
 | 锁屏状态 | LogonUI 占据前台 | 先解锁 |
 
 **规则**：`meta.session.status` 返回 `unavailable` 或 `black-screen` 时，
@@ -185,4 +185,4 @@ relatedSkills:
 - 会话保活与降级矩阵：`docs/02-design/SECURITY-GOVERNANCE.md` §5
 - 能力定义：`docs/02-design/CAPABILITY-MODEL.md` §3.4
 - 接口契约：`docs/02-design/INTERFACES.md` §2
-- 错误码：`SESSION_UNAVAILABLE` / `SESSION_BLACK_SCREEN`（均可重试，需先恢复会话）
+- 错误码：`SESSION_UNAVAILABLE` / `SESSION_BLACK_SCREEN`（`retryable=true`，但**恢复会话无可调用动作**——插件未实现自动恢复、54 能力与会话面无 restore/unlock 类工具；判据用 `meta.session.status` 或 `winvm-plugin health` 确认会话态，恢复本身**只能人工**（用户在 VM 控制台解锁/重连 RDP/按上表 tscon 手工配方），Agent 的正确动作 = **告知用户并等待**，不要反复重试，不要宣称"已恢复会话"）

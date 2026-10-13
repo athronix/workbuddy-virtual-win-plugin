@@ -1,6 +1,8 @@
 # K5 设计：审批放行后的服务端确定性重放（根治 A2A 假成功）
 
-> 状态：设计定稿，待实现。作者：主理人（基于 2026-09-28 真机取证 + 代码勘察）。
+> 状态：**已实现并真机验收**（Phase 1 · 2026-09-29 落地：`tests/unit/k5-replay.test.js` 41 例在册、`docs/test/reports/k5-fix-qa-2026-09-29.md`、`docs/test/reports/real-test-2026-09-29-k5-e2e.md`；§7 现状对齐 2026-10-12）。
+> 状态行订正注记（2026-10-13 · Phase 3 批0，J-5）：原写"设计定稿，待实现"已停更 13 天，与正文实况不符，今改回。
+> 作者：主理人（基于 2026-09-28 真机取证 + 代码勘察）。
 > 前置：K3（假成功正则兜底）、K4（结构化审批回传）均真机验证通过。
 
 ## 1. 问题（真机实证，2026-09-28 18:52–19:30）
@@ -64,7 +66,7 @@ A2A 委派「卸载VM企业微信」完整闭环：宿主批准后任务转 `com
     if (!approved) return { approved:false, reason:'rejected' }; // 拒绝或 TTL 超时
     const p = this.pendingApprovals?.get(req.approvalId);
     if (!p) return { approved:false, reason:'rejected' }; // token 已消失（异常）
-    p.hostApproved = true;               // 保留：/mcp 直调续跑仍可用（人工显式路径）
+    p.hostApproved = true;               // 置位后立即被下方一次性删除吞并——直调续跑实际不可达（订正见 §4-2 与文档头注；批1 在建）
     try {
       const exec = await this.replay(p);
       this.pendingApprovals?.delete(req.approvalId); // 一次性消费
@@ -89,6 +91,7 @@ A2A 委派「卸载VM企业微信」完整闭环：宿主批准后任务转 `com
 ## 4. 安全纪律（不可妥协）
 1. 重放**仅在** `resolveApproval(true)` 后由协调器触发，参数取服务端留存原值——VM 内任何角色无法伪造执行。
 2. token 一次性：执行成功/失败均删除；`/mcp` 直调路径的 `hostApproved===true` 严格闸保留（K4 不动）。
+   **口径统一订正（2026-10-13 批0）**：本条与"批准即删 token"并读时曾自相矛盾（删 token ⇒ 严格闸无对象可校验）。终版口径 = **缺省灰度（replay on）下批准即删 token，MCP 直调 `__approvalId` 续跑路径实际不可达**；"严格闸保留"仅指闸语义未被放宽（绝不因重放机制而自批），不承诺续跑可达。直调续跑可达性 = **Phase 3 批1 审批闭环在建**（出路 (c) 策略化）。`WINVM_APPROVAL_REPLAY=off` 灰度回退态下 token 保留、K4 直调续跑仍可用——这是回滚位而非主路径。
 3. 桥对 LLM 完成声明做回执反查——**服务端没记到执行成功，A2A 永远不许谎报成功**。
 4. 拒绝/TTL 超时/异常一律 `approved:false` → K3 旧行为（等待审批，绝不自批）。
 

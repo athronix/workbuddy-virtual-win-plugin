@@ -35,7 +35,8 @@
 │  VM 对外零监听端口；严禁公网暴露模板                        │
 └──────────────────────┬────────────────────────────────────┘
 ┌─ 第 1 层：传输与鉴权 ──────────────────────────────────────┐
-│  SSH 密钥（默认）｜HTTPS + bearer + Origin 校验（HTTP 模式）│
+│  SSH 密钥（默认）｜HTTPS + 可选 bearer（enforceBearer，    │
+│  缺省 false）；Origin 校验＝规划项·未实现（源码零命中）    │
 └──────────────────────┬────────────────────────────────────┘
 ┌─ 第 2 层：宿主侧静态风控（NFR-508）──────────────────────┐
 │  WorkBuddy 原生 disabledTools：L2/L3 工具默认静态禁用      │
@@ -50,7 +51,9 @@
 │  L2/L3 强制人工确认；A2A → input-required；MCP → 待确认    │
 └──────────────────────┬────────────────────────────────────┘
 ┌─ 第 6 层：执行最小权限 ────────────────────────────────────┐
-│  委派携带 allowedCapabilities + maxRisk；删除优先回收站     │
+│  委派可携带 allowedCapabilities + maxRisk（**声明记录于    │
+│  审计链；执行面尚未接线＝Phase 3 批1 在建**，见 §2.3）；   │
+│  删除优先回收站（此项在位）                                │
 └──────────────────────┬────────────────────────────────────┘
 ┌─ 第 7 层：审计与回溯（NFR-507/509）──────────────────────┐
 │  哈希链 append-only；traceId 全链路；快照=信息性声明        │
@@ -118,6 +121,22 @@
 
 判据由 `tests/unit/phase2-mcp-signal.test.js` 钉死，含一条关键反证：`close` 且响应已正常写完（`writableEnded===true`）时**绝不允许** abort——否则每一次成功调用都会被读成取消（假取消比漏报更严重）。
 
+### 2.3 最小权限两参数（`allowedCapabilities` / `maxRisk`）的兑现现状（E-1 终版定性 · 2026-10-13 批0 诚实化）
+
+> **当前实现为「声明记录于审计链，执行面尚未接线」**——这不是安全闸已生效的承诺。接线 = **Phase 3 批1 在建**（与审批闭环出路 (c) 策略化同一 CL，硬前置）。
+
+实况（2026-10-12 全维度体检 E-1 / M2 亲验锚点，逐处可回溯）：
+
+| 环节 | 状态 |
+|---|---|
+| 宿主可填、契约透传 | ✅ `a2a.delegate` schema 含两键（`tools.ts:368/373`） |
+| 记录于审计链 | ✅ `goal.maxRisk` 落审计条目与步骤展示字段 |
+| 进入 `policy.evaluate` 实参 | ❌ **三处生产调用点（vm-service `server.ts:1060/:1229`、adapter `index.ts:295`）均不传两键** ⇒ 引擎封顶分支（`engine.ts:759`）生产路径永不可达 |
+| 流式路径装配 | ❌ `handleStream` 装配 GoalRequest 不解析 `allowedCapabilities`（非流式路径透传、deterministic provider 白名单过滤 `adapter index.ts:755-756` 真实在跑——这是唯一一处消费先例） |
+| 端到端「设了 maxRisk ⇒ L2 被拦」用例 | ❌ 不存在（批1 验收判据即为此用例落地） |
+
+**读法约束**：本节与 §2 分层图第 6 层、§3.1 判定顺序第 7 步、`INTERFACES.md` §3.4 示例中出现的 `allowedCapabilities`/`maxRisk`，一律按「调用方声明 + 审计留痕」理解，**不得**读作「服务端强制封顶/白名单过滤」。真正拦阻 L2/L3 的现状仍是第 5 层审批闸。
+
 ---
 
 ## 3. 策略引擎（`packages/core/policy`）
@@ -168,11 +187,11 @@
 | MCP | 返回 `APPROVAL_REQUIRED` + `approvalId` + dry-run 预览；宿主确认后带 `approvalId` 重发 |
 | A2A | Task 置 `input-required`，`status.message` 附预览与结构化影响清单；宿主 `message/send` 带同 `taskId` 继续 |
 
-审批记录包含：审批者、时间、预览内容哈希、审批结果（**批准 / 拒绝 / 超时 / 取消** 四态，不得折叠为「未批准」）。
+审批记录包含：审批者、时间、预览内容哈希（**当前服务端侧恒空、绑定批6 在建**，见下方订正注记）、审批结果（**批准 / 拒绝 / 超时 / 取消** 四态，不得折叠为「未批准」）。
 
 > **审批真值层的覆盖面（P2-T8 · 2026-10-12 口径更新）**：CL-K3R `reconcileApprovalTruth`（桥侧对 LLM 完成声称的结构化反查，服务端账本为唯一权威）的门 1 归属键已由「必须有 `taskId`」放宽为 **`taskId ?? traceId`** ⇒ 上表 **MCP 直调 / 委派 CLI 回连**（无 `taskId` 有 `traceId`）的回合同样进入结构化反查覆盖面；串台安全由服务端归因规则 R2 精确排除 + R3 时间窗/能力面过滤兜住，SK-1「无归属不介入」逐字保留（归属键**双缺**即回退文本兜底，且探针零调用）。文本启发式 `reconcileApprovalWait` 降为**兜底，且已知会漏同义改写**（六条漏判反例钉在 `tests/unit/phase2-truth-mcp-direct.test.js` D 组——属**诚实登记边界**，不是已修复；关键词集合钉 `[APPROVAL_REQUIRED, 等待审批]`，新增须同批改测试）⇒ **不得以兜底命中作为主要取证面**。归因可观测：每条 `delegation.complete` 可带 `ext.approvalTruth = { decidedBy:'server'|'text-fallback'|'shadow'|'pass-through', gate, taskIdPresent, traceIdPresent, approvalId? }`（纯附加可选，缺席即链上逐字节旧形状），使「结构化救回来的 vs 兜底救回来的」可计数、兜底命中率可监控。灰度 `WINVM_APPROVAL_TRUTH=on|shadow|off`（缺省 `on`；`shadow` 只记不判、`off` 一键回滚）语义不破。详见 `K5-server-replay-approval.md` §7。
 
-预览内容哈希（`previewHash`）**V1 由宿主侧计算并记录**，落点 `packages/host-a2a-bridge/src/approval-audit.ts`，算法为 `sha256(canonicalJson({ capabilityId, risk, preview, impact }))`；用于比对「当时给用户看的」与「实际执行的」（哈希不一致即标记，不静默通过）。凭据类字段（`password` / `privateKey` / `passphrase` / token / secret）**永不入账**。
+预览内容哈希（`previewHash`）**V1 由宿主侧计算并记录**，落点 `packages/host-a2a-bridge/src/approval-audit.ts`，算法为 `sha256(canonicalJson({ capabilityId, risk, preview, impact }))`；用于比对「当时给用户看的」与「实际执行的」。**订正注记（2026-10-13 批0，ARCH-09 用户终裁=补建）**：上述"比对"所需的**绑定机制批6 在建，当前 previewHash 为空**——服务端侧恒 `''`（`vm-service/server.ts:250/:1187` 注释自证"预留供 ARCH-09 批次复用"），宿主侧仅进程内 Map，两侧数据物理上尚未打通，"预览 ≠ 执行"比对**从未真实运行**；哈希不一致即标记"不静默通过"是**批6 接线后的目标行为**，现阶段不得作为已生效保障引用。凭据类字段（`password` / `privateKey` / `passphrase` / token / secret）**永不入账**（此项在位）。
 
 ### 3.4 关键红线
 
@@ -308,12 +327,14 @@ record_n.prevHash = hash_(n-1)
 
 ### 5.4 恢复动作
 
-| 场景 | 动作 |
-|---|---|
-| RDP 断开导致挂起 | `tscon <sessionId> /dest:console`（需管理员） |
-| 重启后无人登录 | 自动登录（Sysinternals Autologon 风格配置，**凭据由 VM 侧安全存储，不落明文**） |
-| 锁屏/休眠 | 调整电源与屏幕保护策略（禁休眠、禁锁屏超时） |
-| 无法恢复 | 服务置 `degraded`，GUI 能力返回 `SESSION_UNAVAILABLE`，**明确报错而非静默黑图** |
+| 场景 | 动作 | 执行形态 |
+|---|---|---|
+| RDP 断开导致挂起 | `tscon <sessionId> /dest:console`（需管理员） | **人工**（session-guard 自动恢复为规划项·未实现；工具面无 sessionId 数据源，Agent 不可自动执行） |
+| 重启后无人登录 | 自动登录（Sysinternals Autologon 风格配置，**凭据由 VM 侧安全存储，不落明文**） | **人工配置**（自动登录生成器未实现，批X 规划项） |
+| 锁屏/休眠 | 调整电源与屏幕保护策略（禁休眠、禁锁屏超时） | **人工配置**（powercfg 策略接线未实现） |
+| 无法恢复 | 服务置 `degraded`，GUI 能力返回 `SESSION_UNAVAILABLE`，**明确报错而非静默黑图** | ✅ 在位（探针检测/告警链路真实存在） |
+
+> **诚实化注记（2026-10-13 批0，P0-3 族①）**：上表前三行的"动作"是**给运维的人工配方**（设计意图保留），不是插件已提供的自动恢复能力——session-guard 自动恢复链路代码零实现，口径详见 `ARCHITECTURE.md` §6.3 订正注记。
 
 ### 5.5 降级语义（重要）
 
@@ -423,6 +444,6 @@ record_n.prevHash = hash_(n-1)
 | 评估建议风险 | 本设计缓解 | 落点 |
 |---|---|---|
 | 等于给 VM 开 RCE | 七层纵深防御（§2）+ 信任边界声明与回环不可关（§2.1） | 全局 |
-| GUI 黑屏/失效 | 会话探针 + tscon + 自动登录 + 降级语义（§5） | `core/session`、`vm-capabilities` |
+| GUI 黑屏/失效 | 会话探针 + 降级语义（§5，**在位**）；tscon/自动登录恢复=**人工配方（自动恢复未实现）** | `core/session`、`vm-capabilities` |
 | 委派"黑盒" | 强制 artifact（steps/screenshots/change-list）+ traceId（§IF-2.6） | `a2a-framework`、`vm-service` |
 | 资源占用 | V1 用确定性执行器（无 LLM 开销）；并发上限；任务可取消 | `adapter-agent-workbuddy`、`core` |

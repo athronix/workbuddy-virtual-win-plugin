@@ -96,8 +96,10 @@ app.shortcut.manage { path: "C:\\Users\\<user>\\Desktop\\MyApp.lnk" }
 > **契约**：`path` 必填，是 `.lnk` 文件的读取路径。
 > ⚠ **创建/覆盖快捷方式当前不可用**：入参 `targetPath`/`arguments`/`workingDirectory`
 > 虽在 schema 中保留，但传入**不会产生写入**，回执仍只返回读取结果
-> （写侧 `New-ShortcutItem` 已实现待挂载）。用户要求"建快捷方式"时如实说明现状，
-> 可改走 `appops.cli.invoke`(powershell) 由用户审批后执行，或人工创建——不要静默声称成功。
+> （写侧 `New-ShortcutItem` 已实现待挂载）。用户要求"建快捷方式"时如实说明现状。
+> 如需代用路径：`appops.cli.invoke` 的 `app` 枚举**无 powershell**（直传恒 `INVALID_PARAMS`；合法值
+> ffmpeg/magick/soffice/pandoc/node/python/custom），可行形态为 **`{ app: "custom", command: "powershell -NoProfile -Command \"<WScript.Shell 建 .lnk 脚本>\"" }`**
+> （写入目标仍受路径白名单约束，`%USERPROFILE%` 下桌面可写；L1 免审批）；或人工创建——**不要静默声称成功**。
 
 ## 高危清单（L2 强制动作）
 

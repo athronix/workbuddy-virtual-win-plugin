@@ -93,15 +93,17 @@ ARCHIVE_VERIFY_MAX_SHARDS / GENESIS_HASH`）。core 未来新增 `audit/*` 导�
 (b) 判据属**安全承诺 / 契约保真 / 分层纪律**族 —— 即失效后果 = 文档与运行态分叉（Phase 2 命题本体）；
 (c) 单文件耗时可接受（< 30s）。
 
-| 文件 | id | 例数 | 入选理由 |
-|---|---|---|---|
-| `phase2-snapshot-truth.test.js` | snapshot-truth | 17 | ARCH-04 事实三元组（声明/消费/承载）防再漂移 = 用户 **Q2 裁决「降级为信息性」**的唯一强制面；被悄悄改回「宣称实现」必须在这里红 |
-| `phase2-dead-config.test.js` | dead-config | 14 | 死字段删除族 + 旧键**恰一条**告警（PR2）；安全承诺型配置不得静默失效 |
-| `phase2-contract-schema.test.js` | contract-schema | 23 | schema 交付面校验 + schema↔`CAPABILITY_DOMAINS` 漂移守卫；**Q1=(b)** 把校验点定在交付面 ⇒ 交付面必须有强制力 |
-| `phase2-contract-code-fidelity.test.js` | contract-code-fidelity | 22 | O-1 契约码保真 = **安全性质**（策略拒绝被压平成 `EXECUTION_FAILED` 后可被 `shouldDegrade` 绕过） |
-| `phase2-session-unknown.test.js` | session-unknown | 48 | P2-T9 未知态 + **PR8 红线**「`isGuiAllowed` 行为零放宽」——GUI 门禁被无意放宽属安全回归面 |
-| `assembly-guard.test.js` | assembly-guard | 24 | S-4/A5 **装配点**守卫：重构删掉注入点时上千例纯函数测试**照样全绿**（Phase 1 体检原话），只有这里拦得住取证盲区复活 |
-| `psmod-contract.test.js` | psmod-contract | 7 | 注册表 ↔ PowerShell **跨语言隐式契约**（54 条映射）：编译器与 `tsc` 都看不见它；2026-10-08 全维度体检实测当时**零回归覆盖** |
+> **例数口径（2026-10-13 批0 订正，K-18「测试基线数字只写实测」自家纪律）**：下表旧版静态维护了各件例数（如 snapshot-truth "17"），随批次增删用例必漂——静态数字列已删。查任意一件的**实测例数**：`node --test tests/unit/<文件> 2>&1 | tail -3`（读 `# tests` 行），或读最新全量 sweep 的对应逐文件行（查法见 `README.md` §8 基线口径）。
+
+| 文件 | id | 入选理由 |
+|---|---|---|
+| `phase2-snapshot-truth.test.js` | snapshot-truth | ARCH-04 事实三元组（声明/消费/承载）防再漂移 = 用户 **Q2 裁决「降级为信息性」**的唯一强制面；被悄悄改回「宣称实现」必须在这里红 |
+| `phase2-dead-config.test.js` | dead-config | 死字段删除族 + 旧键**恰一条**告警（PR2）；安全承诺型配置不得静默失效 |
+| `phase2-contract-schema.test.js` | contract-schema | schema 交付面校验 + schema↔`CAPABILITY_DOMAINS` 漂移守卫；**Q1=(b)** 把校验点定在交付面 ⇒ 交付面必须有强制力 |
+| `phase2-contract-code-fidelity.test.js` | contract-code-fidelity | O-1 契约码保真 = **安全性质**（策略拒绝被压平成 `EXECUTION_FAILED` 后可被 `shouldDegrade` 绕过） |
+| `phase2-session-unknown.test.js` | session-unknown | P2-T9 未知态 + **PR8 红线**「`isGuiAllowed` 行为零放宽」——GUI 门禁被无意放宽属安全回归面 |
+| `assembly-guard.test.js` | assembly-guard | S-4/A5 **装配点**守卫：重构删掉注入点时上千例纯函数测试**照样全绿**（Phase 1 体检原话），只有这里拦得住取证盲区复活 |
+| `psmod-contract.test.js` | psmod-contract | 注册表 ↔ PowerShell **跨语言隐式契约**（54 条映射）：编译器与 `tsc` 都看不见它；2026-10-08 全维度体检实测当时**零回归覆盖** |
 
 > **裁决项去向注**：设计 §6 P2-T11 行的字面表述是「契约一致性 + schema shape 校验」⇒ 上表
 > `contract-schema` / `contract-code-fidelity` 两行即其承载；§13.2-② 的 policy 白名单 ⇒ ST2b 承载。

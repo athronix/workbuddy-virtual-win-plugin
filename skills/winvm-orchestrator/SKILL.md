@@ -134,11 +134,13 @@ relatedSkills:
 | 查隧道状态 | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin tunnel status` | **判定只以本命令输出为权威**：`state: RUNNING` / `healthy: true`。`~/.workbuddy/winvm/tunnel.state.json` 仅作诊断、**可能陈旧**（实测曾出现 state 记的 pid 已死、而 pidfile 的 pid 真活），**不得据其判健康** |
 | 恢复 / 拉起（幂等） | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin tunnel ensure` | 已在线则跳过；不健康（DEGRADED）则自动重启一次；未运行则拉起 |
 | 强制重启（必要时） | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin tunnel restart` | 先 `stop`（必要时强杀）再 `start`，用于「在线但不健康」的兜底恢复 |
-| 健康确认（收尾必跑） | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin health` | 需 `ok: true` 且 `capabilities.available == capabilities.count` |
+| 健康确认（收尾必跑） | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin health` | 判据 = **`ok: true` 即放行**（`ok` 由服务端合成：provider 已加载 ∧ ps-bridge ready）。`capabilities.count` 是注册表全集（54），`available` 是 provider 声明∩注册表的暴露面——degraded（provider 未加载）时 `available` 收窄为仅 `meta.*`（3 条），**`available == count` 在故障态数学上恒不成立，不得把它当门禁**（旧判据缺陷：degraded 下 Agent 永久自锁且收不到归因） |
 
 - `tunnel ensure` / `tunnel restart` 均**幂等且收敛**：重复调用不会产生第二个 daemon 实例。
-- **健康确认通过后**（`ok:true` 且 `capabilities.available == capabilities.count`），方可调用任何 MCP / A2A 工具；
-  否则先按上表恢复，再重试。
+- **健康确认口径（2026-10-13 批0 订正）**：
+  - `ok:true` ⇒ 放行，可调用 MCP / A2A 工具；
+  - `ok:false` ⇒ **不要自锁等待等式成立**，按降级叙述处置：读 `provider.state`/`provider.detail` 归因（`unavailable` = provider 未加载，此时暴露面仅 `meta.*`，域能力调用会得到 `PROVIDER_UNAVAILABLE`/`CAPABILITY_NOT_EXPOSED`），先按上表 `tunnel ensure` + 必要时重启 VM 侧服务恢复 provider，恢复期间只保留 `meta.*` 健康自检调用并向用户如实报告 degraded；
+  - provider 正常但 `available < count`（未来分级 provider 形态）⇒ 非门禁失败，按暴露面裁剪任务范围，勿循环重试健康确认。
 
 ## 通道选择（核心决策）
 
@@ -258,10 +260,10 @@ winvm-a2a__a2a.delegate({
 ### MCP 通道
 首次调用 L2/L3 工具 → 返回 `APPROVAL_REQUIRED` + `approvalId` + `approval.preview`
 （含 `impact` 影响清单与 dry-run 预览）。
-**向用户展示影响清单**，取得确认后，用同一参数并附 `__approvalId` 重新调用。
+**向用户展示影响清单**，取得确认后——**当前（批1 审批闭环在建前）取得确认后不要重发**：宿主批准后服务端即删除审批令牌，附 `__approvalId` 以同一参数重发恒返 `APPROVAL_REQUIRED`（死循环风险）。如实告知用户"批准已记录、放行通道批1 在建"并保持等待；批1 落地后再按卡片 §9 的新口径续跑。
 
-> **`dryRun: true` 免审批**：凡是支持 `dryRun` 的 L2/L3 能力（如 `system.power.control`、`app.winget.uninstall`），
-> 带 `dryRun: true` 调用**直接放行、不产生审批卡片**，返回变更计划（`would`/`plan`）与影响清单。
+> **`dryRun: true` 免审批**：**仅当能力注册表声明 `supportsDryRun === true`**（服务端事实，声明全集以 `grep -c "supportsDryRun: true" packages/vm-capabilities/src/registry/definitions.ts` 为准，当前 5 条，如 `system.power.control`、`app.winget.uninstall`）时，
+> 带 `dryRun: true` 调用**直接放行、不产生审批卡片**，返回变更计划（`would`/`plan`）与影响清单。**未声明该标志的 L2/L3 能力传 `dryRun` 照常被 `APPROVAL_REQUIRED` 拦**（不会免批）。
 > 这是「L3 先 dry-run 再确认」得以真正执行的前提：**先 dry-run 拿计划 → 展示 → 用户确认 → 再去掉 dryRun 执行**。
 > 审批预览会对支持 `dryRun` 的能力附带 dry-run 计划摘要。
 
@@ -327,12 +329,12 @@ winvm-a2a__a2a.delegate({
 | 风险 | 典型操作 | 强制动作 |
 |---|---|---|
 | L2 | 删除文件/目录、卸载应用、结束进程树、改网络配置、写 HKLM 注册表 | 审批 + before/after 快照 |
-| L3 | 关机/重启/休眠、改启动配置、批量删除 | **先 dry-run（`dryRun:true`，免审批）** → 审批 + 二次确认 |
+| L3 | 关机/重启/休眠、改启动配置、批量删除 | **先 dry-run（`dryRun:true`，仅声明 `supportsDryRun` 的 5 条能力免审批，未声明者 dryRun 照常被审批拦）** → 审批 + 二次确认 |
 
 额外约定：
 - **删除默认进回收站**；仅当用户明确要求"永久删除"且已审批，才用 `permanent: true`
 - 委派时通过 `allowedCapabilities`（最小权限）与 `maxRisk`（默认 L1）收紧范围
-- **L3 规则引用**：L3 一律「**先 `dryRun:true` 预览（免审批）→ 审批 + 二次确认 → 执行**」；卡片与二次确认短句要求见模板 L3 版（[`./approval-card.md`](./approval-card.md) §2）。dry-run 由能力自身支持——带 `dryRun:true` 调用即免审批直接返回变更计划，故**不存在「dry-run 预览未就绪即阻断」这一分支**。本文件不复制卡片正文。
+- **L3 规则引用**：L3 一律「**先 `dryRun:true` 预览（仅对声明 `supportsDryRun===true` 的能力免审批；其余能力 dryRun 仍需审批）→ 审批 + 二次确认 → 执行**」；卡片与二次确认短句要求见模板 L3 版（[`./approval-card.md`](./approval-card.md) §2）。dry-run 由能力自身支持——**判据以注册表 `supportsDryRun` 声明为准**（服务端事实，当前 5 条），带 `dryRun:true` 调用即免审批直接返回变更计划，故**不存在「dry-run 预览未就绪即阻断」这一分支**；对未声明 `supportsDryRun` 的 L3 能力，带 `dryRun` 调用会正常进入审批闸，按卡片流程处置即可。本文件不复制卡片正文。
 
 ## 错误码分层（`error.code` vs `error.reason`）
 

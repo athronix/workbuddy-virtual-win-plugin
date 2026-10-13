@@ -1,7 +1,10 @@
 # 交付概览 · WinVM 跨机 Agent 插件（1+5 双通道方案）
 
 > 让宿主机 WorkBuddy 完全操作一台 Windows 虚拟机的完整实现已交付。
-> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，单元测试与端到端全绿
+> 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，单元测试全绿
+> （**订正注记 2026-10-13 批0，J-6**：旧句"单元测试与端到端全绿"中"端到端"曾失真——`tests/e2e` 不在
+> 门禁枚举面且本机不可跑绿；**端到端的唯一可指事实源 = 真机 A 系列，最近轮 `docs/test/reports/real-test-2026-09-24-run7.md`**，
+> 其后断供需批5 恢复；离线基线不含 e2e）。
 > （**测试基线数字的权威源 = `qa/` 下最新一轮 `*-sweep-result.txt` 汇总行**，本文件不静态维护
 > 文件数/例数以防漂移；查法见 `README.md` §8。skip 恒为 `ssh2-resolve` 离线用例 OFFLINE_SKIP）。
 > 覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R、Phase 0 安全守卫 U-P0-1 路径穿越 / U-P0-3 dry-run A1 / psmod 契约 / 装配点、Phase 1 安全兑现批 T1–T5（链范围透出 / 审批三态入链 / `/health.audit.scope` / 非回环 fail-closed / ARCH-22 真取消：执行体消费取消 + LLM 双路打断 + 宿主事实化呈现 + `--token-env` 通路），以及 Phase 2 守卫基建批 P2-T11（分层方向 dep-lint / 配置全键白名单 config-key-lint / 本地门禁 gate / 锁屏前置探针 lock-probe）。

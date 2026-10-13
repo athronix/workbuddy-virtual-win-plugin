@@ -140,8 +140,11 @@ relatedSkills:
   现状（可人工在 VM 内清空，或按 `storage.file.delete` 逐项审批删除目标文件）
 - **zip 解压当前不可用**：`storage.archive.manage` 仅能**创建** zip；入参 `destination` 为
   归档输出路径，传解压意图**不会产生展开**（解压函数 `Expand-ZipArchiveItem` 已实现待挂载）。
-  需要解压时可改走 `appops.cli.invoke`(powershell) `Expand-Archive`（用户审批）或人工操作——
-  不要静默声称已解压
+  需要解压时**不要**用 `appops.cli.invoke` 的 `app: "powershell"`——该枚举**无 powershell**
+  （合法值仅 ffmpeg/magick/soffice/pandoc/node/python/custom），直传恒返 `INVALID_PARAMS`；
+  正确代用形态是 **`appops.cli.invoke { app: "custom", command: "powershell -NoProfile -Command \"Expand-Archive -Path '<zip>' -DestinationPath '<dir>'\"" }`**
+  （custom 把 command 首词解析为可执行文件；普通 Expand-Archive 不触命令黑名单；仍走 L1 免审批+路径白名单）——
+  或人工操作。**不要静默声称已解压**
 - **压缩大目录耗时长**：`storage.archive.manage` 超时上限 300s
 
 ## 参考

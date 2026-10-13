@@ -289,8 +289,12 @@
 
 ## 7. 新增能力的扩展流程（FR-206）
 
-1. 在 `packages/vm-capabilities/powershell/<domain>/` 增加实现函数；
-2. 在 `packages/vm-capabilities/registry/<domain>.ts` 增加能力定义（含 risk / policy / input-output schema）；
-3. 运行契约校验（自动校验 schema + 风险分级合法性）；
-4. MCP 工具与 A2A Skill **自动出现**，无需改框架代码；
-5. 若风险为 L2/L3，宿主适配器会自动将其加入 `disabledTools` 建议清单。
+> **路径订正（2026-10-13 · Phase 3 批0，J 系漂移/audit-arch ⑤ D-6a）**：本节原写 `packages/vm-capabilities/powershell/<domain>/` 与 `packages/vm-capabilities/registry/<domain>.ts` ——**两个路径都不存在**（实况：PowerShell 实现是 `packages/vm-capabilities/psmod/<domain>.ps1` 单文件六域：system/app/storage/gui/appops/ps-bridge；能力定义是**单文件** `packages/vm-capabilities/src/registry/definitions.ts`，54 条全量同文件，无分域 `.ts`）。照旧文"新增能力"会第一时间翻车。流程按实况重列：
+
+1. 在 `packages/vm-capabilities/psmod/<domain>.ps1` 增加 PowerShell 实现函数（函数名 = 注册表 `fn:` 字段，跨语言隐式契约）；
+2. 在 `packages/vm-capabilities/src/registry/definitions.ts` 以 `cap({ id, module, fn, risk, ... })` 增加能力定义（含 risk / policy / input-output schema；risk 必填勿靠缺省）；
+3. 手改 `tests/unit/psmod-contract.test.js` 的 `EXPECTED_TOTAL`（54→N）与域分布断言，跑 `node --test tests/unit/psmod-contract.test.js` 对账命名成对性；
+4. **契约校验现状如实化**：schema + 风险分级合法性校验**不是自动运行期校验**——落点在测试/门禁面（`phase2-contract-schema.test.js` + `npm run gate`，裁决 Q1=(b)），故第 3 步与门禁必须人工触发；
+5. MCP 工具与 A2A Skill **自动出现**（由注册表派生，无需改框架代码）；
+6. 若风险为 L2/L3，宿主适配器会自动将其加入 `disabledTools` 建议清单；同步更新 `skills/*/SKILL.md`（若涉对外语义）与本文件 §3 清单；
+7. **重装/重启 VM 侧**（psmod 变更不重启服务不生效——改 `.ps1` 必须让常驻 ps-bridge 重载，见 `docs/04-ops/DEPLOYMENT.md`）。

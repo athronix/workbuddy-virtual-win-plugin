@@ -209,7 +209,7 @@ token 以环境变量持久化于 `%HERMES_HOME%\.env`：`MCP_WINVM_API_KEY=<tok
 
 | 通道 | 续跑方式 | 关键标记 |
 |---|---|---|
-| **MCP 直调**（连接器 `winvm`） | 以**同一参数**并附 `__approvalId` 重新调用原工具 | `__approvalId` |
+| **MCP 直调**（连接器 `winvm`） | **当前不可自动续跑**：宿主批准后服务端即删除审批令牌（K5 一次性消费），附 `__approvalId` 重发恒返 `APPROVAL_REQUIRED`——批准后的放行/续跑 = **批1 审批闭环在建**，批1 落地前不得依赖此路径（向用户如实说明并等待，勿死循环重发） | `__approvalId`（批1 前**不可依赖**） |
 | **A2A 委派**（连接器 `winvm-a2a`） | 调 `a2a.approval.reply { taskId, approvalId, approved: true }` | **不得**使用 `__approvalId` |
 
 > 两通道的续跑标记**不可混用**：A2A 通道的输出中不会、也不应出现 `__approvalId`（卡片规范见 `winvm-orchestrator` 的审批卡片模板 §9）。

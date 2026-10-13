@@ -95,7 +95,7 @@
 | `a2a.task.cancel` | 取消任务（**协作式**，见 §4.5）；返回 `cancelObserved` 布尔位表明取消是否真的成立 |
 | `a2a.health` | 拉 Agent Card，确认隧道与 A2A 服务可达，列出 VM Agent 技能 |
 
-关键参数（最小权限）：`allowedCapabilities`（能力范围）、`maxRisk`（最高风险，默认 L1）。
+关键参数（**声明性**最小权限）：`allowedCapabilities`（能力范围）、`maxRisk`（最高风险声明值，默认 L1）。⚠ **2026-10-13 批0 诚实化**：两键当前由桥透传并记录于审计链，**服务端执行面尚未接线**（`policy.evaluate` 生产调用点不传两键）——不得读作已生效的限权/封顶闸；接线＝Phase 3 批1 在建，实况见 `SECURITY-GOVERNANCE.md` §2.3。
 
 ### 4.3 事件翻译
 
