@@ -220,6 +220,41 @@ export function resolveApprovalReplay(env: EnvView = process.env): boolean {
   return parseBoolean(env[ENV_APPROVAL_REPLAY], APPROVAL_REPLAY_DEFAULT);
 }
 
+/* ==================== R-5 · tasks/cancel 风暴门禁（Phase 3 批5） ==================== */
+
+/**
+ * R-5 取消风暴门禁 env 名（用户 2026-10-13 终裁 B=主动排期，真机实证 198×并发8 cancel 打挂服务）。
+ *
+ * 语义：`maxPerWindow` 次 cancel / `windowMs` 毫秒滑动窗口；超限的 cancel 服务端直接拒回
+ * （拒多余 cancel 远优于让常驻会话被 abort 打断→重建风暴→崩溃）。
+ *   - `WINVM_CANCEL_RATE_MAX`（默认 10，**0 ⇒ 禁用门禁**逐字旧行为）
+ *   - `WINVM_CANCEL_RATE_WINDOW_MS`（默认 1000，非法/≤0 ⇒ 回退默认）
+ *
+ * 缺省 10/秒的判据：正常人工/单 Agent 串行取消远低于此（单条端到端 ~3.4s），只有批量并发
+ * 风暴才触顶。env max 显式给 0 = 运维关掉门禁（保留旧行为），非 0 非法值回退默认。
+ */
+export const ENV_CANCEL_RATE_MAX = 'WINVM_CANCEL_RATE_MAX';
+export const ENV_CANCEL_RATE_WINDOW_MS = 'WINVM_CANCEL_RATE_WINDOW_MS';
+export const CANCEL_RATE_MAX_DEFAULT = 10;
+export const CANCEL_RATE_WINDOW_MS_DEFAULT = 1000;
+
+/** 返回 `{maxPerWindow, windowMs}`；maxPerWindow≤0 ⇒ 门禁禁用（CancelRateLimiter.enabled=false）。 */
+export function resolveCancelRateLimit(env: EnvView = process.env): { maxPerWindow: number; windowMs: number } {
+  const rawMax = env[ENV_CANCEL_RATE_MAX];
+  // max 走"可为 0"的解析（区别于 parsePositiveInt 的 ≤0 回退）：0=显式禁用，负/NaN=回退默认
+  let maxPerWindow: number;
+  if (rawMax === undefined || rawMax.trim() === '') {
+    maxPerWindow = CANCEL_RATE_MAX_DEFAULT;
+  } else {
+    const n = Number(rawMax);
+    maxPerWindow = Number.isFinite(n) && n >= 0 ? Math.floor(n) : CANCEL_RATE_MAX_DEFAULT;
+  }
+  return {
+    maxPerWindow,
+    windowMs: parsePositiveInt(env[ENV_CANCEL_RATE_WINDOW_MS], CANCEL_RATE_WINDOW_MS_DEFAULT),
+  };
+}
+
 /* ==================== CL-K3R · 审批真值判据（三态灰度开关） ==================== */
 
 /**

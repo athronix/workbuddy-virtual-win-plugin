@@ -27,6 +27,9 @@ export {
   TaskNotCancelableError,
   createProgressSink,
 } from './task-store.js';
+// R-5（Phase 3 批5，纯附加）：cancel 风暴门禁（滑动窗口限流器）
+export { CancelRateLimiter } from './rate-limiter.js';
+export type { CancelRateLimit } from './rate-limiter.js';
 export type {
   ApprovalResolution,
   ApprovalTimeoutInfo,

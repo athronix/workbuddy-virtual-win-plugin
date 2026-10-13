@@ -223,6 +223,16 @@ export class PersistentCliSession {
   private firstCallLatencyMs: number | undefined;
   /** 累计 spawn 次数（含首次）；`restarts = spawnAttempts - 1` */
   private spawnAttempts = 0;
+  /**
+   * A2-3（Phase 3 批5）：被识别为「计划内软释放后的重建」的次数，从 `restarts` 抵消。
+   * 病灶：idle TTL 回收（tick→dispose）与 ws 超限回收都走 `dispose()` 软释放回 stopped，
+   * 下次 `ensureReady()` 重建照样 `spawnAttempts += 1` ⇒ 长跑挂机场景（每 idleTtl 周期自然
+   * 回收一次）把「正常回收」与「真故障重建」混记同一本账，累计到 `maxRestarts` 即 `disabled`
+   * 永久停用（仅 `restartFresh()` 手工可解）。修复：`restarts`（故障预算判据）剔除计划内回收。
+   */
+  private plannedRecycles = 0;
+  /** A2-3：一次回收发生、等待其「重建」被消费时置位（回收后若不重建则保留，绝不虚增 plannedRecycles）。 */
+  private recyclePending = false;
   private disposed = false;
 
   private buffer = '';
@@ -338,10 +348,13 @@ export class PersistentCliSession {
     if (this.disposed) return false;
     if (this.state === 'disabled') return false;
     if (this.childAlive()) return true;
-    if (this.restarts >= this.opts.maxRestarts) {
+    // A2-3：熔断判据只算「故障重建」= restarts 剔除计划内软释放回收（idle TTL / ws 超限）。
+    // 无计划内回收时 plannedRecycles=0 ⇒ 判据逐字等于旧行为（spawnFault/真故障路径不受影响）。
+    const faultRestarts = Math.max(0, this.restarts - this.plannedRecycles);
+    if (faultRestarts >= this.opts.maxRestarts) {
       this.state = 'disabled';
       this.setLastError(`已超重建上限（${this.opts.maxRestarts}），此后回退单次 -p`);
-      this.log('LLM 常驻会话已停用', { restarts: this.restarts, maxRestarts: this.opts.maxRestarts });
+      this.log('LLM 常驻会话已停用', { restarts: this.restarts, faultRestarts, maxRestarts: this.opts.maxRestarts });
       return false;
     }
     return this.spawnOnceBounded(budgetMs);
@@ -423,6 +436,12 @@ export class PersistentCliSession {
 
     this.state = 'starting';
     if (this.spawnAttempts > 0) this.log('LLM 常驻会话重建', { attempt: this.spawnAttempts + 1 });
+    // A2-3：本次 spawn 若是「计划内软释放后的重建」（tick 置过 recyclePending），则计入
+    // plannedRecycles（从故障熔断判据剔除）并消费标志——一次回收只抵消一次重建，绝不虚增。
+    if (this.recyclePending) {
+      this.recyclePending = false;
+      this.plannedRecycles += 1;
+    }
     this.spawnAttempts += 1;
     this.child = child;
     this.pid = child.pid;
@@ -956,6 +975,7 @@ export class PersistentCliSession {
     if (this.childAlive() && this.lastUsedMs > 0 && nowMs - this.lastUsedMs > this.opts.idleTtlMs) {
       const idleMs = nowMs - this.lastUsedMs;
       this.log('LLM 常驻会话空闲回收', { idleMs, ttlMs: this.opts.idleTtlMs });
+      this.recyclePending = true; // A2-3：标记「计划内回收」，其后的重建不计故障预算
       void this.dispose();
       return;
     }
@@ -964,6 +984,7 @@ export class PersistentCliSession {
       const ws = this.opts.wsProbe();
       if (typeof ws === 'number' && ws > this.opts.maxWsBytes) {
         this.log('LLM 常驻会话工作集超限，回收重建', { wsBytes: ws, maxWsBytes: this.opts.maxWsBytes });
+        this.recyclePending = true; // A2-3：ws 超限回收同样是计划内软释放，其后重建不计故障预算
         void this.dispose();
       }
     }
@@ -988,6 +1009,9 @@ export class PersistentCliSession {
   restartFresh(): LlmSessionHealth {
     this.killChild();
     this.spawnAttempts = 0;
+    // A2-3：复位=状态机从头开始 ⇒ 计划内回收账与待消费标志一并清零（与 spawnAttempts 归零同义）。
+    this.plannedRecycles = 0;
+    this.recyclePending = false;
     this.spawnFaultOn = false;
     this.disposed = false;
     this.buffer = '';

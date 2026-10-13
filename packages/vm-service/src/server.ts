@@ -48,6 +48,7 @@ import {
   newTraceId,
   resolveApprovalReplay,
   resolveApprovalTtlMs,
+  resolveCancelRateLimit,
   resolveNetCfgTtlMs,
   resolveNetCfgPrewarmTimeoutMs,
   resolveEnforceBearerFailClosed,
@@ -1561,6 +1562,11 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     logger,
     defaultMaxRisk: cfg.policy.defaultMaxRisk ?? 'L1',
     taskStore,
+    // R-5（Phase 3 批5 · 用户 2026-10-13 终裁 B=主动排期）：tasks/cancel 风暴门禁。
+    // 真机实证 198×并发8 cancel 打挂服务+~90 孤儿（abort 打断常驻会话⇒重建风暴）。
+    // 缺省 1000ms 窗口 / 每秒 10 次上限：正常人工/单 Agent 串行取消（198 串行需 198×3.4s）
+    // 远低于此，只有批量并发风暴才触发；超限 cancel 拒回退避提示。env 可覆盖（非法值回退默认）。
+    cancelRateLimit: resolveCancelRateLimit(process.env),
     // K-N1：委派观测点（见上方 delegationObserver 实现）—— 纯附加，框架零审计依赖
     delegationObserver,
   });

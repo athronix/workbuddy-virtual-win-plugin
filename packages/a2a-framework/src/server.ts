@@ -27,6 +27,7 @@ import {
   TaskStore,
   createProgressSink,
 } from './task-store.js';
+import { CancelRateLimiter, type CancelRateLimit } from './rate-limiter.js';
 
 /* ------------------------------ 入参 ------------------------------ */
 
@@ -92,6 +93,12 @@ export interface A2AServerOptions {
   readonly defaultMaxRisk?: RiskLevel;
   /** K-N1（**纯附加可选**）：委派观测点（见 `DelegationObserver`） */
   readonly delegationObserver?: DelegationObserver;
+  /**
+   * R-5（Phase 3 批5，**纯附加可选**）：`tasks/cancel` 风暴门禁（滑动窗口限流）。
+   * 缺席/禁用 ⇒ 逐字旧行为。真机实证 198×并发8 cancel 打挂服务+~90 孤儿 node
+   * （abort 打断常驻会话⇒重建风暴）；超限 cancel 直接拒回（拒多余 cancel 优于打挂）。
+   */
+  readonly cancelRateLimit?: CancelRateLimit;
 }
 
 /* ------------------------------ 工具 ------------------------------ */
@@ -126,6 +133,8 @@ export class A2AServer {
   private readonly defaultMaxRisk: RiskLevel;
   /** K-N1（纯附加）：委派观测点（vm-service 注入实现；缺席即旧行为） */
   private readonly delegationObserver?: DelegationObserver;
+  /** R-5（纯附加）：tasks/cancel 风暴限流器；未配 ⇒ undefined ⇒ 逐字旧行为 */
+  private readonly cancelLimiter?: CancelRateLimiter;
 
   constructor(opts: A2AServerOptions) {
     this.handler = opts.handler;
@@ -133,6 +142,7 @@ export class A2AServer {
     this.tasks = opts.taskStore ?? new TaskStore();
     this.defaultMaxRisk = opts.defaultMaxRisk ?? 'L1';
     this.delegationObserver = opts.delegationObserver;
+    this.cancelLimiter = opts.cancelRateLimit ? new CancelRateLimiter(opts.cancelRateLimit) : undefined;
 
     const c = opts.agentCard;
     this.card = {
@@ -208,6 +218,19 @@ export class A2AServer {
         case 'tasks/list':
           return this.ok(id, this.listTasks(params));
         case 'tasks/cancel':
+          // R-5 风暴门禁：超限直接拒回（不进 requestCancel，不打断常驻会话、不触发重建）。
+          if (this.cancelLimiter?.enabled) {
+            const verdict = this.cancelLimiter.tryConsume();
+            if (!verdict.allowed) {
+              this.logger.warn('tasks/cancel 风暴限流：拒绝多余 cancel', { retryAfterMs: verdict.retryAfterMs });
+              return this.fail(
+                id,
+                A2A.JSON_RPC_ERRORS.INVALID_REQUEST,
+                `取消请求过于频繁（R-5 风暴门禁），请退避 ${verdict.retryAfterMs}ms 后重试`,
+                { retryAfterMs: verdict.retryAfterMs, rateLimited: true },
+              );
+            }
+          }
           return this.ok(id, this.cancelTask(params));
         case 'agent/getAuthenticatedExtendedCard':
           return this.ok(id, this.getExtendedCard());
