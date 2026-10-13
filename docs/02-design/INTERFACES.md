@@ -288,7 +288,7 @@ submitted → working → input-required → working → completed
     "interactive": true, "locked": false, "blackScreen": false,
     "state": "healthy"          // healthy | degraded | unavailable
   },
-  "capabilities": { "count": 50, "available": 50 },
+  "capabilities": { "count": 54, "available": 54 },
   "audit": { "entries": 128, "chainValid": true }
 }
 ```

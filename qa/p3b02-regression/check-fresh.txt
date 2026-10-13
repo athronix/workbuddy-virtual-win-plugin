@@ -1,0 +1,5 @@
+=== WinVM Bridge · 分发新鲜度对账（只读，零写入） ===
+对账面：170 个文件（源=仓库构建物 dist/delivery，目标=/storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0）
+MISSING（4）：缓存缺文件 —— @winvm/contracts/dist/schema-check.d.ts, @winvm/contracts/dist/schema-check.d.ts.map, @winvm/contracts/dist/schema-check.js, @winvm/contracts/dist/schema-check.js.map
+MISMATCH（52）：内容与仓库不一致 —— @winvm/contracts/dist/a2a.d.ts, @winvm/contracts/dist/a2a.d.ts.map, @winvm/contracts/dist/a2a.js.map, @winvm/contracts/dist/audit.d.ts, @winvm/contracts/dist/audit.d.ts.map, @winvm/contracts/dist/bridge.d.ts, @winvm/contracts/dist/bridge.d.ts.map, @winvm/contracts/dist/bridge.js.map, @winvm/contracts/dist/capability.d.ts, @winvm/contracts/dist/capability.d.ts.map …
+处置：先 npm run build（若改了 src），再 node delivery/install-host.mjs --apply --yes 重跑分发（缓存=运行态真相源，改 dist 不重跑不生效）。

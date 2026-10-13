@@ -229,7 +229,21 @@ export async function runDaemon(argv, deps = {}) {
     logLine(logPath, 'WARN', `已有隧道进程 pid ${prev.pid}，不重复启动`);
     return 0;
   }
-  if (existsSync(o.pidfile)) rmSync(o.pidfile, { force: true }); // 陈旧 pidfile 清理
+  if (existsSync(o.pidfile)) {
+    // QA 回归 D-5：acquirePidfileExclusive 独占窗口内写的是**裸 pid 文本**（非 JSON），
+    // readJsonSafe 解析为 null 会把它误判"无主"删除 ⇒ 并发双实例互删对方活锁。
+    // rmSync 前对裸 pid 补 kill-0 甄别（JSON 形态已判过，此处只兜非 JSON 文本）。
+    let barePid = null;
+    try {
+      const raw = readFileSync(o.pidfile, 'utf8').trim();
+      if (!prev && /^\d+$/.test(raw)) barePid = Number(raw);
+    } catch { /* 读失败按陈旧处理 */ }
+    if (barePid !== null && isAlive(barePid)) {
+      logLine(logPath, 'WARN', `pidfile 为并发实例裸 pid 锁 pid=${barePid}（存活），不重复启动`);
+      return 0;
+    }
+    rmSync(o.pidfile, { force: true }); // 陈旧 pidfile 清理
+  }
 
   // 凭据：仅经环境变量/文件，绝不收命令行参数、绝不打印。
   const password = process.env['WINVM_VM_PASSWORD'] || null;

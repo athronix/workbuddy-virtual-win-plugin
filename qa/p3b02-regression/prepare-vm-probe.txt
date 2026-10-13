@@ -1,0 +1,29 @@
+
+============================================================
+ WinVM Bridge bootstrap prepare-vm (P0-2: DB-1/2/5/6 one-shot VM provisioning) [READ-ONLY PROBE]
+============================================================
+  env source: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/.env
+
+ [1/3] 探测现状（只读，零写入）：
+   ADMIN(elevated)  = true
+   DB-1 sshd        = installed, Running, Auto
+   DB-2 firewall    = ssh:MISSING service:MISSING
+   DB-5 powercfg    = deferred-to-apply (MSYS 吞 powercfg 斜杠参数，现状判定走 .ps1 通道)  (apply 无条件幂等置 0，改后 --apply 复跑即收敛)
+   DB-3 node        = v24.21.0
+   DB-6 defender    = (轻探测跳过 Get-MpPreference，apply .ps1 内幂等处理)
+
+ [2/3] 计划（幂等判据：全部就绪 ⇒ 第二遍全 [SKIP]）：
+   DB-1 OpenSSH Server => [SKIP] installed/Auto/Running
+   DB-2 Firewall 22/18443 => DO ensure inbound rules
+   DB-5 Power never-sleep/saver => DO powercfg standby/hibernate/monitor = 0 (idempotent)
+   DB-6 Defender exclusions => DO ensure Add-MpPreference delta
+   DB-3 VM Node >= 18 => [SKIP] not requested (--ensure-node)
+   DB-4 codebuddy login => [MANUAL] interactive login cannot be scripted (structural)
+
+ [2.5/3] DB-4 codebuddy 登录态：verdict=config-dir-present —— CLI 可跑 ∧ 配置根含标记文件 ⇒ 大概率已登录；⚠ 局限：codebuddy 无非交互身份命令（实测 --help 无 whoami/auth status），凭据不落可见文件，登录态无法机械确证
+           ↳ 若委派报 LLM_SESSION/鉴权失败：VM 内交互跑一次 `codebuddy` 完成微信/GitHub 登录（结构性不可脚本化，DB-4）。
+
+ [3/3] READ-ONLY 完成（本模式绝不改 VM）。执行改动：
+   node delivery/bootstrap.mjs prepare-vm --apply
+   （apply 经 runRemotePs1 推 .ps1：DB-1 Automatic+Start / DB-2 防火墙 / DB-5 powercfg 三件套 /
+     DB-6 Defender delta / 可选 DB-3 winget node；每项先探测再动作=幂等）

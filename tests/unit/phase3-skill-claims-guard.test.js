@@ -153,12 +153,21 @@ function governanceDocs() {
  * 否定/禁令（不得/不应/禁止/严禁/绝不/不要/勿）；机理直陈（一次性/删除/批准即删/吞并）；
  * 人工回退（人工/回滚/灰度）；历史留痕（根因/旧/曾/已废/划线 ~~）。
  */
-const APPROVAL_CALIBER = /批\s*1|在建|不可达|不可依赖|不得|不应|禁止|严禁|绝不|不要|勿|一次性|批准即删|删除|吞并|人工|回滚|回退|灰度|根因|旧文|旧口径|曾|已废|~~/;
+// QA 回归 D-2 收紧（p3b02-regression）：旧词表含"勿/曾/人工/删除/吞并/根因"等超宽泛单字，
+// 实测对抗样本"…勿需人工干预"靠撒一个"勿"字即放行=单字撒盐绕过。本轮仅剔除弱词，
+// 保留"不得/不应"（合法否定式主力）；"勿"整体剔除（批0 已入库行实测零依赖单"勿"口径）。
+const APPROVAL_CALIBER = /批\s*1|在建|不可达|不可依赖|勿依赖|不得|不应|禁止|严禁|绝不|一次性|批准即删|回滚|回退|灰度|已废|订正|根因|~~/;
 
 describe('批0-b · 续跑承诺词（__approvalId / hostApproved）禁现在时回潮', () => {
   test('治理面每一处出现行必须携带"批1 在建/不可达/否定式/历史留痕"口径词', () => {
+    // QA 回归加固（p3b02-regression，判据活性下限）：governanceDocs() 收集面若因目录
+    // 改名/迁移而变空，b/c 两判据的 for 循环 0 次迭代 = 静默绿（恒真风险，正是本守卫
+    // 反对的"写了看着有、其实不判"第四态）。现量=25 件（README/overview/06/GATE-POLICY
+    // 4 件 + docs/02-design 12 件 + skills 9 件），下限钉 ≥20 防收集空转。
+    const gov = governanceDocs();
+    assert.ok(gov.length >= 20, `治理面收集异常（实得 ${gov.length} 件，应 ≥20——路径失效则 b/c 判据空转失明）`);
     const bad = [];
-    for (const rel of governanceDocs()) {
+    for (const rel of gov) {
       const lines = src(rel).split('\n');
       lines.forEach((line, i) => {
         if (!/__approvalId|hostApproved/.test(line)) return;

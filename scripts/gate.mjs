@@ -74,6 +74,11 @@ export const GATE_GUARD_FILES = [
     why: '死字段删除族 + 旧键显式告警（PR2：配了不生效 = 假安全感）；安全承诺型配置不能静默失效',
   },
   {
+    file: 'phase3-skill-claims-guard.test.js',
+    id: 'skill-claims',
+    why: '批0 文档止血的反向守卫：SKILL 点分 token ∈ 注册 id ∪ 白名单 + 承诺口径回潮钉（QA 回归 D-3 补登记——"写了没人跑"恰是批0 自反病灶，入选三标准满足）',
+  },
+  {
     file: 'phase2-contract-schema.test.js',
     id: 'contract-schema',
     why: 'schema 交付面校验 + schema↔TS 事实源漂移守卫（Q1=(b) 裁决把校验点定在交付面 ⇒ 交付面必须有强制力）',

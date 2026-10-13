@@ -104,6 +104,7 @@ ARCHIVE_VERIFY_MAX_SHARDS / GENESIS_HASH`）。core 未来新增 `audit/*` 导�
 | `phase2-session-unknown.test.js` | session-unknown | P2-T9 未知态 + **PR8 红线**「`isGuiAllowed` 行为零放宽」——GUI 门禁被无意放宽属安全回归面 |
 | `assembly-guard.test.js` | assembly-guard | S-4/A5 **装配点**守卫：重构删掉注入点时上千例纯函数测试**照样全绿**（Phase 1 体检原话），只有这里拦得住取证盲区复活 |
 | `psmod-contract.test.js` | psmod-contract | 注册表 ↔ PowerShell **跨语言隐式契约**（54 条映射）：编译器与 `tsc` 都看不见它；2026-10-08 全维度体检实测当时**零回归覆盖** |
+| `phase3-skill-claims-guard.test.js` | skill-claims | 批0 文档止血的**反向守卫**：SKILL/治理面点分 token ∈ 注册 id ∪ 白名单（幻觉能力钉）+ 续跑承诺现在时回潮钉（P0-1 四处文案族）+ 收集面下限断言（防目录迁移致判据空转恒真）。**QA 回归 D-3 补登记**——此前"写了没进 ST3"恰是本守卫反对的"写了没人跑"病灶自体复现 |
 
 > **裁决项去向注**：设计 §6 P2-T11 行的字面表述是「契约一致性 + schema shape 校验」⇒ 上表
 > `contract-schema` / `contract-code-fidelity` 两行即其承载；§13.2-② 的 policy 白名单 ⇒ ST2b 承载。

@@ -1,0 +1,18 @@
+2026-10-13T07:01:43Z 开工：环境勘察完毕，HEAD=099d850，工作树脏项如清单所述，全部回避不动
+2026-10-13T07:02Z 创建 qa/p3b02-regression/report.md 骨架 + timeline
+2026-10-13T07:03Z gate 全量档后台启动（task XvifR0，--out qa/p3b02-regression/gate-full-run.txt）
+2026-10-13T07:05Z ST4 枚举面预测=99 文件（与理论基线 92+1+6=99 一致）；两批 commit stat 通读
+2026-10-13T07:12Z V-B.3 旧承诺零残留 grep 五条词表全过（session-guard/Origin/__approvalId/available==count/previewHash 均落在规划/订正语境；audit/changes 历史面豁免）
+2026-10-13T07:15Z V-B.4 守卫件亲跑 11/11 绿 + 281 行判据源码通读 + 变异自证段审读 + 对抗样本实测（勿字绕过可行→P2 卫生级）
+2026-10-13T07:18Z V-B.5 三处交叉对码完成：ok 合成(server.ts:1983)、五环节表↔三处裸 evaluate(:1060/:1229/index.ts:295)、SCENARIOS context→metadata 改判(框架:264 属实)全部吻合；handleStream(:511) 确不装配 allowedCapabilities 与表第4行一致
+2026-10-13T07:30Z V-A 收官：gate FULL VERDICT=GREEN。新基线=99 件/1945 例（pass 1943/fail 0/skip 2 唯一来源 ssh2-resolve OFFLINE_SKIP）=理论 92+7(ST3)+… 精确吻合；ST1 tsc GREEN/ST2 dep-lint hard=0/ST2b 未知键=0/ST3 7件155例全绿
+2026-10-13T07:32Z V-C.6 psmod-drift RC=1 NO_FINGERPRINT（VM 旧 bridge 预期态，正确显形）
+2026-10-13T07:35Z V-C.7 check-fresh RC=1 复跑：MISSING 4 + MISMATCH 52（成员报 56 漂移=4+52 吻合）；调用链 runFreshnessCheck→buildIntegrityFilePairs→verifyCopyIntegrity 全读操作，只读性代码面坐实
+2026-10-13T07:38Z V-C.8 tunnel-daemon 审读+实测：三 hunt 完成——①退避循环 stop() 失败路径有 catch 且 _started=false 保再入；②陈旧锁甄别链 readJsonSafe→isAlive→rmSync 在位（裸 pid 形态实测归入 no-pid 清理面=非缺陷）；③start-config-error→winvm-plugin 播报链一致（isPidAlive 存活=自愈中 RC0/已退=指 reason RC1）。phase3-b2-tunnel-start 6/6 绿
+2026-10-13T07:45Z V-C.9 prepare-vm 只读实跑 RC=0（bootstrap prepare-vm 无 --apply，探测全通零 VM 写）+planPrepareVm 幂等审读通过；prepare-vm-probe.txt 落盘
+2026-10-13T07:48Z V-C.10 r3-uninstall-verify 39/39 绿；Invoke-WingetBounded 静态审读通过（PS5.1 兼容/NSIS 树杀双保险/回执结构化 -9994/-1）；观察项 .Result 无超时登记 D-6
+2026-10-13T07:50Z V-C.11 curl /health：ok=true、psBridge 无 fingerprint（旧 bridge 预期与 V-C.6 互证）、54/54、session healthy；health-now.json 落盘
+2026-10-13T07:55Z V-D.12 接缝：:1213/:1361 代落两行与批0 口径同语确认；批2 判据达成度=代码+单测面达成、真机 4 项待执行显式列（生效窗口按主理人安排）
+2026-10-13T07:58Z V-D.13 GATE-POLICY↔gate.mjs 一致性：静态例数删除无悬空引用、双写表 7 件吻合；新守卫 skill-claims-guard 未进 ST3 表=D-3 漂移点
+2026-10-13T08:00Z D-1 自修（治理面收集下限断言 ≥20）复跑 11/11 绿；report.md 全量回填完成（含六项缺陷四元组）
+2026-10-13T08:01Z 收官：IS_PASS=YES；新基线 99/1945 登记；八项式回报 team-lead
