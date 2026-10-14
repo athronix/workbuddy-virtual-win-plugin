@@ -208,6 +208,20 @@ export class PsBridge {
       this.failAll(err);
       if (this.child === spawned) this.child = undefined;
     });
+    // Q3（Phase 3 批5 孤儿接线顺带修的真缺陷）：spawn **异步失败**（ENOENT=POSIX 上
+    // powershell.exe/pwsh 不存在、EACCES 等）时 Node 只发 `'error'` 事件、**不发 `'exit'`**
+    // ——旧实现无 error 监听 ⇒ ① 未捕获事件可打挂宿主进程；② pending 呼叫无 failAll 永久悬挂
+    // 到各自超时；③ `ready()` 的握手等不到任何信号。现在把 error 折叠成与 exit 同族的收口：
+    // failAll(PSBRIDGE_SPAWN_FAILED) + 清 child（比对 spawned 防误清新进程，与上方纪律同款）。
+    spawned.once('error', (e: Error) => {
+      const err = new PsBridgeError(
+        'PSBRIDGE_SPAWN_FAILED',
+        `ps-bridge 进程启动失败（${e.message}）。检查 powershell.exe/pwsh 是否可用`,
+      );
+      this.stderrTail = (this.stderrTail + `\n[spawn error] ${e.message}`).slice(-8192);
+      this.failAll(err);
+      if (this.child === spawned) this.child = undefined;
+    });
 
     // 心跳看门狗
     if (!this.heartbeatTimer) {

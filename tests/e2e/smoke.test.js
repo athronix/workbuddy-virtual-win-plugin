@@ -156,7 +156,11 @@ describe('E2E · MCP 通道', () => {
   test('L2 删除操作触发审批闸并返回 approvalId', async () => {
     const { body } = await post('/mcp', {
       jsonrpc: '2.0', id: 5, method: 'tools/call',
-      params: { name: 'storage.file.delete', arguments: { path: 'C:\\Users\\alice\\old' } },
+      // Q3 修正（Phase 3 批5）：旧路径 `C:\Users\alice\old` 不在 pathAllowlist（离线
+      // createService 环境 USERPROFILE≠alice）⇒ 策略层在**审批闸之前**以 pathAllowlist:miss
+      // 拒掉 ⇒ APPROVAL_REQUIRED 永不可达（离线必红；真机 Windows 恰好当前用户=alice 才绿的
+      // 侥幸面）。改用硬编码生产工作目录白名单（defaults.ts `C:\WinVMWorkspace\**`）⇒ 两环境同判据。
+      params: { name: 'storage.file.delete', arguments: { path: 'C:\\WinVMWorkspace\\drafts\\old.txt' } },
     });
     const sc = body.result.structuredContent;
     // 若 ps-bridge 不可用会返回 PROVIDER_UNAVAILABLE；策略层未拦截则说明有误

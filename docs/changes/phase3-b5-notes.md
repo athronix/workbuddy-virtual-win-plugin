@@ -139,3 +139,20 @@ authMode+providerOptions 两键（恒不喂 probe*）；拒启 `:806` 取 `inner
 **未执行项与路由**：V3/V4（winget 树杀真弹）=需真实卸载窗口，V2 的 app.ps1 已在 VM 生效（指纹含 app.ps1），判据面=下次真卸载时观察 output 含 [k6]/[q5]；V7（登录前后二态）=VM 已登录态仅实测 config-dir-present 态（前态不可回退复现，结构性）；V12（死链双侧收敛）=fix-approval-deadlinks 宿主侧已实跑+install-host 分发面已同步，VM shared-skills 面待下轮 deploy-vm 自然覆盖（本已跑过）；V13=winvm-plugin health 播报需连接器会话面，离线单测已钉；**V14（wsProbe 真机采样显形）=新登**：批6 A2-11 已随 deploy 推 VM，实证法=长跑后 /health llmSession 观察或日志"工作集超限"行；V15（A2-17 端到端）=新登：批准→换参续跑拒→重审。
 
 **VM-START 超时归因（假阴性）**：deploy 尾报"启动触发失败 TIMEOUT"但服务实际在监听（owner PID 18948，health 200）——端口轮询竞态（start-hidden 重启窗口 >轮询预算）；判据以 /health 实证为准，登记为交付脚本已知观察项（不中伤流程：二次 deploy p3b6 同形态同结论）。
+
+## 批5-Q3 孤儿接线 + ps-bridge spawn-error 真缺陷修复 + V12 残余收官（2026-14 下午）
+
+### Q3 孤儿（audit §3.2 Q3）
+gate.mjs 新增 `listSweepFiles()`（tests/unit 裸文件名 → ROOT 相对路径 `tests/unit/**` + `delivery/__tests__/**` 合流）；`runPerFile` 双形态兼容（含 `/` 者按 ROOT 相对解析，裸名维持 tests/unit——ST3 门禁表消费端零改动）；`stageSweep` alreadyRun 按 basename 剔除；`diskTestFileCount`/DISK 旁证同源 `listSweepFiles`（防"磁盘计数落后实跑清单"假 MISMATCH）。`delivery/__tests__/oh-tunnel-error-handling.test.mjs`（8 例，CL-016 起孤儿）首次进全量 sweep（gate-q3-final.txt 行 `GREEN delivery/__tests__/...` 为激活铁证）。同目录 probe-*.mjs 系被 spawn 夹具非测试文件，天然不入列。tests/e2e/smoke.test.js 不并档：真起服务依赖 pwsh（POSIX 恒 ENOENT），保留为 VM 真机窗口专用件（其"16 例全绿"须在有 PowerShell 的环境判定——本机跑时见下述 smoke 修正）。
+
+### smoke 用例修正（Q3 侦察中揪出的真因）
+"L2 删除触发审批闸"用 `C:\Users\alice\old`——**不在 pathAllowlist**（离线 createService 环境 USERPROFILE≠alice）⇒ 策略在审批闸**之前**以 pathAllowlist:miss 拒（POLICY_DENIED 是正确行为）⇒ 用例期待 APPROVAL_REQUIRED 永不可达（真机恰 alice=当前用户才绿的侥幸面）。改 `C:\WinVMWorkspace\drafts\old.txt`（defaults.ts 硬编码生产目录白名单）⇒ 离线 16/16 全绿、两环境同判据。
+
+### ps-bridge spawn 'error' 盲区（真缺陷，生产形态=自愈反成崩溃源）
+spawnAndReady 只挂 once('exit') 无 'error'——Windows 上 spawn ENOENT/EACCES（自愈重建时 PATH 竞态/杀软隔离）Node 只发 error 不发 exit ⇒ 未捕获异常可打挂 vm-service + pending 呼叫悬挂。修：spawned.once('error') 折叠为与 exit 同族收口（failAll(PSBRIDGE_SPAWN_FAILED)+spawned 比对清 child 防误清新进程）。判别测试 tests/unit/phase3-b5-psbridge-spawn-error.test.js 2 例（跑完不崩=事件被吞的判别面本身）。
+
+### V12 残余 2 处收官（三面 6+6+6 之外）
+mcp-reference:203 纯文本指涉 `winvm-orchestrator/approval-card.md`（无 ../ 前缀，脚本规则盲区）与 approval-card.md:7 唯一性红线**示例链接本身即死链**（教人写错形态！）——均已订正为 references/ 真身路径；grep 全 skills 复验零残留。
+
+### 终态
+全量 gate **VERDICT GREEN = 新基线 112 件/2046 例（2044 pass/0 fail/2 skip）**，DISK=112 RUN=112 MATCH（110→112=孤儿 8 例并入+spawn-error 新测 2 例，精确吻合）；证据 qa/p3-batch-sweep/gate-q3-final.txt。批5 离线面自此**全部收官**（真机窗余 V3/V4/V14 采样显形/V15 端到端）。

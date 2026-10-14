@@ -200,7 +200,7 @@ token 以环境变量持久化于 `%HERMES_HOME%\.env`：`MCP_WINVM_API_KEY=<tok
 |---|---|---|
 | `approval` 有 `approvalId`/`message`，但**无 `impact`** | 宿主桥**未透传**（桥版本过旧：旧版 `extractApproval()` 丢弃了 VM 已下发的 `preview`/`impact`） | 升级 `@winvm/host-a2a-bridge` 到含审批载荷透传的版本；升级前**不得**凭残缺信息让用户确认 |
 | `approval.impact` 为 `[]` | VM 确实下发空清单（合法透传） | 按空清单展示，**不得编造** |
-| `approval` 有 `impact` 但无 `preview` | VM 未下发 `preview` | L2 用「预览：未提供」；L3 先以 `dryRun:true` 免审批取得 preview（见 `winvm-orchestrator/approval-card.md` §3） |
+| `approval` 有 `impact` 但无 `preview` | VM 未下发 `preview` | L2 用「预览：未提供」；L3 先以 `dryRun:true` 免审批取得 preview（见 `winvm-orchestrator/references/approval-card.md` §3） |
 | `approval.summary` 缺失 | 摘要未派生 | 回落 `approval.message` 展示 |
 
 > 说明：`impact` 缺失 **必然** 指向宿主桥未透传或桥版本过旧；VM 若下发则为合法透传（含空数组）。

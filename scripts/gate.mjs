@@ -231,7 +231,8 @@ export function parseTapCounts(raw) {
 
 /**
  * 逐文件跑测试（K-2 硬约束的实现点：**每文件一个独立子进程**）。
- * @param {string[]} files 相对 tests/unit 的裸文件名
+ * @param {string[]} files 两种形态混收：裸文件名（相对 tests/unit，ST3 门禁表现状）
+ *        或 ROOT 相对路径含 `/`（ST4 的 tests/unit/** 与 Q3 新增的 delivery/__tests__/**）
  * @param {string|null} outPath 结果文件（边跑边追行 = 20 分钟心跳自救）
  * @returns {{files:number, failedFiles:number, totalTests:number, totalPass:number, totalFail:number, totalSkip:number, rows:string[]}}
  */
@@ -244,7 +245,9 @@ export function runPerFile(files, outPath) {
   let totalFail = 0;
   let totalSkip = 0;
   for (const f of files) {
-    const abs = join(TEST_DIR, f);
+    const isDirScoped = f.includes('/');
+    const abs = isDirScoped ? join(ROOT, f) : join(TEST_DIR, f);
+    const shown = isDirScoped ? f : `tests/unit/${f}`;
     const r = run(NODE, ['--test', '--test-reporter=tap', abs], { timeoutMs: 600000 });
     const c = parseTapCounts(r.stdout + r.stderr);
     // 「解析不到计数」必须单独判红：静默 0 例 = 永绿守卫（K-10）。
@@ -255,7 +258,7 @@ export function runPerFile(files, outPath) {
       failedFiles += 1;
     }
     rows.push(
-      `${verdict} tests/unit/${f} rc=${r.status} tests=${c.tests} pass=${c.pass} fail=${c.fail} skip=${c.skip}` +
+      `${verdict} ${shown} rc=${r.status} tests=${c.tests} pass=${c.pass} fail=${c.fail} skip=${c.skip}` +
         (noSummary ? ' NOSUMMARY(⇒判红：解析不到 TAP 计数不得当 0 例通过)' : ''),
     );
     if (verdict === 'RED' && !noSummary) {
@@ -274,12 +277,30 @@ export function runPerFile(files, outPath) {
   return { files: files.length, failedFiles, totalTests, totalPass, totalFail, totalSkip, rows };
 }
 
-/** 枚举 tests/unit 下全部测试文件（`.test.js` + `.test.mjs`，基线口径恒含 .mjs）。 */
+/** 枚举 tests/unit 下全部测试文件（`.test.js` + `.test.mjs`，基线口径恒含 .mjs）。裸文件名形态（ST3 门禁表消费）。 */
 export function listUnitTestFiles() {
   if (!existsSync(TEST_DIR)) return [];
   return readdirSync(TEST_DIR)
     .filter((f) => f.endsWith('.test.js') || f.endsWith('.test.mjs'))
     .sort();
+}
+
+/**
+ * Q3（Phase 3 批5）：全 sweep 枚举 = tests/unit（ROOT 相对路径形态）+ delivery/__tests__。
+ * 病灶：`delivery/__tests__/oh-tunnel-error-handling.test.mjs`（8 例）自 CL-016 起即孤儿
+ * ——sweep 只枚举 tests/unit ⇒「写了没人跑」的测试面复现（恰是本 Phase 治理的病灶族）。
+ * 只收 `.test.*` 后缀；同目录 probe-*.mjs（探针夹具，由 error-handling 件 spawn）不独立入列。
+ * K-2 红线不变：本函数只产清单，逐文件 spawn 由 runPerFile 执行。
+ */
+export function listSweepFiles() {
+  const out = listUnitTestFiles().map((f) => `tests/unit/${f}`);
+  const dir = join(ROOT, 'delivery', '__tests__');
+  if (existsSync(dir)) {
+    for (const f of readdirSync(dir).sort()) {
+      if (f.endsWith('.test.js') || f.endsWith('.test.mjs')) out.push(`delivery/__tests__/${f}`);
+    }
+  }
+  return out;
 }
 
 /* ============================== 各段实现 ============================== */
@@ -395,11 +416,12 @@ function stageGuards(outPath) {
 /**
  * ST4：全仓逐文件 sweep。
  * @param {string|null} outPath
- * @param {Set<string>} alreadyRun ST3 已逐文件跑过的（不重复 ⇒ 省 ~2 分钟）
+ * @param {Set<string>} alreadyRun ST3 已逐文件跑过的裸文件名（不重复 ⇒ 省 ~2 分钟）；
+ *        Q3 后 sweep 清单为 ROOT 相对路径 ⇒ 按 basename 比对剔除。
  */
 function stageSweep(outPath, alreadyRun) {
-  const all = listUnitTestFiles();
-  const files = all.filter((f) => !alreadyRun.has(f));
+  const all = listSweepFiles();
+  const files = all.filter((f) => !alreadyRun.has(f.split('/').pop()));
   emit(
     outPath,
     `[ST4 ${STAGE.SWEEP}] 全仓逐文件 sweep ${files.length} 件（ST3 已跑 ${alreadyRun.size} 件不重复 ⇒ 合计 ${all.length} 件）—— 恒逐文件 spawn，绝不 glob 整批（K-2 junction 0xC0000005）…`,
@@ -428,7 +450,7 @@ function stageSweep(outPath, alreadyRun) {
  * @param {Set<string>} _ignored
  */
 function diskTestFileCount(_ignored) {
-  return listUnitTestFiles().length;
+  return listSweepFiles().length;
 }
 
 /* ============================== 编排 ============================== */
@@ -520,7 +542,9 @@ export async function main(argv = process.argv.slice(2)) {
   // 汇总行旁证：跑过的文件数必须等于磁盘上的测试文件数，否则「有测试被静默跳过」
   // = L8 护栏统计口径的同类病灶（一个永不被跑的绿色守卫等于没有守卫）。
   if (!quick && !onlyStage) {
-    const onDisk = listUnitTestFiles().length;
+    // Q3：onDisk 与 sweep 枚举源同函数（listSweepFiles 含 tests/unit + delivery/__tests__），
+    // 否则「磁盘计数」落后「实跑清单」会假 MISMATCH 或漏判 delivery 面孤儿。
+    const onDisk = listSweepFiles().length;
     emit(outPath, `DISK_TEST_FILES=${onDisk} RUN=${totals.files} ${onDisk === totals.files ? 'MATCH' : 'MISMATCH(⇒判红：有测试文件未进门禁 sweep)'}`);
     if (onDisk !== totals.files) bad.push({ stage: 'coverage', verdict: 'RED', detail: `磁盘 ${onDisk} 个测试文件 vs 实跑 ${totals.files} 个`, lines: [] });
   }

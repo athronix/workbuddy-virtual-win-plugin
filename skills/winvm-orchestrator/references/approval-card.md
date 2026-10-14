@@ -4,7 +4,7 @@
 
 # 审批卡片模板 v1.1（L2 / L3 · 唯一正文）
 
-> **唯一性红线**：本文件是审批卡片的**唯一正文**。其它 Skill（如 `winvm-orchestrator`、各能力 Skill）**只允许引用本文件**（写一行 Markdown 相对链接：[`../winvm-orchestrator/approval-card.md`](../winvm-orchestrator/approval-card.md)），**不得复制模板正文**。任何副本都会引入漂移，一律视为违规。
+> **唯一性红线**：本文件是审批卡片的**唯一正文**。其它 Skill（如 `winvm-orchestrator`、各能力 Skill）**只允许引用本文件**（写一行 Markdown 相对链接：[`../winvm-orchestrator/references/approval-card.md`](../winvm-orchestrator/references/approval-card.md)——真身路径含 `references/` 层；此前示例误写成死链形态，V12·Phase 3 批5 订正并以此行为正确形态自证），**不得复制模板正文**。任何副本都会引入漂移，一律视为违规。
 
 > **展示先于执行**：本模板是「展示先于执行」闸门的载具。**未经展示与用户确认，任何 L2/L3 操作不得执行**。本全文**不含**任何「可跳过 / 可自动批准 / 可默认放行」的表述；任何此类表述都是对审批闸的破坏。
 
