@@ -128,7 +128,7 @@ relatedSkills:
 
 ## 高危清单
 
-> 审批卡片：统一模板见 [`../winvm-orchestrator/approval-card.md`](../winvm-orchestrator/approval-card.md)（§审批卡片模板 · 唯一正文；本文件不复制正文）
+> 审批卡片：统一模板见 [`../winvm-orchestrator/references/approval-card.md`](../winvm-orchestrator/references/approval-card.md)（§审批卡片模板 · 唯一正文；本文件不复制正文）
 
 | 操作 | 风险 | 强制动作 |
 |---|---|---|

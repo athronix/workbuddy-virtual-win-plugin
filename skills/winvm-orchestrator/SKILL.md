@@ -262,7 +262,7 @@ winvm-a2a__a2a.delegate({
 
 ## 审批闸协议（L2/L3 必守）
 
-> 审批卡片：统一模板见 [`./approval-card.md`](./approval-card.md)（§审批卡片模板 · 唯一正文；本文件不复制正文）
+> 审批卡片：统一模板见 [`./references/approval-card.md`](./references/approval-card.md)（§审批卡片模板 · 唯一正文；本文件不复制正文）
 
 ### MCP 通道
 首次调用 L2/L3 工具 → 返回 `APPROVAL_REQUIRED` + `approvalId` + `approval.preview`
@@ -327,7 +327,7 @@ winvm-a2a__a2a.delegate({
 
 > 参考资料：
 > - 卡片模板（**唯一正文**，含槽位对照表 §4 / 降级固定串 §5 / 不弹卡清单 §7 / 通道隔离红线 §9）：
->   [`./approval-card.md`](./approval-card.md)（v1.1，§10 为原生渲染段）
+>   [`./references/approval-card.md`](./references/approval-card.md)（v1.1，§10 为原生渲染段）
 > - 原生卡片 HTML 模板（由宿主渲染器注入，填充占位符 `{{SLOT_*}}` / `{{APPROVAL_ID}}` / `{{RESUME_INSTRUCTION}}`）：
 >   [`./references/approval-card-widget.html`](./references/approval-card-widget.html)
 
@@ -341,7 +341,7 @@ winvm-a2a__a2a.delegate({
 额外约定：
 - **删除默认进回收站**；仅当用户明确要求"永久删除"且已审批，才用 `permanent: true`
 - 委派时通过 `allowedCapabilities`（最小权限）与 `maxRisk`（默认 L1）收紧范围
-- **L3 规则引用**：L3 一律「**先 `dryRun:true` 预览（仅对声明 `supportsDryRun===true` 的能力免审批；其余能力 dryRun 仍需审批）→ 审批 + 二次确认 → 执行**」；卡片与二次确认短句要求见模板 L3 版（[`./approval-card.md`](./approval-card.md) §2）。dry-run 由能力自身支持——**判据以注册表 `supportsDryRun` 声明为准**（服务端事实，当前 5 条），带 `dryRun:true` 调用即免审批直接返回变更计划，故**不存在「dry-run 预览未就绪即阻断」这一分支**；对未声明 `supportsDryRun` 的 L3 能力，带 `dryRun` 调用会正常进入审批闸，按卡片流程处置即可。本文件不复制卡片正文。
+- **L3 规则引用**：L3 一律「**先 `dryRun:true` 预览（仅对声明 `supportsDryRun===true` 的能力免审批；其余能力 dryRun 仍需审批）→ 审批 + 二次确认 → 执行**」；卡片与二次确认短句要求见模板 L3 版（[`./references/approval-card.md`](./references/approval-card.md) §2）。dry-run 由能力自身支持——**判据以注册表 `supportsDryRun` 声明为准**（服务端事实，当前 5 条），带 `dryRun:true` 调用即免审批直接返回变更计划，故**不存在「dry-run 预览未就绪即阻断」这一分支**；对未声明 `supportsDryRun` 的 L3 能力，带 `dryRun` 调用会正常进入审批闸，按卡片流程处置即可。本文件不复制卡片正文。
 
 ## 错误码分层（`error.code` vs `error.reason`）
 
