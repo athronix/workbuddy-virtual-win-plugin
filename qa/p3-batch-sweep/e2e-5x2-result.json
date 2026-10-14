@@ -1,0 +1,88 @@
+{
+  "at": "2026-10-14T03:11:44.498Z",
+  "base": "http://127.0.0.1:18443",
+  "pass": 16,
+  "total": 16,
+  "results": [
+    {
+      "name": "MCP-00 tools/list 全能力面",
+      "ok": true,
+      "detail": "tools=54"
+    },
+    {
+      "name": "MCP-01 meta.health ok+capabilitiesProfile(M7)",
+      "ok": true,
+      "detail": "profile={\"kind\":\"llm-agent\",\"persistentSession\":true,\"warmup\":true,\"approvalTruth\":{\"mod"
+    },
+    {
+      "name": "MCP-02 system 域（L0）",
+      "ok": true,
+      "detail": "os="
+    },
+    {
+      "name": "MCP-03 app 域（L0）",
+      "ok": true,
+      "detail": "[{\"name\":\"Coreutils for Windows 2026.9.3\",\"version\":\"2026.9."
+    },
+    {
+      "name": "MCP-04 storage 域（L0）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "MCP-05 gui 域（L0，健康会话）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "MCP-06 appops 域（L0）",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "MCP-07 psBridge.fingerprint 六键非空",
+      "ok": true,
+      "detail": "capturedAt=2026-10-14T00:11:00.6061797Z"
+    },
+    {
+      "name": "MCP-08 L2 拦截 APPROVAL_REQUIRED+approval 块",
+      "ok": true,
+      "detail": "id=apr_52bbf95942bf4e71a3de risk=L2"
+    },
+    {
+      "name": "MCP-09 M8 TTL 槽形状一致（Infinity⇒缺席）",
+      "ok": true,
+      "detail": "hasExpiresAt=true"
+    },
+    {
+      "name": "MCP-10 A2-17 拦截回执 preview 结构在位",
+      "ok": true,
+      "detail": "preview keys=capabilityId,risk,destructive,requiresSession,params,dryRun"
+    },
+    {
+      "name": "A2A-01 tasks/send 受理",
+      "ok": true,
+      "detail": "id=488c0bb6-6902-4465-9c82-dc67f4ac65b5 state=working"
+    },
+    {
+      "name": "A2A-02 tasks/get 生命周期态合法",
+      "ok": true,
+      "detail": "working"
+    },
+    {
+      "name": "A2A-03 tasks/cancel 单笔语义",
+      "ok": true,
+      "detail": "resp={\"jsonrpc\":\"2.0\",\"id\":\"c\",\"result\":{\"kind\":\"task\",\"id\":\"488c0bb6-6902-4465-9c82-dc67f4ac65b5\",\"contextId\":\"3078aff5-be01"
+    },
+    {
+      "name": "A2A-04 R-5 风暴门禁显形（12 连发有拒回）",
+      "ok": true,
+      "detail": "rateLimited=3/12 sample={\"jsonrpc\":\"2.0\",\"id\":\"storm-11\",\"error\":{\"code\":-32600,\"message\":\"取消请求过于频繁（R-5 风暴门禁），请退避 934ms 后重试\",\"data\":{\"retryAfterMs\":934,\"rateLimited"
+    },
+    {
+      "name": "A2A-05 agent card 可达",
+      "ok": true,
+      "detail": "name=WinVM Bridge Agent"
+    }
+  ]
+}
