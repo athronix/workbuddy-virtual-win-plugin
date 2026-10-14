@@ -41,3 +41,11 @@ C:/
 # 测试运行产生的临时 fixture（mkdtempSync 随机后缀，非静态资产）
 tests/fixtures/cl018-config/cfg-*/
 tests/fixtures/cl018-logs/log-*/
+
+# 会话/自动化卫生项（批6 P2 族清扫 2026-10-14，用户授权）：
+# commit_msg 草稿（多轮主理人提交中间产物）与 v3-kn2 探针 req/resp/meta
+# 都是可再生的会话产物，长期挂 untracked 会污染 git status 判据面
+.workbuddy/commit_msg*.txt
+v3-kn2.meta.json
+v3-kn2.req.json
+v3-kn2.resp.json

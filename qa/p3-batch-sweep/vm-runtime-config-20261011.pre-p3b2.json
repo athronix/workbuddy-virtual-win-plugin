@@ -1,0 +1,67 @@
+{
+  "$schema": "https://winvm.local/schemas/vm-service.config.json",
+  "comment": "Windows 虚拟机侧服务配置。安全基线：仅监听 127.0.0.1，强默认策略，审计落盘。",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 18443
+  },
+  "transport": {
+    "preferred": [
+      "mcp-streamable-http",
+      "a2a-http"
+    ]
+  },
+  "agent": {
+    "provider": "workbuddy",
+    "providers": {
+      "workbuddy-deterministic": {
+        "package": "@winvm/adapter-agent-workbuddy",
+        "options": {
+          "maxConcurrency": 4,
+          "enableLlmPlanning": false
+        }
+      },
+      "workbuddy": {
+        "package": "@winvm/adapter-agent-workbuddy-llm",
+        "options": {
+          "runtime": "codebuddy",
+          "cliPath": "codebuddy",
+          "endpoint": "http://127.0.0.1:18443/mcp",
+          "maxConcurrency": 2,
+          "outputDir": "%USERPROFILE%\\WinVMWorkspace\\out",
+          "skillsRoot": "C:/WinVMBridge/shared-skills"
+        }
+      },
+      "hermes-agent": {
+        "package": "@winvm/adapter-agent-hermes",
+        "options": {
+          "runtime": "hermes",
+          "cliPath": "hermes",
+          "endpoint": "http://127.0.0.1:18443/mcp",
+          "maxConcurrency": 2,
+          "outputDir": "%USERPROFILE%\\WinVMWorkspace\\out",
+          "skillsRoot": "C:/WinVMBridge/shared-skills",
+          "registerMcp": true,
+          "mcpServerName": "winvm"
+        }
+      }
+    }
+  },
+  "policy": {
+    "comment": "留空表示沿用 core 内置 DEFAULT_POLICY（含系统路径黑名单、命令黑名单、进程黑名单、默认最高风险 L1）。如需收紧可在此覆盖，例如把 defaultMaxRisk 降到 L0。⚠ 旧键 policy.approvalTimeoutMs 已随 Phase 2 · P2-T2 删除并被忽略（只会在启动时多一条告警）——升级前请从既有配置里删除它；审批等待的真实 TTL 由环境变量 WINVM_APPROVAL_TTL_MS 决定。"
+  },
+  "audit": {
+    "dir": "%LOCALAPPDATA%/WinVMBridge/audit",
+    "redactParams": true,
+    "maxFileBytes": 5242880
+  },
+  "session": {
+    "probeIntervalMs": 15000
+  },
+  "security": {
+    "comment": "T1 契约核对（Phase 1 / ARCH-07 B 基线）+ P2-T5 默认态自洽。① requireLoopbackBind=true 已**不再是可关开关** —— validateServiceConfig 对「server.host 非回环」恒判 error，本项写 false 也不会放宽（只会多一条 warning），保留字段仅为兼容既有配置文件与文档；② tokenEnv 是 bearer token 的**环境变量名**（禁止明文落盘，NFR-511），有名无值时 validateServiceConfig 报 warning（「以为开了」必须显形）；③ 服务端 bearer 校验默认**关**（本文件显式写 enforceBearer:false ⇒ 与缺省同义，但把「默认关」从隐式 undefined 变成可 grep 的事实），现网信任边界 = 仅回环 + SSH 隧道 + 审批闸，事实经 /health.security.authMode='loopback-only' 机器可读透出。★ P2-T5 默认态自洽处置：**删掉了本文件原有的 \"tokenEnv\": \"WINVM_BEARER_TOKEN\" 键** —— 旧形态（写变量名却不写 enforceBearer、且服务环境未设该变量）会让真机 /health 恒报半开态 bearer-configured-missing，与 §7 自称的默认态 loopback-only 长期对不上（判序③）。删除**不影响任何凭据通路**：宿主侧凭据走 connector 的 --token-env → buildTransport → applyBearerHeader，与本文件（VM 侧服务配置）是两条独立面；运维若要预先挂好变量名，写回 tokenEnv 即回到「有名无值 ⇒ 显形为半开态」的旧观测形态。★ enforceBearerFailClosed 默认 true（§13 Q4）：开 enforceBearer 后，服务启动期会跑 bearer 生效自检（/health.security.bearerSelfCheck 挂载逻辑正/反例 + /health.security.innerReconnect 回连通路三态），**仅当**守卫生效（authMode=bearer-enforced）**且** 自检判定 VM 内回连通路 broken 时拒绝进入服务态；写 false 是一键回滚位（放行并打显式告警）。开 enforceBearer 前必须先补齐 VM 内回连（/mcp?dtid=）的凭据通路（属 P2-T6）；2026-10-10 B3 真机实测：误开（双条件齐）后宿主不带凭据段当场 401，VM 内回连段 401 打在工具面 ⇒ 委派退化为零副作用虚假完成（completed + 链上 zeroInnerCalls:true，CL-K3R 不采信兜住，非链路报错）—— 见 docs/02-design/SECURITY-GOVERNANCE.md §2.1（含 authMode 四步判序与生效自检口径）与 phase2-arch-design.md §2.2 / §13 Q3+Q4。",
+    "requireLoopbackBind": true,
+    "enforceBearer": false,
+    "enforceBearerFailClosed": true
+  }
+}
