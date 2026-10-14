@@ -221,6 +221,116 @@ test('通配命中：allowedCapabilities 含 storage.* ⇒ 白名单内放行到
   assert.equal(v.requiresApproval, true, '落到下一闸（审批）——scope 通过≠放行 L2');
 });
 
+/* ==================== ⑤ CL3：deterministic 第三调用点 + E-2 显形（真实引擎） ==================== */
+
+const { DeterministicAgentProvider } = await import('@winvm/adapter-agent-workbuddy');
+const { realEngine, realRegistry } = (() => {
+  const registry = new CapabilityRegistry();
+  registry.registerAll([read, del]);
+  return { realEngine: new CorePolicyEngine({ registry }), realRegistry: registry };
+})();
+
+async function mkDeterministic() {
+  const calls = [];
+  const bridge = {
+    running: true,
+    uptimeMs: 1,
+    async start() {},
+    async stop() {},
+    async call(module, fn, params) {
+      calls.push({ module, fn, params });
+      return { fromBridge: true };
+    },
+    health: () => ({ state: 'ready', uptimeMs: 1, pending: 0, lastHeartbeatAgoMs: 0 }),
+  };
+  const ctx = {
+    config: {},
+    audit: { append: async () => ({ hash: 'h', prevHash: '', seq: 0, auditId: 'aud_x' }), verifyChain: async () => ({ valid: true, entries: 0 }) },
+    policy: realEngine,
+    capabilities: {
+      get: (id) => realRegistry.get(id),
+      list: () => [...realRegistry.list?.() ?? []],
+      has: (id) => Boolean(realRegistry.get(id)),
+    },
+    logger: { debug() {}, info() {}, warn() {}, error() {} },
+    bridge,
+    newTraceId: () => 'tr_test',
+  };
+  const p = new DeterministicAgentProvider();
+  await p.init(ctx);
+  return { p, calls };
+}
+
+test('CL3：deterministic execute 收 scopeMaxRisk=L1 ⇒ L2 能力 POLICY_DENIED(maxRisk:L1)，零桥调用', async () => {
+  process.env.WINVM_POLICY_GATE_WIRING = 'on';
+  try {
+    const { p, calls } = await mkDeterministic();
+    const res = await p.execute({
+      traceId: 'tr_x',
+      capabilityId: 'storage.file.delete',
+      params: { path: 'C:\\Users\\vmuser\\a.txt' },
+      risk: 'L2',
+      approved: false,
+      timeoutMs: 5000,
+      scopeMaxRisk: 'L1',
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.error.code, 'POLICY_DENIED');
+    assert.equal(calls.length, 0, '拒绝必须零副作用（策略闸先于桥调用）');
+  } finally {
+    delete process.env.WINVM_POLICY_GATE_WIRING;
+  }
+});
+
+test('CL3：不喂 scope（未声明/shadow/off 形态）⇒ L2 走审批闸 APPROVAL_REQUIRED（requiresApproval 语义逐字旧行为）', async () => {
+  const { p } = await mkDeterministic();
+  const res = await p.execute({
+    traceId: 'tr_y',
+    capabilityId: 'storage.file.delete',
+    params: { path: 'C:\\Users\\vmuser\\a.txt' },
+    risk: 'L2',
+    approved: false,
+    timeoutMs: 5000,
+  });
+  assert.equal(res.ok, false);
+  assert.equal(res.error.code, 'APPROVAL_REQUIRED', '无声明 ⇒ 封顶闸不触发，审批闸管辖（零断崖）');
+});
+
+test('E-2 显形：deterministic 命中审批闸 ⇒ error.details 带 suspendSupported=false 与真实出路指引', async () => {
+  const { p } = await mkDeterministic();
+  const res = await p.execute({
+    traceId: 'tr_z',
+    capabilityId: 'storage.file.delete',
+    params: { path: 'C:\\Users\\vmuser\\a.txt' },
+    risk: 'L2',
+    approved: false,
+    timeoutMs: 5000,
+  });
+  assert.equal(res.error.details?.suspendSupported, false, '结构性能力缺失必须显形（不再藏在裸码里）');
+  assert.equal(res.error.details?.executor, 'deterministic');
+  assert.ok(Array.isArray(res.error.details?.nextActions) && res.error.details.nextActions.length >= 2);
+});
+
+test('E-2 判别性：策略硬拒（非审批闸）不贴挂起显形键（只 augment APPROVAL_REQUIRED 分支）', async () => {
+  process.env.WINVM_POLICY_GATE_WIRING = 'on';
+  try {
+    const { p } = await mkDeterministic();
+    const res = await p.execute({
+      traceId: 'tr_w',
+      capabilityId: 'storage.file.delete',
+      params: { path: 'C:\\Users\\vmuser\\a.txt' },
+      risk: 'L2',
+      approved: false,
+      timeoutMs: 5000,
+      scopeMaxRisk: 'L1',
+    });
+    assert.notEqual(res.error.code, 'APPROVAL_REQUIRED');
+    assert.equal(res.error.details?.suspendSupported, undefined, '硬拒路径逐字旧形状（纯附加纪律）');
+  } finally {
+    delete process.env.WINVM_POLICY_GATE_WIRING;
+  }
+});
+
 /* ==================== ④ 源码钉：装配位置与纯函数调用在位（防漂移） ==================== */
 
 test('server.ts 装配钉：(c) 收口走纯函数判据 + scope 注册/回查/销账三点齐位', () => {
@@ -255,4 +365,23 @@ test('constants.ts 灰度钉：双闸缺省 shadow（升级窗口安全档）；
   );
   assert.match(C, /POLICY_GATE_WIRING_DEFAULT: PolicyGateWiringMode = 'shadow'/);
   assert.match(C, /parseBoolean\(env\[ENV_DELEGATION_REQUIRED_POLICY\], true\)/);
+});
+
+/* ==================== ⑥ CL3 源码钉：deterministic 第三调用点 goal→step→execute feed ==================== */
+
+const ADAPTER_SRC = readFileSync(
+  fileURLToPath(new URL('../../packages/adapter-agent-workbuddy/src/index.ts', import.meta.url)),
+  'utf8',
+);
+
+test('deterministic 第三调用点接线钉：execute 评估喂 req.scope 两键 + step 仅 on 态取 goal 声明', () => {
+  // 第三调用点（in-process）把宿主声明 scope 喂进策略评估
+  assert.match(ADAPTER_SRC, /\.\.\.\(req\.scopeMaxRisk \? \{ maxRisk: req\.scopeMaxRisk \}/, 'execute evaluate 喂声明 maxRisk');
+  assert.match(ADAPTER_SRC, /req\.scopeAllowedCapabilities && req\.scopeAllowedCapabilities\.length > 0/, 'execute evaluate 喂声明白名单');
+  // step 的 scopeFeed：仅 `on` 态 + 仅 maxRiskDeclared===true（框架回退默认绝不喂=零断崖）
+  assert.match(ADAPTER_SRC, /this\.policyGateWiring === 'on'\s*\?\s*\{/, 'scopeFeed 仅 on 态');
+  assert.match(ADAPTER_SRC, /goal\.maxRiskDeclared === true && goal\.maxRisk \? \{ scopeMaxRisk: goal\.maxRisk \}/, 'goal→step 只取声明 maxRisk');
+  // E-2 显形：APPROVAL_REQUIRED 分支 augment suspendSupported（纯附加，硬拒路径不贴）
+  assert.match(ADAPTER_SRC, /suspendSupported: false/, 'E-2 结构性能力缺失显形');
+  assert.match(ADAPTER_SRC, /verdict\.requiresApproval && verdict\.error\?\.code === 'APPROVAL_REQUIRED'/, 'E-2 只 augment 审批闸分支');
 });

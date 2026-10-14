@@ -22,7 +22,7 @@ import {
   makeError,
   riskAtLeast,
 } from '@winvm/contracts';
-import { newId, newTraceId, guiAllowed, nonGuiAllowed, describeSessionState } from '@winvm/core';
+import { newId, newTraceId, guiAllowed, nonGuiAllowed, describeSessionState, resolvePolicyGateWiring } from '@winvm/core';
 import { PsBridge, type PsBridgeOptions } from '@winvm/vm-capabilities';
 
 export const PROVIDER_ID = 'workbuddy-deterministic';
@@ -238,6 +238,14 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
   private readonly maxConcurrency: number;
   private readonly enableLlmPlanning: boolean;
   private readonly bridgeOptions: PsBridgeOptions;
+  /**
+   * 批1（E-1/M2 接线 · 第三调用点门控）：双闸灰度态。deterministic 的 in-process
+   * `execute` 自带一处策略评估（不经 /mcp 服务层），是宿主声明 scope 必须独立接线的
+   * 第三调用点。仅 `on` 态把 goal 的**声明**两键喂进该评估——`shadow` 观测面归服务层
+   * （本 provider 缺省模板全 L0/L1，scope 两闸本就不触发，shadow 在此态无额外价值），
+   * `off` 逐字旧行为。缺省 shadow ⇒ 本 provider 默认零喂 scope（升级窗口安全档）。
+   */
+  private readonly policyGateWiring: 'off' | 'shadow' | 'on';
   private active = 0;
   /**
    * 本 provider 是否「拥有」bridge 的生命周期（即 bridge 是它自建的）。
@@ -249,6 +257,8 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     this.maxConcurrency = options.maxConcurrency ?? 4;
     this.enableLlmPlanning = options.enableLlmPlanning === true;
     this.bridgeOptions = options.psBridge ?? {};
+    // 批1：双闸灰度态（缺省 shadow ⇒ 本 provider 的 in-process 评估不喂 scope，逐字旧行为）。
+    this.policyGateWiring = resolvePolicyGateWiring();
   }
 
   declareCapabilities(): readonly string[] {
@@ -310,17 +320,47 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     }
 
     // —— 策略引擎（拒绝优先）——
+    // 批1（E-1/M2 双闸接线 · 第三调用点）：deterministic 的 in-process execute 不经 /mcp
+    // 服务层，自带这处评估 ⇒ 必须独立接线宿主**声明**的 scope 两键（否则 deterministic
+    // 委派的封顶/白名单仍是死代码）。两键只在 step() 用 goal 声明值填充时才进 req（见下），
+    // 服务端回退默认绝不进这里 ⇒ 零可用性断崖。engine.ts 步骤 1/5 的「仅声明才执法」逐字适用。
     const verdict = ctx.policy.evaluate({
       capabilityId: req.capabilityId,
       params: req.params,
       risk: cap.risk,
       approved: req.approved,
       ...(req.approvalId ? { approvalId: req.approvalId } : {}),
+      ...(req.scopeMaxRisk ? { maxRisk: req.scopeMaxRisk } : {}),
+      ...(req.scopeAllowedCapabilities && req.scopeAllowedCapabilities.length > 0
+        ? { allowedCapabilities: req.scopeAllowedCapabilities }
+        : {}),
     });
     if (!verdict.allowed) {
+      // E-2 最小诚实收口（批1 与 (c) 同域）：deterministic provider **不持有审批协调器**
+      // （全仓 raise 生产调用点唯一在 LLM 桥 bridge.ts）⇒ 命中审批闸时它既无法注册续跑
+      // 令牌、也无法挂起 input-required，只能失败收口。旧行为把这条「结构性能力缺失」藏在
+      // 裸 APPROVAL_REQUIRED 里（宿主看到码、看不到出路）。此处**纯附加** details.nextActions
+      // 显形两条真实出路：① 该 provider 天生只编排 L0/L1，遇 L2/L3 说明目标越界；② 换
+      // LLM provider（agent.provider）或 MCP 直调委派审批。不改判定、不改码、不改 ok——
+      // 只补可路由指引（fail-closed 方向不变，缺省模板全 L0/L1 触不到本分支）。
+      const denyError =
+        verdict.requiresApproval && verdict.error?.code === 'APPROVAL_REQUIRED'
+          ? {
+              ...verdict.error,
+              details: {
+                ...(verdict.error.details ?? {}),
+                executor: 'deterministic',
+                suspendSupported: false,
+                nextActions: [
+                  '确定性执行器不实现审批挂起（无协调器）：该能力属 L2/L3，超出本 provider 编排面',
+                  '改用 LLM provider（配置 agent.provider=workbuddy）：其委派可挂起 input-required 待宿主批准后续跑',
+                ],
+              },
+            }
+          : (verdict.error ?? makeError('POLICY_DENIED', `被策略拒绝：${verdict.matchedRule}`));
       return this.fail(
         req,
-        verdict.error ?? makeError('POLICY_DENIED', `被策略拒绝：${verdict.matchedRule}`),
+        denyError,
         started,
         ctx,
       );
@@ -525,6 +565,21 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
      * LLM provider 的 `shouldDegrade` 会把「EXECUTION_FAILED 且零 artifact」回落成
      * 确定性执行器**重跑**，用错码等于把用户已叫停的任务再执行一遍。
      */
+    // 批1（E-1/M2 第三调用点接线）：宿主**声明**的 scope 预计算一次（runGoal 期），
+    // step 全部复用。仅 `on` 态喂入——本 provider 是 in-process 执行，`shadow` 的
+    // 观测/改道语义归服务层（两处都 shadow 计数会分裂成两份真相）；`off` 与旧行为逐字一致。
+    // maxRisk 只取声明（goal.maxRiskDeclared===true）——框架回退默认绝不喂=零断崖。
+    // 注：缺省 deterministic 模板全 L0/L1，接线在缺省形态下不改变任何裁决（fail-closed 方向
+    // 仅可能让显式声明的委派更严：低 maxRisk 声明会拒高步、白名单外步被拒，二者都是宿主本意）。
+    const scopeFeed =
+      this.policyGateWiring === 'on'
+        ? {
+            ...(goal.allowedCapabilities && goal.allowedCapabilities.length > 0
+              ? { scopeAllowedCapabilities: goal.allowedCapabilities }
+              : {}),
+            ...(goal.maxRiskDeclared === true && goal.maxRisk ? { scopeMaxRisk: goal.maxRisk } : {}),
+          }
+        : {};
     const step = async (
       capabilityId: string,
       params: Record<string, unknown>,
@@ -545,6 +600,8 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         risk: ctx.capabilities.get(capabilityId)?.risk ?? 'L3',
         approved: false,
         timeoutMs: goal.timeoutMs,
+        // 批1：宿主声明 scope（`on` 态）随 step 下发到本 provider 的策略复评（第三调用点）。
+        ...scopeFeed,
         // ARCH-29（P2-T4，**纯附加条件展开**）：把 A2A 侧的取消信号（`ProgressSink
         // .cancellationSignal`，与 `isCancelled()` 同一个 AbortController）交给 execute，
         // 使**一次在途能力调用**也能在取消时停止本地等待 —— 旧实现只能在调用返回后

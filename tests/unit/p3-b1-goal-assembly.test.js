@@ -142,9 +142,13 @@ test('F-3 Agent 显式声明（maxRiskSource=agent）⇒ maxRiskDeclared=true', 
   assert.equal(goal.maxRiskDeclared, true);
 });
 
-test('F-3 旧客户端（无 source 键）⇒ 视为声明（从严；真实执法另有批1 灰度闸）', async () => {
+test('F-3 旧客户端/旧版宿主桥（无 source 键，恒发回退值）⇒ 非声明（断崖防线）', async () => {
+  // 旧版宿主桥对 Agent 未声明的调用也恒发 defaultMaxRisk='L1'。若"缺席视为声明"，
+  // 接线瞬间全部旧桥委派封顶 L1=当场拒绝一切 L2/L3（以修复名义引入新 P0）。
+  // 新口径：maxRisk 在场但无 maxRiskSource='agent' ⇒ 一律非声明。
   const goal = await goalFromStream({ traceId: 't3', maxRisk: 'L2' });
-  assert.equal(goal.maxRiskDeclared, true);
+  assert.equal(goal.maxRisk, 'L2', '展示值不变');
+  assert.equal(goal.maxRiskDeclared, undefined);
 });
 
 test('F-3 metadata 完全不带 maxRisk ⇒ 展示值=服务端 defaultMaxRisk 且 maxRiskDeclared 缺席', async () => {

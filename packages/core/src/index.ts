@@ -40,6 +40,24 @@ export { canonicalRegistryPath, matchRegistryAllowlist, describeRegistryForms, e
 // R19-B · S-5（docs/design/s5-registry-write-allowlist-pairing.md §③(a)/§④-1）：写动词判定
 // 是 4b 选读表/写表的唯一依据，导出供单测逐能力比对与静态守卫（不得在别处再实现一份）。
 export { isWriteCapability } from './policy/engine.js';
+
+// 批1（审批闭环 P0-1）：(c) 策略化与委派 scope 执法的纯决策判据（core 单源，
+// vm-service 侧 policy-gate.ts 为再导出垫片；adapter-agent-workbuddy 直接消费）。
+export {
+  isInnerDelegation,
+  scopeLookupKeys,
+  shouldReturnDelegationRequired,
+  scopeFeedEnabled,
+  isScopeGateRejection,
+  enforceScopeRejection,
+  buildPolicyGateHealth,
+} from './policy-gate.js';
+export type {
+  ChannelProbeInput,
+  DelegationRequiredInput,
+  ScopeFeedInput,
+  PolicyGateHealthView,
+} from './policy-gate.js';
 export type { EvaluateInput, PolicyEngineOptions, StringValue } from './policy/engine.js';
 export { DEFAULT_POLICY, mergePolicy } from './policy/defaults.js';
 export type { PolicyConfig } from './policy/defaults.js';
