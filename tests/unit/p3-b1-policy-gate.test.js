@@ -385,3 +385,10 @@ test('deterministic 第三调用点接线钉：execute 评估喂 req.scope 两�
   assert.match(ADAPTER_SRC, /suspendSupported: false/, 'E-2 结构性能力缺失显形');
   assert.match(ADAPTER_SRC, /verdict\.requiresApproval && verdict\.error\?\.code === 'APPROVAL_REQUIRED'/, 'E-2 只 augment 审批闸分支');
 });
+
+/* ==================== ⑦ CL4 装配钉：/health 观测块 + scope 兜底清扫 ==================== */
+
+test('/health.policyGate 观测块与 scope 兜底清扫在位（门禁内稳门外盲的反制件）', () => {
+  assert.match(SRC, /policyGate: buildPolicyGateHealth\(/, '/health 须透出灰度态+shadowHits+(c) 开关+scope 表大小');
+  assert.match(SRC, /scopeRegistry\.sweepExpired\(\);/, '与令牌同周期兜底清扫（正常路径靠 retire，此为漏网双保险）');
+});

@@ -116,7 +116,9 @@ describe('A2-17 · 接线形态守卫（server.ts 源码面，k5-replay E 组同
     // 顺序钉：拒绑赋值（approved=false）必须出现在**紧随其后的** policy.evaluate 之前
     // —— approved 进 evaluate 前已被降级 ⇒ 换参续跑落 requiresApproval 拦截分支。
     const rejectIdx = src.indexOf('approved = false; // 预览已非批准时那份');
-    const evalIdx = src.indexOf('const verdict = policy.evaluate', rejectIdx);
+    // 批1 同步（受契约保护变更）：evaluate 调用收拢为 evaluateScoped（单点灰度三态），
+    // 顺序钉语义不变——拒绑赋值仍必须早于紧随其后的策略评估。
+    const evalIdx = src.indexOf('const verdict = evaluateScoped(', rejectIdx);
     assert.ok(rejectIdx > 0 && evalIdx > rejectIdx,
       `顺序钉：拒绑(${rejectIdx})必须早于其 evaluate(${evalIdx})`);
     assert.ok(src.indexOf('ARCH-09 预览绑定校验失败') > 0, '绑定校验告警在场（可 grep 归因）');

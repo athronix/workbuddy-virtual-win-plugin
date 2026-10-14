@@ -81,7 +81,8 @@ function allBlocks(src, mark, label) {
 /**
  * S-4 不变式：`server.ts` 中**每个** `if (!verdict.allowed)` 终态拒绝分支，
  * 都必须在**本分支最后一个 `return` 之前**调 `recordPolicyDeniedAudit(`，
- * 且全文件调用点**恰 2 处**（`:605` executeCapability / `:837` /mcp handler 的语义锁定，
+ * 且全文件调用点**恰 3 处**（`:605` executeCapability / `:837` /mcp handler 的语义锁定
+ * + **批1(c) `DELEGATION_REQUIRED` 纯直调收口新增第三处**——终态拒绝必入审计链，
  * 用计数与花括号切片表达，不锁行号）。
  * @returns {string[]} 违规清单（空即合规）
  */
@@ -94,11 +95,14 @@ function auditS4(serverSrc) {
         (deniedBlocks.length > 2 ? '（新增终态拒绝点 ⇒ 必须同步补注入并更新本守卫）' : '（有拒绝分支被吞掉）'),
     );
   }
+  // 批1(c)：DELEGATION_REQUIRED 收口是**新增终态拒绝点**，同守 S-4 纪律补审计注入 ⇒
+  // 计数 2→3（handler 块内含 (c) + 硬拒两次调用，executeCapability 一次）。
+  // 本行守卫变更属受契约保护，登记 phase3-b1-notes §2 CL2。
   const callCount = (serverSrc.match(/void recordPolicyDeniedAudit\(/g) ?? []).length;
-  if (callCount !== 2) {
+  if (callCount !== 3) {
     problems.push(
-      `recordPolicyDeniedAudit 调用点应恰为 2 处，实测 ${callCount} 处` +
-        (callCount > 2 ? '（新增注入点 ⇒ 请同步本守卫计数）' : '（注入点被删/被改成非 void 形式）'),
+      `recordPolicyDeniedAudit 调用点应恰为 3 处（含批1(c) DELEGATION_REQUIRED 收口），实测 ${callCount} 处` +
+        (callCount > 3 ? '（新增注入点 ⇒ 请同步本守卫计数）' : '（注入点被删/被改成非 void 形式）'),
     );
   }
   if ((serverSrc.match(/recordPolicyDeniedAudit/g) ?? []).length < 2) {
