@@ -38,3 +38,17 @@ hermes-agent 与 workbuddy-llm **同为 `kind='llm-agent'`**，但 SPI 实现面
 
 ## 仍待真机窗口（本批与批2/批5 合并执行）
 M3 预检改 app.inventory.list / M6 三成品绑定 + 参数运行期验证 / 计数三处同步。
+
+## M3 落地（2026-10-14，批4 part2）
+
+### 实现（探测与引导，零契约变更）
+模板 5 workflow.run 未命中路径改为三步：①`WORKFLOW_CLI_APP` 映射（ffmpeg→ffmpeg / office→soffice / photoshop→magick[开源等价]；**excel 不映射**=pandoc 只读 xlsx 不能写报表，映射反而教错误预期，名实相符纪律）；②L0 `app.inventory.list`(name 过滤) 探装机登记（best-effort：探测炸不改业务结论、不谎报，fail-safe）；③命中⇒给当下可达直调路径（appops.cli.invoke app=映射值，L1 不触审批——处置教育 mcp-reference:89 在位互证）；未命中⇒安装配方（app.winget.install）。收口码恒 UNSUPPORTED_GOAL（上游 WORKFLOW_NOT_FOUND 不改变业务结论，不在 shouldDegrade 集内）。
+
+### PM 原述选型勘误（亲验坐实，采纳 pm2 §9① 反证）
+`appops.state.query`(Get-AppOpState) 只枚举**运行中**应用/窗口，探不到未启动的已装 CLI ⇒ 预检证据源改 `app.inventory.list`（注册表卸载键）。原述"预检→命中即走 cli.invoke 替代 workflow"的**执行替代**版未采：确定性 provider 无法从自由文本生成合法 ffmpeg/magick 命令行（猜参数=造新空转），改为**失败路径的可达引导**（Agent/用户照文案直调即可）——3a 的本体收益=死路变有据可查的活路，且不引入"猜错命令执行失败"新病灶。批4 验收判据③原文"模板 5 走 cli.invoke 而非 WORKFLOW_NOT_FOUND"据此**改述**：workflow 仍首调（有脚本就真执行），未命中时不再空转而是给直调配方；离线判别=测试件。
+
+### 测试
+tests/unit/phase3-b4-m3-production-guidance.test.js 5 例（生产同构夹具=真注册表 schema，U-P0-3 教训口径：空 schema 会绕过 validateParams 校验面）：①探到装机⇒summary 含 cli.invoke+app 值+免审批说明+探测确实发起；②未探到⇒安装配方+绝不谎称可直调+原两条解法保留；③excel 不映射⇒无引导行+**零探测往返**；④探测抛错⇒业务结论不变+归因诚实；⑤workflow 成功路径零变化（不触发探测）。5/5 绿；回归 5 件全绿（t5-provider 12/kn1-d 28/cl017 12/code-fidelity 22/k3r-routing 4）。
+
+### 真机确认（V16，待 VM 回线窗口）
+P1 `app.inventory.list(name=ffmpeg)` 命中形状与 nameMatchers 匹配实证；P2 `appops.cli.invoke(app=ffmpeg,command="-version")` 直调真实可用=引导文案承诺的现实依据。E2E-03 已实证 inventory 数组形状（name 字段在位），P2 未跑（本轮 VM 在跑批5/6 时二次掉线）。

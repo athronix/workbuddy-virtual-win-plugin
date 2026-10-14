@@ -203,6 +203,24 @@ function describeArg(value: unknown): string {
   return typeof value;
 }
 
+/**
+ * M3（Phase 3 批4 · 3a）：模板 5 工作流缺位时的**装机证据映射**。
+ * preferredApp（意图分类）→ 可直调的注册表 cliApp + registry 名称探测证据（nameMatchers）。
+ * 只登记 `appops.cli.invoke` enum 有对应映射且探测证据可靠的三类；browser/generic
+ * 没有免费午餐（无 CLI 映射），不映射=保持原两条解法文案。photoshop 特殊处理：
+ * PS 本体不可直调，但 ImageMagick 是开源等价（水印/缩放/格式转换类意图可承接）。
+ * excel **不映射**：pandoc 只读 xlsx 不能写报表（亲验其 CLI 形态），给原文案更诚实——
+ * 映射了反而教 Agent 产出错误预期（名实相符纪律，与 M3 要消灭的"空转承诺"同族）。
+ */
+const WORKFLOW_CLI_APP: Record<
+  string,
+  { cliApp: 'ffmpeg' | 'magick' | 'soffice' | 'pandoc'; probeName: string; nameMatchers: RegExp[] }
+> = {
+  ffmpeg: { cliApp: 'ffmpeg', probeName: 'ffmpeg', nameMatchers: [/ffmpeg/i] },
+  office: { cliApp: 'soffice', probeName: 'libreoffice', nameMatchers: [/libreoffice/i] },
+  photoshop: { cliApp: 'magick', probeName: 'imagemagick', nameMatchers: [/imagemagick/i, /\bmagick\b/i] },
+};
+
 export interface DeterministicProviderOptions {
   readonly maxConcurrency?: number;
   /** 预留：接入 LLM 规划后开启（V1 默认 false） */
@@ -675,16 +693,53 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
           steps,
         };
       }
-      // 工作流未登记：明确引导（不硬猜、不伪造）
+      // 工作流未登记：明确引导（不硬猜、不伪造）。
       // O-1：step() 起为结构化 `BridgeError`，文案侧取 `.message`（旧实现是 `as string` 断言）。
       // 收口码仍固定 `UNSUPPORTED_GOAL`（本模板的业务结论是「确定性执行器没有这条工作流」，
       // 与上游来路码无关；且该码不在 `shouldDegrade` 触发集内，不存在降级重跑风险）。
+      //
+      // M3（Phase 3 批4 · 3a 最小修，台账口径=pm2 改档采纳版）：失败**不再是死路**——
+      // 用 L0 `app.inventory.list` 探测映射 CLI 是否已在 VM 装机登记，命中即在文案里
+      // 给出**当下可达的直调路径**（`appops.cli.invoke`，L1 不触闸、零契约变更；处置教育
+      // 在位=mcp-reference「reason=CLI_NOT_FOUND → 先装应用别重试」），未命中则给安装配方。
+      // 选型勘误留痕：PM 前棒原述"先 `appops.state.query` 预检"经亲验不成立——
+      // Get-AppOpState 只枚举**运行中**应用/窗口，探不到未启动的已装 CLI；
+      // `app.inventory.list`（注册表卸载键）才是装机证据源。探测本身 best-effort：
+      // 探测失败/超时不改变业务结论（仍 UNSUPPORTED_GOAL），只少一条引导行（fail-safe）。
       const msg = r.error?.message ?? '工作流未找到';
+      const cliApp = WORKFLOW_CLI_APP[preferredApp]; // ffmpeg/magick/pandoc/… （纯映射，见文件级常量）
+      let guidance: string;
+      if (cliApp) {
+        let installedEvidence = false;
+        try {
+          if (this.allowed(goal, 'app.inventory.list')) {
+            const probe = await step(
+              'app.inventory.list',
+              { name: cliApp.probeName },
+              `探测 ${cliApp.probeName} 是否已装机（工作流缺位时的直调可行性证据）`,
+            );
+            installedEvidence =
+              probe.ok === true &&
+              Array.isArray(probe.data) &&
+              (probe.data as Array<{ name?: unknown }>).some((row) =>
+                cliApp.nameMatchers.some((re) => re.test(String(row?.name ?? ''))),
+              );
+          }
+        } catch {
+          /* 探测异常 = 无证据，走未装引导；绝不把探测失败伪装成结论 */
+        }
+        guidance = installedEvidence
+          ? `已探测到 VM 中存在 ${cliApp.probeName} 的装机登记：可直接调 appops.cli.invoke（app="${cliApp.cliApp}"，L1 不触审批）执行你的任务，无需工作流脚本。`
+          : `未发现 ${cliApp.probeName} 装机登记：可先 app.winget.install 安装该应用，再直调 appops.cli.invoke（app="${cliApp.cliApp}"）。`;
+      } else {
+        guidance = '';
+      }
       return {
         ok: false,
         summary:
           '确定性执行器未匹配到预置的生产工作流（' + preferredApp + '）。' +
-          '两种解法：① 在 VM 的 workflows 目录预置 `generic_production` 工作流脚本；' +
+          (guidance ? guidance + ' ' : '') +
+          '其余两种解法：① 在 VM 的 workflows 目录预置 `generic_production` 工作流脚本；' +
           '② 升级 VM Agent 为 LLM provider（改配置 agent.provider 即可），由其在 VM 内自主规划并操作应用。',
         artifacts,
         steps,
