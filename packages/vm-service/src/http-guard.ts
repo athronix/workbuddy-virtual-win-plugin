@@ -228,11 +228,16 @@ export interface InnerReconnectView {
   /** 生效中的 provider options（`cfg.agent.providers[cfg.agent.provider].options`）。 */
   readonly providerOptions?: Readonly<Record<string, unknown>>;
   /**
-   * 真机探针结论（可选）：由调用方（`server.ts` 启动期 fire-and-forget / 探针脚本）回填。
-   * 缺席 ⇒ 按配置面判定；提供 ⇒ **优先采用**（端到端实证压过配置推理）。
+   * 真机探针结论（可选）。**A2-13 诚实化订正（Phase 3 批6）**：本字段是 `resolveInnerReconnect`
+   * 的**纯函数契约面**（判序③：提供 ⇒ 端到端实证优先于配置推理），供探针脚本离线评估与未来
+   * 统一判决面复用（`phase2-inner-credential.test.js` D 组钉其语义）；**生产 fail-closed 路径
+   * 不喂入本字段** —— 拒启判据被 PR3 红线钉死为「恒按配置面」（`server.ts:806` 取 `innerReconnect.status`，
+   * 装配点 `:798` 只传 authMode/providerOptions 两键）。运行期探针的实证结论走另一条通路升级
+   * **观测面**：`server.ts:2163` `innerReconnectObserved = probed`（直接赋值，语义等价判序③"原样采用"，
+   * 但绕开本函数 ⇒ 观测面升级绝不反噬拒启判定）。故"由调用方回填本函数"是旧注释的失实表述，已订正。
    */
   readonly probeStatus?: InnerReconnectStatus;
-  /** 探针失败原因（超时/不可达等）；提供 ⇒ 强制 `unverified`（绝不误判 broken）。 */
+  /** 探针失败原因（超时/不可达等）；提供 ⇒ 强制 `unverified`（绝不误判 broken）。同为纯函数契约面，生产 fail-closed 不喂入（见 probeStatus 注）。 */
   readonly probeError?: string;
 }
 
@@ -256,6 +261,9 @@ export interface InnerReconnectView {
  *  1. `authMode !== 'bearer-enforced'` ⇒ `unverified`（守卫没挂，回连带不带凭据都通，无判定意义）；
  *  2. `probeError` 在场（探针自身不可达/超时）⇒ `unverified`（PR3：探针故障不得升级成可用性事故）；
  *  3. `probeStatus` 在场 ⇒ 原样采用（端到端实证优先）；
+ *     ⚠ **A2-13**：判序②③是纯函数契约面（D 组单测钉语义）；生产 fail-closed 装配点**不喂**这两键
+ *     （拒启恒按配置面=PR3 红线），运行期探针实证结论经 `server.ts` `innerReconnectObserved = probed`
+ *     直接升级**观测面**，不回流本函数 ⇒ 判序②③在生产判决路径不可达是**设计使然**，非缺陷。
  *  4. provider options 未承载任何 bearer 变量名（`bearerEnvName` 缺席/空白）⇒ `broken`
  *     （通路**可用但未接线**：`buildMcpConfig` 条目零凭据 ⇒ 回连必 401）；
  *  5. 配了变量名但 env 无值 ⇒ `broken`（有名无值，双条件缺件）；

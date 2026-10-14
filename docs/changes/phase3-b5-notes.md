@@ -106,3 +106,15 @@ appops 已入 enum/pattern:26/29）；消费面=测试（phase2-contract-schema.
 - 与 A2-3 咬合：tick ws 分支早已置 recyclePending（批5 双写）⇒ ws 回收不占故障预算，护栏激活无副作用放大。
 - 测试 tests/unit/phase3-b6-ws-probe.test.js 13 例（四红线判别性双向+平台分支+env 开关+tick 语义兼容）。
 - 真机面：VM=win32 ⇒ 本批 dist 推 VM 重启后探针真实激活（列入 V14）。
+
+### A2-13 probeError/probeStatus 死判据 → 诚实化订正（批6 part2，主理人终裁）
+实况复核（三处行号亲验）：`resolveInnerReconnect` 判序②③的生产装配点 `server.ts:798` 只传
+authMode+providerOptions 两键（恒不喂 probe*）；拒启 `:806` 取 `innerReconnect.status`（配置面 const）；
+运行期探针 `:2149 probeInnerReconnect` 的实证结论经 `:2163 innerReconnectObserved = probed` **直接赋值**
+升级观测面（`:1917` 透出面读观测面）——即"实证优先"语义已在生产以另一条通路达成，且该通路**刻意**
+绕开本函数以守 PR3 红线（拒启恒按配置面，观测面坏不得影响启动面）。
+⇒ 主理人裁**诚实化**而非接线：接线（观测面回流判决）=违反 PR3；删除（D 组单测 319-335 钉语义契约）无增益。
+订正=http-guard.ts 两处注释：旧 probeStatus 注释"由调用方（server.ts 启动期 fire-and-forget）回填"是
+失实表述（server.ts 从不回填本函数），已改为"纯函数契约面+生产不喂+观测面经直接赋值升级"三层口径显形。
+判据行号勘误：arch3 原述 server.ts:785 → 实装配点 :798；:2066"覆盖不回灌" → 实况 :2163 直接赋值升级观测面（非覆盖字段）。
+验证：tsc RC=0；phase2-inner-credential 38/38 + phase2-bearer-selfcheck 45/45 全绿。
