@@ -1,0 +1,129 @@
+# gate FULL · 2026-10-14T04:40:00.212Z
+# node=/data/storage/el1/bundle/libs/arm64/node/bin/node cwd=/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin
+=== WinVM Bridge 门禁（FULL）· 2026-10-14T04:40:00.214Z ===
+[ST1 tsc] node_modules/typescript/bin/tsc -b tsconfig.build.json …
+[ST2 dep-lint] node scripts/dep-lint.mjs …
+[ST2b config-keys] node scripts/config-key-lint.mjs --json …
+[ST3 guards] 进门禁守卫件 8 件（逐文件）…
+GREEN tests/unit/phase2-snapshot-truth.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/phase2-dead-config.test.js rc=0 tests=14 pass=14 fail=0 skip=0
+GREEN tests/unit/phase3-skill-claims-guard.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/phase2-contract-schema.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/phase2-contract-code-fidelity.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+GREEN tests/unit/phase2-session-unknown.test.js rc=0 tests=48 pass=48 fail=0 skip=0
+GREEN tests/unit/assembly-guard.test.js rc=0 tests=24 pass=24 fail=0 skip=0
+GREEN tests/unit/psmod-contract.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+[ST4 sweep] 全仓逐文件 sweep 102 件（ST3 已跑 8 件不重复 ⇒ 合计 110 件）—— 恒逐文件 spawn，绝不 glob 整批（K-2 junction 0xC0000005）…
+GREEN tests/unit/_smoke.test.js rc=0 tests=1 pass=1 fail=0 skip=0
+GREEN tests/unit/account-resolve.test.mjs rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/approval-audit.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/audit.test.js rc=0 tests=25 pass=25 fail=0 skip=0
+GREEN tests/unit/cl-k3r-runpersistent-approval-routing.test.js rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/cl017-error-reason.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/cl017-param-guard.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/cl017-param-value.test.js rc=0 tests=34 pass=34 fail=0 skip=0
+GREEN tests/unit/cl017-psmod-sort.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/cl017-winget-parse.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/cl017.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/cl018-a2a-timeout.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/cl018-config.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/cl018-constants.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/cl018-file-logger.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/cl018-persistent-session.test.js rc=0 tests=19 pass=19 fail=0 skip=0
+GREEN tests/unit/cl018-psmod-c456.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/cl019-health-ageMs.test.js rc=0 tests=14 pass=14 fail=0 skip=0
+GREEN tests/unit/cl019-routes-routeMetric.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/cl020-f2-a2a-netcfg-capture.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/deploy-conn-side.test.js rc=0 tests=3 pass=3 fail=0 skip=0
+GREEN tests/unit/deploy-shared-skills.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/deploy-winvm-plugin.test.js rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/enabled-plugins.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/health-probe-timeout.test.js rc=0 tests=20 pass=20 fail=0 skip=0
+GREEN tests/unit/hermes-provider.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/host-a2a-bridge.test.js rc=0 tests=39 pass=39 fail=0 skip=0
+GREEN tests/unit/host-adapter.test.js rc=0 tests=35 pass=35 fail=0 skip=0
+GREEN tests/unit/install-vm-admin-endpoint.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/install-vm-task.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/k4-approval.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/k4-p3.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/k5-replay.test.js rc=0 tests=41 pass=41 fail=0 skip=0
+GREEN tests/unit/launcher-posix.test.mjs rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/link-workspace.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/llm-provider.test.js rc=0 tests=20 pass=20 fail=0 skip=0
+GREEN tests/unit/mcp-registrar.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/oh-tunnel.test.mjs rc=0 tests=19 pass=19 fail=0 skip=0
+GREEN tests/unit/p0-path-traversal.test.js rc=0 tests=87 pass=87 fail=0 skip=0
+GREEN tests/unit/path-util-posix.test.mjs rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/path-util.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/phase1-t3-cancel-bounded.test.js rc=0 tests=29 pass=29 fail=0 skip=0
+GREEN tests/unit/phase1-t4-assembly.test.js rc=0 tests=45 pass=45 fail=0 skip=0
+GREEN tests/unit/phase1-t4-http-guard.test.js rc=0 tests=40 pass=40 fail=0 skip=0
+GREEN tests/unit/phase1-t4-pending-approvals.test.js rc=0 tests=28 pass=28 fail=0 skip=0
+GREEN tests/unit/phase1-t5-cancel-consume.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/phase1-t5-llm-cancel.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase1-t5-provider-cancel.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase1-t5-token-env.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/phase2-approval-wait-fallback.test.js rc=0 tests=24 pass=24 fail=0 skip=0
+GREEN tests/unit/phase2-bearer-selfcheck.test.js rc=0 tests=45 pass=45 fail=0 skip=0
+GREEN tests/unit/phase2-dep-direction.test.js rc=0 tests=32 pass=32 fail=0 skip=0
+GREEN tests/unit/phase2-inner-credential.test.js rc=0 tests=38 pass=38 fail=0 skip=0
+GREEN tests/unit/phase2-mcp-signal.test.js rc=0 tests=54 pass=54 fail=0 skip=0
+GREEN tests/unit/phase2-progress-message.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase2-task-store-evict-observe.test.js rc=0 tests=44 pass=44 fail=0 skip=0
+GREEN tests/unit/phase2-truth-mcp-direct.test.js rc=0 tests=58 pass=58 fail=0 skip=0
+GREEN tests/unit/phase3-b2-deadlink-fix.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/phase3-b2-install-host.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/phase3-b2-prepare-vm.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/phase3-b2-psmod-drift.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/phase3-b2-tunnel-start.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/phase3-b2-winget-treekill.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/phase3-b3-cancel-notify.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/phase3-b3-receipt-ttl.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/phase3-b4-capabilities-profile.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/phase3-b4-m3-production-guidance.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/phase3-b5-audit-retention.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/phase3-b5-cancel-storm-gate.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase3-b5-chain-fork-guard.test.js rc=0 tests=3 pass=3 fail=0 skip=0
+GREEN tests/unit/phase3-b5-idle-recycle-budget.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/phase3-b6-bearer-precondition.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/phase3-b6-preview-hash-binding.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/phase3-b6-ws-probe.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/policy.test.js rc=0 tests=25 pass=25 fail=0 skip=0
+GREEN tests/unit/preflight.test.mjs rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/protocols.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/r1-approval-card.test.js rc=0 tests=69 pass=69 fail=0 skip=0
+GREEN tests/unit/r19b-s1-registry-forms.test.js rc=0 tests=35 pass=35 fail=0 skip=0
+GREEN tests/unit/r19b-s5-write-allowlist-pairing.test.js rc=0 tests=39 pass=39 fail=0 skip=0
+GREEN tests/unit/r19c-a5-approval-coordinator.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+GREEN tests/unit/r19c-a5-fix4-risk.test.js rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-approval-truth.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-approval-wait.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-bridge-integ.test.js rc=0 tests=2 pass=2 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-a-pure.test.js rc=0 tests=76 pass=76 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-b-bridge.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-c-session.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-d-provider.test.js rc=0 tests=28 pass=28 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-e-mutation.test.js rc=0 tests=54 pass=54 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-e-shape.test.js rc=0 tests=33 pass=33 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-f-chain.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/r19c-s4-policy-denied-audit.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/r3-uninstall-verify.test.js rc=0 tests=39 pass=39 fail=0 skip=0
+GREEN tests/unit/sandbox-allowwrite.test.mjs rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/setup-devqa-manifest.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/setup-env.test.js rc=0 tests=19 pass=19 fail=0 skip=0
+GREEN tests/unit/setup-health-verdict.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/ssh2-resolve.test.mjs rc=0 tests=8 pass=6 fail=0 skip=2
+GREEN tests/unit/tunnel-daemon.test.mjs rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/tunnel-mode.test.js rc=0 tests=15 pass=15 fail=0 skip=0
+GREEN tests/unit/winvm-plugin.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+
+GREEN     tsc — 12 包编译通过（K-3 第一步；dep-lint 读 dist 的前置，PR9）
+GREEN     dep-lint — packages=12 语句边=43 包级边=23 审计符号=8 hard=0 warn=0 info=10
+GREEN     config-keys — 顶层段=9 白名单段=9 未知键=0
+GREEN     guards — files=8 failed=0 tests=166 pass=166 fail=0 skip=0
+GREEN     sweep — sweepFiles=102 failed=0 tests=1870 pass=1868 fail=0 skip=2（另有 ST3 8 件已在上一段计入，不重复累）
+
+FILES=110 FAILED_FILES=0 TOTAL_TESTS=2036 TOTAL_PASS=2034 TOTAL_FAIL=0 TOTAL_SKIP=2
+DISK_TEST_FILES=110 RUN=110 MATCH
+VERDICT: GREEN
+（GATE-POLICY.md：跳过门禁即视为未验收；本文件即该批次的门禁证据）
