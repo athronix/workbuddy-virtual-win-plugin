@@ -350,6 +350,61 @@ function commonPrefixRatio(a, b) {
 }
 
 /**
+ * A2-9（Phase 3 批6）· enforceBearer 的**配置层硬前置**（纯静态、读不到 env 正是本判据的价值）。
+ *
+ * 病灶（audit §3.2 A2-9 / B-1' / R4 B3 实测）：`enforceBearer` 生效是**双条件**
+ * （`enforceBearer===true` ∧ `process.env[tokenEnv]` 非空，见 core config §4 O-9）。
+ * 运行期 `validateServiceConfig` 只能对「已配 tokenEnv 名但环境变量无值」报 warning
+ * （它读得到注入的 env）；但**「开了 enforceBearer 却压根没配 tokenEnv」这一配置文件内部
+ * 的自相矛盾**——第二条件在结构上永不可能是真——运行期也只是 warning、且依赖有人去跑服务。
+ * 门禁层必须把它钉成 **HARD**：配置文件里写了个不可能生效的安全开关 = 假安全感，
+ * 与本工具 UNKNOWN_CONFIG_KEY 同源（「配了却不生效还不吭声」）。
+ *
+ * 判据（全部可从 JSON 文本静态判定，零 env 依赖）：
+ *   ① `security.enforceBearer === true` 且 `tokenEnv` 缺席/空白 ⇒ HARD ENFORCE_BEARER_MISSING_TOKEN_ENV
+ *   ② `security.enforceBearer` 存在但非布尔（"true"/1 等）⇒ HARD ENFORCE_BEARER_NOT_BOOLEAN
+ *      （双条件判据是 `=== true`，字符串 "true" 关不上也开不了 = 「以为开了其实没开」同族）
+ * 现网两份配置资产（delivery/vm-service.config.json、.generated/vm-service.runtime.json）
+ * 均 `enforceBearer:false` ⇒ 本判据不触发，真机配置仍 code=0（U-6 非恒绿断言不受影响）。
+ *
+ * @param {any} cfg 解析后的配置对象
+ * @returns {{section:string,key:string,hint:string|null,rule:string,message:string}[]}
+ */
+export function checkBearerPrecondition(cfg) {
+  /** @type {{section:string,key:string,hint:string|null,rule:string,message:string}[]} */
+  const found = [];
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return found;
+  const sec = cfg.security;
+  if (!sec || typeof sec !== 'object' || Array.isArray(sec)) return found;
+  const eb = sec.enforceBearer;
+  // ① 类型卫生：写了但不是布尔 ⇒ `=== true` 恒假，守卫不会挂（假开关）
+  if (eb !== undefined && typeof eb !== 'boolean') {
+    found.push({
+      section: 'security',
+      key: 'enforceBearer',
+      hint: null,
+      rule: 'ENFORCE_BEARER_NOT_BOOLEAN',
+      message: `enforceBearer=${JSON.stringify(eb)} 不是布尔 ⇒ 双条件判据「=== true」恒假，bearer 守卫不会挂载。要开请写布尔 true，要关写 false 或删键`,
+    });
+    return found; // 类型已坏，不再叠加「缺 tokenEnv」噪音
+  }
+  // ② 开关为真却没有变量名 ⇒ 第二条件结构上不可满足
+  if (eb === true) {
+    const te = typeof sec.tokenEnv === 'string' ? sec.tokenEnv.trim() : '';
+    if (!te) {
+      found.push({
+        section: 'security',
+        key: 'enforceBearer',
+        hint: 'tokenEnv',
+        rule: 'ENFORCE_BEARER_MISSING_TOKEN_ENV',
+        message: 'enforceBearer=true 但未配 security.tokenEnv（ bearer token 的环境变量名）⇒ 双条件缺第二条件，守卫永不生效（/health.security.authMode 报 loopback-only 而非 bearer-enforced）。请补 tokenEnv，或关掉 enforceBearer',
+      });
+    }
+  }
+  return found;
+}
+
+/**
  * 主流程：白名单 + 逐文件检查。
  * @param {string} root
  * @param {string[]} files 相对 root 的配置 JSON 路径
@@ -378,6 +433,8 @@ export function lintConfigKeys(root, files) {
       continue;
     }
     for (const f of findUnknownKeys(parsed, wl)) findings.push({ file: rel, ...f });
+    // A2-9：enforceBearer 配置层硬前置（与未知键并列进同一 findings[]，靠 rule 字段区分文案）
+    for (const bf of checkBearerPrecondition(parsed)) findings.push({ file: rel, ...bf });
   }
   return {
     code: findings.length > 0 ? 1 : 0,
@@ -407,9 +464,13 @@ export function formatConfigKeyReport(res, root) {
     out.push('未知键：0 条');
     out.push('VERDICT: GREEN');
   } else {
-    out.push(`未知键：${res.findings.length} 条（配了却不生效且不吭声 = 假安全感，设计 §13.2-②）`);
+    out.push(`未知键/安全前置：${res.findings.length} 条（配了却不生效且不吭声 = 假安全感，设计 §13.2-②）`);
     for (const f of res.findings) {
-      out.push(`  [HARD] UNKNOWN_CONFIG_KEY — ${f.file} 段 ${f.section} 键 "${f.key}" 不在派生白名单内${f.hint ? `（是否想写 "${f.hint}"？）` : ''}`);
+      if (f.rule) {
+        out.push(`  [HARD] ${f.rule} — ${f.file} 段 ${f.section} 键 "${f.key}"：${f.message}`);
+      } else {
+        out.push(`  [HARD] UNKNOWN_CONFIG_KEY — ${f.file} 段 ${f.section} 键 "${f.key}" 不在派生白名单内${f.hint ? `（是否想写 "${f.hint}"？）` : ''}`);
+      }
     }
     out.push('VERDICT: RED');
   }

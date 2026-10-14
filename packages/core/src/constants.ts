@@ -255,6 +255,32 @@ export function resolveCancelRateLimit(env: EnvView = process.env): { maxPerWind
   };
 }
 
+/* ==================== A2-11 · 常驻会话工作集探针（Phase 3 批6，终结 wsProbe 死配置） ==================== */
+
+/**
+ * wsProbe 接线开关 env 名。audit §3.2 A2-11：`PersistentCliSessionOptions.wsProbe`
+ * 定义+tick 消费全在，但全仓生产注入点零命中 ⇒ maxWsBytes 护栏（缺省 512MB）永不生效。
+ *   - `WINVM_LLM_WS_PROBE`：默认**启用**（"默认即安全"，同批5 retention 哲学）；
+ *     显式 `0|false|off` ⇒ 不注入探针 = 逐字旧行为（护栏回到今天的静默失效态，运维逃生舱）。
+ *   - `WINVM_LLM_WS_PROBE_INTERVAL_MS`：探针内部采样节流窗（缺省 5000ms；tick 是
+ *     1–30s 高频，探针必须自带节流否则每次 spawn tasklist）。≤0/非法 ⇒ 回退缺省。
+ * 仅 win32 由 bridge 装配点实际注入（本 provider 的部署事实=跑在 VM）；其它平台注入
+ * 也无害（探针走 /proc 分支），但默认只在 win32 装配，保持宿主/CI 平台逐字旧行为。
+ */
+export const ENV_LLM_WS_PROBE = 'WINVM_LLM_WS_PROBE';
+export const ENV_LLM_WS_PROBE_INTERVAL_MS = 'WINVM_LLM_WS_PROBE_INTERVAL_MS';
+export const LLM_WS_PROBE_INTERVAL_MS_DEFAULT = 5_000;
+
+/** wsProbe 探针是否启用（缺省 true；显式假值关）。 */
+export function resolveWsProbeEnabled(env: EnvView = process.env): boolean {
+  return parseBoolean(env[ENV_LLM_WS_PROBE], true);
+}
+
+/** 探针采样节流窗（毫秒）。 */
+export function resolveWsProbeIntervalMs(env: EnvView = process.env): number {
+  return parsePositiveInt(env[ENV_LLM_WS_PROBE_INTERVAL_MS], LLM_WS_PROBE_INTERVAL_MS_DEFAULT);
+}
+
 /* ==================== CL-K3R · 审批真值判据（三态灰度开关） ==================== */
 
 /**

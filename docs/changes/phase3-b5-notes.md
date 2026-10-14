@@ -74,3 +74,35 @@ verifyArchive 的**片内基线取自本片首条**（O-8 设计：轮转片首�
 
 ## 仍待做（依赖真机窗口或后续批次）
 Q2 守卫三修（snapshot-truth 解构绕过/config-key-lint 静默绿/s5 恒真）、Q3 孤儿测试接线（e2e/smoke + delivery/__tests__）、A2-5/6/7 长跑债（ps-bridge 自愈文案/重放不 settle/SSE 空转）、真机 E2E 回归批（P0-4：5域×2通道 18 例重跑 + V1-V13 psmod 生效窗口）。
+
+## 批6 移交登记（2026-10-14，主理人直接实现，续 §批5）
+
+### D-3 台账销账（对账=已闭环，非本批新增）
+亲验 `packages/contracts/src/schema-check.ts` 头注释+实现：Phase 2 · P2-T1（裁决 Q1=(b)）已把
+capability.schema.json 变成**被消费资产**（validateCapabilityShape/checkSchemaDomainDrift，
+appops 已入 enum/pattern:26/29）；消费面=测试（phase2-contract-schema.test.js 23 例，ST3 门禁在册）
++交付门禁，运行期零接入是**裁决明令**（"运行期校验只在校验自己编译出来的东西，安全增益≈0"）。
+⇒ audit §3.3 的"全仓无运行期校验器消费"是 Phase 1 时点旧账，Phase 2 已按裁决 (b) 路径闭环。销账。
+
+### A2-9 enforceBearer 配置层硬前置（本批）
+- config-key-lint.mjs 新增导出 `checkBearerPrecondition(cfg)`（纯静态、零 env 依赖=价值本体）：
+  ① enforceBearer===true ∧ tokenEnv 缺席/trim 空白 ⇒ HARD ENFORCE_BEARER_MISSING_TOKEN_ENV
+  ② enforceBearer 存在但非布尔 ⇒ HARD ENFORCE_BEARER_NOT_BOOLEAN（=== true 恒假=假开关；类型坏不叠加①噪音）
+- lintConfigKeys 集成：bearer findings 与 UNKNOWN_CONFIG_KEY 并列进同一 findings[]（rule 字段区分）；
+  formatConfigKeyReport 与 gate.mjs ST2b 打印面双写适配；现网两配置资产 enforceBearer:false ⇒ 零误伤（实测 GREEN）。
+- 与运行期 validateServiceConfig 的 warning 关系：**双层不互替**——运行期报"有名无值"（读得到 env），
+  门禁钉"结构上第二条件永假"（读不到 env 正是价值）；这正是 A2-9"config-lint 硬前置"的本体。
+- 测试 tests/unit/phase3-b6-bearer-precondition.test.js 8 例（判别性双向：注入必红 tmpdir 陷阱=buildWhitelist
+  需真实 TS 源 ⇒ 临时文件落项目根；现网必绿）。
+
+### A2-11 wsProbe 死配置终结（本批）
+- 新模块 packages/adapter-agent-workbuddy-llm/src/working-set-probe.ts：createWorkingSetProbe 四红线
+  （绝不抛=未知不触发误回收 / 自带 5s 采样节流窗（tick 1–30s 高频，防每 tick spawn tasklist）/
+  pid 变更缓存作废 / 失败进节流窗防重试风暴）；parseTasklistMemUsage（CSV 千分位）+parseProcStatusRss（/proc VmRSS）双平台纯函数。
+- constants.ts：ENV_LLM_WS_PROBE（缺省启用，显式 0/false/off 关=逃生舱逐字旧行为）+ENV_LLM_WS_PROBE_INTERVAL_MS。
+- bridge.ensureSession 接线：win32 ∧ enabled ⇒ wsProbe: createWorkingSetProbe({pidOf: () => self?.snapshot().pid})。
+  **关键设计**：ws 超限回收走 ensureReady→spawnOnce 同一实例（pid 变），不走 ensureSession 重建 ⇒
+  探针必须绑本实例当前 pid（let self 延迟引用，构造期不调用 TDZ 安全）；snapshot().pid 回收后自动缺席⇒探针 undefined，语义自洽。
+- 与 A2-3 咬合：tick ws 分支早已置 recyclePending（批5 双写）⇒ ws 回收不占故障预算，护栏激活无副作用放大。
+- 测试 tests/unit/phase3-b6-ws-probe.test.js 13 例（四红线判别性双向+平台分支+env 开关+tick 语义兼容）。
+- 真机面：VM=win32 ⇒ 本批 dist 推 VM 重启后探针真实激活（列入 V14）。

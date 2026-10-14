@@ -346,7 +346,8 @@ function stageConfigKeys(outPath) {
     return { stage: STAGE.CONFIG_KEYS, verdict: 'RED', detail: `config-key-lint 输出非 JSON（exit=${r.status}）：${(r.stdout || r.stderr).slice(0, 200)}`, lines: [] };
   }
   for (const f of json.findings || []) {
-    emit(outPath, `    [HARD] UNKNOWN_CONFIG_KEY — ${f.file} 段 ${f.section} 键 "${f.key}"${f.hint ? `（是否想写 "${f.hint}"？）` : ''}`);
+    if (f.rule) emit(outPath, `    [HARD] ${f.rule} — ${f.file} 段 ${f.section} 键 "${f.key}"：${f.message ?? ''}`);
+    else emit(outPath, `    [HARD] UNKNOWN_CONFIG_KEY — ${f.file} 段 ${f.section} 键 "${f.key}"${f.hint ? `（是否想写 "${f.hint}"？）` : ''}`);
   }
   const code = typeof json.code === 'number' ? json.code : 1;
   const sections = Object.keys(json.whitelist || {}).length;

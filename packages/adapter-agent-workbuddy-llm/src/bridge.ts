@@ -31,6 +31,8 @@ import {
   resolveApprovalReplay,
   resolveApprovalTruth,
   resolveLlmSessionConfig,
+  resolveWsProbeEnabled,
+  resolveWsProbeIntervalMs,
   expandEnvPath,
   type ApprovalTruthMode,
   type LlmSessionConfig,
@@ -42,6 +44,7 @@ import {
   type SessionLog,
   type TurnResult,
 } from './persistent-session.js';
+import { createWorkingSetProbe } from './working-set-probe.js';
 import {
   COMPLETION_CLAIM_PATTERN,
   reconcileApprovalTruth as reconcileApprovalTruthPure,
@@ -1339,7 +1342,13 @@ export class CliLlmBridge implements LlmBridge {
     if (this.persistent && this.persistentDir === outputDir) return this.persistent;
     if (this.persistent) void this.persistent.shutdown();
     const cfg: LlmSessionConfig = { ...resolveLlmSessionConfig(process.env), ...(this.sessionConfig ?? {}) };
-    this.persistent = new PersistentCliSession({
+    // A2-11（批6）：wsProbe 死配置终结——缺省启用（env WINVM_LLM_WS_PROBE=0 显式关=逐字旧行为），
+    // 仅 win32 注入（本 provider 部署事实=VM 内跑；宿主/CI 平台零变化）。探针绑**本实例**快照：
+    // ws 超限回收走 ensureReady→spawnOnce（同一实例，pid 变），**不走** ensureSession 重建 ⇒
+    // 探针必须读同一实例的当前 pid（`self` 延迟引用；pidOf 仅在 tick 触发，构造期不调用，TDZ 安全）。
+    let self!: PersistentCliSession;
+    const wsProbeOn = resolveWsProbeEnabled(process.env) && process.platform === 'win32';
+    self = new PersistentCliSession({
       cliPath: cli.path,
       outputDir,
       mcpConfigPath,
@@ -1353,7 +1362,16 @@ export class CliLlmBridge implements LlmBridge {
       // L1 §6.2：延迟生效的故障注入位（管理端点在无会话时置位，建会话时补上）
       ...(this.pendingSpawnFault ? { spawnFault: true } : {}),
       ...(this.onSessionLog ? { log: this.onSessionLog } : {}),
+      ...(wsProbeOn
+        ? {
+            wsProbe: createWorkingSetProbe({
+              pidOf: () => self?.snapshot().pid,
+              minIntervalMs: resolveWsProbeIntervalMs(process.env),
+            }),
+          }
+        : {}),
     });
+    this.persistent = self;
     this.persistentDir = outputDir;
     return this.persistent;
   }
