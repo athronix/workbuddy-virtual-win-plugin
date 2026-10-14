@@ -68,7 +68,7 @@ relatedSkills:
 | `gui.input.mouse` | L1 | 移动/点击/双击/右键/滚轮/拖拽 |
 | `gui.uia.tree` | L0 | UIA 元素树 |
 | `gui.uia.invoke` | L1 | 按 AutomationId/Name/ControlType 点击/设值/切换 |
-| `gui.clipboard.manage` | L1 | **只读**剪贴板文本（写入不可用，见"已知陷阱"） |
+| `gui.clipboard.manage` | L1 | 剪贴板文本**读写**（带 `text` ⇒ 写入；不带 ⇒ 读取。M6 起写侧已挂载） |
 | `gui.wait.condition` | L0 | 等窗口出现/消失/进程退出/屏幕稳定 |
 
 ## 标准流程：观察—决策—操作 循环
@@ -176,9 +176,9 @@ relatedSkills:
 - **等待优于硬 sleep**：用 `gui.wait.condition` 代替固定延时，
   界面响应慢时尤其重要
 - **拖拽**：用 `action: "drag"` 并给 `toX/toY`，不要拆成 move+click
-- **剪贴板当前只读**：`gui.clipboard.manage` 实际仅返回当前剪贴板文本；入参中的 `text`
-  **不生效**（写侧 `Set-ClipboardTextValue` 已实现待挂载）——不要向用户宣称"已写入剪贴板"。
-  需要"粘贴文本"时用 `gui.input.keyboard` 或先请用户手工复制
+- **剪贴板读写（M6 已挂载）**：`gui.clipboard.manage` **带 `text` 参数 ⇒ 写入**（空串=清空剪贴板），
+  不带 ⇒ 读取当前文本。需 GUI 交互式会话（requiresSession）。读出内容含敏感数据时入日志前须脱敏；
+  写入成功回执含 `length`，**失败或未经本能力不得向用户宣称"已写入剪贴板"**
 
 ## 参考
 

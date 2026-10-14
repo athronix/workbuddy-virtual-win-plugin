@@ -3,7 +3,7 @@
 | 项 | 值 |
 |---|---|
 | 文档 ID | CAPABILITY-MODEL-winvm-bridge-v1 |
-| 版本 | v1.4（Phase0 文档止血：§3 各域清单按 `definitions.ts` **54 条注册表现状**对齐 —— 7 条幽灵能力摘除并标「V2 规划·当前不可用」、名实不符条目如实化、「已实现待挂载」函数就地标注；v1.3：S-1 §3.1.1 注册表路径形态归一化；K-N2 §3.2.1 dryRun 预览；R17-T01 回执语义） |
+| 版本 | v1.5（M6 读写分派挂载：§3.1.2 三条写侧经分派函数接上（54 计数不变）、shortcut 死函数裁认定册；v1.4（Phase0 文档止血：§3 各域清单按 `definitions.ts` **54 条注册表现状**对齐 —— 7 条幽灵能力摘除并标「V2 规划·当前不可用」、名实不符条目如实化、「已实现待挂载」函数就地标注；v1.3：S-1 §3.1.1 注册表路径形态归一化；K-N2 §3.2.1 dryRun 预览；R17-T01 回执语义） |
 | 层 | L0 规范层（`packages/contracts`） |
 | 日期 | 2026-10-08（v1.4，最后对账：以 `packages/vm-capabilities/src/registry/definitions.ts` 为准）；2026-10-02（v1.3）；2026-08-28（v1.0） |
 
@@ -50,7 +50,7 @@
 | `system.registry.write` | 写注册表（受限根键白名单；路径形态规则同 §3.1.1） | L2 | `Set-ItemProperty` |
 | `system.network.config` | 网卡/IP/DNS/路由**查询**（配置侧 V2） | L0 | `Get-NetworkConfig` |
 | `system.user.manage` | 本地用户与组**查询**（改密/启停/组成员等写侧 V2） | L0 | `Get-LocalUserInfo` |
-| `system.env.manage` | 环境变量**读取**（写入侧函数 `Set-EnvironmentVariableInfo` 已实现待挂载，见 §3.1.2） | L1 | `Get-EnvironmentVariableInfo` |
+| `system.env.manage` | 环境变量**读写**（M6 挂载：带 `value` ⇒ 写入/空串=删除；不带 ⇒ 读取） | L1 | `Invoke-SystemEnvManage` → Get/Set-EnvironmentVariableInfo |
 | `system.eventlog.query` | 事件日志查询 | L0 | `Get-WinEvent` |
 | `system.power.control` | 关机/重启/休眠 | **L3** | `Stop-Computer` / `Restart-Computer` |
 
@@ -59,22 +59,22 @@
 > **不得作为可调用能力对外承诺**。落地建议分两阶（L0 检查可装清单先行、L2 安装含重启联动后随），
 > 见 `docs/audit/2026-10-08-product-audit.md` PM-07。
 
-#### 3.1.2 名实口径与"已实现待挂载"
+#### 3.1.2 名实口径与读写分派挂载（M6 已完成）
 
 > 口径：**能力名实以注册表为唯一事实源**。派发严格按注册 `fn` 发送，故 `ps1` 里已实现但
 > 未挂到注册 `fn` 的函数**对外不可用**，文档不得写成"可做"。
 
-| 能力 | 文档应称 | 实际绑定 | 差集（已实现待挂载） |
+| 能力 | 挂载前（历史口径） | **现绑定（M6 · Phase 3 批4）** | 写侧归宿 |
 |---|---|---|---|
-| `system.env.manage` | L1 **只读**环境变量 | `Get-EnvironmentVariableInfo` | `Set-EnvironmentVariableInfo`（`system.ps1:398`） |
-| `storage.archive.manage` | L1 **仅压缩** | `New-ZipArchiveItem` | `Expand-ZipArchiveItem`（`storage.ps1:263`） |
-| `app.shortcut.manage` | L1 **只读**快捷方式 | `Get-ShortcutInfo` | `New-ShortcutItem`（`app.ps1:1070`） |
-| `gui.clipboard.manage` | L1 **只读**剪贴板文本 | `Get-ClipboardText` | `Set-ClipboardTextValue`（`gui.ps1:483`） |
+| `system.env.manage` | L1 只读 | `Invoke-SystemEnvManage`（带 `value` ⇒ 写） | Set-EnvironmentVariableInfo 已接 |
+| `storage.archive.manage` | L1 仅压缩 | `Invoke-StorageArchiveManage`（`mode=expand` ⇒ 解压） | Expand-ZipArchiveItem 已接 |
+| `app.shortcut.manage` | L1 只读 | `Get-ShortcutInfo`（不变——D8 已内联创建分支） | `New-ShortcutItem`=死函数，裁不重新绑定（双实现漂移风险，audit-pm2 差集亲验；psmod-contract 孤儿快照在册） |
+| `gui.clipboard.manage` | L1 只读 | `Invoke-GuiClipboardManage`（带 `text` ⇒ 写） | Set-ClipboardTextValue 已接 |
 
-> 入参提示：上述四条中 `system.env.manage`（`target`）、`app.shortcut.manage`（`targetPath` 等）、
-> `gui.clipboard.manage`（`text`）的 schema 仍保留了写侧参数位。**传入这些参数不会产生写入**，
-> 回执只会返回读取结果——调用方不得据此向用户宣称"已设置/已创建/已写入"。补齐挂载属工程师范围
-> （见 PM-04 处置①），完成前一律按"只读"对外表述。
+> 入参提示（M6 后更新）：`system.env.manage` 带 `value`、`gui.clipboard.manage` 带 `text`、
+> `storage.archive.manage` 带 `mode:"expand"` 均**真实产生写入/解压**，回执以写侧形状返回
+> （set / changedAt / extracted）；不带相应参数 ⇒ 读侧与挂载前逐字同行为。历史"传入不产生写入"
+> 警示**作废**——分派由注册表绑定（fn=Invoke-* 三处）与 psmod-contract 守卫共同看护，防口径回潮。
 
 #### 3.1.1 注册表路径形态归一化（S-1 · R19-B）
 
@@ -109,7 +109,7 @@
 | `app.winget.uninstall` | 卸载应用（**卸载后核验 + NSIS 静默回退**，回执语义见 §3.2.1） | L2 | `winget uninstall` + 事后磁盘/注册表核验 |
 | `app.winget.upgrade` | 升级应用（可批量） | L1 | `winget upgrade` |
 | `app.process.launch` | 启动应用/打开文件/打开 URL | L1 | `Start-Process` |
-| `app.shortcut.manage` | 快捷方式**读取**（`.lnk` 的 targetPath/arguments/workingDirectory；创建侧函数 `New-ShortcutItem` 已实现待挂载，见 §3.1.2） | L1 | `Get-ShortcutInfo` |
+| `app.shortcut.manage` | 快捷方式**读取与创建**（Get-ShortcutInfo 内已含「无 path+targetPath ⇒ 创建」分支，D8 决策；`New-ShortcutItem` 系被其内联取代的死函数，不重新绑定） | L1 | `Get-ShortcutInfo` |
 | `app.appx.manage` | UWP 包**查询**（安装/移除 V2；移除可先试 `app.winget.uninstall`） | L0 | `Get-AppxPackageInfo` |
 
 > **已摘除条目（V2 规划 · 当前不可用）**：
@@ -161,7 +161,7 @@
 | `storage.file.copy` | 复制 | L1 | `Copy-Item` |
 | `storage.dir.manage` | **创建**目录（幂等；删除目录请用 `storage.file.delete`） | L1 | `New-DirectoryItem` |
 | `storage.search.query` | 文件名/内容搜索 | L0 | `Get-ChildItem -Recurse` / `Select-String` |
-| `storage.archive.manage` | **创建** zip 归档（解压侧函数 `Expand-ZipArchiveItem` 已实现待挂载，见 §3.1.2） | L1 | `New-ZipArchiveItem` |
+| `storage.archive.manage` | zip **压缩/解压**（M6 挂载：`mode=expand` ⇒ 解压；缺省压缩） | L1 | `Invoke-StorageArchiveManage` → New/Expand-ZipArchiveItem |
 | `storage.link.manage` | 符号链接/硬链接/ junction | L2 | `New-LinkItem` |
 | `storage.recycle.manage` | 回收站**查看**（清空侧 V2；如需删除请按 `storage.file.delete` 逐项审批） | L0 | `Get-RecycleBinInfo` |
 | `storage.cleanup.analyze` | 清理建议（**只分析不执行**） | L0 | 规则引擎 |
@@ -181,7 +181,7 @@
 | `gui.input.mouse` | 鼠标（移动/点击/双击/右键/拖拽/滚轮） | L1 | `SendInput` P/Invoke |
 | `gui.uia.tree` | UIA 元素树（按窗口/按坐标命中） | L0 | `System.Windows.Automation` |
 | `gui.uia.invoke` | 按 AutomationId/Name/ControlType 定位并点击/设值 | L1 | UIA Patterns（Invoke/Value/Toggle） |
-| `gui.clipboard.manage` | 剪贴板文本**只读**（写入侧函数 `Set-ClipboardTextValue` 已实现待挂载，见 §3.1.2；图片/文件格式不支持） | L1 | `Get-ClipboardText` |
+| `gui.clipboard.manage` | 剪贴板文本**读写**（M6 挂载：带 `text` ⇒ 写入/空串=清空；图片/文件格式仍不支持） | L1 | `Invoke-GuiClipboardManage` → Get-ClipboardText/Set-ClipboardTextValue |
 | `gui.wait.condition` | 等待条件（枚举 `windowExists\|windowGone\|processExited\|screenStable`；"元素存在/图像匹配" V2） | L0 | 轮询 + 超时 |
 
 > **浏览器自动化（原 `gui.browser.control`）：V2 规划 · 当前不可用**，未在 `definitions.ts`

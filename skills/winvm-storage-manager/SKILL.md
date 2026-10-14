@@ -74,7 +74,7 @@ relatedSkills:
 | `storage.file.copy` | L1 | 复制 |
 | `storage.dir.manage` | L1 | 创建目录（幂等） |
 | `storage.search.query` | L0 | 按文件名或内容搜索 |
-| `storage.archive.manage` | L1 | **仅创建** zip（解压当前不可用，见"已知陷阱"） |
+| `storage.archive.manage` | L1 | zip **压缩/解压**（`mode` 缺省=compress；`mode:"expand"` ⇒ 解压。M6 起解压已挂载） |
 | `storage.link.manage` | L2 | 符号链接/硬链接/junction（**需审批**） |
 | `storage.recycle.manage` | L0 | 查看回收站（**清空当前不可用**，V2） |
 | `storage.cleanup.analyze` | L0 | **只分析不执行** |
@@ -138,13 +138,11 @@ relatedSkills:
 - **回收站清空当前不可用**：`storage.recycle.manage` **只读查看**（无清空函数挂载）；
   `cleanup.analyze` **只分析不执行**，不要把它当清理工具。用户要求"清空回收站"时如实说明
   现状（可人工在 VM 内清空，或按 `storage.file.delete` 逐项审批删除目标文件）
-- **zip 解压当前不可用**：`storage.archive.manage` 仅能**创建** zip；入参 `destination` 为
-  归档输出路径，传解压意图**不会产生展开**（解压函数 `Expand-ZipArchiveItem` 已实现待挂载）。
-  需要解压时**不要**用 `appops.cli.invoke` 的 `app: "powershell"`——该枚举**无 powershell**
-  （合法值仅 ffmpeg/magick/soffice/pandoc/node/python/custom），直传恒返 `INVALID_PARAMS`；
-  正确代用形态是 **`appops.cli.invoke { app: "custom", command: "powershell -NoProfile -Command \"Expand-Archive -Path '<zip>' -DestinationPath '<dir>'\"" }`**
-  （custom 把 command 首词解析为可执行文件；普通 Expand-Archive 不触命令黑名单；仍走 L1 免审批+路径白名单）——
-  或人工操作。**不要静默声称已解压**
+- **zip 压缩/解压（M6 已挂载）**：`storage.archive.manage` 缺省 **compress**（path=源、destination=归档输出）；
+  传 **`mode: "expand"`** ⇒ 解压（path=zip 本体、destination=目标目录）。非法 mode 显式报错不静默回退。
+  历史备用的 `appops.cli.invoke { app: "custom", command: "powershell -NoProfile -Command \"Expand-Archive …\"" }`
+  代用形态仍可直调，但**首选本能力 mode 形态**（同一能力声明内语义完整；custom 形态属绕行）。
+  注意：**不要**用 `app: "powershell"`——该枚举无 powershell（合法值仅 ffmpeg/magick/soffice/pandoc/node/python/custom）
 - **压缩大目录耗时长**：`storage.archive.manage` 超时上限 300s
 
 ## 参考

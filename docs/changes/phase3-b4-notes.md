@@ -52,3 +52,32 @@ tests/unit/phase3-b4-m3-production-guidance.test.js 5 例（生产同构夹具=�
 
 ### 真机确认（V16，待 VM 回线窗口）
 P1 `app.inventory.list(name=ffmpeg)` 命中形状与 nameMatchers 匹配实证；P2 `appops.cli.invoke(app=ffmpeg,command="-version")` 直调真实可用=引导文案承诺的现实依据。E2E-03 已实证 inventory 数组形状（name 字段在位），P2 未跑（本轮 VM 在跑批5/6 时二次掉线）。
+
+## M6 真机绑定完成（2026-10-14 批4 part3，读写分派保 54 计数）
+
+### 交付（读-写分派，非新增能力）
+三域各建分派函数（注册表唯一绑定 fn）：
+- `Invoke-GuiClipboardManage`（gui.ps1）：带 `text`⇒Set-ClipboardTextValue / 不带⇒Get-ClipboardText；
+- `Invoke-SystemEnvManage`（system.ps1）：带 `value`⇒Set-EnvironmentVariableInfo（空串=删除变量，name 必填守卫）/ 不带⇒Get；
+- `Invoke-StorageArchiveManage`（storage.ps1）：`mode=expand`⇒Expand-ZipArchiveItem / 缺省 compress⇒New；**非法 mode 显式 throw 不静默回退**。
+New-ShortcutItem 裁**不绑定**（D8 已被 Get-ShortcutInfo 内联取代=死函数，双实现漂移风险，与 A2-10 单源化同精神）→ 孤儿快照 `KNOWN_ORPHANS` 从 4 缩到 1（既定"接上即变红同步"语义兑现）。
+文档/教学同窗：CAPABILITY-MODEL §3.1.2 表+四条能力行+v1.5 版本行；gui/storage/system-admin 三 SKILL 的"只读/仅压缩/待挂载"口径改读写实况；**"传入不产生写入"历史警示作废**（防回潮=skill-claims 守卫+psmod-contract 分派绑定双看护）。
+离线验证：tsc RC=0；psmod-contract 7/7、contract-schema 23（src↔dist 绑定一致）、snapshot-truth 17、sort 6、p0-path 87、skill-claims 11 全绿；gate quick GREEN。
+
+### 真机验证（VM 在线，deploy-vm 推新版+计划任务重启后）
+| 能力 | 读侧 | 写侧 | 边界 |
+|---|---|---|---|
+| clipboard | `readback="M6-V2-CLIP"` ✓ | `set:true length:10` ✓ | requiresSession 健康会话 |
+| env | `read="hello-m6"` ✓ | `write`+`del.ok`+`afterDel=null` ✓（写读删全循环） | Machine 需管理员令牌（未测） |
+| archive | `compress bytes=135` ✓ | `expand extracted:true` ✓（压缩解压回环） | **badmode⇒INVALID_PARAMS 枚举拒**（不静默回退实证） |
+指纹 `fpFiles=6` 在场=M6 新 psmod 确已加载（分派函数生效铁证）。
+
+### V16（M3 双探针真机）
+- **P1 inventory 探测证据源**：`app.inventory.list(name=ffmpeg)` 命中 1 条 **name="FFmpeg"**（首字母大写）⇒ 我的 `nameMatchers[/ffmpeg/i]` 大小写不敏感设计正确命中；imagemagick 命中 0 ⇒ 走"未装配方"分支（与引导逻辑一致）。
+- **P2 cli.invoke 直调可达性**：`appops.cli.invoke(app=python,command="--version")` ok=true exit=0 out="Python 3.14.7" ⇒ M3 引导文案承诺的"直调可达"现实依据实证。
+
+### ⚠ 生产级根因发现：VM-START TIMEOUT 真身 = Node Windows SO_EXCLUSIVEADDRUSE EACCES（非幽灵进程/非保留区间）
+诊断链：schtasks 触发成功但 30s 无监听 → 前台直跑抓 stderr = `listen EACCES: permission denied 127.0.0.1:18443`（此前误猜"幽灵进程占端口"，实为 Node 在 Windows 用**独占绑定**，上一监听者（含其继承 18443 句柄的 ps-bridge 子 powershell）被 kill 后 socket 未彻底 drain，新实例重绑同端口返 EACCES 而非 EADDRINUSE）。
+- netsh excludedportrange 实测仅 5357/5985/47001（排除保留区间假设）；
+- 解药=**彻底清 socket 持有者（18443 全状态+vm-service node+ps-bridge powershell）+ 递增等待 socket drain（12/24/36/48s）+ 循环重试**——本窗口 attempt2（24s drain）即恢复（qa/p3-batch-sweep/m6-restart.ps1 已入库可复用）；
+- **处方候选（登记不盲改）**：① install-vm 生成的 start-hidden.ps1 `Wait 500ms` 对独占重绑必不够→重启前应先确认端口无残留持有者；② 更根本=vm-service `listen` catch EACCES 后对同端口**有界退避自重试**（秒级释放）而非直接抛错退出——属可用性健壮性改动，需设计+测试+真机，交批5 长跑债或独立小批。**教训：Windows 端口重启类故障先 `netstat 全状态 + 前台直跑读 stderr 定性 EACCES/EADDRINUSE/EPERM，不凭"占用"直觉猜幽灵进程**。

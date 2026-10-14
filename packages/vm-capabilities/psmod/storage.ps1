@@ -266,6 +266,25 @@ function Expand-ZipArchiveItem {
     return [ordered]@{ archive = $Path; to = $Destination; extracted = $true }
 }
 
+# ------------------------------ storage.archive.manage 压缩/解压分派（M6 · Phase 3 批4） ------------------------------
+# 能力声明本就是「创建**或展开** zip 归档」（definitions.ts 名实相符补债）：
+#   · mode='expand' ⇒ 解压侧（path=zip 本体，destination=目标目录）；
+#   · mode 缺席/'compress' ⇒ 压缩侧（与挂载前逐字同行为；非法 mode 显式报错不静默回退）。
+function Invoke-StorageArchiveManage {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Destination,
+        [string]$Mode = 'compress'
+    )
+    switch ($Mode.ToLowerInvariant()) {
+        'compress' { return New-ZipArchiveItem -Path $Path -Destination $Destination }
+        'expand'   { return Expand-ZipArchiveItem -Path $Path -Destination $Destination }
+        default {
+            throw "INVALID_ARGUMENT: archive mode 仅支持 compress/expand，收到 '$Mode'（非法值绝不静默回退压缩）"
+        }
+    }
+}
+
 # ------------------------------ storage.link.manage ------------------------------
 
 function New-LinkItem {

@@ -487,6 +487,22 @@ function Set-ClipboardTextValue {
     return [ordered]@{ set = $true; length = $Text.Length }
 }
 
+# ------------------------------ gui.clipboard.manage 读写分派（M6 · Phase 3 批4） ------------------------------
+# 能力声明本就是「剪贴板**读写**」（definitions.ts description 名实相符补债）：
+#   · 请求带 `text` 参数（$PSBoundParameters 判定，空串=合法的「清空剪贴板」写入）⇒ 走写侧；
+#   · 不带 ⇒ 走读侧（与挂载前逐字同行为）。
+# 分派函数是注册表唯一绑定（fn='Invoke-GuiClipboardManage'）；Get/Set 两函数保留为内部实现
+# ——psmod-contract 孤儿守卫据此把 Set-ClipboardTextValue 从孤儿快照除名（接上=期望变红同步）。
+function Invoke-GuiClipboardManage {
+    param(
+        [string]$Text
+    )
+    if ($PSBoundParameters.ContainsKey('Text')) {
+        return Set-ClipboardTextValue -Text $Text
+    }
+    return Get-ClipboardText
+}
+
 # ------------------------------ 等待条件（gui.wait.condition） ------------------------------
 
 function Wait-GuiCondition {

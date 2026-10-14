@@ -60,7 +60,7 @@ relatedSkills:
 | `system.registry.write` | L2 | 写注册表（限可写根键，**需审批**） |
 | `system.network.config` | L0 | 网卡/IP/DNS/路由 |
 | `system.user.manage` | L0 | 本地用户与启用状态 |
-| `system.env.manage` | L1 | **只读**用户/系统环境变量（写入函数已实现待挂载，当前不可用） |
+| `system.env.manage` | L1 | 环境变量**读写**（带 `value` ⇒ 写入，空串=删除变量；不带 ⇒ 读取。M6 起写侧已挂载；Machine 目标需管理员令牌） |
 | `system.eventlog.query` | L0 | 事件日志查询 |
 | `system.power.control` | **L3** | 关机/重启/休眠/睡眠（**先 dry-run**） |
 

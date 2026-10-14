@@ -250,10 +250,13 @@ describe('psmod 契约 · 孤儿函数（登记为快照，新增即红）', () 
    * 快照外新增孤儿 ⇒ 红；孤儿被真正接上（或删除）⇒ 本用例变红提醒同步快照，是期望行为。
    */
   const KNOWN_ORPHANS = [
+    // M6（Phase 3 批4）：3 个写侧函数经读写分派函数接上注册表
+    // （Invoke-GuiClipboardManage→Set-ClipboardTextValue / Invoke-SystemEnvManage→Set-EnvironmentVariableInfo /
+    //  Invoke-StorageArchiveManage→Expand-ZipArchiveItem，内部调用即除名）——
+    // 按本快照既定语义「孤儿被真正接上 ⇒ 变红提醒同步」，同步于 2026-10-14。
+    // 仅剩 New-ShortcutItem：D8 决策由 Get-ShortcutInfo 内联取代（audit-pm2 差集亲验），
+    // 处置=文档口径订正而非重新绑定（绑死函数=双实现漂移，与 A2-10 单源化同精神）。
     'app.ps1::New-ShortcutItem',
-    'gui.ps1::Set-ClipboardTextValue',
-    'storage.ps1::Expand-ZipArchiveItem',
-    'system.ps1::Set-EnvironmentVariableInfo',
   ];
 
   test('孤儿函数集合等于已登记快照（不多不少）', () => {

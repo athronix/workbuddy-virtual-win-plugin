@@ -406,6 +406,25 @@ function Set-EnvironmentVariableInfo {
     return [ordered]@{ name = $Name; value = $Value; target = $Target; changedAt = (Get-Date).ToUniversalTime().ToString('o') }
 }
 
+# ------------------------------ system.env.manage 读写分派（M6 · Phase 3 批4） ------------------------------
+# 能力声明本就是「读取**或设置**用户/系统环境变量」（definitions.ts 名实相符补债）：
+#   · 请求带 `value` 参数 ⇒ 写侧（空串=删除变量，Windows 原生语义，诚实透传不包装）；
+#   · 不带 ⇒ 读侧（与挂载前逐字同行为）。`name` 缺席时写侧由 Set 的 Mandatory 守卫显式报错。
+function Invoke-SystemEnvManage {
+    param(
+        [string]$Name = '',
+        [string]$Value,
+        [ValidateSet('User', 'Machine')][string]$Target = 'User'
+    )
+    if ($PSBoundParameters.ContainsKey('Value')) {
+        if (-not $Name) {
+            throw 'INVALID_ARGUMENT: 写入环境变量必须提供 name（value 空串=删除该变量，也需 name 指明删哪个）'
+        }
+        return Set-EnvironmentVariableInfo -Name $Name -Value $Value -Target $Target
+    }
+    return Get-EnvironmentVariableInfo -Name $Name -Target $Target
+}
+
 # ------------------------------ system.eventlog.query ------------------------------
 
 function Get-EventLogEntries {
