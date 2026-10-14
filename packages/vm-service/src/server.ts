@@ -73,6 +73,8 @@ import {
   scopeFeedEnabled,
   isScopeGateRejection,
   enforceScopeRejection,
+  buildPolicyGateHealth,
+  type PolicyGateHealthView,
 } from './policy-gate.js';
 import type { CapabilitiesProfile } from './capabilities-profile.js';
 /**
@@ -1368,7 +1370,16 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       // 审批续跑字段：宿主确认后带上 approvalId 重发同一请求
       properties: {
         ...((cap.input['properties'] as Record<string, unknown>) ?? {}),
-        __approvalId: { type: 'string', description: '审批续跑标记（批1 放行闭环在建：当前批准后重发仍需审批，勿依赖此参数续跑）' },
+        __approvalId: {
+          type: 'string',
+          // 批1 已落地（(c) 策略化，主理人终裁）：纯宿主直调命中 L2/L3 审批闸 ⇒ 服务端
+          // 直接收口 `DELEGATION_REQUIRED`（**不再**发放续跑令牌）⇒ 本参数在直调通道上
+          // 无可续跑的对象。审批唯一可达路径 = 经 a2a.delegate 委派（宿主 approval.reply
+          // →服务端重放）。本字段仅在 `WINVM_APPROVAL_REPLAY=off` 回滚态的委派内层令牌上有效。
+          description:
+            '审批续跑标记（批1(c) 后：L2/L3 一律经委派审批，直调命中即收口 DELEGATION_REQUIRED、' +
+            '不再发令牌；本参数仅 replay=off 回滚态的委派内层续跑用到，勿在直调上依赖）',
+        },
       },
     },
     annotations: {
@@ -1644,7 +1655,7 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     logger,
       instructions:
       'WinVM Bridge：通过 MCP 工具操作 Windows 虚拟机（系统/应用/存储/GUI/应用生产）。' +
-      '工具名即能力 ID（如 system.service.control、appops.workflow.run）。风险等级 L2/L3 需先取 approvalId 走审批；批准后自动续跑放行闭环批1 在建，当前重发仍需审批。',
+      '工具名即能力 ID（如 system.service.control、appops.workflow.run）。风险等级 L2/L3 一律经 a2a.delegate 委派审批（批1(c)：直调命中审批闸即收口 DELEGATION_REQUIRED，不再发放续跑令牌）。',
   });
 
   /* ================================ A2A ================================ */
@@ -1939,6 +1950,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       });
     }
     approvalCoordinator.pruneDecided(pendingApprovals.keys());
+    // 批1 F-2：scope 表兜底清扫（与令牌同 TTL 同周期定时器；正常路径靠 onGoalTerminal
+    // 销账，本清扫只兜「委派回合异常无终态回调」的漏网条目——有界性双保险）。
+    scopeRegistry.sweepExpired();
   });
 
   /* ================================ HTTP ================================ */
@@ -2215,7 +2229,15 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     }) as SecurityHealth;
   }
 
-  async function buildHealth(): Promise<HealthStatus & { degradedReason?: string; exposed: number; capabilitiesProfile?: CapabilitiesProfile }> {
+  async function buildHealth(): Promise<
+    HealthStatus & {
+      degradedReason?: string;
+      exposed: number;
+      capabilitiesProfile?: CapabilitiesProfile;
+      /** 批1（纯附加）：双闸灰度/(c) 策略化/scope 表运行态显形 */
+      policyGate?: PolicyGateHealthView;
+    }
+  > {
     const probeTimeoutMs = resolveHealthProbeTimeoutMs();
     const activeProvider = provider;
     const probes = await raceHealthSubProbes({
@@ -2354,6 +2376,15 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
        * `address()` 返回 undefined ⇒ 回落配置值，保守不误报 true）。
        */
       security: buildSecurityHealth(),
+      // 批1（纯附加）：双闸接线灰度与 (c) 策略化的**运行态显形**——运维/升级窗口需要
+      // 一眼看出「现在到底在不执法、shadow 命中了多少、直调收口开没开、scope 表多大」，
+      // 而不是事后翻 warn 日志拼线索（「门禁内稳门外盲」教训的体检面延伸）。
+      policyGate: buildPolicyGateHealth(
+        policyGateWiring,
+        policyGateShadowHits.count,
+        delegationRequiredPolicy,
+        scopeRegistry.size,
+      ),
       // ENG-08：TaskStore 有界化事实（纯附加）。`live` 是内存驻留量，
       // 配合 `maxTasks` 让运维能看出「快到顶了」而不是等驱逐发生。
       // P2-T7（L1，纯附加）：再补 `evictedCount` —— 「已经回收了多少」此前完全不可见

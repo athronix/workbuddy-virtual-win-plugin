@@ -153,13 +153,15 @@ describe('E2E · MCP 通道', () => {
     assert.equal(sc.error.code, 'POLICY_DENIED');
   });
 
-  test('L2 删除操作触发审批闸并返回 approvalId', async () => {
+  test('L2 删除操作：批1(c) 纯直调收口 DELEGATION_REQUIRED；委派内层形态（?dtid）仍注册审批令牌', async () => {
+    // 批1(c) 策略化（2026-10-14 落地，缺省 on）：纯宿主直调命中 L2/L3 审批闸 ⇒ 服务端按
+    // 通道事实（协调器活动委派槽缺席 ∧ dtid 缺席）直接收口 DELEGATION_REQUIRED，**不再**
+    // 发放永远批不下来的死令牌（P0-1 信任核弹根治）。旧断言（直调返 APPROVAL_REQUIRED+
+    // approvalId）随批1 同批订正——受契约保护变更，登记 phase3-b1-notes。
     const { body } = await post('/mcp', {
       jsonrpc: '2.0', id: 5, method: 'tools/call',
-      // Q3 修正（Phase 3 批5）：旧路径 `C:\Users\alice\old` 不在 pathAllowlist（离线
-      // createService 环境 USERPROFILE≠alice）⇒ 策略层在**审批闸之前**以 pathAllowlist:miss
-      // 拒掉 ⇒ APPROVAL_REQUIRED 永不可达（离线必红；真机 Windows 恰好当前用户=alice 才绿的
-      // 侥幸面）。改用硬编码生产工作目录白名单（defaults.ts `C:\WinVMWorkspace\**`）⇒ 两环境同判据。
+      // Q3 修正（Phase 3 批5）：路径取硬编码生产工作目录白名单（defaults.ts `C:\WinVMWorkspace\**`）
+      // ⇒ 离线与真机同判据（旧夹具 C:\Users\alice 会被 pathAllowlist:miss 抢先拒掉）。
       params: { name: 'storage.file.delete', arguments: { path: 'C:\\WinVMWorkspace\\drafts\\old.txt' } },
     });
     const sc = body.result.structuredContent;
@@ -167,10 +169,21 @@ describe('E2E · MCP 通道', () => {
     assert.ok(sc, JSON.stringify(body));
     if (sc.error?.code === 'PROVIDER_UNAVAILABLE') return; // 环境无 PowerShell，跳过
     assert.equal(sc.ok, false);
-    assert.equal(sc.error.code, 'APPROVAL_REQUIRED', `实际：${JSON.stringify(sc.error)}`);
-    assert.ok(sc.approval.approvalId, '必须返回 approvalId 供续跑');
-    assert.equal(sc.approval.risk, 'L2');
-    assert.ok(sc.approval.impact.length > 0, '审批卡片必须给出影响清单');
+    assert.equal(sc.error.code, 'DELEGATION_REQUIRED', `纯直调 L2 应收口须走委派，实际：${JSON.stringify(sc.error)}`);
+    assert.equal(sc.error.retryable, false, '重试同一请求无益（须换通道）');
+    assert.equal(sc.approval, undefined, '(c) 收口不再发放续跑令牌');
+
+    // 判别性对照：委派内层形态（带 ?dtid ⇒ isInnerDelegation 为真）⇒ 绝不被 (c) 收口，
+    // 继续走注册令牌审批流（验收绿闭环的入口形态；两侧行为同一 CL 钉死）。
+    const innerResp = await post('/mcp?dtid=tr_smoke_inner', {
+      jsonrpc: '2.0', id: 6, method: 'tools/call',
+      params: { name: 'storage.file.delete', arguments: { path: 'C:\\WinVMWorkspace\\drafts\\old.txt' } },
+    });
+    const sc2 = innerResp.body?.result?.structuredContent;
+    assert.ok(sc2, JSON.stringify(innerResp));
+    if (sc2.error?.code === 'PROVIDER_UNAVAILABLE') return;
+    assert.equal(sc2.error.code, 'APPROVAL_REQUIRED', '委派内层仍走审批闸注册令牌（(c) 只收口纯直调）');
+    assert.ok(sc2.approval?.approvalId, '内层必须返回 approvalId 供批准后重放续跑');
   });
 });
 

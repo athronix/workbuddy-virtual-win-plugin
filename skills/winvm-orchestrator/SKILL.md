@@ -267,7 +267,7 @@ winvm-a2a__a2a.delegate({
 ### MCP 通道
 首次调用 L2/L3 工具 → 返回 `APPROVAL_REQUIRED` + `approvalId` + `approval.preview`
 （含 `impact` 影响清单与 dry-run 预览）。
-**向用户展示影响清单**，取得确认后——**当前（批1 审批闭环在建前）取得确认后不要重发**：宿主批准后服务端即删除审批令牌，附 `__approvalId` 以同一参数重发恒返 `APPROVAL_REQUIRED`（死循环风险）。如实告知用户"批准已记录、放行通道批1 在建"并保持等待；批1 落地后再按卡片 §9 的新口径续跑。
+**向用户展示影响清单**，取得确认后——**纯 MCP 直调命中 L2/L3 时服务端直接收口 `DELEGATION_REQUIRED`（批1(c) 已落地）**：不会再返回 approvalId、也不要附 `__approvalId` 重发（该路径已从协议移除）。正确动作 = **改走委派**：`a2a.delegate` 发起同一目标（宿主批准 → 服务端重放放行闭环）。向用户如实说明"L2/L3 须经委派审批，正在转委派"。仅 `WINVM_DELEGATION_REQUIRED_POLICY=off` 回滚态才回到旧"取 approvalId 等待"流程。
 
 > **`dryRun: true` 免审批**：**仅当能力注册表声明 `supportsDryRun === true`**（服务端事实，声明全集以 `grep -c "supportsDryRun: true" packages/vm-capabilities/src/registry/definitions.ts` 为准，当前 5 条，如 `system.power.control`、`app.winget.uninstall`）时，
 > 带 `dryRun: true` 调用**直接放行、不产生审批卡片**，返回变更计划（`would`/`plan`）与影响清单。**未声明该标志的 L2/L3 能力传 `dryRun` 照常被 `APPROVAL_REQUIRED` 拦**（不会免批）。

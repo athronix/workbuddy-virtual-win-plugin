@@ -51,9 +51,9 @@
 │  L2/L3 强制人工确认；A2A → input-required；MCP → 待确认    │
 └──────────────────────┬────────────────────────────────────┘
 ┌─ 第 6 层：执行最小权限 ────────────────────────────────────┐
-│  委派可携带 allowedCapabilities + maxRisk（**声明记录于    │
-│  审计链；执行面尚未接线＝Phase 3 批1 在建**，见 §2.3）；   │
-│  删除优先回收站（此项在位）                                │
+│  委派可携带 allowedCapabilities + maxRisk（**批1 已接线；  │
+│  缺省灰度 shadow＝观测不执法，不得读作已生效封顶闸**，     │
+│  见 §2.3）；删除优先回收站（此项在位）                     │
 └──────────────────────┬────────────────────────────────────┘
 ┌─ 第 7 层：审计与回溯（NFR-507/509）──────────────────────┐
 │  哈希链 append-only；traceId 全链路；快照=信息性声明        │
@@ -121,21 +121,22 @@
 
 判据由 `tests/unit/phase2-mcp-signal.test.js` 钉死，含一条关键反证：`close` 且响应已正常写完（`writableEnded===true`）时**绝不允许** abort——否则每一次成功调用都会被读成取消（假取消比漏报更严重）。
 
-### 2.3 最小权限两参数（`allowedCapabilities` / `maxRisk`）的兑现现状（E-1 终版定性 · 2026-10-13 批0 诚实化）
+### 2.3 最小权限两参数（`allowedCapabilities` / `maxRisk`）的兑现现状（批1 接线落地 · 2026-10-14 订正，原 E-1 批0 定性留痕于 git）
 
-> **当前实现为「声明记录于审计链，执行面尚未接线」**——这不是安全闸已生效的承诺。接线 = **Phase 3 批1 在建**（与审批闭环出路 (c) 策略化同一 CL，硬前置）。
+> **接线已落地（批1 CL1–CL3），但缺省灰度 = `shadow`（评估+观测、不执法）** ⇒ 缺省部署形态下两键仍**不得读作**已生效的强制封顶/过滤闸；执法需运维显式 `WINVM_APPROVAL_REPLAY` 之外的 `WINVM_POLICY_GATE_WIRING=on`。宿主直调 L2/L3 的 (c) 通道收口则**缺省生效**（`WINVM_DELEGATION_REQUIRED_POLICY=on`，独立开关）。
 
-实况（2026-10-12 全维度体检 E-1 / M2 亲验锚点，逐处可回溯）：
+实况（批1 终态，逐处可回溯）：
 
 | 环节 | 状态 |
 |---|---|
-| 宿主可填、契约透传 | ✅ `a2a.delegate` schema 含两键（`tools.ts:368/373`） |
-| 记录于审计链 | ✅ `goal.maxRisk` 落审计条目与步骤展示字段 |
-| 进入 `policy.evaluate` 实参 | ❌ **三处生产调用点（vm-service `server.ts:1060/:1229`、adapter `index.ts:295`）均不传两键** ⇒ 引擎封顶分支（`engine.ts:759`）生产路径永不可达 |
-| 流式路径装配 | ❌ `handleStream` 装配 GoalRequest 不解析 `allowedCapabilities`（非流式路径透传、deterministic provider 白名单过滤 `adapter index.ts:755-756` 真实在跑——这是唯一一处消费先例） |
-| 端到端「设了 maxRisk ⇒ L2 被拦」用例 | ❌ 不存在（批1 验收判据即为此用例落地） |
+| 宿主可填、契约透传 | ✅ `a2a.delegate` schema 含两键（`tools.ts:368/373`）；宿主桥如实携带来源标（`maxRiskSource='agent'\|'host-default'`，批1 F-3） |
+| 记录于审计链 | ✅ `goal.maxRisk`/`allowedCapabilities` 落委派壳条目（delegation.start/complete）与步骤展示字段 |
+| 流式路径装配 | ✅ F-1 装配单源化：`message/send` 与 `message/stream` 共用 `buildGoal`（A2-19 主用通道静默丢弃已结构性消除） |
+| 进入 `policy.evaluate` 实参 | ✅ **三处生产调用点全部接线**：MCP handler `evaluateScoped`（含 scope 回查）、`executeCapability`/服务端重放（token 留存值复评）、deterministic `step()`（goal 声明直喂）。**喂入的仅是宿主声明值**（maxRiskDeclared 判源），服务端回退默认绝不喂 ⇒ 零可用性断崖 |
+| 灰度执法 | ⚠️ 缺省 `shadow`：scope 两闸命中拒绝时只计数观测（`/health.policyGate.shadowHits`）并按无 scope 基线放行；`on` 才执法；`off` 完全跳过（旧行为） |
+| 端到端用例 | ✅ `tests/unit/p3-b1-policy-gate.test.js`（声明 maxRisk:L1 ⇒ L2 POLICY_DENIED 执法、白名单外 DENY、shadow 改道不执法、未声明零断崖、E-2 显形，含真实引擎行为面） |
 
-**读法约束**：本节与 §2 分层图第 6 层、§3.1 判定顺序第 7 步、`INTERFACES.md` §3.4 示例中出现的 `allowedCapabilities`/`maxRisk`，一律按「调用方声明 + 审计留痕」理解，**不得**读作「服务端强制封顶/白名单过滤」。真正拦阻 L2/L3 的现状仍是第 5 层审批闸。
+**读法约束**：本节与 §2 分层图第 6 层、§3.1 判定顺序第 7 步、`INTERFACES.md` §3.4 示例中出现的 `allowedCapabilities`/`maxRisk`，缺省按「宿主声明 + 审计留痕 + shadow 观测」理解，**不得**读作「服务端已强制封顶/白名单过滤」（那需要显式 `WINVM_POLICY_GATE_WIRING=on`）。真正拦阻 L2/L3 的缺省生效闸仍是第 5 层审批闸 + (c) 直调收口。
 
 ---
 

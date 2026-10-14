@@ -30,7 +30,7 @@
 请回复「批准」以继续，或回复「拒绝」以终止。
 未经确认不会执行任何变更。
 
-（MCP 通道续跑指令·批1 前不可依赖）批准后服务端即删审批令牌，附 __approvalId="apr_8f3c" 重发恒返需审批；放行闭环批1 在建——批1 前如实告知用户等待，勿死循环重发
+（MCP 通道·批1(c) 已落地：直调 L2/L3 不发令牌）纯宿主直调命中 L2/L3 ⇒ 服务端直接收口 DELEGATION_REQUIRED（不返回 approvalId、无需续跑指令）；请改走 a2a.delegate 委派审批（宿主批准→服务端重放）。仅 WINVM_DELEGATION_REQUIRED_POLICY=off 回滚态才回到旧"取 approvalId 等待"流程
 （A2A 通道续跑指令）a2a.approval.reply { taskId: "task_01J8QX", approvalId: "apr_8f3c", approved: true }
 ```
 
@@ -57,7 +57,7 @@
 请回复完整短句「确认执行关机」以继续。仅回复「好的 / 可以 / 继续」不会被接受。
 在完成上述二次确认前，本操作不会被执行。
 
-（MCP 通道续跑指令·批1 前不可依赖）批准后服务端即删审批令牌，附 __approvalId="apr_9d21" 重发恒返需审批；放行闭环批1 在建——批1 前如实告知用户等待，勿死循环重发
+（MCP 通道·批1(c) 已落地：直调 L2/L3 不发令牌、不出卡片）纯宿主直调命中 L2/L3 ⇒ 服务端直接收口 DELEGATION_REQUIRED（不返回 approvalId）；本卡片模板适用于 A2A 委派通道。请改走 a2a.delegate 委派审批
 ```
 
 **L3 额外要求**：必须出现「不可逆 / 无法自动回滚」判定，并给出**二次确认短句**要求（L3 一律要求完整短句，**仅回复「好的 / 可以 / 继续」不被接受**）。
@@ -139,7 +139,7 @@ L3 的正确次序：**先 `dryRun:true` 免审批拿预览 → 展示影响清�
 
 ## 9. 续跑指令（两条通道各一行，仅作对照说明）
 
-- **MCP 直调续跑**：标记为 `__approvalId="<approvalId>"`。**当前（批1 前）该路径不可依赖**：宿主批准后服务端即删除审批令牌（K5 一次性消费），附 `__approvalId` 重发恒返 `APPROVAL_REQUIRED`；直调放行闭环 = **Phase 3 批1 审批闭环在建**。批1 落地前的正确动作是如实告知用户"已收到批准、放行通道在建"，**不得**死循环重发或误报已批准。
+- **MCP 直调续跑**：批1(c) 已落地——纯宿主直调命中 L2/L3 由服务端直接收口 `DELEGATION_REQUIRED`（不返回 approvalId），**不存在**直调续跑路径；正确动作 = 转 `a2a.delegate` 委派（宿主 `approval.reply` → 服务端重放）。`__approvalId` 仅在 `WINVM_APPROVAL_REPLAY=off` 回滚态的委派内层令牌上适用（回滚位，非主路径）。历史（保留不删）：批1 前该路径恒返 `APPROVAL_REQUIRED` 死循环=P0-1 信任核弹，已根治。
 - **A2A 委派续跑**：`a2a.approval.reply { taskId: "<taskId>", approvalId: "<approvalId>", approved: true }`
 
 > ⚠️ **通道隔离红线**：`__approvalId` 是 **MCP 直调**的续跑标记；**A2A 委派通道的输出中绝不能出现 `__approvalId`**。两条通道的续跑指令不可混用。

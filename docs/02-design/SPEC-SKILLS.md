@@ -121,8 +121,8 @@ riskProfile:                  # 该 Skill 覆盖的风险区间
 
 | 要求 | 落地 |
 |---|---|
-| 最小权限 | 委派时**可声明** `allowedCapabilities` 限定本次可用能力（**现状 2026-10-13 批0**：声明记录于审计链，服务端执行面尚未接线＝Phase 3 批1 在建，详见 `SECURITY-GOVERNANCE.md` §2.3——Skill 文档不得把它写成已生效限权） |
-| 风险上限 | 委派时**可声明** `maxRisk` 限定本次允许的最高风险（默认 L1；**执行面接线同上＝批1 在建**） |
+| 最小权限 | 委派时**可声明** `allowedCapabilities` 限定本次可用能力（**现状 2026-10-14 批1**：接线已落地，但缺省灰度 `shadow`＝观测不执法 ⇒ Skill 文档**不得读作**已生效限权，执法需显式 `WINVM_POLICY_GATE_WIRING=on`，详见 `SECURITY-GOVERNANCE.md` §2.3） |
+| 风险上限 | 委派时**可声明** `maxRisk` 限定本次允许的最高风险（默认 L1；**批1 已接线，缺省 shadow 观测不执法，同上 §2.3**） |
 | 高危必审 | L2/L3 必须走审批闸，禁止"先斩后奏" |
 | 不可逆前置 dry-run | L3 操作必须先出 dry-run 预览 |
 | 删除优先回收站 | `storage.file.delete` 默认进回收站，除非显式 `--permanent` 且已审批 |

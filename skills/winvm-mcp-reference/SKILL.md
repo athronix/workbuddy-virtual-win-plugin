@@ -209,7 +209,7 @@ token 以环境变量持久化于 `%HERMES_HOME%\.env`：`MCP_WINVM_API_KEY=<tok
 
 | 通道 | 续跑方式 | 关键标记 |
 |---|---|---|
-| **MCP 直调**（连接器 `winvm`） | **当前不可自动续跑**：宿主批准后服务端即删除审批令牌（K5 一次性消费），附 `__approvalId` 重发恒返 `APPROVAL_REQUIRED`——批准后的放行/续跑 = **批1 审批闭环在建**，批1 落地前不得依赖此路径（向用户如实说明并等待，勿死循环重发） | `__approvalId`（批1 前**不可依赖**） |
+| **MCP 直调**（连接器 `winvm`） | **L2/L3 不予审批**（批1(c) 策略化已落地）：直调命中 L2/L3 审批闸 ⇒ 服务端按通道事实直接收口 `DELEGATION_REQUIRED`（**不再**发放续跑令牌、不再死循环重发）；须改用 **A2A 委派**通道审批（见下行）。仅 `WINVM_APPROVAL_REPLAY=off` 回滚态下直调令牌续跑才适用 | `DELEGATION_REQUIRED`（→ 转委派） |
 | **A2A 委派**（连接器 `winvm-a2a`） | 调 `a2a.approval.reply { taskId, approvalId, approved: true }` | **不得**使用 `__approvalId` |
 
 > 两通道的续跑标记**不可混用**：A2A 通道的输出中不会、也不应出现 `__approvalId`（卡片规范见 `winvm-orchestrator` 的审批卡片模板 §9）。

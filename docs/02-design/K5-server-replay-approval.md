@@ -66,7 +66,7 @@ A2A 委派「卸载VM企业微信」完整闭环：宿主批准后任务转 `com
     if (!approved) return { approved:false, reason:'rejected' }; // 拒绝或 TTL 超时
     const p = this.pendingApprovals?.get(req.approvalId);
     if (!p) return { approved:false, reason:'rejected' }; // token 已消失（异常）
-    p.hostApproved = true;               // 置位后立即被下方一次性删除吞并——直调续跑实际不可达（订正见 §4-2 与文档头注；批1 在建）
+    p.hostApproved = true;               // 置位后立即被下方一次性删除吞并——直调续跑实际不可达（订正见 §4-2 与文档头注；批1(c) 已落地：直调不再发令牌，收口 DELEGATION_REQUIRED）
     try {
       const exec = await this.replay(p);
       this.pendingApprovals?.delete(req.approvalId); // 一次性消费
@@ -91,7 +91,7 @@ A2A 委派「卸载VM企业微信」完整闭环：宿主批准后任务转 `com
 ## 4. 安全纪律（不可妥协）
 1. 重放**仅在** `resolveApproval(true)` 后由协调器触发，参数取服务端留存原值——VM 内任何角色无法伪造执行。
 2. token 一次性：执行成功/失败均删除；`/mcp` 直调路径的 `hostApproved===true` 严格闸保留（K4 不动）。
-   **口径统一订正（2026-10-13 批0）**：本条与"批准即删 token"并读时曾自相矛盾（删 token ⇒ 严格闸无对象可校验）。终版口径 = **缺省灰度（replay on）下批准即删 token，MCP 直调 `__approvalId` 续跑路径实际不可达**；"严格闸保留"仅指闸语义未被放宽（绝不因重放机制而自批），不承诺续跑可达。直调续跑可达性 = **Phase 3 批1 审批闭环在建**（出路 (c) 策略化）。`WINVM_APPROVAL_REPLAY=off` 灰度回退态下 token 保留、K4 直调续跑仍可用——这是回滚位而非主路径。
+   **口径统一订正（2026-10-14 批1 已落地）**：批1(c) 策略化后，纯宿主直调命中 L2/L3 审批闸由服务端按通道事实直接收口 `DELEGATION_REQUIRED`（新契约码，不再发放续跑令牌）——本节"批准即删 token ⇒ 直调续跑不可达"的死循环形态（P0-1）已根治，直调通道上不存在"重发恒返 APPROVAL_REQUIRED"的用户路径。"严格闸保留"语义不变（绝不因重放机制自批）。委派通道续跑 = `a2a.approval.reply` → 服务端重放（本文件 §主路径，验收绿闭环）。`WINVM_APPROVAL_REPLAY=off` 灰度回退态下 token 保留、K4 直调续跑仍可用——这是回滚位而非主路径；`WINVM_DELEGATION_REQUIRED_POLICY=off` 则连同 (c) 收口一起退回旧行为（双回滚位正交）。
 3. 桥对 LLM 完成声明做回执反查——**服务端没记到执行成功，A2A 永远不许谎报成功**。
 4. 拒绝/TTL 超时/异常一律 `approved:false` → K3 旧行为（等待审批，绝不自批）。
 
