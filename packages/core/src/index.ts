@@ -114,6 +114,14 @@ export type { LogLevel, LoggerOptions } from './logger.js';
 export { FileLogger, RotatingFileSink, createFileLogger } from './file-logger.js';
 export type { FileLoggerOptions, RotatingFileSinkOptions, LoggingStatus } from './file-logger.js';
 
+/* ---------------------- 审批预览哈希（A2-17 单源权威，双端共享） ---------------------- */
+export {
+  CREDENTIAL_KEY_RE,
+  redactCredentials,
+  canonicalApprovalJson,
+  hashApprovalPreview,
+} from './approval-hash.js';
+
 /* ------------------------------ trace ------------------------------ */
 import { randomUUID } from 'node:crypto';
 

@@ -46,6 +46,7 @@ import {
   loadProvider,
   newId,
   newTraceId,
+  hashApprovalPreview,
   resolveApprovalReplay,
   resolveApprovalTtlMs,
   resolveCancelRateLimit,
@@ -148,6 +149,16 @@ export interface PendingApproval {
    * 仍能把 executed 条目归因回原委派回合（重放没有 HTTP 上下文，只能靠留存值）。
    */
   readonly delegationId?: string;
+  /**
+   * ARCH-09（A2-17 · Phase 3 批6 补建，用户终裁 A）：**预览↔执行绑定**。
+   * 拦截时用服务端权威输入（cap.id/cap.risk/token.preview/token.impact）算
+   * `hashApprovalPreview`（`@winvm/core/approval-hash` 单源，与宿主记录侧逐字节同源）
+   * 留存于此。`/mcp` 人工续跑放行闸（hostApproved 检查处）对**本次请求**重算并比对：
+   * 不一致 ⇒ 拒绝放行（"批准的预览"与"要执行的参数"必须是同一件事——换目标路径/换包名/
+   * 翻 dryRun 都要重新审批）。宿主侧的第三面对账：`lookupByApprovalId(...).previewHash`
+   * 与本值相等 ⇒ 宿主所见=VM 所批（三向一致，F2 承诺至此闭环）。
+   */
+  readonly previewHash: string;
 }
 
 /**
@@ -1237,7 +1248,44 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       const approvalId = typeof __approvalId === 'string' ? __approvalId : undefined;
       // K4 安全点：token 必须已被宿主批准（hostApproved===true）才放行续跑。
       // 注册时 hostApproved=false，宿主经 A2A approval.reply 批准后由协调器置 true。
-      const approved = approvalId !== undefined && pendingApprovals.get(approvalId)?.hostApproved === true;
+      let approved = approvalId !== undefined && pendingApprovals.get(approvalId)?.hostApproved === true;
+
+      // ARCH-09（A2-17 · 批6 补建，用户终裁 A）：预览↔执行哈希绑定。
+      // 「批准过的那个预览」与「这次要执行的参数」必须是同一件事：放行前对**本次请求**
+      // 重算 preview 哈希，与 token 留存值比对——换目标路径/换包名/翻 dryRun 一律拒绑，
+      // 降级为**重新审批**（approved=false ⇒ 走既有 requiresApproval 拦截语义：
+      // 新 token 新 approvalId，零新错误码、零契约扩展；旧 token 保持已批准态等 TTL 自然收口）。
+      // 判别性边界（设计判断，登记 notes）：比对**仅在续跑轮**（approvalId 在场）发生——
+      // 首轮拦截无留存值可比，语义上不成立；宿主侧第三面对账（approval.receipt /
+      // lookupByApprovalId.previewHash ↔ 本值）见 host-a2a-bridge/approval-audit.ts。
+      if (approved && approvalId) {
+        const tok = pendingApprovals.get(approvalId);
+        if (tok) {
+          // fail-closed：token 缺合法 previewHash ⇒ 无绑定证据（只可能是装配漂移，生产
+          // 唯一创建点必带此字段），storedHash='' 与任何重算 hash 都不等 ⇒ 同样拒绑重审，
+          // 「续跑永远要求重审」比「静默无绑定放行」更可观测。
+          const storedHash = typeof tok.previewHash === 'string' && tok.previewHash.length === 64
+            ? tok.previewHash
+            : '';
+          const resumePreview = buildPreview(cap, rest);
+          const resumeImpact = collectImpact(rest);
+          const resumeHash = hashApprovalPreview({
+            capabilityId: cap.id,
+            risk: cap.risk,
+            preview: resumePreview,
+            impact: resumeImpact,
+          });
+          if (resumeHash !== storedHash) {
+            approved = false; // 预览已非批准时那份 ⇒ 拒绑重审（绝不静默按新参数放行）
+            logger.warn('ARCH-09 预览绑定校验失败：续跑参数与已批准预览不一致 ⇒ 拒绝放行，要求重新审批', {
+              approvalId,
+              capabilityId: cap.id,
+              expectedHashPrefix: tok.previewHash.slice(0, 12),
+              actualHashPrefix: resumeHash.slice(0, 12),
+            });
+          }
+        }
+      }
 
       const verdict = policy.evaluate({
         capabilityId: cap.id,
@@ -1252,15 +1300,24 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         if (verdict.requiresApproval) {
           const id = newId('apr');
           const impact = collectImpact(rest);
+          const preview = buildPreview(cap, rest);
           pendingApprovals.set(id, {
             approvalId: id,
             capabilityId: cap.id,
             risk: cap.risk,
             params: rest,
-            preview: buildPreview(cap, rest),
+            preview,
             createdAtMs: Date.now(),
             // K4：注册时恒为「待宿主批准」，杜绝未批准即放行。
             hostApproved: false,
+            // ARCH-09（A2-17）：预览哈希留存=续跑绑定判据（输入与拦截展示给宿主的
+            // preview/impact 同源同函数 ⇒「批什么执行什么」由构造保证，不靠约定）。
+            previewHash: hashApprovalPreview({
+              capabilityId: cap.id,
+              risk: cap.risk,
+              preview,
+              impact,
+            }),
             // K5：留存 traceId / impact / 真实意图 —— 供服务端重放（traceId 派生 -replay）
             // 与宿主审批卡片展示（impact/underlying 由协调器并入 approval-request）。
             traceId: ctx.traceId,

@@ -8,14 +8,22 @@
  *   - **凭据类字段永不入账**（F5，双重剔除）
  *
  * 约束：
- *   - 仅用 Node 内置 `node:crypto`（零第三方依赖）
  *   - 内存索引即可，不落盘
  *   - 不改动 VM 侧任何代码，不引入平台分支
+ *
+ * A2-17（Phase 3 批6）：哈希/canonical 核心算法**整体上提 `@winvm/core/approval-hash`**
+ * ——宿主记录 hash 与 VM 绑定校验必须逐字节一致，两份实现=漂移风险（A2-10 教训同款）。
+ * 本文件保留同名 re-export（公共 API 面零破坏；`tools.ts`/测试的 import 路径不变）。
  */
 
-import { createHash } from 'node:crypto';
-
 import { RISK_LEVELS, type RiskLevel } from '@winvm/contracts';
+import {
+  CREDENTIAL_KEY_RE,
+  canonicalApprovalJson,
+  hashApprovalPreview,
+  redactCredentials,
+} from '@winvm/core';
+import { REDACTED } from '@winvm/core';
 
 /** 宿主侧审批留痕记录 */
 export interface HostApprovalAudit {
@@ -31,88 +39,17 @@ export interface HostApprovalAudit {
   readonly at: string;
 }
 
-/**
- * 凭据键名**统一正则（唯一一份 · 并集口径）**，大小写不敏感。
- * 覆盖：password / passwd / passphrase / secret / token / apikey / api_key / credential / privatekey / private_key
- * —— `approval-audit.ts` 与 `tools.ts` 的脱敏 / 清洗**都引用本常量**，避免多处口径漂移。
- */
-export const CREDENTIAL_KEY_RE =
-  /(password|passwd|passphrase|secret|token|apikey|api_key|credential|privatekey|private_key)/i;
-
-/** 凭据脱敏占位串 */
-export const REDACTED = '***REDACTED***';
-
-/**
- * 递归凭据脱敏（与 `@winvm/core` 的 `redact()` **同形**，但采用本仓**并集正则**）。
- *
- * 为什么不直接复用 `core.redact()`：
- *   1) core 的凭据正则缺 `passphrase` / `apikey` / `credential` → 会漏脱敏（违反 A7 / NFR-6）；
- *   2) core 的 `redact()` 还会对超长 base64 做截断 → 会破坏 `preview` 与 VM 下发的**逐项深等**（违反 A1/A2）。
- * 故此处只做「凭据键 → 打码」，其余内容**逐字保留**（结构不变、非凭据值原样、不输出 `undefined`）。
- */
-export function redactCredentials(value: unknown, key?: string): unknown {
-  if (typeof value === 'string') {
-    return key !== undefined && CREDENTIAL_KEY_RE.test(key) ? REDACTED : value;
-  }
-  if (value === null || typeof value !== 'object') return value;
-  if (Array.isArray(value)) return value.map((v) => redactCredentials(v, key));
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (v === undefined) continue;
-    out[k] = redactCredentials(v, k);
-  }
-  return out;
-}
+/* re-export 面（公共 API 零破坏；权威实现见 core/approval-hash.ts） */
+export {
+  CREDENTIAL_KEY_RE,
+  REDACTED,
+  canonicalApprovalJson as canonicalJson,
+  redactCredentials,
+  hashApprovalPreview,
+};
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-/**
- * 递归规范化任意值为键序稳定的纯数据（对象键按字典序排序，
- * 命中凭据键名的键**直接剔除**；数组逐元素处理）。
- */
-function canonicalize(v: unknown): unknown {
-  if (Array.isArray(v)) return v.map((x) => canonicalize(x));
-  if (isRecord(v)) {
-    const out: Record<string, unknown> = {};
-    for (const key of Object.keys(v).sort()) {
-      if (CREDENTIAL_KEY_RE.test(key)) continue; // 凭据红线：直接剔除该键
-      const value = v[key];
-      if (value === undefined) continue; // 不输出 undefined 字面量
-      out[key] = canonicalize(value);
-    }
-    return out;
-  }
-  return v;
-}
-
-/**
- * 规范化 JSON 字符串。
- * - 键排序：同内容不同键序 → 同字符串
- * - 剔除凭据键：见 `CREDENTIAL_KEY_RE`（并集口径，大小写不敏感）
- */
-export function canonicalJson(v: unknown): string {
-  const out = JSON.stringify(canonicalize(v));
-  return out === undefined ? 'null' : out;
-}
-
-/**
- * 计算审批 dry-run 预览的内容哈希：`sha256(canonicalJson(...))` → hex。
- * 只纳入确实存在的字段；凭据键在 canonicalize 阶段被剔除。
- */
-export function hashApprovalPreview(input: {
-  capabilityId?: string;
-  risk?: RiskLevel;
-  preview?: Record<string, unknown>;
-  impact?: readonly string[];
-}): string {
-  const payload: Record<string, unknown> = {};
-  if (typeof input.capabilityId === 'string') payload['capabilityId'] = input.capabilityId;
-  if (input.risk) payload['risk'] = input.risk;
-  if (isRecord(input.preview)) payload['preview'] = input.preview;
-  if (Array.isArray(input.impact)) payload['impact'] = input.impact;
-  return createHash('sha256').update(canonicalJson(payload), 'utf8').digest('hex');
 }
 
 /* ------------------------------ 内存索引 ------------------------------ */
@@ -146,7 +83,7 @@ export function recordHostApprovalAudit(
   rec: Omit<HostApprovalAudit, 'previewHash' | 'at'> & { previewHash?: string },
 ): HostApprovalAudit {
   // 入口再断一次：整条记录先过 canonicalJson（剔除凭据键与 undefined）
-  const clean = JSON.parse(canonicalJson({ ...rec })) as Record<string, unknown>;
+  const clean = JSON.parse(canonicalApprovalJson({ ...rec })) as Record<string, unknown>;
 
   const approvalId = typeof clean['approvalId'] === 'string' ? clean['approvalId'] : '';
   const traceId = typeof clean['traceId'] === 'string' ? clean['traceId'] : '';
