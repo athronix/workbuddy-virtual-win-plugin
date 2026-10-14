@@ -118,3 +118,24 @@ authMode+providerOptions 两键（恒不喂 probe*）；拒启 `:806` 取 `inner
 失实表述（server.ts 从不回填本函数），已改为"纯函数契约面+生产不喂+观测面经直接赋值升级"三层口径显形。
 判据行号勘误：arch3 原述 server.ts:785 → 实装配点 :798；:2066"覆盖不回灌" → 实况 :2163 直接赋值升级观测面（非覆盖字段）。
 验证：tsc RC=0；phase2-inner-credential 38/38 + phase2-bearer-selfcheck 45/45 全绿。
+
+## 真机窗口执行记录（2026-10-14，VM 恢复后可达窗口，主理人执行）
+
+**前置复核**：VM ping 0% 丢 + ssh VM_UP + 隧道 daemon pid4357 RUNNING（reconnecting 自愈到位=批2 Q1 活证）+ /health ok。deploy-vm --apply 前置安全确认：VM runtime.json 与本地生成模板差异全部=已入库演进口（P2-T5/Phase2 注释、批5 retention 走 DEFAULT 内置）⇒ 铁律"先部署→后补丁"无待补手工补丁，可安全直跑（1011 现网永久留档 qa/p3-batch-sweep/vm-runtime-config-20261011.pre-p3b2.json；deploy 后对账 IDENTICAL=零漂移实证，二次 deploy 复跑同结论）。
+
+| V | 结果 | 证据 |
+|---|---|---|
+| V1 | ✅ PASS | deploy-vm 管线 BUILD→分发→install→VM-START 全绿；psmod-drift NO_FINGERPRINT→**PASS**（六键非空 capturedAt=重启时刻）；capabilitiesProfile（M7）在 VM 实况 |
+| V2 | ✅ 三态闭环 | 源仓探针→DRIFT（两方）→带 --vm-disk 三方判 **STALE**→scp 磁盘同步→**FAIL-DRIFT**（deploy 到位进程旧版=R-4 核心场景）→还原+同步→回 **PASS**（STALE/DRIFT/PASS 三判据全实跑显形） |
+| V5 | ✅ | prepare-vm --apply ×2：首遍 DB-2 created×2+DB-5 三件套+DB-6 SKIP；次遍**全 [SKIP]**+PREPARE_VM_DONE；DB-4 保持 [MANUAL] 不谎报（手工 6→2 达成，DB-2 防火墙已实补） |
+| V6 | ✅ | 只读探测面 RC=0（探针先行→apply 幂等计划 [SKIP]/DO/[MANUAL] 三分=设计自洽） |
+| V10 | ✅ | 再启 daemon 第二实例被 wx 独占挡回"已有隧道进程 pid 4357，不重复启动"rc=0；日志行 **pid= 前缀在场**=批2 新产物运行直接实证；现有隧道零干扰 |
+| V11 | ✅ 闭环 | 部署前 --check-fresh RC=1 点名 8 MISSING（批4/6 新产物）+68 MISMATCH（仓库≠分发真相源活例）；install-host --apply --yes RC=0（尾相位自动对账 ✓FRESH 178 文件）；复跑 check-fresh **RC=0 FRESH**（DEP-02/05 解药实跑达成） |
+| 审计链 | ✅ | 87 片/3657 条生产权威三维复核：仅 3 异常全为 T13 已销账化石（seq511/582/693=D30 注释现场）；**D30 修复后 60+ 天零复现 ⇒ T13 防再发实证成立**；首轮自造脚本"41 跨片断"系判据口径误用（轮转片各自 seq=1 起链=verifyArchive 设计），以权威复核订正留痕 audit-chain-live-verify.md |
+| retention | ✅ 观察 | 现网 0.003GB（<2GB）/最老 28 天（<90）⇒ 双阈值正确不触发零删除；出厂默认在位（DEFAULT_SERVICE_CONFIG 三键实证） |
+| E2E 5×2 | ✅ 16/16 | qa/harness/e2e-p3-5x2.mjs（提交 235ca81）；首跑 9/14 四 FAIL 全部定性=harness 形状误判（health 嵌 data 下/app.inventory 参数/message/send/agent-card.json——服务错误回执自指引清晰），修后 16/16 |
+| V8 旁证 | ✅ 隐性达成 | VM 关机期 daemon 退避存活（隧道日志 EHOSTUNREACH 内部消化+退避重连行在场）→VM 拉起后自动 reconnected（state.json RUNNING+lastEvent）=启动退避+稳态重连全链活证 |
+
+**未执行项与路由**：V3/V4（winget 树杀真弹）=需真实卸载窗口，V2 的 app.ps1 已在 VM 生效（指纹含 app.ps1），判据面=下次真卸载时观察 output 含 [k6]/[q5]；V7（登录前后二态）=VM 已登录态仅实测 config-dir-present 态（前态不可回退复现，结构性）；V12（死链双侧收敛）=fix-approval-deadlinks 宿主侧已实跑+install-host 分发面已同步，VM shared-skills 面待下轮 deploy-vm 自然覆盖（本已跑过）；V13=winvm-plugin health 播报需连接器会话面，离线单测已钉；**V14（wsProbe 真机采样显形）=新登**：批6 A2-11 已随 deploy 推 VM，实证法=长跑后 /health llmSession 观察或日志"工作集超限"行；V15（A2-17 端到端）=新登：批准→换参续跑拒→重审。
+
+**VM-START 超时归因（假阴性）**：deploy 尾报"启动触发失败 TIMEOUT"但服务实际在监听（owner PID 18948，health 200）——端口轮询竞态（start-hidden 重启窗口 >轮询预算）；判据以 /health 实证为准，登记为交付脚本已知观察项（不中伤流程：二次 deploy p3b6 同形态同结论）。

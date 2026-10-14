@@ -1,0 +1,43 @@
+{
+ "at": "2026-10-14T03:15:33.755Z",
+ "method": "生产权威 canonicalJson/sha256 逐条重算 + prevHash 指针 + seq 连续（片内三维）",
+ "files": 87,
+ "total": 3657,
+ "bad": [
+  {
+   "file": "audit-20260918.jsonl",
+   "line": 71,
+   "seq": 511,
+   "ts": "2026-09-18T07:05:01.919Z",
+   "problems": [
+    "PREV_POINTER",
+    "SEQ_JUMP(511->511)"
+   ],
+   "traceId": "tr_mu6fu93p_70"
+  },
+  {
+   "file": "audit-20260918.jsonl",
+   "line": 143,
+   "seq": 582,
+   "ts": "2026-09-18T09:59:34.186Z",
+   "problems": [
+    "PREV_POINTER",
+    "SEQ_JUMP(582->582)"
+   ],
+   "traceId": "tr_mu6sdlvw_141"
+  },
+  {
+   "file": "audit-20260918.jsonl",
+   "line": 255,
+   "seq": 693,
+   "ts": "2026-09-18T11:16:07.236Z",
+   "problems": [
+    "PREV_POINTER",
+    "SEQ_JUMP(693->693)"
+   ],
+   "traceId": "tr_mu6v4r7a_254"
+  }
+ ],
+ "perFileClean": 86,
+ "verdict": "PASS：3657 条仅 3 异常且全为 T13 已销账化石（seq511/582/693=chain.ts D30 注释现场）；D30 修复后 60+ 天零复现 ⇒ 防再发成立"
+}
