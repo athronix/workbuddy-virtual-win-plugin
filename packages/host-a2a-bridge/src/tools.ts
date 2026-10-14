@@ -409,10 +409,13 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
       }
       const allowedCapabilities = readStringArray(params['allowedCapabilities']);
       const maxRiskRaw = params['maxRisk'];
-      const maxRisk =
-        typeof maxRiskRaw === 'string' && (RISK_LEVELS as readonly string[]).includes(maxRiskRaw)
-          ? (maxRiskRaw as RiskLevel)
-          : defaultMaxRisk;
+      // 批1 F-3（来源标记）：区分「Agent 显式声明 maxRisk」与「宿主工具回退填充」。
+      // 此前恒发 defaultMaxRisk（缺省 L1 最严档），VM 侧无从分辨 ⇒ 若把回退值当声明
+      // 喂策略封顶闸，等于缺省拒绝全部 L2/L3 委派（可用性断崖，审计 F-3 预警）。
+      // 线上诉语经 metadata.maxRiskSource 传给 VM 侧 buildGoal 判源。
+      const maxRiskDeclaredByAgent =
+        typeof maxRiskRaw === 'string' && (RISK_LEVELS as readonly string[]).includes(maxRiskRaw);
+      const maxRisk = maxRiskDeclaredByAgent ? (maxRiskRaw as RiskLevel) : defaultMaxRisk;
       const timeoutMs = typeof params['timeoutMs'] === 'number' ? params['timeoutMs'] : defaultTimeoutMs;
       const contextIdIn = typeof params['contextId'] === 'string' ? params['contextId'] : undefined;
 
@@ -436,6 +439,9 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
       const streamOpts: DelegateStreamOptions = {
         traceId: ctx.traceId,
         maxRisk,
+        // 批1 F-3：如实携带来源（'agent'=本次调用显式声明合法值；'host-default'=宿主回退填充）。
+        // VM 侧 buildGoal 据此判定 maxRiskDeclared ⇒ 封顶闸只喂声明值。
+        maxRiskSource: maxRiskDeclaredByAgent ? 'agent' : 'host-default',
         timeoutMs,
         ...(allowedCapabilities ? { allowedCapabilities } : {}),
         ...(contextIdIn ? { contextId: contextIdIn } : {}),

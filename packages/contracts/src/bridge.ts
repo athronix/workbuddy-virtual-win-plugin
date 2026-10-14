@@ -435,6 +435,19 @@ export interface GoalRequest {
   readonly allowedCapabilities?: readonly CapabilityId[];
   /** 本次委派允许的最高风险（默认 L1） */
   readonly maxRisk?: RiskLevel;
+  /**
+   * 批1 F-3（**纯附加可选**）：`maxRisk` 的**来源标记**。
+   *
+   * 为什么必须有：框架装配对 `maxRisk` 恒填回退默认（L1 最严档），若把"服务端回退值"
+   * 当作"宿主声明"直通策略引擎封顶，等于缺省把全部 L2/L3 委派**当场默认拒绝**
+   * （修安全承诺顺手做成可用性断崖，审计 F-3 预警的原话）。引擎语义是
+   * 「仅当宿主显式声明时才封顶」（engine.ts 步骤 5 注释），故装配层必须如实携带
+   * "这份 maxRisk 到底是不是宿主说的"：
+   *  - `true` = 宿主在 metadata 显式声明 ⇒ 接线后引擎封顶生效（验收判据②的通路）；
+   *  - 缺席/`false` = 服务端回退默认 ⇒ 不喂 evaluate（逐字旧行为，L2/L3 仍走审批闸）。
+   * 同口径适用于 `allowedCapabilities`（它本就"缺席即不限"，无回退填充，不需来源标记）。
+   */
+  readonly maxRiskDeclared?: boolean;
   /** A2A 委派任务 id（由 A2A 框架在 runGoal 前注入，供审批协调器挂接 input-required） */
   readonly taskId?: string;
   readonly timeoutMs: number;

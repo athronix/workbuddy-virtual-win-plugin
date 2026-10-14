@@ -122,6 +122,47 @@ function randomId(): string {
   return randomUUID();
 }
 
+/**
+ * 批1 F-1（**装配单源化**）：`message/send` 与 `message/stream` 共用的 GoalRequest 构造。
+ *
+ * 病灶（审计 A2-19 / arch3 F-1）：两条路径此前各写一份 goal 装配，流式路径
+ * （缺省主用通道，宿主 `a2a.delegate` 走 `message/stream`）**只解析 maxRisk/timeoutMs，
+ * 不解析 allowedCapabilities 与 context** ⇒ 宿主工具 schema 里"本次允许的能力范围"
+ * 在主用通道上从未抵达 VM。即使 E-1/批1 接线也接不上（装配缺键 = 下游无从消费）。
+ * 本函数把两处收拢为一份，任何一处的字段集变化自动同形到另一处（防再漂移 = 结构性保证）。
+ *
+ * 批1 F-3：`maxRiskDeclared` 如实标注 `maxRisk` 是否来自宿主显式声明（见 contracts 字段文档）。
+ * 缺席（服务端回退默认）⇒ `false`，下游策略接线据此**不喂** evaluate，避免缺省把
+ * 全部 L2/L3 委派当场默认拒绝（可用性断崖）。
+ */
+function buildGoal(
+  message: A2A.Message,
+  metadata: Record<string, unknown>,
+  defaultMaxRisk: RiskLevel,
+): GoalRequest {
+  // 来源判据（批1 F-3，宿主桥配合）：线上带 `maxRiskSource:'host-default'` ⇒ 该 maxRisk
+  // 只是宿主工具的**回退填充**（不是宿主意图声明），不得当作声明喂封顶闸（可用性断崖防线）。
+  // 'agent'/'host-config'/缺席 ⇒ 视为声明（缺席=旧版宿主桥，其发送值语义按声明从严处理；
+  // 实际消费由 vm-service 的接线灰度闸控制，shadow 态只记账不执法，升级窗口安全）。
+  const declaredMaxRisk =
+    typeof metadata['maxRisk'] === 'string' && metadata['maxRiskSource'] !== 'host-default';
+  return {
+    traceId: typeof metadata['traceId'] === 'string' ? metadata['traceId'] : `tr_${randomId()}`,
+    goal: textOf(message),
+    ...(Object.keys(message.metadata ?? {}).length > 0 ? { context: message.metadata } : {}),
+    ...(Array.isArray(metadata['allowedCapabilities'])
+      ? { allowedCapabilities: metadata['allowedCapabilities'] as string[] }
+      : {}),
+    // 展示值与声明性解耦：maxRisk 恒填（审计 delegation.start 的可观测字段逐字旧语义），
+    // 是否作为封顶闸喂 evaluate 由 maxRiskDeclared 单独表达——两事不再混在一个字段里。
+    maxRisk: (typeof metadata['maxRisk'] === 'string'
+      ? (metadata['maxRisk'] as RiskLevel)
+      : defaultMaxRisk) as RiskLevel,
+    ...(declaredMaxRisk ? { maxRiskDeclared: true } : {}),
+    timeoutMs: typeof metadata['timeoutMs'] === 'number' ? metadata['timeoutMs'] : 300_000,
+  };
+}
+
 /* ------------------------------ Server ------------------------------ */
 
 export class A2AServer {
@@ -281,18 +322,7 @@ export class A2AServer {
     });
     this.tasks.appendHistory(rec.task.id, message);
 
-    const goal: GoalRequest = {
-      traceId: typeof metadata['traceId'] === 'string' ? metadata['traceId'] : `tr_${randomId()}`,
-      goal: textOf(message),
-      ...(Object.keys(message.metadata ?? {}).length > 0 ? { context: message.metadata } : {}),
-      ...(Array.isArray(metadata['allowedCapabilities'])
-        ? { allowedCapabilities: metadata['allowedCapabilities'] as string[] }
-        : {}),
-      maxRisk: (typeof metadata['maxRisk'] === 'string'
-        ? (metadata['maxRisk'] as RiskLevel)
-        : this.defaultMaxRisk) as RiskLevel,
-      timeoutMs: typeof metadata['timeoutMs'] === 'number' ? metadata['timeoutMs'] : 300_000,
-    };
+    const goal: GoalRequest = buildGoal(message, metadata, this.defaultMaxRisk);
 
     this.tasks.updateStatus(rec.task.id, 'working');
     const sink = createProgressSink(this.tasks, rec.task.id);
@@ -528,14 +558,9 @@ export class A2AServer {
       if (ev.kind === 'status-update' && ev.final) closed = true;
     });
 
-    const goal: GoalRequest = {
-      traceId: typeof metadata['traceId'] === 'string' ? metadata['traceId'] : `tr_${randomId()}`,
-      goal: textOf(message),
-      maxRisk: (typeof metadata['maxRisk'] === 'string'
-        ? (metadata['maxRisk'] as RiskLevel)
-        : this.defaultMaxRisk) as RiskLevel,
-      timeoutMs: typeof metadata['timeoutMs'] === 'number' ? metadata['timeoutMs'] : 300_000,
-    };
+    // 批1 F-1：与 message/send 共用 buildGoal（此前流式装配缺 allowedCapabilities/context 两键，
+    // 宿主声明在主用通道上被静默丢弃——A2-19 的病灶在此结构性消除）。
+    const goal: GoalRequest = buildGoal(message, metadata, this.defaultMaxRisk);
 
     this.tasks.updateStatus(rec.task.id, 'working');
     const sink = createProgressSink(this.tasks, rec.task.id);

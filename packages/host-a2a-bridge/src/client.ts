@@ -18,6 +18,8 @@ export interface DelegateStreamOptions {
   readonly taskId?: string;
   readonly allowedCapabilities?: readonly string[];
   readonly maxRisk?: RiskLevel;
+  /** 批1 F-3：maxRisk 的来源（'agent'=显式声明 / 'host-default'=回退填充），透传 VM 侧判源 */
+  readonly maxRiskSource?: 'agent' | 'host-default';
   readonly traceId?: string;
   readonly timeoutMs?: number;
 }

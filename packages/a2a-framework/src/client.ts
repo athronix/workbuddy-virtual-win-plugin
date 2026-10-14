@@ -26,6 +26,12 @@ export interface SendMessageOptions {
   readonly allowedCapabilities?: readonly string[];
   /** 本次委派允许的最高风险 */
   readonly maxRisk?: RiskLevel;
+  /**
+   * 批1 F-3（**纯附加可选**）：`maxRisk` 的来源。`'agent'`=调用方显式声明；
+   * `'host-default'`=宿主工具回退填充。VM 侧 `buildGoal` 据此区分声明与服务端默认，
+   * 封顶闸只喂声明值（可用性断崖防线）。缺席=旧客户端，VM 侧按既有语义处理。
+   */
+  readonly maxRiskSource?: 'agent' | 'host-default';
   readonly traceId?: string;
   readonly timeoutMs?: number;
   /** 外部中断信号（与 timeoutMs 二选一或并用；caller 主动 abort 时立即终止流） */
@@ -105,6 +111,7 @@ export class A2AClient {
       traceId: opts.traceId ?? `tr_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
       ...(opts.allowedCapabilities ? { allowedCapabilities: opts.allowedCapabilities } : {}),
       ...(opts.maxRisk ? { maxRisk: opts.maxRisk } : {}),
+      ...(opts.maxRiskSource ? { maxRiskSource: opts.maxRiskSource } : {}),
       ...(opts.metadata ?? {}),
     };
 
@@ -142,6 +149,7 @@ export class A2AClient {
         traceId: opts.traceId ?? `tr_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
         ...(opts.allowedCapabilities ? { allowedCapabilities: opts.allowedCapabilities } : {}),
         ...(opts.maxRisk ? { maxRisk: opts.maxRisk } : {}),
+        ...(opts.maxRiskSource ? { maxRiskSource: opts.maxRiskSource } : {}),
         ...(opts.metadata ?? {}),
       },
     };
