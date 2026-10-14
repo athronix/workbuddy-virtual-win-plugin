@@ -1239,6 +1239,24 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     }
 
     if (!provider) {
+      // 批1 A2-1 收口①：provider 缺席的终态拒绝同样是「到过服务端且被拒」的事实——
+      // 旧行为零审计（S-4 同族取证盲区）。best-effort：审计失败不改早退返回（拒绝语义优先）。
+      void recordPolicyDeniedAudit(
+        audit,
+        logger,
+        {
+          traceId: seg.traceId,
+          capabilityId: cap.id,
+          risk: cap.risk,
+          params,
+          startedAtMs: Date.now(),
+          matchedRule: 'runtime:provider-unavailable',
+          errorCode: 'PROVIDER_UNAVAILABLE',
+          ...(providerError ? { errorMessage: providerError } : {}),
+        },
+        () => newId('aud'),
+        { channel: seg.delegationId ? 'a2a' : 'mcp', ...(seg.delegationId ? { delegationId: seg.delegationId } : {}) },
+      );
       return {
         isError: true,
         structuredContent: {
@@ -1302,7 +1320,26 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    * 参数只可能来自服务端留存值，VM 内任何角色无法伪造（安全纪律 1）。
    */
   const replay: ReplayFn = async (p: PendingApproval): Promise<ExecutedResult> => {
+    // 批1 A2-1 收口②③：重放的暴露面复核/未注册早退是「批准后仍被拒」的终态拒绝，
+    // 同样必须入链（与 S-4 同族取证纪律——事后要能在链上证明这条批准过的重放到过
+    // 服务端且被拒，而非静默吞掉）。best-effort：审计失败不改早退（拒绝语义优先）。
     if (!exposedIds.has(p.capabilityId)) {
+      void recordPolicyDeniedAudit(
+        audit,
+        logger,
+        {
+          traceId: p.traceId ?? newTraceId(),
+          capabilityId: p.capabilityId,
+          risk: p.risk,
+          params: p.params,
+          startedAtMs: Date.now(),
+          matchedRule: 'replay:capability-not-exposed',
+          errorCode: 'CAPABILITY_NOT_EXPOSED',
+          errorMessage: '重放被拒：能力不在本服务暴露面内',
+        },
+        () => newId('aud'),
+        { channel: p.delegationId ? 'a2a' : 'mcp', ...(p.delegationId ? { delegationId: p.delegationId } : {}) },
+      );
       return {
         ok: false,
         capabilityId: p.capabilityId,
@@ -1312,6 +1349,22 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     }
     const cap = capabilityDefs.get(p.capabilityId);
     if (!cap) {
+      void recordPolicyDeniedAudit(
+        audit,
+        logger,
+        {
+          traceId: p.traceId ?? newTraceId(),
+          capabilityId: p.capabilityId,
+          risk: p.risk,
+          params: p.params,
+          startedAtMs: Date.now(),
+          matchedRule: 'replay:capability-not-registered',
+          errorCode: 'UNKNOWN_CAPABILITY',
+          errorMessage: '重放被拒：能力未注册',
+        },
+        () => newId('aud'),
+        { channel: p.delegationId ? 'a2a' : 'mcp', ...(p.delegationId ? { delegationId: p.delegationId } : {}) },
+      );
       return {
         ok: false,
         capabilityId: p.capabilityId,

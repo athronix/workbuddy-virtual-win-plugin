@@ -80,6 +80,25 @@
   顺序钉锚点 `policy.evaluate`→`evaluateScoped`（语义逐字不变：拒绑赋值仍须早于紧随其后的
   策略评估，仅调用收拢改名）。两处均在 gate 红项定位后按判据实况修（非放宽）。
 
+## §4b A2-1 早退审计收口（CL7）
+
+台账 A2-1 点名 5 处终态拒绝零审计，逐处核后**三分补、二分不补**（各有据）：
+
+| 处 | 现场 | 裁处 |
+|---|---|---|
+| executeCapability PROVIDER_UNAVAILABLE | 真盲区 | ✅ 补注入 matchedRule=`runtime:provider-unavailable`（收口①） |
+| replay CAPABILITY_NOT_EXPOSED | 真盲区 | ✅ 补注入 `replay:capability-not-exposed`（收口②） |
+| replay UNKNOWN_CAPABILITY | 真盲区 | ✅ 补注入 `replay:capability-not-registered`（收口③） |
+| runGoal 入口 PROVIDER_UNAVAILABLE | **非盲区** | ❌ 不补——delegationObserver 的 delegation.complete 条目已带 errorCode 入链，双写=胀链 |
+| raise no-active-task | **现实不可达+warn 在位** | ❌ 不补——批1 后委派桥 raise 必带 req.taskId（Fix-1B），早退仅剩协调器未 bind 的装配事故形态，该形态由 A5-m5 变异守卫钉住；warn 面 P1-Fix 已补 |
+
+- 三处注入对齐 S-4 纪律：`void` best-effort（审计失败不改早退语义）、channel 按
+  delegationId 归因（'a2a'/'mcp'）。
+- `assembly-guard` S-4 调用计数 3→6（两 allowed 块各 1 + handler (c) 收口 1 +
+  executeCapability provider 缺席 1 + replay 两处 2；`if (!verdict.allowed)` 块计数
+  恒=2 不变）；变异探针 m1b 改指 handler (c) 收口注入（全文序位 4），标签同步实名。
+- 回归：p3-b1-policy-gate ⑧ 段新增 1 例（三 matchedRule 实名钉）⇒ 26 例全绿。
+
 ## §5 过程教训（固化）
 
 1. **QA 逐字节守卫=改动面的先验边界**：src 标记方案写了一半才被 phase2-inner-credential

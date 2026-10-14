@@ -392,3 +392,14 @@ test('/health.policyGate 观测块与 scope 兜底清扫在位（门禁内稳门
   assert.match(SRC, /policyGate: buildPolicyGateHealth\(/, '/health 须透出灰度态+shadowHits+(c) 开关+scope 表大小');
   assert.match(SRC, /scopeRegistry\.sweepExpired\(\);/, '与令牌同周期兜底清扫（正常路径靠 retire，此为漏网双保险）');
 });
+
+/* ==================== ⑧ CL7：A2-1 早退审计收口三处实名钉（规则名漂移即红） ==================== */
+
+test('A2-1 收口三处终态拒绝审计注入实名在位（S-4 同族纪律扩展到早退点）', () => {
+  assert.match(SRC, /matchedRule: 'runtime:provider-unavailable'[\s\S]{0,120}errorCode: 'PROVIDER_UNAVAILABLE'/,
+    'executeCapability provider 缺席早退须入链（收口①）');
+  assert.match(SRC, /matchedRule: 'replay:capability-not-exposed'/, 'replay 暴露面复核早退须入链（收口②）');
+  assert.match(SRC, /matchedRule: 'replay:capability-not-registered'/, 'replay 能力未注册早退须入链（收口③）');
+  // 判别性：批1(c) 收口的 matchedRule 同样在册（CL2 落，计数联动核对）
+  assert.match(SRC, /matchedRule: 'policy:delegation-required'/, '(c) 收口拒绝入链规则名');
+});

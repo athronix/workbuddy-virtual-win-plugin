@@ -81,9 +81,10 @@ function allBlocks(src, mark, label) {
 /**
  * S-4 不变式：`server.ts` 中**每个** `if (!verdict.allowed)` 终态拒绝分支，
  * 都必须在**本分支最后一个 `return` 之前**调 `recordPolicyDeniedAudit(`，
- * 且全文件调用点**恰 3 处**（`:605` executeCapability / `:837` /mcp handler 的语义锁定
- * + **批1(c) `DELEGATION_REQUIRED` 纯直调收口新增第三处**——终态拒绝必入审计链，
- * 用计数与花括号切片表达，不锁行号）。
+ * 且全文件调用点**恰 6 处**——两个 `if (!verdict.allowed)` 块（executeCapability /
+ * /mcp handler）各含审计注入，加批1 扩展的四处终态拒绝：handler (c) DELEGATION_REQUIRED 收口、
+ * executeCapability provider 缺席早退（A2-1 收口①）、replay 暴露面复核（收口②）、
+ * replay 能力未注册（收口③）。用计数与花括号切片表达，不锁行号。
  * @returns {string[]} 违规清单（空即合规）
  */
 function auditS4(serverSrc) {
@@ -95,14 +96,14 @@ function auditS4(serverSrc) {
         (deniedBlocks.length > 2 ? '（新增终态拒绝点 ⇒ 必须同步补注入并更新本守卫）' : '（有拒绝分支被吞掉）'),
     );
   }
-  // 批1(c)：DELEGATION_REQUIRED 收口是**新增终态拒绝点**，同守 S-4 纪律补审计注入 ⇒
-  // 计数 2→3（handler 块内含 (c) + 硬拒两次调用，executeCapability 一次）。
-  // 本行守卫变更属受契约保护，登记 phase3-b1-notes §2 CL2。
+  // 批1(c)+CL7(A2-1)：终态拒绝必入审计的 S-4 纪律扩展到四处新增拒绝点 ⇒ 计数 2→6
+  // （两 allowed 块各 1 + handler (c) 1 + provider 缺席 1 + replay 两处 2）。
+  // 本行守卫变更属受契约保护，登记 phase3-b1-notes §4。
   const callCount = (serverSrc.match(/void recordPolicyDeniedAudit\(/g) ?? []).length;
-  if (callCount !== 3) {
+  if (callCount !== 6) {
     problems.push(
-      `recordPolicyDeniedAudit 调用点应恰为 3 处（含批1(c) DELEGATION_REQUIRED 收口），实测 ${callCount} 处` +
-        (callCount > 3 ? '（新增注入点 ⇒ 请同步本守卫计数）' : '（注入点被删/被改成非 void 形式）'),
+      `recordPolicyDeniedAudit 调用点应恰为 6 处（两 allowed 块 + 批1(c) 收口 + A2-1 三处早退），实测 ${callCount} 处` +
+        (callCount > 6 ? '（新增注入点 ⇒ 请同步本守卫计数）' : '（注入点被删/被改成非 void 形式）'),
     );
   }
   if ((serverSrc.match(/recordPolicyDeniedAudit/g) ?? []).length < 2) {
@@ -318,9 +319,10 @@ describe('装配守卫 · 变异自检（内存副本，零写盘）', () => {
       expect: 's4',
     },
     {
-      label: 'S4-m1b 删掉 /mcp handler 内的审计调用（第二处）',
+      label: 'S4-m1b 删掉 /mcp handler 的 (c) DELEGATION_REQUIRED 收口审计调用 ⇒ 守卫变红',
       target: 'SERVER',
-      apply: dropCall(1),
+      // 全文调用序位 4 = handler (c) 收口注入（两 allowed 块序位 0/5 之外的批1 新增拒绝点）
+      apply: dropCall(4),
       expect: 's4',
     },
     {
