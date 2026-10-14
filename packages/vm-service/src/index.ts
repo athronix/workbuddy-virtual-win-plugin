@@ -150,3 +150,17 @@ export type {
 } from './health-probe.js';
 export { DEFAULT_SERVICE_CONFIG, loadServiceConfig } from '@winvm/core';
 export type { ServiceConfig } from '@winvm/core';
+// 批1（审批闭环 P0-1）：(c)/双闸纯判据 + 委派 scope 留存表（决策逻辑脱服务可测，
+// 对齐 http-guard / delegation-scope「纯函数+单测」纪律；server.ts 只做装配）。
+export {
+  isInnerDelegation,
+  scopeLookupKeys,
+  shouldReturnDelegationRequired,
+  scopeFeedEnabled,
+  isScopeGateRejection,
+  enforceScopeRejection,
+  buildPolicyGateHealth,
+} from './policy-gate.js';
+export type { PolicyGateHealthView, ChannelProbeInput, DelegationRequiredInput } from './policy-gate.js';
+export { DelegationScopeRegistry } from './delegation-scope.js';
+export type { DelegationScopeEntry, ScopeLookupResult } from './delegation-scope.js';

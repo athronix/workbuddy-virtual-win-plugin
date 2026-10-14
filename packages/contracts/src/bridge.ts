@@ -399,6 +399,17 @@ export interface CapabilityRequest {
    */
   readonly delegationId?: string;
   /**
+   * 批1（**纯附加可选**，E-1/M2 双闸接线的 provider 侧承重点）：本次调用所属委派的
+   * 最小权限 scope（宿主**声明**的部分——服务端回退默认不进这里，见 GoalRequest.maxRiskDeclared）。
+   *
+   * 通路：vm-service 装配层回查 delegation-scope 所得 ⇒ 经 `executeCapability` /
+   * deterministic `step()` 灌入 provider 的策略复评。缺席即旧行为（纯宿主直调 / 未接线灰度）。
+   * 消费纪律与引擎两闸既有语义一致：`allowedCapabilities` 非空才执法白名单；
+   * `maxRisk` 在场才执法封顶（引擎步骤 5 的"仅声明才封顶"注释逐字适用）。
+   */
+  readonly scopeAllowedCapabilities?: readonly CapabilityId[];
+  readonly scopeMaxRisk?: RiskLevel;
+  /**
    * ARCH-29（P2-T4，**纯附加可选**）：宿主 HTTP 断连的中止信号（与 `ToolContext.signal` 同源）。
    *
    * 通路：`/mcp` 路由侦测到响应流 `close` 且未正常写完 ⇒ 框架灌进 `ToolContext.signal`

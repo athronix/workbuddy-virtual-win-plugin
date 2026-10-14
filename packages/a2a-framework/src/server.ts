@@ -131,21 +131,20 @@ function randomId(): string {
  * 在主用通道上从未抵达 VM。即使 E-1/批1 接线也接不上（装配缺键 = 下游无从消费）。
  * 本函数把两处收拢为一份，任何一处的字段集变化自动同形到另一处（防再漂移 = 结构性保证）。
  *
- * 批1 F-3：`maxRiskDeclared` 如实标注 `maxRisk` 是否来自宿主显式声明（见 contracts 字段文档）。
- * 缺席（服务端回退默认）⇒ `false`，下游策略接线据此**不喂** evaluate，避免缺省把
- * 全部 L2/L3 委派当场默认拒绝（可用性断崖）。
+ * 批1 F-3：`maxRiskDeclared` 如实标注 `maxRisk` 是否来自宿主**显式声明**（见 contracts
+ * 字段文档）——仅 `metadata.maxRiskSource==='agent'` 为真；回退填充与旧桥缺席均不标。
+ * 下游策略接线据此只喂声明值，服务端默认绝不喂封顶闸（可用性断崖防线）。
  */
 function buildGoal(
   message: A2A.Message,
   metadata: Record<string, unknown>,
   defaultMaxRisk: RiskLevel,
 ): GoalRequest {
-  // 来源判据（批1 F-3，宿主桥配合）：线上带 `maxRiskSource:'host-default'` ⇒ 该 maxRisk
-  // 只是宿主工具的**回退填充**（不是宿主意图声明），不得当作声明喂封顶闸（可用性断崖防线）。
-  // 'agent'/'host-config'/缺席 ⇒ 视为声明（缺席=旧版宿主桥，其发送值语义按声明从严处理；
-  // 实际消费由 vm-service 的接线灰度闸控制，shadow 态只记账不执法，升级窗口安全）。
-  const declaredMaxRisk =
-    typeof metadata['maxRisk'] === 'string' && metadata['maxRiskSource'] !== 'host-default';
+  // 来源判据（批1 F-3）：**仅 `maxRiskSource==='agent'`（宿主桥确认 Agent 本次调用显式声明合法值）
+  // 才算声明**。'host-default' 与缺席（旧版宿主桥——它恒发回退填充的 defaultMaxRisk，无从分辨
+  // 声明与否）一律非声明 ⇒ 不喂封顶闸。反面教材正是断崖本身：旧桥缺省发 'L1'，若"缺席视为
+  // 声明从严"，接线瞬间全部 L2/L3 委派封顶 L1 当场拒绝=以修复名义引入新 P0（F-3 预警原案）。
+  const declaredMaxRisk = metadata['maxRiskSource'] === 'agent' && typeof metadata['maxRisk'] === 'string';
   return {
     traceId: typeof metadata['traceId'] === 'string' ? metadata['traceId'] : `tr_${randomId()}`,
     goal: textOf(message),

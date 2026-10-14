@@ -53,6 +53,8 @@ import {
   resolveNetCfgTtlMs,
   resolveNetCfgPrewarmTimeoutMs,
   resolveEnforceBearerFailClosed,
+  resolvePolicyGateWiring,
+  resolveDelegationRequiredPolicy,
   resolveServiceConfig,
   validateServiceConfig,
   type FileLogger,
@@ -63,6 +65,15 @@ import { McpServer, type McpTool, type McpToolResult } from '@winvm/mcp-framewor
 import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime } from '@winvm/vm-capabilities';
 import { raceHealthSubProbes, resolveHealthProbeTimeoutMs, resolvePsBridgeHealthState } from './health-probe.js';
 import { deriveCapabilitiesProfile } from './capabilities-profile.js';
+import { DelegationScopeRegistry, type DelegationScopeEntry } from './delegation-scope.js';
+import {
+  isInnerDelegation,
+  scopeLookupKeys,
+  shouldReturnDelegationRequired,
+  scopeFeedEnabled,
+  isScopeGateRejection,
+  enforceScopeRejection,
+} from './policy-gate.js';
 import type { CapabilitiesProfile } from './capabilities-profile.js';
 /**
  * Phase 2 · P2-T6（F2 Step 2）：VM 内回连**运行期探针**（自环带凭据回连 `/mcp`，
@@ -149,6 +160,15 @@ export interface PendingApproval {
    * 仍能把 executed 条目归因回原委派回合（重放没有 HTTP 上下文，只能靠留存值）。
    */
   readonly delegationId?: string;
+  /**
+   * 批1（**纯附加**，E-1/M2 接线的重放侧承重点）：拦截时**服务端留存**的委派 scope
+   * ——宿主声明的 `allowedCapabilities` + 显式声明的 `maxRisk`（delegation-scope 回查所得，
+   * 与首次拦截同一次计算）。批准后服务端重放必须用这份留存值复评最小权限：「批准」批的
+   * 是 scope 内的动作，重放不得越出宿主授权范围（与 K5「参数只取留存值」同一条纪律——
+   * VM 内任何角色无法在批准后扩权）。纯宿主直调拦截的 token 不写这两键（无委派 scope 可言）。
+   */
+  readonly scopeAllowedCapabilities?: readonly string[];
+  readonly scopeMaxRisk?: RiskLevel;
   /**
    * ARCH-09（A2-17 · Phase 3 批6 补建，用户终裁 A）：**预览↔执行绑定**。
    * 拦截时用服务端权威输入（cap.id/cap.risk/token.preview/token.impact）算
@@ -341,6 +361,15 @@ export class VmApprovalCoordinator implements ApprovalCoordinator {
 
   beginTask(taskId: string): void {
     this.activeTaskId = taskId;
+  }
+
+  /**
+   * 批1（**纯附加只读**）：当前活动委派的任务 id（begin/endTask 维护）。
+   * MCP handler 用它做「委派内层 vs 纯宿主直调」的**服务端事实**通道判据（常驻形态 dtid
+   * 不生效，activeTaskId 是唯一可用的委派在场证据）。只读、不参与任何放行判定本身。
+   */
+  getActiveTaskId(): string | undefined {
+    return this.activeTaskId;
   }
 
   endTask(taskId?: string): void {
@@ -600,6 +629,16 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    */
   const ledgerReg = new LedgerRegistry();
   const receiptCache = new ReceiptCache();
+  /* ---- 批1 F-2：委派 scope 留存表（归因地基，有界） ----
+   * `onGoalAccepted` 注册（宿主声明的最小权限两元组）；MCP handler 的委派内层回连按
+   * 「dtid 精确键 ∨ 常驻形态活动委派槽」回查；终态销账 + TTL/容量双保险。
+   * TTL 复用 `WINVM_APPROVAL_TTL_MS`（委派生命周期上界 600s < 30min，正常不误逐）。
+   */
+  const scopeRegistry = new DelegationScopeRegistry({
+    ttlMs: resolveApprovalTtlMs(),
+    maxEntries: 256,
+    logger,
+  });
   // U-P0-3（A1）：`bypassTagSink` 套在账本装饰器**之外**，使凡经桥接层落链的记录先补上
   // `ext.bypass='dry-run'` 取证位（判据 = 策略引擎裁决的 matchedRule，不看调用方参数），
   // 再进账本与哈希链。未命中旁路的记录连 `ext` 键都不新增，既有链上形态逐字节不变。
@@ -1067,29 +1106,102 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
      * `ext.delegationId`（通道 2 精确归因）；缺席逐字节旧行为（`channel:'mcp'`，无 ext）。
      */
     readonly delegationId?: string;
+    /**
+     * 批1（**纯附加**，E-1/M2 双闸接线）：本次调用所属委派的最小权限 scope
+     * （宿主声明部分；装配层回查 delegation-scope / 重放取 token 留存值）。
+     * 缺席=无声明（纯宿主直调 / 灰度未执法）⇒ evaluate 两键不喂、provider 收不到，逐字旧行为。
+     */
+    readonly scope?: DelegationScopeEntry;
   }
+
+  /**
+   * 批1 灰度执法判定（F-3 处方件，单点函数 ⇒ shadow/on/off 三态语义全仓一处）：
+   *  - `off`：不评估（回滚档，零观测零执法）；
+   *  - `shadow`：**评估但不执法**——命中拒绝形态时 warn 计数（"如果执法会拒什么"），
+   *    verdict 照常放行（升级窗口安全档，先积累命中率证据再手动升 on）；
+   *  - `on`：评估+执法（拒绝生效）。
+   * 注意：evaluate 本身**只喂声明值**（scope 缺席=无声明=引擎两闸不触发），所以
+   * `on` 态对未声明 maxRisk/allowed 的委派也零影响——灰度控的是"声明了的是否执法"。
+   */
+  const policyGateWiring = resolvePolicyGateWiring(process.env);
+  /** shadow 命中观测计数（/health 可透出；执法与否与此计数严格分离）。 */
+  const policyGateShadowHits = { count: 0 };
+  /** 批1 出路(c)：直调审批闸收口「须走委派」（缺省 on；off=回滚到旧死令牌行为）。 */
+  const delegationRequiredPolicy = resolveDelegationRequiredPolicy(process.env);
 
   /**
    * K5：把「provider.execute + 结果映射」抽成命名函数，供 MCP handler 与服务端重放**共用同一段
    * 真实执行**（杜绝两条路径行为漂移）。审计条目由 provider 内部落哈希链（重放天然再出一条
    * executed 记录，与拦截时的 blocked 记录串成完整取证线）。
    */
+  /**
+   * 批1（E-1/M2 双闸接线 · F-3 灰度）：带 scope 的策略评估单点函数。
+   * handler 拦截决策与 executeCapability / 重放路径**共用**，杜绝 shadow/on/off 语义在多处漂移。
+   *
+   *  - `off`：scope feed 整体不喂 ⇒ 逐字旧行为（引擎两闸不触发）。
+   *  - `on`：喂 scope 两键（仅声明值），引擎白名单/封顶照裁决执法。
+   *  - `shadow`：喂 scope 评估；若引擎因**恰是 scope 两闸**（`scope:capability-not-in-allowed-set`
+   *    或 `maxRisk:*`）判拒，则回到无 scope 基线重评并计数——观测"若执法会拒什么"，
+   *    本态不执法。黑名单/未注册等非 scope 闸照常执法；`requiresApproval`（审批闸）
+   *    绝不在此降级（否则绕过审批=新漏洞）。
+   * 注意 feed 只含**声明值**（scope 由装配层保证：未声明 ⇒ 对应键不进 feed ⇒ 引擎不触发该闸），
+   * 所以 `on` 态对未声明 maxRisk/allowed 的委派零影响——灰度控的是"声明了的是否执法"。
+   */
+  function evaluateScoped(
+    cap: CapabilityDefinition,
+    params: Record<string, unknown>,
+    approved: boolean,
+    approvalId: string | undefined,
+    scope: DelegationScopeEntry | undefined,
+    traceId: string,
+  ): PolicyVerdict {
+    const feed = scopeFeedEnabled({ wiring: policyGateWiring, scope })
+      ? {
+          ...(scope!.allowedCapabilities && scope!.allowedCapabilities.length > 0
+            ? { allowedCapabilities: scope!.allowedCapabilities }
+            : {}),
+          ...(scope!.maxRisk ? { maxRisk: scope!.maxRisk } : {}),
+        }
+      : {};
+    const base = {
+      capabilityId: cap.id,
+      params,
+      risk: cap.risk,
+      approved,
+      ...(approvalId ? { approvalId } : {}),
+      ...(cap.policy ? { capabilityPolicy: cap.policy } : {}),
+    };
+    const verdict = policy.evaluate({ ...base, ...feed });
+    // shadow 态对「恰因 scope 两闸」的拒绝不执法（纯函数判据同源）。requiresApproval
+    // 绝不降级（否则绕过审批=新漏洞），先排除再判 scope 闸。
+    if (
+      !enforceScopeRejection(policyGateWiring) &&
+      !verdict.allowed &&
+      !verdict.requiresApproval &&
+      isScopeGateRejection(verdict.matchedRule)
+    ) {
+      policyGateShadowHits.count += 1;
+      logger.warn('批1 双闸 shadow 观测：scope 执法命中拒绝（本态不执法，按无 scope 基线放行）', {
+        capabilityId: cap.id,
+        matchedRule: verdict.matchedRule,
+        traceId,
+        shadowHits: policyGateShadowHits.count,
+      });
+      return policy.evaluate(base); // 去掉 scope feed，回到与旧实现逐字一致的基线裁决
+    }
+    return verdict;
+  }
+
   async function executeCapability(
     cap: CapabilityDefinition,
     params: Record<string, unknown>,
     seg: ExecutionSegment,
   ): Promise<McpToolResult> {
+    // 批1：caller（handler）已在拦截决策处评估并透传 verdict ⇒ 复用以杜绝二次评估漂移；
+    // 重放/无 verdict 路径 → 按 scope 现场评估（灰度三态见 evaluateScoped）。
     const verdict =
       seg.verdict ??
-      policy.evaluate({
-        capabilityId: cap.id,
-        params,
-        risk: cap.risk,
-        approved: seg.approved,
-        ...(seg.approvalId ? { approvalId: seg.approvalId } : {}),
-        ...(cap.policy ? { capabilityPolicy: cap.policy } : {}),
-      });
-
+      evaluateScoped(cap, params, seg.approved, seg.approvalId, seg.scope, seg.traceId);
     if (!verdict.allowed) {
       // 重放路径理论上不会走到这里（宿主已批准）；若策略黑名单命中等硬拒绝，
       // 仍如实返回失败 → 重放回执 ok:false，桥据此改判，绝不伪装成功。
@@ -1135,6 +1247,12 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       };
     }
 
+    // 批1 scope 执法单点在**服务层** evaluateScoped（本函数入口已评），provider.execute
+    // 不再收 scope——否则 shadow 态会出现「服务层降级放行 + provider 内再拒」的自相矛盾，
+    // 且违背 K5「一次评估透传」纪律。provider 内部 evaluate 只做注册表/黑名单纵深复核
+    // （无 scope，逐字旧行为）；deterministic provider 的**委派模板内 per-step** 封顶/白名单
+    // 走它自己的 in-process 路径（step() → this.execute → index.ts evaluate，见 CL2-b），
+    // 那条路不经本函数，与本服务层闸互不重复、互不打架。
     const res = await provider.execute({
       traceId: seg.traceId,
       capabilityId: cap.id,
@@ -1219,7 +1337,23 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       // K-N1：重放执行也要归因回原委派回合（p.delegationId 是拦截时留存的 dtid）——
       // 否则「委派内被拦 → 批准 → 服务端重放成功」这条 executed 只能靠时间窗 wild 兜底。
       ...(p.delegationId ? { delegationId: p.delegationId } : {}),
+      // 批1 F-2：重放**必须用 token 留存的 scope 复评**（拦截时那份宿主声明 ⇒「批什么
+      // 执行什么」的外延：批准的动作永远不能越出宿主当时给的授权范围，即使批准发生在
+      // scope 表项已销账之后——留存值就是权威，不回查活表，杜绝时序差）。
+      ...(p.scopeAllowedCapabilities || p.scopeMaxRisk
+        ? {
+            scope: {
+              delegationTraceId: p.delegationId ?? '',
+              taskId: '',
+              registeredAtMs: p.createdAtMs,
+              ...(p.scopeAllowedCapabilities ? { allowedCapabilities: p.scopeAllowedCapabilities } : {}),
+              ...(p.scopeMaxRisk ? { maxRisk: p.scopeMaxRisk } : {}),
+            } satisfies DelegationScopeEntry,
+          }
+        : {}),
     });
+    // 重放被 scope 闸拒（宿主批准后 scope 语义仍拒=漂移信号）：executeCapability 已如实
+    // 回 ok:false，此处**不另造语义**——toExecutedResult 原样透传失败回执，桥据此改判。
     return toExecutedResult(p.capabilityId, result);
   };
 
@@ -1287,17 +1421,81 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         }
       }
 
-      const verdict = policy.evaluate({
-        capabilityId: cap.id,
-        params: rest,
-        risk: cap.risk,
-        approved,
-        ...(approvalId ? { approvalId } : {}),
-        ...(cap.policy ? { capabilityPolicy: cap.policy } : {}),
-      });
+      // ===== 批1（F-2 通道判据 + scope 回查）=====
+      // 「委派内层」判据全部取**服务端事实**，绝不信任调用方自报参数：
+      //   - dtid 在场（单次 -p / 旧版桥带标）；
+      //   - 常驻形态 dtid 不生效（prepareMcpConfig 会话级共享，bridge 两处亲验）⇒
+      //     协调器活动委派槽兜底（beginTask/endTask 包裹整个委派 turn，常驻会话物理串行
+      //     ⇒ 同一时刻至多一个活动 turn；与 raise 的 input-required 挂接**同一份事实**，
+      //     不新增串台面）。
+      // 误判方向的 fail-safe 性（设计自查）：纯宿主直调恰撞并发委派 turn 的毫秒窗口 ⇒
+      // 被当作内层（走注册令牌旧路径/回查错 scope）——不放宽任何放行（审批闸与
+      // hostApproved 照旧），最坏=逐字旧行为。反方向（内层被判直调）在本判据下不可能
+      // 发生于常驻（turn 包裹整个委派期）。
+      const channelProbe = {
+        delegationId: ctx.delegationId,
+        activeTaskId: approvalCoordinator.getActiveTaskId(),
+      };
+      const innerDelegation = isInnerDelegation(channelProbe);
+      const segScope =
+        policyGateWiring === 'off'
+          ? undefined
+          : scopeRegistry.lookup(scopeLookupKeys(channelProbe))?.entry;
+
+      const verdict = evaluateScoped(cap, rest, approved, approvalId, segScope, ctx.traceId);
 
       if (!verdict.allowed) {
         if (verdict.requiresApproval) {
+          // ===== 批1 出路(c)：纯宿主直调命中审批闸 ⇒ 服务端策略收口「须走委派」 =====
+          // 病灶（P0-1）：直调场景无任何可达批准入口（approval.reply 需 taskId；raise 的
+          // 生产调用点在委派桥内）——旧行为是注册一个**永远批不下来**的死 approvalId 令牌，
+          // 宿主照文档批准→续跑→再拦截=信任核弹死循环。(c) 策略化把事实说破：L2/L3 一律
+          // 经委派审批（收窄承诺，非扩实现），回执给可行动指引。
+          // 判据=服务端事实（!innerDelegation），伪造无门（调用方无法伪造协调器活动槽）。
+          // 灰度：WINVM_DELEGATION_REQUIRED_POLICY=off 退回旧死令牌行为（回滚保险）。
+          // 决策纯函数 policy-gate.shouldReturnDelegationRequired（生产与单测同源）。
+          if (shouldReturnDelegationRequired({ inner: innerDelegation, requiresApproval: true, policyEnabled: delegationRequiredPolicy })) {
+            logger.info('批1(c)：纯宿主直调命中审批闸 ⇒ 策略收口 DELEGATION_REQUIRED（不再注册死令牌）', {
+              capabilityId: cap.id,
+              risk: cap.risk,
+              traceId: ctx.traceId,
+            });
+            // (c) 拒绝同样必须入审计链（S-4 同款纪律：终态拒绝零审计=取证盲区）。
+            void recordPolicyDeniedAudit(
+              audit,
+              logger,
+              {
+                traceId: ctx.traceId,
+                capabilityId: cap.id,
+                risk: cap.risk,
+                params: rest,
+                startedAtMs: Date.now(),
+                matchedRule: 'policy:delegation-required',
+                errorCode: 'DELEGATION_REQUIRED',
+                errorMessage: 'L2/L3 须经委派审批（a2a.delegate），MCP 直调通道不予批准',
+              },
+              () => newId('aud'),
+              { channel: 'mcp' },
+            );
+            return {
+              isError: true,
+              structuredContent: {
+                traceId: ctx.traceId,
+                ok: false,
+                error: {
+                  code: 'DELEGATION_REQUIRED',
+                  message:
+                    `能力 ${cap.id}（风险 ${cap.risk}）须经**委派审批通道**执行：MCP 直调` +
+                    '命中 L2/L3 审批闸时服务端不再发放续跑令牌（旧令牌无宿主批准入口、永远批不下来）。' +
+                    '请改用 a2a.delegate 发起（宿主批准 → 服务端重放闭环），或确认低风险替代能力。' +
+                    '如需退回旧行为（发放直调令牌）：WINVM_DELEGATION_REQUIRED_POLICY=off。',
+                  retryable: false,
+                },
+                risk: cap.risk,
+                guidance: { via: 'a2a.delegate', reason: 'host-direct-approval-gate' },
+              },
+            };
+          }
           const id = newId('apr');
           const impact = collectImpact(rest);
           const preview = buildPreview(cap, rest);
@@ -1326,6 +1524,15 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
             // K-N1：留存委派归因 —— 批准后服务端重放（异步、无 HTTP 上下文）仍可把
             // executed 条目精确归因回原委派回合。
             ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
+            // 批1 F-2：留存委派 scope —— 批准后**服务端重放必须用这份留存值复评最小权限**
+            //（「批准」批的是 scope 内的动作，重放不得越出宿主授权范围；与 K5「参数只取留存值」
+            // 同纪律——VM 内任何角色无法在批准后扩权）。仅委派内层拦截才有 scope（宿主直调
+            // 的 token 已在上面被 (c) 收口、走不到这里；或 delegationRequiredPolicy=off 时
+            // segScope 缺席 ⇒ 两键不写，逐字旧行为）。
+            ...(segScope?.allowedCapabilities && segScope.allowedCapabilities.length > 0
+              ? { scopeAllowedCapabilities: segScope.allowedCapabilities }
+              : {}),
+            ...(segScope?.maxRisk ? { scopeMaxRisk: segScope.maxRisk } : {}),
           });
 
           // K5 取证盲区闭合：被拦调用**必须入审计**（旧实现只在执行成功/失败时落条目，
@@ -1423,6 +1630,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         verdict,
         // K-N1：dtid 存在 → 归因委派（channel 'a2a' + ext.delegationId 精确入账本）
         ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
+        // 批1：handler 已用 evaluateScoped 评估（verdict 透传，不二次评估），scope 仅供
+        // 下游观测/审计归因参考（实际执法已在 verdict 里定死）。
+        ...(segScope ? { scope: segScope } : {}),
       });
     },
   }));
@@ -1454,6 +1664,23 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   const delegationObserver: DelegationObserver = {
     onGoalAccepted(goal: GoalRequest): void {
       const ledger = ledgerReg.begin(goal.traceId, goal.taskId ?? '', exposedIds);
+      // 批1 F-2：留存委派 scope（供内层回连 /mcp 回查）。只存**宿主声明**的两元组：
+      //   - maxRisk：仅 `goal.maxRiskDeclared===true` 才存（服务端回退默认绝不进这里——
+      //     否则缺省把全部 L2/L3 封顶=可用性断崖，F-3 病灶在此结构性防死）；
+      //   - allowedCapabilities：框架 buildGoal 已「宿主声明才写键」，在场即声明。
+      // taskId 在场由框架构造保证（runGoalWithLifecycle 的 goalWithTask={...goal, taskId:id}
+      // 先注入再回调）；缺席只可能是装配漂移 ⇒ 不注册（dtid 通路查不到 ⇒ 逐字旧行为），
+      // 宁可不执法绝不猜（F-2 病灶的反面纪律）。
+      if (goal.taskId) {
+        scopeRegistry.register({
+          delegationTraceId: goal.traceId,
+          taskId: goal.taskId,
+          ...(goal.allowedCapabilities && goal.allowedCapabilities.length > 0
+            ? { allowedCapabilities: goal.allowedCapabilities }
+            : {}),
+          ...(goal.maxRiskDeclared === true && goal.maxRisk ? { maxRisk: goal.maxRisk } : {}),
+        });
+      }
       void audit
         .append(
           buildDelegationAuditEntry('start', {
@@ -1516,6 +1743,13 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
        * ⇒ 链上条目逐字节不变。读值走契约字段（不是桥内类型）—— 框架快照的 result 是
        * `GoalResult`，桥内 `LlmGoalResult` 服务端看不见（K-N1 §4.4 同一依赖方向纪律）。 */
       const approvalTruth = result?.approvalTruth;
+      /* 批1 F-2：scope 销账。`input-required` **不销**（审批挂起非终态——批准后服务端重放
+       * 的 executeCapability 仍可能按 traceId/taskId 回查；重放实际优先用 token 留存值，
+       * 但挂起期内层并发回连仍需活表项）。真终态（completed/failed/canceled/rejected）才摘除；
+       * TTL/容量兜底漏网（审批永不应答→TaskStore 按拒绝收口会走 failed 分支，正常双保险）。 */
+      if (snap.state !== 'input-required') {
+        scopeRegistry.retire({ taskId, delegationTraceId });
+      }
 
       void audit
         .append(

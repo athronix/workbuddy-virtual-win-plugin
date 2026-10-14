@@ -386,3 +386,52 @@ export const ENV_APPOPS_EXCLUDE_PROCS = 'WINVM_APPOPS_EXCLUDE_PROCS';
 export const ENV_APPOPS_EXCLUDE_TITLE_PATTERNS = 'WINVM_APPOPS_EXCLUDE_TITLE_PATTERNS';
 /** 追加到默认**进程名正则**名单（逗号/分号分隔，CL-018 R2；模式应锚定以免误杀） */
 export const ENV_APPOPS_EXCLUDE_PROC_PATTERNS = 'WINVM_APPOPS_EXCLUDE_PROC_PATTERNS';
+
+/* ============ 批1 · 双闸接线灰度（maxRisk/allowedCapabilities 策略执法） ============ */
+
+/**
+ * 批1（审批闭环 P0-1 专项 · M2/E-1 接线）灰度开关（用户裁定的 F-3 内置处方件）。
+ *
+ * 病灶回顾：宿主声明的 `maxRisk`/`allowedCapabilities` 沿契约透传到 VM，但三处生产
+ * `policy.evaluate` 调用点从不把两键喂进引擎（引擎分支成为只有测试喂入的死代码=失实承诺）。
+ * 接线是正确方向，但**直连执法有可用性风险**（F-3）：升级窗口里旧版宿主桥发的 maxRisk
+ * 全是回退填充 L1（非声明），若把回退值当声明喂封顶闸，等于缺省拒绝全部 L2/L3 委派。
+ *
+ * 三态：
+ *  - `shadow`（**缺省**）：计算"如果执法会拒什么"，只 warn 观测，不改变放行结果——
+ *    升级窗口安全档，先积累命中率证据；
+ *  - `on`：真实执法（拒绝生效）。声明判据（maxRiskDeclared）+ 白名单判据均已按
+ *    "仅宿主显式声明才喂"接线，理论零断崖，仍建议真机观察 shadow 后手动升档；
+ *  - `off`：完全跳过判定（连 shadow 观测也不做）——回滚档。
+ *
+ * 非法值回退 shadow（绝不让一个坏 env 打挂服务，也绝不悄悄进入执法态）。
+ */
+export const ENV_POLICY_GATE_WIRING = 'WINVM_POLICY_GATE_WIRING';
+export type PolicyGateWiringMode = 'off' | 'shadow' | 'on';
+export const POLICY_GATE_WIRING_DEFAULT: PolicyGateWiringMode = 'shadow';
+
+export function resolvePolicyGateWiring(env: EnvView = process.env): PolicyGateWiringMode {
+  const raw = env[ENV_POLICY_GATE_WIRING]?.trim().toLowerCase();
+  if (raw === 'off' || raw === 'shadow' || raw === 'on') return raw;
+  return POLICY_GATE_WIRING_DEFAULT;
+}
+
+/* ============ 批1 · (c) 策略化收口开关（直调 L2/L3 → 须走委派） ============ */
+
+/**
+ * 批1（P0-1 出路(c)，主理人终裁）：MCP 直调面命中 L2/L3（非 dryRun 免批）时，
+ * 服务端按能力风险等级（服务端事实）判定「须走委派审批」，返回 `DELEGATION_REQUIRED`
+ * 明确回执 + 委派指引，**不再**注册"永远批不下来"的死 approvalId 令牌（P0-1 信任核弹）。
+ *
+ * 产品口径（随批1 文档订正）：由「两通道都能审批」收窄为「L2/L3 一律经委派审批」——
+ * 收窄承诺而非扩实现。审批唯一可达入口 = `a2a.delegate` 委派回合的 input-required
+ * → 宿主 `approval.reply`（有 taskId，链路验收绿）。
+ *
+ * 开关缺省 `on`：现状（死令牌）无任何正向价值，收口=同一拦截路径换成可行动回执，
+ * 无可用性断崖（不像双闸执法有"回退值当声明"风险，那个走 shadow 灰度）。
+ * 保留 `off` 档 = 纯回滚保险（部署面可显式退回旧死令牌行为，非法值回退 on）。
+ */
+export const ENV_DELEGATION_REQUIRED_POLICY = 'WINVM_DELEGATION_REQUIRED_POLICY';
+export function resolveDelegationRequiredPolicy(env: EnvView = process.env): boolean {
+  return parseBoolean(env[ENV_DELEGATION_REQUIRED_POLICY], true);
+}

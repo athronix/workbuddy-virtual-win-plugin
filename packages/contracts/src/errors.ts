@@ -33,7 +33,17 @@ export type BridgeErrorCode =
    * 即可表达，`BridgeError` 的**形状**（字段集）不变。
    * 未实现取消的新字段（`isCancelled` / `cancellationSignal`）的第三方 provider 不会用到它 ⇒ 无感。
    */
-  | 'TASK_CANCELED';
+  | 'TASK_CANCELED'
+  /**
+   * 批1（P0-1 出路(c) · **纯附加枚举成员**）：该能力为 L2/L3，MCP 直调通道不予审批，
+   * **须走委派**（`a2a.delegate`）由审批协调器挂起 input-required → 宿主批准 → 服务端重放。
+   *
+   * 语义（审计终裁 (c) 策略化）：纯直调场景没有可达的批准入口（`approval.reply` 需 taskId，
+   * 直调无委派回合）——旧行为是注册一个**永远批不下来**的死令牌（P0-1 的"照文档做却永远
+   * 批不下来"信任核弹）。本码把事实说破：服务端策略（非调用方自报）判定该调用必须换通道，
+   * 响应体带委派指引。重试同一请求无益（改通道才有救）⇒ retryable:false。
+   */
+  | 'DELEGATION_REQUIRED';
 
 export interface BridgeError {
   readonly code: BridgeErrorCode;
@@ -68,6 +78,9 @@ const DEFAULT_RETRYABLE: Record<BridgeErrorCode, boolean> = {
   // 操作再跑一遍（最危险的一类静默行为），故 false。调用方若确需重跑，必须重新发起委派
   // （重新过审批闸），而不是对同一任务 retry。既有 10 码的取值逐字不变。
   TASK_CANCELED: false,
+  // 批1(c)：重试同一请求无益——通道判定是服务端事实，只有**换通道**（a2a.delegate 委派）
+  // 才能进入审批流；原地 retry 只会再次命中同一收口。false 阻断宿主侧自动重试风暴。
+  DELEGATION_REQUIRED: false,
 };
 
 export function makeError(
