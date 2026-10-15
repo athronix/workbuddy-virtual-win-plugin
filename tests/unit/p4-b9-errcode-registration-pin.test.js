@@ -20,6 +20,10 @@
  *  R3 表「可重试」列首字（是/否）与 `DEFAULT_RETRYABLE` 实值一致——防 retryable 漂移；
  *  R4 errors.ts / INSTALL-GUIDE.md 文本不含 /封闭\s*\d+\s*码/——钉住 N-6，
  *     防「封闭 10 码」字样被复制粘贴复活。
+ *  R5（批10 G6 扩收集）两份域 SKILL（mcp-reference / orchestrator）的 `| \`error.code\``
+ *     契约码表 ↔ errors.ts 封闭码集**双向 ⊆**（缺即红+幽灵即红，同 R1/R2 打法）——
+ *     把批9 残留 ⚠-1「SKILL 码表不受钉」的窄面补齐；领域码（`error.reason` 行/FILE_NOT_FOUND
+ *     等）经锚点切片排除，混入即判幽灵（M5–M7 变异自证）。收集面 2 文件 → 4 文件。
  *
  * 提取纪律（对齐 assembly-guard 的 QA-02 教训）：每个切片都带**非空 + 数量下限**
  * 前置断言，把「匹配失败」与「匹配成功但对账不过」分开，杜绝 indexOf===-1 型假绿。
@@ -48,6 +52,9 @@ const F = {
   ERRORS: join(REPO, 'packages', 'contracts', 'src', 'errors.ts'),
   INTERFACES: join(REPO, 'docs', '02-design', 'INTERFACES.md'),
   INSTALL: join(REPO, 'docs', 'INSTALL-GUIDE.md'),
+  // 批10 G6（R5 扩收集面）：两份自带契约码表的域 SKILL（教学面）
+  SKILL_MCPREF: join(REPO, 'skills', 'winvm-mcp-reference', 'SKILL.md'),
+  SKILL_ORCH: join(REPO, 'skills', 'winvm-orchestrator', 'SKILL.md'),
 };
 const SRC = Object.fromEntries(Object.entries(F).map(([k, p]) => [k, readFileSync(p, 'utf8')]));
 /** 基线摘要：变异自检末尾据此自证磁盘源文件字节未被改动 */
@@ -120,6 +127,46 @@ export function extractTableRows(interfacesMd) {
 /* ============================ 判据函数（纯函数，返回差异集合，不 assert） ============================ */
 
 /**
+ * 批10 G6（R5 收集面）：从域 SKILL 文本提取契约码表所枚举的码集。
+ *
+ * 两份 SKILL 的契约码表形态 = **单行**以 `| \`error.code\`` 开头的 markdown 行，其取值格
+ * 用反引号空格枚举全部契约码（`INVALID_PARAMS` \`UNKNOWN_CAPABILITY\` …）。与之**同表不同行**
+ * 的 `error.reason` 行（领域码 `FILE_NOT_FOUND` 等）以 `| \`error.reason\`` 开头、
+ * 且领域码不在封闭集内 ⇒ **必须只取 `error.code` 行**，否则领域码被误判为幽灵码。
+ * 锚点切片（不用行号，防漂移）：定位 `^\| \`error.code\`` 行，抽该行内全部反引号包裹的
+ * 纯大写蛇形 token（剔除 `error`/`retryable` 等非码 token——它们或小写或含点）。
+ */
+export function extractSkillCodeRow(skillMd, label) {
+  const line = skillMd
+    .split('\n')
+    .find((l) => /^\|[ \t]*`error\.code`/.test(l));
+  assert.ok(line, `切片失败：${label} SKILL 找不到「| \`error.code\`」契约码表行`);
+  const codes = [];
+  // 反引号包裹 + 纯大写/数字/下划线（≥2 字符）⇒ 契约码形态；`retryable`/`error`/`reason`
+  // 等小写或含点 token 天然不匹配本正则，无需枚举排除。
+  for (const m of line.matchAll(/`([A-Z][A-Z0-9_]+)`/g)) {
+    codes.push(m[1]);
+  }
+  // QA-02 下限（同 R1/R2 纪律）：提取 <10 即正则/形态失效（实况 12），守卫失效必须显形
+  assert.ok(codes.length >= 10, `${label} 契约码行提取异常（实得 ${codes.length}，应 ≥10——表形态漂移即守卫失效）`);
+  assert.equal(new Set(codes).size, codes.length, `${label} 契约码行出现重复码：${codes.join(',')}`);
+  return codes;
+}
+
+/**
+ * R5 双向对账（SKILL 码表 ↔ errors.ts 封闭集）：
+ *  missing = 码集有而 SKILL 表无（教学欠登记）；
+ *  ghosts  = SKILL 表有而码集无（教学面私造权威码，含误收领域码的形态错）。
+ */
+export function checkSkillRegistration(errorsTs, skillMd, label) {
+  const codeSet = new Set(extractCodeSet(errorsTs));
+  const rowCodes = extractSkillCodeRow(skillMd, label);
+  const missing = [...codeSet].filter((c) => !rowCodes.includes(c));
+  const ghosts = rowCodes.filter((c) => !codeSet.has(c));
+  return { missing, ghosts };
+}
+
+/**
  * 双向对账：
  *  missing   = 码集有而表无（加码欠登记）；
  *  ghosts    = 表有而码集无（登记面私加幽灵码）；
@@ -171,6 +218,14 @@ describe('P4-B9 漂移钉 · 真源双向对账（N-2）', () => {
     }
   });
 
+  test('R5（批10 G6）：两份域 SKILL 契约码表 ↔ errors.ts 封闭码集双向 ⊆（缺码即红+幽灵码即红）', () => {
+    for (const label of ['SKILL_MCPREF', 'SKILL_ORCH']) {
+      const { missing, ghosts } = checkSkillRegistration(SRC.ERRORS, SRC[label], label);
+      assert.deepEqual(missing, [], `${F[label]} 契约码表欠登记（封闭码集有而表无）：\n${missing.join('\n')}`);
+      assert.deepEqual(ghosts, [], `${F[label]} 契约码表私造/误收非封闭集码（含领域码混入）：\n${ghosts.join('\n')}`);
+    }
+  });
+
   test('提取活性自证：码集恰为当前实况 12 码，且逐码 ∈ DEFAULT_RETRYABLE（穷举映射）', () => {
     const codes = extractCodeSet(SRC.ERRORS);
     const retryMap = extractRetryable(SRC.ERRORS);
@@ -216,6 +271,38 @@ describe('P4-B9 漂移钉 · 变异灵敏度自证', () => {
     assert.notEqual(mutated, SRC.ERRORS, '变异前提：D 项句式必须在场');
     assert.ok(DIGIT_REWRITE.test(mutated), '数字复写变异必须被 /封闭\\d+码/ 命中');
     assert.ok(!DIGIT_REWRITE.test(SRC.ERRORS), '真源当前不得命中（否则 M4 与真源自相矛盾）');
+  });
+
+  test('M5（R5）删一份 SKILL 码表一行码（TASK_CANCELED）⇒ 缺码必须显形（判据不空转）', () => {
+    const original = SRC.SKILL_MCPREF;
+    const mutated = original.replace(/[ \t]`TASK_CANCELED`/, '');
+    assert.notEqual(mutated, original, '变异前提：mcp-reference 码表行应有 TASK_CANCELED');
+    const { missing, ghosts } = checkSkillRegistration(SRC.ERRORS, mutated, 'MUT');
+    assert.deepEqual(missing, ['TASK_CANCELED'], `删码必须且只点名被删码（实得 missing=${JSON.stringify(missing)}）`);
+    assert.deepEqual(ghosts, [], '删码不应引入幽灵');
+    // 反证：真源未变异时该项为空（变异确实改变了判据结果）
+    const clean = checkSkillRegistration(SRC.ERRORS, original, 'CLEAN');
+    assert.deepEqual(clean.missing, [], '真源 mcp-reference 应无欠登记');
+  });
+
+  test('M6（R5）加一份 SKILL 码表幽灵码 ⇒ 幽灵必须显形（教学面私造即红）', () => {
+    const original = SRC.SKILL_ORCH;
+    const mutated = original.replace(/[ \t]`EXECUTION_FAILED`/, ' `GHOST_SKILL_CODE` `EXECUTION_FAILED`');
+    assert.notEqual(mutated, original, '变异前提：orchestrator 码表行应有 EXECUTION_FAILED');
+    const { missing, ghosts } = checkSkillRegistration(SRC.ERRORS, mutated, 'MUT');
+    assert.deepEqual(ghosts, ['GHOST_SKILL_CODE'], `幽灵必须点名（实得 ghosts=${JSON.stringify(ghosts)}）`);
+    assert.deepEqual(missing, [], '加幽灵不应引入欠登记');
+    const clean = checkSkillRegistration(SRC.ERRORS, original, 'CLEAN');
+    assert.deepEqual(clean.ghosts, [], '真源 orchestrator 应无幽灵码');
+  });
+
+  test('M7（R5）领域码误收防线：把某 SKILL 码表混入领域码 FILE_NOT_FOUND ⇒ 判幽灵（非封闭集）', () => {
+    const original = SRC.SKILL_MCPREF;
+    // 模拟"表形态漂移导致领域码混进契约码行"——R5 必须把它判为幽灵而非放行
+    const mutated = original.replace(/[ \t]`TIMEOUT`/, ' `FILE_NOT_FOUND` `TIMEOUT`');
+    assert.notEqual(mutated, original, '变异前提：应有 TIMEOUT');
+    const { ghosts } = checkSkillRegistration(SRC.ERRORS, mutated, 'MUT');
+    assert.ok(ghosts.includes('FILE_NOT_FOUND'), `领域码混入契约行必须判幽灵（实得 ${JSON.stringify(ghosts)}）`);
   });
 
   test('磁盘自证：本文件全程只读，三方源文件 SHA-256 与基线一致', () => {
