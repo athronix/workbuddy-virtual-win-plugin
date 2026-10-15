@@ -1,0 +1,3 @@
+SEND taskId=a777b208-05db-4138-839c-ae657e53d873
+poll 0 state=failed approvalId=
+FINAL state=failed approvalId=null taskId=a777b208-05db-4138-839c-ae657e53d873

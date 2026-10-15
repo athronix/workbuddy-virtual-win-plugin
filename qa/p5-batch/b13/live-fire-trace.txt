@@ -1,0 +1,15 @@
+12:01:38 === uninstall 发起委派 ===
+12:01:38 uninstall taskId=f023b082-6d86-438b-bb09-efc08028bef3
+12:02:09 uninstall 首轮态=input-required
+12:02:09 uninstall 挂起 approvalId=apr_7ee0a7247be14cba83ae
+12:02:09 uninstall 已批准 resp-state=working
+12:02:54 uninstall 续跑终态=completed
+12:02:54 UNINSTALL 结果 ok=true st=completed
+12:03:06 卸载后 inventory ripgrep 在否=true（false=卸载成功实锤）
+12:03:06 === reinstall 发起委派 ===
+12:03:06 reinstall taskId=9baa936e-f889-496b-829e-81659ede2b1e
+12:03:51 reinstall 首轮态=completed
+12:03:51 reinstall LLM 未挂起直接完成（检查是否真执行）
+12:03:51 REINSTALL 结果 ok=true st=completed
+12:04:03 复原后 inventory ripgrep 在否=true（true=复原成功）
+12:04:04 收尾 llmSession={"state":"ready","pid":8448,"restarts":2,"idleMs":57671,"firstCallLatencyMs":16652,"wsLatestMb":15.2,"wsPeakMb":18.5,"wsEvictions":0} policyGate={"wiring":"on","shadowHits":0,"delegationRequiredPolicy":true,"scopeEntries":2,"directWithActiveTurn":2}

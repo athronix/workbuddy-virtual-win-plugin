@@ -1,0 +1,46 @@
+{
+ "kind": "message",
+ "role": "agent",
+ "messageId": "32dfc873-1437-475d-b530-829ff4039df2",
+ "taskId": "f023b082-6d86-438b-bb09-efc08028bef3",
+ "parts": [
+  {
+   "kind": "text",
+   "text": "需要人工审批（风险 L2）后才能继续。\n操作：app.winget.uninstall\n真实目标：能力 app.winget.uninstall · 参数 id=BurntSushi.ripgrep.MSVC\n说明：请立即调用工具 app.winget.uninstall，参数 id=\"BurntSushi.ripgrep.MSVC\"（真卸载，不要 dryRun）。这是唯一动作，完成后停止，不要重装。\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_7ee0a7247be14cba83ae\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+  },
+  {
+   "kind": "data",
+   "data": {
+    "type": "approval-request",
+    "approvalId": "apr_7ee0a7247be14cba83ae",
+    "capabilityId": "app.winget.uninstall",
+    "risk": "L2",
+    "preview": {
+     "capabilityId": "app.winget.uninstall",
+     "risk": "L2",
+     "destructive": true,
+     "requiresSession": false,
+     "params": {
+      "id": "BurntSushi.ripgrep.MSVC"
+     },
+     "dryRun": {
+      "supported": true,
+      "exempt": true,
+      "requested": false,
+      "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+      "hint": "params.dryRun === true 且能力声明 supportsDryRun 时免审批直接放行（dry-run 不改变系统状态）"
+     },
+     "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+    },
+    "impact": [
+     "id=BurntSushi.ripgrep.MSVC"
+    ],
+    "expiresAtMs": 1792067521882,
+    "underlying": {
+     "capabilityId": "app.winget.uninstall",
+     "paramsSummary": "id=BurntSushi.ripgrep.MSVC"
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,4 @@
+SEND state=working taskId=bebec143-8e54-48d0-a616-78c2ac0577f7
+poll 0 state=working approvalId~=
+poll 1 state=failed approvalId~=
+FINAL state=failed approvalId=null taskId=bebec143-8e54-48d0-a616-78c2ac0577f7
