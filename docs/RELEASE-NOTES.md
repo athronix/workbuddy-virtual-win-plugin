@@ -23,19 +23,22 @@
 | Phase 3（10-13~14） | 承诺兑现（P0×4 收敛） | 批0 文档止血；批2 部署可达（DB-1..12 一键化）；批3 速赢交互；批4 M7 provider 差集/M3 预检/M6 读写分派；批5 保留期/取消风暴/孤儿门禁化；批6 深债（bearer 自检/wsProbe/schema 漂移钉）；**批1 审批闭环专项**：出路(c) `DELEGATION_REQUIRED`（纯直调 L2/L3 收口"须走委派"，根治"死令牌信任核弹"）+双闸三调用点接线+F-1/F-2/F-3 装配单源/scope 留存/判源零断崖 |
 | Phase 4（10-14~15） | 再审计补课（P1×3+P2×6 销账） | 批8 分发跟批+真机 V17 指纹；批9 教学诚实化（三册假方法 `tasks/resubscribe`→真实通路、§2.6 码表补齐+**漂移钉入 ST3**、claims-guard 治理面 25→30 件）；批10 缺省形态 E2E（常驻 scope 链五象限）、F-5 合成步骤 risk 如实化、`directWithActiveTurn` 窄窗观测、llmSession 工作集读数透传、SKILL 码表双向对账。两轮 QA 独立回归 **IS_PASS=YES + 活性反证**（防装饰品守卫/侥幸绿） |
 
-## 三、已知限制（如实，缺省态）
+## 三、已知限制（如实，2026-10-15 批11~14 后态）
 
-1. **双闸执法仍为 shadow 灰度**：`allowedCapabilities`/`maxRisk` 接线与端到端拦截用例在位（离线实锤），现网 `WINVM_POLICY_GATE_WIRING` 缺省 shadow（评估观测不执法）；`shadowHits` 观察期归稳后运维显式 on——切换 runbook 见 DEPLOYMENT「策略闸执法切换」条目。
-2. **V3/V4 服务层真卸载实弹窗**：`app.winget.uninstall`/树杀 `[k6]/[q5]` 分支离线单测钉死（r3-uninstall-verify 39 例）；真卸载经交互会话服务可用（宿主 RDP 或经委派实弹），SSH 非交互会话直调 winget 属结构性不可用（MSIX alias），已在 preflight/文档显形。
-3. **V14 eviction 长跑触发**未自然显形：`/health.llmSession.wsLatestMb/wsPeakMb/wsEvictions` 读数已在（10-15 真机首采 18.3MB），"超限回收"待长跑委派量自然触发或注入压测。
-4. `meta.capability.list` 运行期返回**模块名**而非能力 ID 全清单（能力 ID 权威面=`tools/list`，SKILL 措辞已规避；实现对齐入 Phase 5 批14）。
+1. ~~双闸执法仍为 shadow~~ **已转 on（批12/14）**：现网 `policyGate.wiring=on` 三查回验全中；声明式持久=宿主 `.env` `WINVM_POLICY_GATE_WIRING`（批14 通道化，跨部署不丢）；回滚=清键重部署。执法实弹样本 V18 已由批13 委派链自然覆盖（replay `allow:policy-passed` 在链）；`shadowHits>0` 的"声明即自缚"形态样本仍未自然出现（离线 p3-b1/E2E 已实锤拦阻行为）。
+2. ~~V3/V4 服务层真卸载未实弹~~ **批13 已实弹 ✅**：审批闭环端到端真机实锤（挂起→批准→replay 24.9s 真实执行→复原零遗留）。**残余**：超时树杀 `[k6] TIMED-OUT/[q5]` 孤儿分支未自然触发（保留在册）；**V19 新观察**：portable 包卸载回执 `ok=true` 但 inventory 短暂残留（K6 核验矛盾面），后续专项定性——SSH 非交互会话直调 winget 属结构性不可用（MSIX alias）不变。
+3. ~~V14 长跑 eviction 未显形~~ **读数已在（批10 G7+批13 真机验证）**：`wsLatestMb/wsPeakMb/wsEvictions` 现网在册（峰值 18.5MB）；**残余**=超限 eviction 回收路径（`wsEvictions>0`）未自然触发，属长跑量问题非观测缺失。
+4. `meta.capability.list` 运行期返回**模块名**而非能力 ID 全清单（能力 ID 权威面=`tools/list`，SKILL 措辞已规避；实现对齐入后续小批）。
 5. 审批挂起完整对齐（deterministic provider 真挂起 input-required）为登记 backlog：该形态触闸面为零，现以 `suspendSupported:false` 显形诚实收口。
+6. **`directWithActiveTurn`（(c) 并发窄窗）已有实况样本**：批13 实弹期计数=2（观测面按设计显形；方向 fail-safe 无放行放宽，限定句见 SECURITY-GOVERNANCE §2.3）。
 
-## 四、Phase 5 路线（价值兑现与运营期）
+## 四、Phase 5 路线（价值兑现与运营期）——批11~14 全部完赛（2026-10-15）
 
-- **批11 外宣对齐**（本文件即交付）：RELEASE-NOTES 链 + 旧文档冻结 + 索引同步。
-- **批12 shadow→on 执法切换评估**：读数标准+切换 runbook+真机切换执行+回滚位。
-- **批13 真卸载验证窗**：经 a2a 委派实弹卸载→审批→重放→[k6] 核验→复原，顺带 V14 观察。
-- **批14 小修族**：capability.list 名实、§1.7 宿主侧对称条目、skip 档登记。
+- **批11 外宣对齐** ✅：本文件 + 旧 `V1.0.0-release-notes` 冻结头注 + README §10 索引五补行。
+- **批12 shadow→on 执法切换** ✅：现网 `policyGate.wiring=on` 三查回验全中（`qa/p5-batch/b12-wiring-on-evidence.md`）；真机证伪两条 runbook 修正回写 §1.8（赋值区插入位置硬约束 / ssh schtasks 拖通道改健康轮询）。
+- **批13 服务层真卸载验证窗** ✅：审批闭环端到端真机实锤——LLM 常驻委派挂起 `input-required` → `message/send` 批准 → 链 seq26 `replay approvedBy=host + allow:policy-passed + 24.9s 真实执行` → 复原 ripgrep 在位零遗留（`qa/p5-batch/b13/VERDICT.md`）。超时树杀 `[k6] TIMED-OUT/[q5]` 分支仍未自然触发（保留在册）。**V14 读数真机显形 ✅**（wsLatestMb/wsPeakMb 在 /health）。新观察 **V19** 登记：portable 包"卸载 ok=true 但 inventory 残留"矛盾面，后续专项定性（不冒判）。
+- **批14 执法通道化** ✅：`--policy-gate-wiring off|shadow|on`（install-vm 白名单校验+bearer 同款赋值区注入+幂等）/ `.env WINVM_POLICY_GATE_WIRING` → deploy-vm 自动透传 / dry-run 计划显式打印；测试 p5-b14 6 例+devqa +3 例，GOLDEN 逐字节护栏未破；§1.8 首选路径改通道化。skip 档/`capability.list` 名实窄面维持登记（非阻塞）。
+
+**执法态现为 on（声明式持久，经批14 通道）**；回滚位=`.env` 清键重部署（§1.8 第 3 步）。运维纪律：任何 `deploy-vm --apply` 后按 §1.7 指纹复验，`.env` 的 wiring 键值即执法真值。
 
 *维护纪律：每批完赛后增改本文 §2/§3；测试基线数字只写实测（引用最新 `qa/p3-batch-sweep/gate-*.txt` 汇总行）。*

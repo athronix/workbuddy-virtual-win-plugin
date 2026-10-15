@@ -47,5 +47,16 @@
 
 **优先级裁决建议**：批11（外宣）与批12（执法决策）并行先做——批12 需要用户一个决策（"双闸要不要现在真执法"）；批13 需用户在场配合；批14 穿插。**若只做一件事：批12**——它是本项目安全模型"从承诺到生效"的最后一步。
 
+## 五、Phase 5 终态（2026-10-15 晚·用户令"逐批完善"后全部完赛）
+
+| 批 | 结果 | 证据/commit |
+|---|---|---|
+| 批11 外宣对齐 | ✅ `docs/RELEASE-NOTES.md` 权威链+旧件冻结+README §10 五补行 | claims-guard 11/deadlink 6 绿 |
+| 批12 shadow→on | ✅ 现网 `wiring=on` 三查回验全中；真机证伪两教训回写 §1.8（赋值区插入位硬约束/ssh schtasks 拖通道） | `qa/p5-batch/b12-wiring-on-evidence.md` |
+| 批13 真卸载窗 | ✅ **审批闭环端到端真机实锤**（挂起 input-required+apr_7ee0a724→message/send 批准→链 seq26 replay approvedBy=host+24.9s 真实执行→复原零遗留）；`directWithActiveTurn=2` 观测面首次显形；V14 读数在网（wsPeak 18.5MB）；**V19 新观察登记**（portable 包卸载 ok=true vs inventory 残留矛盾面，后续专项定性不冒判）；[k6] TIMED-OUT 分支保留在册 | `qa/p5-batch/b13/VERDICT.md`+全套 json/trace |
+| 批14 执法通道化 | ✅ `--policy-gate-wiring off\|shadow\|on`（白名单校验+bearer 同款赋值区注入幂等）+`.env WINVM_POLICY_GATE_WIRING`→deploy-vm 自动透传+dry-run 显式打印；GOLDEN 逐字节护栏未破；新测试件 6 例+devqa 3 例，相关 7 件全绿 | `p5-b14-policy-wiring-channel` |
+
+销账对照：B-2 已闭（on 在网+声明式持久）；B-3 主体闭（实弹窗成，残=树杀分支+V19 定性）；B-5 半闭（读数显形在，eviction 待长跑量）；B-1/B-7 闭；B-4/B-6/B-8 维持登记。**执法现网态=on（声明式）**；回滚=`.env` 清键重部署（§1.8-3）。
+
 ---
 *方法留痕：本轮=主理人亲验（六维抽查+CL-018 悬案核验+现网分发/指纹）+既有三台账（2026-10-12-full-audit / 2026-10-14-full-audit / 各批 notes）交叉；未再派审计棒（历史波状 429 教训+覆盖面已足）。*
