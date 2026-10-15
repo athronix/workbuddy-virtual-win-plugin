@@ -150,7 +150,7 @@ POST /a2a  (Agent Card: /.well-known/agent-card.json)
   }
 }
 ```
-> **两键兑现现状（批0，E-1 定性，详见 `docs/02-design/SECURITY-GOVERNANCE.md` §2.3）**：`allowedCapabilities`/`maxRisk` 为**声明记录于审计链、服务端执行面尚未接线**（=Phase 3 批1 在建）；本示例展示可声明的字段形状，**不得**读作已生效的限权/封顶。真正拦阻 L2/L3 的现状仍是审批闸。
+> **两键兑现现状（批1 接线已落地 · 2026-10-14 订正，详见 `docs/02-design/SECURITY-GOVERNANCE.md` §2.3）**：`allowedCapabilities`/`maxRisk` 三处生产调用点**已接线**进入策略评估实参，但**缺省灰度=`shadow`（评估+观测、不执法）**；本示例展示可声明的字段形状，缺省形态下**不得**读作已生效的限权/封顶（执法需运维显式 `WINVM_POLICY_GATE_WIRING=on`，口径见 §2.3）。真正拦阻 L2/L3 的缺省生效闸仍是审批闸 + 直调 `DELEGATION_REQUIRED` 收口。
 
 流回：`tasks/subscribe` 收到 N 条 `working` + N 张截图 artifact，最终 `completed` 带汇总。
 
@@ -223,7 +223,7 @@ POST /a2a
 ```
 > 若 VM 仍是 V1 确定性，本目标会返回 `UNSUPPORTED_GOAL`，并附带明确引导：
 > ① 预置 `generic_production` 工作流；② 升级 `agent.provider` 为 LLM（框架零改动）。
-> **两键兑现现状（批0 E-1，同 §C 注与 `SECURITY-GOVERNANCE.md` §2.3）**：`allowedCapabilities`/`maxRisk` 当前**声明记录于审计链、执行面尚未接线**（批1 在建），不得读作已生效限权/封顶。
+> **两键兑现现状（批1 接线已落地 · 2026-10-14 订正，同 §C 注与 `SECURITY-GOVERNANCE.md` §2.3）**：`allowedCapabilities`/`maxRisk` 服务端执行面**已接线**，但缺省灰度=`shadow`（评估+观测、不执法），不得读作已生效限权/封顶（执法需显式 `WINVM_POLICY_GATE_WIRING=on`，详见 §2.3）。
 
 ---
 
@@ -259,7 +259,7 @@ A2A message/send { goal:"生成本周竞品动态周报（图文+短视频）" }
    │
    ├─ ② 审批闸
    │     L2/L3：MCP 通道 requiresApproval；A2A 通道置 input-required 挂起
-   │     宿主确认后 resubscribe 续跑；超时 fail-closed 拒绝
+   │     宿主经 `a2a.approval.reply` 批准后服务端重放续跑；超时 fail-closed 拒绝
    │
    └─ ③ 防篡改哈希链审计（core/audit）
          每条含 traceId/能力/参数（敏感键打码）/风险/判定/结果/前后哈希
@@ -273,8 +273,14 @@ A2A message/send { goal:"生成本周竞品动态周报（图文+短视频）" }
 { "state": "input-required",
   "message": "步骤[导出 PDF]为 L2 操作，需确认是否允许写入 C:\\WinVMWorkspace\\out\\tpl.pdf",
   "approvalId": "apr_8f3c" }
-// 宿主确认后：
-PUT /a2a  { "method":"tasks/resubscribe", "params": { "taskId":"...", "approvalId":"apr_8f3c" } }
+// 宿主批准后（真实通路：宿主工具 a2a.approval.reply，参数如下）：
+a2a.approval.reply { "taskId": "task_...", "approvalId": "apr_8f3c", "approved": true }
+// 等价底层 JSON-RPC（服务端 dispatch 只认 message/send / tasks/get·list·cancel·subscribe / agent card，
+// 续跑 = 带审批结果的 message/send，不存在其它续跑方法）：
+POST /a2a  { "method": "message/send", "params": { "message": {
+  "role": "user", "taskId": "task_...",
+  "parts": [{ "kind": "data", "data": { "approvalId": "apr_8f3c", "approved": true } }] } } }
+// 服务端 continueTask → resolveApproval 放行 → 任务重放续跑
 ```
 
 **before/after 快照**：`appops.gui.produce`（L2, destructive）强制 `snapshot: 'before-after'`，

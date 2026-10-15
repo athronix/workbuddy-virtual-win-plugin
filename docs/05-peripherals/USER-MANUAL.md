@@ -39,7 +39,7 @@ WorkBuddy 调用 `storage.disk.list` + `system.info.get`，返回结构化结果
 ### 3.2 委派任务（A2A）
 > "把虚拟机里 C 盘临时文件清理一下，超过 30 天的放进回收站，别真删"
 
-走 A2A：`tasks/send` → 逐步执行 → 真要删文件时发 `input-required` 问你 → 你确认 → 续跑 → 回传 artifact。
+走 A2A：`message/send` 委派 → 逐步执行 → 真要删文件时发 `input-required` 问你 → 你批准后经 `a2a.approval.reply` 续跑 → 回传 artifact。
 
 ### 3.3 GUI 自动化
 > "打开虚拟机里的记事本，输入'hello'，保存为 test.txt"
@@ -53,7 +53,7 @@ WorkBuddy 调用 `storage.disk.list` + `system.info.get`，返回结构化结果
 当任务命中 L2/L3 风险，工具/任务会**挂起**并提示你确认：
 
 - MCP 通道：`requiresApproval: true`，WorkBuddy 弹出确认
-- A2A 通道：任务状态变 `input-required`，你回复"继续/取消/改参数"，WorkBuddy 用 `tasks/resubscribe` 续跑
+- A2A 通道：任务状态变 `input-required` 挂起等你确认。你批准后，WorkBuddy 经 `a2a.approval.reply` 应答（底层是带审批结果的 `message/send`），VM 服务端收到批准后续跑
 
 **拒绝或超时**会安全中止，不做任何破坏性动作。
 
