@@ -109,17 +109,22 @@ L2/L3 操作首次调用返回**待确认**（而非直接执行）：
 
 ### 2.6 错误码
 
+> **单源** = `packages/contracts/src/errors.ts` 的 `BridgeErrorCode` 封闭码集（下表逐码登记，行序与枚举声明序一致；两侧由 `tests/unit/p4-b9-errcode-registration-pin.test.js` 双向对账钉死，缺码/幽灵码即红）。`可重试` 列取 `DEFAULT_RETRYABLE` 缺省值；`makeError` 传显式 `options.retryable` 时可覆写单例。
+
 | 码 | 语义 | 可重试 |
 |---|---|---|
 | `INVALID_PARAMS` | 参数不符合 input schema | 否 |
 | `UNKNOWN_CAPABILITY` | 能力未注册 | 否 |
+| `UNSUPPORTED_GOAL` | 目标未被工作流登记（不硬猜、不伪造，附引导） | 否 |
 | `POLICY_DENIED` | 策略引擎拒绝（白名单/路径/命令） | 否 |
 | `APPROVAL_REQUIRED` | 需审批（附 approval 结构） | 是（带 approvalId） |
 | `SESSION_UNAVAILABLE` | **无交互式会话**，GUI 能力不可用 | 是（恢复后） |
 | `SESSION_BLACK_SCREEN` | 检出黑屏（**明确告警，不静默返回**） | 是（恢复后） |
 | `PROVIDER_UNAVAILABLE` | VM Agent provider 未就绪 | 是 |
-| `TIMEOUT` | 执行超时 | 视能力 |
-| `EXECUTION_FAILED` | 底层执行失败（附 PowerShell 错误） | 视能力 |
+| `TIMEOUT` | 执行超时 | 是 |
+| `EXECUTION_FAILED` | 底层执行失败（附 PowerShell 错误） | 否 |
+| `TASK_CANCELED` | 任务被取消，执行体协作式退出（重跑必须重新委派、重过审批闸） | 否 |
+| `DELEGATION_REQUIRED` | L2/L3 纯 MCP 直调不予审批，须改走 `a2a.delegate` 委派（批1(c)） | 否（须转委派，重试同一请求无益） |
 
 ---
 

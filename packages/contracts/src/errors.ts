@@ -51,11 +51,11 @@ export interface BridgeError {
   /**
    * 领域层「原因码」（CL-017 D23）。
    *
-   * `code` 是**契约层封闭 10 码**（决定是否重试 / 是否需要审批）；`reason` 是**领域层原因码**
+   * `code` 是**契约层封闭码集（单源=本文件；对外登记见 docs/02-design/INTERFACES.md §2.6）**（决定是否重试 / 是否需要审批）；`reason` 是**领域层原因码**
    * （如 PS 侧 `FILE_NOT_FOUND` / `CLI_NOT_FOUND` / `SERVICE_NOT_FOUND`），供调用方按原因选择
    * **具体补救动作**（修路径 / 先装应用 / 校验名称 / 调大超时）。
    *
-   * 纯增量可选字段：契约层 10 码与 `DEFAULT_RETRYABLE` 语义**保持不变**。
+   * 纯增量可选字段：契约层封闭码集与 `DEFAULT_RETRYABLE` 语义**保持不变**。
    */
   readonly reason?: string;
   readonly details?: Record<string, unknown>;

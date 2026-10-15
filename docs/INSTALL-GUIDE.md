@@ -298,7 +298,7 @@ node delivery/winvm-plugin.mjs tunnel stop     # 向 daemon 发 SIGTERM，清理
 | 改了能力模块（psmod/*.ps1）但不生效 | **ps-bridge 不可热更**：主循环 `while($true)` 只在 stdin 关闭/未捕获异常时退出。处置：重启 `WinVMBridge.Service`（`delivery/tools/kill-restart.ps1`） 〔MEMORY「GUI interactive 判定」〕 |
 | VM 掉线后 ssh 命令一直卡 | 宿主 ssh 进程假活。处置：确认 VM 网络后 `taskkill` 宿主侧残留 ssh/隧道进程，再重试 〔MEMORY「隧道黑洞诊断」〕 |
 | `/health` 的 `audit.chainValid=false` | 旧版并发竞态已修（D30）：取号+哈希+回写串行化；`freshChainOnStart` 语义 = **启动即开新分片、全新 genesis**，历史分片仅归档、不参与校验（见到 entries 小 ≠ 链坏）；`/health` 会透出 `brokenAt`+`reason`（HASH_MISMATCH/SEQ_DUP/SEQ_GAP/CHAIN_BREAK）。处置：升级到含 D30 的版本后重启服务，用 `delivery/tools/verify-d30.ps1` 复验 〔MEMORY「遗留 1」〕 |
-| 错误返回两层 code | 设计如此：契约层 `code`（封闭 10 码，管重试/审批）+ 领域层 `reason`（psmod `UPPER_SNAKE`，管补救），唯一映射点在 `adapter-agent-workbuddy` 的 `toBridgeError()`。按 reason 找补救、按 code 定重试策略 〔MEMORY「关键坑」〕 |
+| 错误返回两层 code | 设计如此：契约层 `code`（封闭码集，单源 errors.ts、登记 §2.6，管重试/审批）+ 领域层 `reason`（psmod `UPPER_SNAKE`，管补救），唯一映射点在 `adapter-agent-workbuddy` 的 `toBridgeError()`。按 reason 找补救、按 code 定重试策略 〔MEMORY「关键坑」〕 |
 | ssh 传参 `/End` 变成 `C:/.../End`、`$_` 变 `/usr/bin/bash` | 远端默认 shell = Git-Bash(MSYS)：路径转换 + 变量吞。处置：远端逻辑一律写 .ps1 推过去 `powershell -File` 跑，勿 ssh 内联 〔MEMORY「关键坑」+ tools/README 坑 1〕 |
 | `Sort-Object` 排序"不生效" | PS 5.1 对 `[ordered]@{}` 用 `-Property <键>` 静默失效：不带 `-Unique` 不排序、带 `-Unique` 塌成 1 条。处置：`-Property { $_.key }`（数值套 `[double]`）〔MEMORY + tools/README 坑 3〕 |
 | A3 验收把 ps-bridge 杀了？ | 属预期：A3 就是强杀自愈验收（restarts +1 正常）；历史上「A3 强杀 × 委派负载并发 → 重生风暴致 18443 监听消失」已记录为 D31（复现条件特殊，服务可自恢复）〔MEMORY「遗留 4」〕 |
