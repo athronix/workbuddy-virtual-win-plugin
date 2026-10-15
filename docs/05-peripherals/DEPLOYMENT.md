@@ -130,6 +130,38 @@ node delivery/setup.mjs --apply --env=/path/to/.env
    - 新增 `/health` 观测块：`GET /health` 确认键在册（如 `policyGate`）；
    - 新 psmod/桥逻辑：核对 `/health` 的 psmod 指纹字段（批2 R-4 通路）。
 4. **登记**：真机收口证据落 `qa/`（命令+输出原文），并在批次 notes 标注"现网已跟批 + 指纹清单"。**治理面文档写"已落地"的时点=指纹复验通过之后**，不得先于部署。
+5. **宿主侧对称条目**：改动涉及**宿主面**（host-a2a-bridge / install-host / skills/ / plugin spec / 连接器 mcp.json 形态）时，同批还须 `node delivery/install-host.mjs`（或 `setup.mjs --only-host`）刷新宿主插件缓存分发，并核行为指纹：宿主工具清单/工具描述新文案可见、`~/.workbuddy/plugins/cache/winvm/winvm-bridge/<version>/` 副本 mtime 跟批（**宿主插件缓存=运行态真相源**）。只跑 `deploy-vm` ≠ 宿主侧改动生效。
+
+### 1.8 策略闸执法切换 runbook（shadow → on，运维决策动作）
+
+> 背景：批1 双闸（`allowedCapabilities` 白名单 / `maxRisk` 封顶）缺省 `WINVM_POLICY_GATE_WIRING=shadow`＝**评估观测、不执法**。执法态 `on` 才会对"宿主显式声明了 scope 的委派内层/重放"落 `POLICY_DENIED`。切换是运维决策：需按下述读稳标准确认后显式执行。
+
+**第 0 步 · 读稳标准（决定"能不能切"）**：观察窗内 `/health.policyGate` 四元组满足——
+- `shadowHits` 连续 ≥7 天为 0 或低个位数 ⇒ 宿主声明形态健康，on 态将拦的"声明即自缚"请求≈0，切换增量风险低；
+- `shadowHits` 持续增长 ⇒ 先分析命中样本（审计链 shadow 观测条目 `matchedRule='scope:*'`/`maxRisk:*`），确认宿主声明与运维意图冲突面后再决定；
+- `directWithActiveTurn > 0` ⇒ 存在 (c) 并发窄窗实况（SECURITY-GOVERNANCE §2.3 限定），属观测项，不阻塞切换。
+
+**第 1 步 · 切换（VM 上 ops 补丁；计划任务无 env 通道，生成的 start-hidden.ps1 是唯一 env 源）**：
+
+> ⚠ **插入位置硬约束（2026-10-15 真机证伪教训）**：`start-hidden.ps1` 末尾位于 `WaitForExit` 阻塞语句**之后**——`Add-Content` 追加到文件尾的 `$env:` 赋值**永远不会执行**（服务照常起、wiring 纹丝不动，实测被坑一次）。补丁必须插进**既有 `$env:` 赋值区**（`$env:WINVM_PSBRIDGE_READY_TIMEOUT_MS` 行后、`Start-Process` 拉起 node 之前），插完复核"env 行号 < Start-Process 行号"再重启。
+
+```powershell
+# 备份后，在 $env:WINVM_PSBRIDGE_READY_TIMEOUT_MS 行**下一行**插入（勿 Add-Content 到尾部）：
+Copy-Item C:\WinVMBridge\delivery\.generated\start-hidden.ps1 C:\WinVMBridge\dev-and-qa\start-hidden.ps1.bak
+(Get-Content C:\WinVMBridge\delivery\.generated\start-hidden.ps1) -replace '(?m)^(`$env:WINVM_PSBRIDGE_READY_TIMEOUT_MS.*)$', "`$1`n`$env:WINVM_POLICY_GATE_WIRING = 'on'" | Set-Content C:\WinVMBridge\delivery\.generated\start-hidden.ps1 -Encoding UTF8
+# 复核位置：env 行号必须小于 Start-Process 行号
+# 重启服务（不重跑 install-vm；顺序铁律见 §1.7-2）
+powershell -File C:\WinVMBridge\kill-restart.ps1
+```
+
+> ⚠ **重启方式**：经 SSH 远程重启时，`schtasks /run` 起的隐藏任务会**拖住 ssh 通道不返回**（实测挂 34 分钟，任务本身已成功）——远程操作请对 ssh 调用本身设短超时并放弃等待其退出，改经隧道 `GET /health` 轮询确认新实例（看 `policyGate.wiring` 翻转即版本指纹）；或直接在 VM 桌面会话里跑 `kill-restart.ps1`。
+
+**第 2 步 · 行为回验（三查，全中才算生效）**：
+1. `GET /health` ⇒ `policyGate.wiring='on'`（**版本指纹优先于 uptime**）；
+2. 纯直调 L2（白名单路径）⇒ 仍 `DELEGATION_REQUIRED` 不发令牌（on 不改变 (c) 面，防误伤回归）；
+3. **执法实弹**（推荐并入一次带 scope 声明的真实委派，登记项 V18）：委派 goal 声明 `maxRisk:'L1'` 且步骤含 L2 能力 ⇒ 内层回连 `POLICY_DENIED`（链上 `matchedRule='maxRisk:L1'` 入审计）。缺真机委派条件时，离线行为面（p3-b1-policy-gate ③⑤ + 常驻形态 E2E 五象限）已实锤，登记待自然样本，不伪造。
+
+**第 3 步 · 回收/回滚位**：删补丁行（或还原 bak）+ `kill-restart` ⇒ `/health` 回 `wiring='shadow'`。**天然 fail-safe 提醒**：该补丁是临时运维态——任何 `deploy-vm --apply` 全量部署会**重新生成** start-hidden.ps1 并回到缺省 shadow。要跨部署维持 on：每次部署后重打补丁（铁律：先部署→后补丁→再 kill-restart），或按 Phase 5 批14 候选把 `--policy-gate-wiring` 通道化进 install-vm/deploy-vm 参数链。
 
 ---
 
