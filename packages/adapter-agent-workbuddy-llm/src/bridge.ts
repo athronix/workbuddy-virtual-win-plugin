@@ -27,6 +27,7 @@ import type {
   TaskState,
 } from '@winvm/contracts';
 import { makeError } from '@winvm/contracts';
+import { WINDOWS_CAPABILITIES } from '@winvm/vm-capabilities';
 import {
   resolveApprovalReplay,
   resolveApprovalTruth,
@@ -62,6 +63,25 @@ import {
  * 桥的两个收口点另外**显式**经 `deps.reconcileApprovalWait` 传入同一函数引用（注入优先）。
  */
 registerApprovalWaitFallback(reconcileApprovalWait);
+
+/**
+ * 批10 N-7（F-5 收口）：合成步骤 `appops.workflow.run` 的**注册表权威 risk**（单源取值，
+ * 非字面量复写）。
+ *
+ * 病灶（audit 2026-10-12 arch3 F-5 → 2026-10-14 N-7）：两处合成步骤曾把
+ * `LlmGoalInput.maxRisk` 的透传值（缺席兜底 'L2'）直接写成步骤 `risk` —— 把"本次
+ * 委派的上限"冒充"该步骤实际风险"，与字段注释宣称的"步骤 risk 如实化"相悖（封顶是
+ * 委派范围约束，与 workflow.run 这一步实际发生了什么无关；宿主卡片/execution-steps
+ * 据此把壳步骤展示成 L2/L3 是语义污染，被拦内层的真实风险另有审批卡 `token.risk`
+ * 通道透出——r19c-a5-fix4 F4a 已钉服务端权威值）。
+ * 处方（arch3 原案）：步骤 risk 取 `cap.risk` 服务端权威值。桥在 runGoal 收口期无
+ * registry ctx 可达（合成步骤不经过策略评估），故从 `@winvm/vm-capabilities` 注册表
+ * （本包既有声明依赖，L2 同层 ⇒ dep-lint 合法边）模块加载期取一次；查不到（能力被
+ * 摘除的极端漂移）⇒ 回落 'L1'（definitions.ts 现值，亲读 :400），漂移面由回落注释
+ * 交代，绝不回落 'L2' 冒充。
+ */
+const WORKFLOW_RUN_RISK: RiskLevel =
+  WINDOWS_CAPABILITIES.find((c) => c.id === 'appops.workflow.run')?.risk ?? 'L1';
 
 /** 下发给 VM 内 Agent 的技能规范（供其按规范拆解步骤 / 编写脚本 / 调用工具） */
 export interface LlmSkillDoc {
@@ -100,13 +120,9 @@ export interface LlmGoalInput {
    * 收口反查 fail-open 时记「恰一条」warn（设计 §9-B-3）—— 取证故障可观测，但绝不影响委派。
    */
   readonly warn?: (msg: string, meta?: Record<string, unknown>) => void;
-  /**
-   * P1-Fix（**纯附加可选**）：本次委派允许的最高风险（由 provider 从 `GoalRequest.maxRisk`
-   * 透传）。用于 `execution-steps` 步骤 `risk` 的如实化 —— 现状两处步骤硬编码 `risk:'L1'`，
-   * 导致被拦的 L2/L3 高危在宿主侧展示成 L1（审计/取证缺陷，根因 §4.2）。
-   * 缺席 ⇒ 回退 `'L2'`（与审批卡既有的桥侧兜底口径一致）。
-   */
-  readonly maxRisk?: RiskLevel;
+  // 批10 N-7（F-5 收口）：P1-Fix 时代的 `maxRisk?: RiskLevel` 透传字段已退役删除——
+  // 合成步骤 risk 改取注册表权威值（见文件头 WORKFLOW_RUN_RISK 的病灶交代），
+  // 「委派封顶冒充步骤风险」通路整体清零；`GoalRequest.maxRisk` 契约字段不动（scope/策略仍消费）。
 }
 
 /**
@@ -1542,7 +1558,9 @@ export class CliLlmBridge implements LlmBridge {
                 capabilityId: 'appops.workflow.run',
                 params: { goal: input.goal, runtime: this.cliPath, session: 'persistent' },
                 ok: true,
-                risk: input.maxRisk ?? 'L2',
+                // 批10 N-7（F-5 收口）：步骤 risk = `appops.workflow.run` 的**注册表权威值**
+                // （WORKFLOW_RUN_RISK，模块加载期从 WINDOWS_CAPABILITIES 取值，非"委派封顶"冒充）。
+                risk: WORKFLOW_RUN_RISK,
                 durationMs: turn.durationMs,
                 traceId: input.traceId,
                 summary: 'LLM 常驻会话自主规划并执行完成',
@@ -1841,7 +1859,8 @@ export class CliLlmBridge implements LlmBridge {
                       capabilityId: 'appops.workflow.run',
                       params: { goal: input.goal, runtime: this.cliPath },
                       ok: true,
-                      risk: input.maxRisk ?? 'L2',
+                      // 批10 N-7（F-5 收口）：注册表权威值（与常驻路径同形，见 WORKFLOW_RUN_RISK）
+                      risk: WORKFLOW_RUN_RISK,
                       durationMs: Date.now() - started,
                       traceId: input.traceId,
                 summary: 'LLM 自主规划并执行完成',

@@ -11,11 +11,16 @@
  *          且人话文案含「风险 L3」。
  *          落点：vm-service/src/server.ts:182 `enriched.risk = token.risk ?? req.risk`
  *   F4a-2  回归锚点：token 缺席 ⇒ `enriched = req` ⇒ risk 沿用桥侧值（降级语义不变）。
- *   F4b-1  LlmGoalInput.maxRisk='L3' ⇒ 桥产物 steps[0].risk === 'L3'（不再恒 'L1'）
- *   F4b-2  maxRisk 缺省 ⇒ steps[0].risk === 'L2'（owner 拍板 Q4：缺省取 'L2'，保守向高）
+ *   F4b-1  LlmGoalInput.maxRisk='L3' ⇒ 桥产物 steps[0].risk === 'L1'（批10 N-7 订正后口径：
+ *          注册表权威值，**不随封顶漂移**——旧 F4b-1 的 ==='L3' 断言随 A5 Fix-4b 形态退役）
+ *   F4b-2  maxRisk 缺省 ⇒ steps[0].risk === 'L1'（同上；owner Q4"缺省取 L2"口径已被
+ *          arch3 F-5/N-7 判词推翻：封顶≠步骤实际风险，展示面归一取 cap.risk 权威值）
  *
- * 口径来源（owner 已拍板，不再讨论）：
- *   - Q4：缺省 risk 取 'L2'，maxRisk 会透传 ⇒ 缺省⇒'L2'；maxRisk='L3'⇒'L3'。
+ * 口径来源（批10 N-7 收口改判；受契约保护变更登记见 docs/changes/phase4-b10-notes.md）：
+ *   - Q4（A5 原裁定）：缺省 risk 取 'L2'，maxRisk 会透传 ⇒ 缺省⇒'L2'；maxRisk='L3'⇒'L3'。
+ *     **批10 订正**：该形态即 F-5 病灶本身（"委派上限"冒充"步骤实际风险"），合成步骤
+ *     capabilityId=appops.workflow.run ⇒ risk 恒取注册表权威值 'L1'（WORKFLOW_RUN_RISK）；
+ *     被拦内层的真实风险展示面另有审批卡 token.risk 通道（F4a 钉服务端判定值，不受影响）。
  *   - Q8：K3 静默假成功属独立项目 CL-K3R，本轮**不**写断言。
  *   - Q5/Q6：Fix-4c / Fix-4d 本迭代不做 ⇒ 不写断言，也不动 r19c-kn1-a-pure.test.js:134。
  *
@@ -190,8 +195,8 @@ async function runOneshot(maxRisk) {
   return bridge.runGoal(input, makeSink());
 }
 
-describe('A5 / Fix-4b execution-steps 步骤 risk 如实化（bridge.ts 单次/常驻两处）', () => {
-  test('F4b-1 maxRisk=L3 ⇒ 桥产物 steps[0].risk === "L3"', async () => {
+describe('A5 / Fix-4b execution-steps 步骤 risk 如实化（批10 N-7 订正：注册表权威值，不随封顶漂移）', () => {
+  test('F4b-1 maxRisk=L3 ⇒ 桥产物 steps[0].risk === "L1"（注册表权威值；封顶不再冒充步骤风险）', async () => {
     const res = await runOneshot('L3');
     assert.ok(
       Array.isArray(res.steps) && res.steps.length > 0,
@@ -199,12 +204,12 @@ describe('A5 / Fix-4b execution-steps 步骤 risk 如实化（bridge.ts 单次/�
     );
     assert.equal(
       res.steps[0].risk,
-      'L3',
-      `Fix-4b：maxRisk='L3' 时步骤 risk 应为 L3，不得恒为 L1（实测 ${String(res.steps[0].risk)}）`,
+      'L1',
+      `N-7 订正：步骤 risk 恒取 appops.workflow.run 注册表权威值 L1，**不得**被委派封顶 L3 顶替（实测 ${String(res.steps[0].risk)}）`,
     );
   });
 
-  test('F4b-2 maxRisk 缺省 ⇒ steps[0].risk === "L2"（owner 拍板 Q4：缺省取 L2，保守向高）', async () => {
+  test('F4b-2 maxRisk 缺省 ⇒ steps[0].risk === "L1"（同 F4b-1：两态同值=封顶通路已退役的判别性）', async () => {
     const res = await runOneshot(undefined);
     assert.ok(
       Array.isArray(res.steps) && res.steps.length > 0,
@@ -212,8 +217,8 @@ describe('A5 / Fix-4b execution-steps 步骤 risk 如实化（bridge.ts 单次/�
     );
     assert.equal(
       res.steps[0].risk,
-      'L2',
-      `Fix-4b：maxRisk 缺省时步骤 risk 应为 L2（实测 ${String(res.steps[0].risk)}）`,
+      'L1',
+      `N-7 订正：缺省形态同样 L1（旧 Q4 "缺省 L2" 口径即 F-5 病灶，已废止；实测 ${String(res.steps[0].risk)}）`,
     );
   });
 });
