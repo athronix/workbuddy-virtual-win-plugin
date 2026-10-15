@@ -117,6 +117,20 @@ node delivery/setup.mjs --apply --env=/path/to/.env
 
 > 若 `VM_HOST` 留空，`setup.mjs` 不会自动 ssh，而是打印本地手动部署指引（`install-vm.mjs --dry-run --provider …`），你可在 VM 内手动跑。
 
+### 1.7 分发跟批闭环（批合并后的例行动作，治本「仓库≠现网」时差）
+
+> **背景（2026-10-14 Phase 4 再审计 N-1 实锤）**：全量 gate GREEN 只证明**仓库**正确；VM 现网跑的是上次 `deploy-vm` 推送的产物。历史上三次出现"代码/文档已合入并宣布落地、现网仍是旧行为"的时差窗口（最后一次：批1 七笔合入后 `deploy-vm` 未跑，直调 L2 现网仍旧行为，而治理面文档已改口"已落地"）。**行为/契约类改动合入后，不部署=没发生。**
+
+**例行动作（每个含服务端行为变更的批次合并后执行，约 1 分钟）**：
+
+1. **部署**：宿主端 `node delivery/deploy-vm.mjs --apply`（BUILD→scp→install→VM-START→探针，全程自轮询；provider 选型变化须带 `--provider`）。
+2. **顺序铁律**：`deploy-vm --apply` 会**重新生成**运行时配置（`.generated/vm-service.runtime.json`）——若该批还有 VM 侧运行态开关补丁，必须**先部署 → 后打补丁 → 再 kill-restart**，顺序颠倒补丁会被冲掉。仅重启不带新产物用 `kill-restart.ps1`，不重跑 install。
+3. **行为指纹复验**（版本指纹 > uptime——`uptimeMs` 只证明重启过，不证明版本新）：按该批改动的**可观测面**逐项打点，例：
+   - 新契约码/错误形态：经隧道 `POST /mcp` 打一条会命中该分支的请求，核对返回码与旧行为的差异；
+   - 新增 `/health` 观测块：`GET /health` 确认键在册（如 `policyGate`）；
+   - 新 psmod/桥逻辑：核对 `/health` 的 psmod 指纹字段（批2 R-4 通路）。
+4. **登记**：真机收口证据落 `qa/`（命令+输出原文），并在批次 notes 标注"现网已跟批 + 指纹清单"。**治理面文档写"已落地"的时点=指纹复验通过之后**，不得先于部署。
+
 ---
 
 ## 2. 前置条件

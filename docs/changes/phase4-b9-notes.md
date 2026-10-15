@@ -111,6 +111,19 @@ errors.ts:79「既有 10 码的取值逐字不变」= 历史变更陈述（指 C
 | 级别 | 项 | 现场 | 建议去向 |
 |---|---|---|---|
 | P2 | `skills/winvm-mcp-reference/SKILL.md:83`、`skills/winvm-orchestrator/SKILL.md:352` 两处「封闭 10 码」表头**且表体只列 10 码**（缺 `TASK_CANCELED`/`DELEGATION_REQUIRED`） | 不在批9 处方点名面（D 项处方=errors.ts:54+INSTALL-GUIDE:301 两处）；新漂移钉 R4 收集面亦仅钉 errors.ts+INSTALL-GUIDE 两文件 ⇒ 该两表头暂不受钉。2026-10-12 audit-pm2 §SKILL 表 A/B 早有同案记录，未处置 | 批10 或随修小批：两 SKILL 码表补两码+去数字表头；可选把 R4/漂移钉收集面扩至 skills 码表（属扩判据面，需授权） |
+
+### 8a. QA ⚠-1 复核补记（主理人 2026-10-15，亲读消费点裁定）
+
+QA 回归报「封闭 10 码」同病灶实存 7 处未登记（上表只登 2 处）。逐处亲读后**修正一处定性**：
+`packages/adapter-agent-workbuddy/src/index.ts:34` `BRIDGE_ERROR_CODES` 数组——QA 读判为"镜像缺两码"，
+主理人亲读唯一消费点 `:1151`（`toBridgeError` 透传白名单，引入于 K3+K4 时代 `c93133f`）裁定：
+**数组本身功能完整、无真实风险**——`TASK_CANCELED` 由 step 哨兵直接产出、`DELEGATION_REQUIRED`
+由服务端 HTTP 面收口，均不经 `toBridgeError` 通道；缺码的实害仅在**注释文字**（:31-32/:393/:1141/:1150
+四处"10 码"表述陈旧）。⇒ 路由批10：注释去数字 +（可选加固）数组补两码或派生化；
+`phase2-mcp-signal.test.js:995` 负断言（PSBRIDGE_CANCELED 不入数组）提示改造前先 grep 断言面。
+其余登记补全：`cl017-error-reason.test.js:8/:90`、`ps-bridge.ts:480`（注释面同类，批10 随修）；
+`errors.ts:79` 系历史陈述判良性；`docs/design/cl-k3r-silent-false-success-design.md:134`
+（P3，DRAFT 旧设计稿时序图画 `tasks/send`）加废弃注或随批10 注记。
 | P3 | USER-MANUAL.md:55 `requiresApproval: true` 非实现字段形态（audit PM-22 同案遗留） | 不在批9 处方点名面（N-5 仅点名 resubscribe 四处） | 随 USER-MANUAL 下轮整订处理 |
 | — | 台账 N-5 证据列"USER-MANUAL:42"的 `tasks/send` | **已闭**（§1 加改行 1+） | — |
 
