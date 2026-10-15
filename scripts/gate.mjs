@@ -107,6 +107,11 @@ export const GATE_GUARD_FILES = [
     id: 'psmod-contract',
     why: '注册表 ↔ PowerShell 跨语言隐式契约（54 条映射）：编译器与 tsc 都看不见它，体检实测当时零回归覆盖',
   },
+  {
+    file: 'p4-b9-errcode-registration-pin.test.js',
+    id: 'errcode-registration-pin',
+    why: 'P4-N-2 契约码登记漂移钉：errors.ts 封闭码集 ↔ INTERFACES §2.6 表双向对账（加码欠登记/表私加幽灵码/retryable 漂移皆红）——同病再发两次的码表只有机检能终结（Phase 4 批9 处方）',
+  },
 ];
 
 /**

@@ -13,7 +13,8 @@
  *        tunnel.state.json（orchestrator:134 = 文件路径，同句已声明判定权威=CLI 输出）
  *        health.logging.degraded（orchestrator:430 = 真实 health 字段，file-logger.ts/server.ts 在册）
  *   b) `__approvalId` / `hostApproved` 在治理面文档（docs/02-design、skills、README、
- *      overview、GATE-POLICY）的出现行必须携带"批1 在建 / 不可达 / 不可依赖 / 否定式 /
+ *      overview、GATE-POLICY、INSTALL-GUIDE、docs/05-peripherals、docs/04-ops〔批9 N-4 扩〕）
+ *      的出现行必须携带"批1 在建 / 不可达 / 不可依赖 / 否定式 /
  *      历史留痕"口径词 —— 防现在时承诺回潮（P0-1 四处承诺文案的守卫化）。
  *   c) `session-guard` / `Origin 校验` 宣称词同理：出现行必须携带"未实现 / 规划 /
  *      零命中 / 订正 / 历史留痕"口径词（P0-3 族①②的守卫化）。
@@ -140,11 +141,17 @@ describe('批0-a · SKILL 点分 token 必须 ∈ 注册 id ∪ 白名单', () =
  * 判据 b：`__approvalId` / `hostApproved` 口径词同段强制
  * ========================================================================== */
 
-/** 治理面文本集合（文档+技能+入口文档；audit/changes 历史归档不在治理面——K-20 不回写史） */
+/**
+ * 治理面文本集合（文档+技能+入口文档；audit/changes 历史归档不在治理面——K-20 不回写史）
+ * Phase 4 批9（P4-N-4）扩收集：批0 时只收 02-design+skills+四固定件，导致 05-peripherals /
+ * INSTALL-GUIDE / 04-ops 改口时外圈静默漏（N-3/N-5 两处漏网的守卫根因）。**判据词表零放宽**，
+ * 只扩收集面。
+ */
 function governanceDocs() {
-  const fixed = ['README.md', 'overview.md', 'docs/06-OVERVIEW.md', 'scripts/GATE-POLICY.md'];
+  const fixed = ['README.md', 'overview.md', 'docs/06-OVERVIEW.md', 'scripts/GATE-POLICY.md', 'docs/INSTALL-GUIDE.md'];
   return [...fixed.filter((f) => statSync(resolve(ROOT, f), { throwIfNoEntry: false })?.isFile()),
-    ...collectMd('docs/02-design'), ...collectMd('skills')];
+    ...collectMd('docs/02-design'), ...collectMd('skills'),
+    ...collectMd('docs/05-peripherals'), ...collectMd('docs/04-ops')];
 }
 
 /**
@@ -162,10 +169,11 @@ describe('批0-b · 续跑承诺词（__approvalId / hostApproved）禁现在时
   test('治理面每一处出现行必须携带"批1 在建/不可达/否定式/历史留痕"口径词', () => {
     // QA 回归加固（p3b02-regression，判据活性下限）：governanceDocs() 收集面若因目录
     // 改名/迁移而变空，b/c 两判据的 for 循环 0 次迭代 = 静默绿（恒真风险，正是本守卫
-    // 反对的"写了看着有、其实不判"第四态）。现量=25 件（README/overview/06/GATE-POLICY
-    // 4 件 + docs/02-design 12 件 + skills 9 件），下限钉 ≥20 防收集空转。
+    // 反对的"写了看着有、其实不判"第四态）。现量=30 件（README/overview/06/GATE-POLICY/
+    // INSTALL-GUIDE 5 件 + docs/02-design 12 件 + skills 9 件 + docs/05-peripherals 3 件
+    // + docs/04-ops 1 件，批9 N-4 扩收集后实测），下限钉 ≥28 防收集空转。
     const gov = governanceDocs();
-    assert.ok(gov.length >= 20, `治理面收集异常（实得 ${gov.length} 件，应 ≥20——路径失效则 b/c 判据空转失明）`);
+    assert.ok(gov.length >= 28, `治理面收集异常（实得 ${gov.length} 件，应 ≥28——路径失效则 b/c 判据空转失明）`);
     const bad = [];
     for (const rel of gov) {
       const lines = src(rel).split('\n');
@@ -235,8 +243,10 @@ describe('批0-c · 失实宣称词（session-guard / Origin 校验）禁裸承�
 
   test('E-1 定性钉死：allowedCapabilities/maxRisk 宣称处须与"接线在建/尚未接线"或权威 §2.3 同域', () => {
     // 治理面上把两键写成"限定/封顶"现在时能力的行，必须同行携带在建/尚未接线/§2.3 指针
+    // 批9 N-4：收集面由 02-design 换为 governanceDocs() 全集，使两键承诺在外圈
+    //（05-peripherals/INSTALL-GUIDE/04-ops）同样被钉——判据词表零放宽，只扩面
     const bad = [];
-    for (const rel of collectMd('docs/02-design')) {
+    for (const rel of governanceDocs()) {
       const lines = src(rel).split('\n');
       lines.forEach((line, i) => {
         if (!/allowedCapabilities|maxRisk/.test(line)) return;
