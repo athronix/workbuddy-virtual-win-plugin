@@ -101,6 +101,8 @@ export function resolveConfig(env, opts = {}) {
     vmUser: env['VM_USER'] || '',
     vmDeployDir: env['VM_DEPLOY_DIR'] || 'C:/WinVMBridge',
     vmProvider: env['WINVM_VM_PROVIDER'] || 'workbuddy-deterministic',
+    // Phase 5 批14：策略闸执法灰度跨部署持久化（'' / shadow ⇒ 不注入=缺省 shadow）。
+    policyGateWiring: (env['WINVM_POLICY_GATE_WIRING'] || '').trim().toLowerCase(),
     workbuddyCli: env['WINVM_WORKBUDDY_CLI'] || 'codebuddy',
     hermesCli: env['WINVM_HERMES_CLI'] || 'hermes',
     setupTunnel: bool('WINVM_SETUP_TUNNEL'),
@@ -537,11 +539,18 @@ export function resolveVmCli(cfg) {
  *   （宿主/VM 同为 GMT+8 且部署窗口为秒级，跨日漂移风险可忽略；单测锁定路径形状）。 */
 export function vmInstallCommand(cfg, dateStr) {
   const d = dateStr ?? new Date().toISOString().slice(0, 10);
+  // 批14：策略闸执法灰度跨部署持久化透传（值已过 resolveConfig 白名单化，仅 off/shadow/on；
+  // 空或 shadow ⇒ 不传=产物逐字节旧形态；MSYS 陷阱锁兼容：无 $()）。
+  const wiringArg =
+    cfg.policyGateWiring === 'on' || cfg.policyGateWiring === 'off'
+      ? `--policy-gate-wiring ${cfg.policyGateWiring} `
+      : '';
   return (
     `set -o pipefail; cd ${cfg.vmDeployDir} && mkdir -p ${VM_DEVQA_DIR}/logs/${d} && ` +
     `tar -xzf ${VM_ARCHIVE} && ` +
     `node -e 'require("fs").rmSync("${VM_ARCHIVE}",{force:true})' && ` +
     `node delivery/install-vm.mjs --skip-install --skip-build ` +
+    `${wiringArg}` +
     `--provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)} 2>&1 | tee ${VM_DEVQA_DIR}/logs/${d}/install-vm-run.log`
   );
 }

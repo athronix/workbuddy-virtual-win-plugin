@@ -128,6 +128,13 @@ function parseArgs(argv) {
     // 占位赋值行（值由运维/补丁脚本在 VM 上写真值；仓库与默认产物零残留）。
     bearerEnvName: undefined,
     bearerTokenValue: '',
+    // Phase 5 批14：策略闸执法灰度跨部署持久化（P2 项）。值域 off|shadow|on；
+    // **默认不注入**（undefined ⇒ 产物逐字节旧形态，服务读代码缺省 shadow）。
+    // 非 shadow 值 ⇒ buildTaskXml 后经 injectBearerEnvAssignment 同款通路在
+    // $env:WINVM_PSBRIDGE_READY_TIMEOUT_MS 行后插入 `$env:WINVM_POLICY_GATE_WIRING = '<值>'`
+    // （赋值区=Start-Process 之前；批12 真机证伪教训：Add-Content 到文件尾永不执行）。
+    // 从此 shadow→on 切换不再依赖临时手工补丁（§1.8 第 1 步旧法），重新部署不丢。
+    policyGateWiring: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -152,6 +159,16 @@ function parseArgs(argv) {
       case '--admin-endpoint': out.adminEndpoint = true; break;
       case '--bearer-env-name': out.bearerEnvName = argv[++i]; break;
       case '--bearer-token-value': out.bearerTokenValue = argv[++i]; break;
+      case '--policy-gate-wiring': {
+        const raw = String(argv[++i] ?? '');
+        const v = raw.trim().toLowerCase();
+        if (v !== 'off' && v !== 'shadow' && v !== 'on') {
+          console.error(`--policy-gate-wiring 只接受 off|shadow|on，实得 ${JSON.stringify(raw)}`);
+          process.exit(2);
+        }
+        out.policyGateWiring = v;
+        break;
+      }
       default: break;
     }
   }
@@ -365,6 +382,14 @@ function planSteps(args, cfgPath) {
       args.adminEndpoint
         ? '**本次开启**（start-hidden.ps1 注入 WINVM_ADMIN_ENDPOINT=1）—— ⚠ 含 ?faultInjection=1 打挂会话能力，验证后须去掉 --admin-endpoint 重新部署以收回'
         : '默认关闭（未注入 env，端点 404）'
+    }`,
+  );
+  // 批14：策略闸执法态同样显式打印（对齐上条纪律；缺省 shadow 不注入=打印缺省行）
+  steps.push(
+    `策略闸执法 WINVM_POLICY_GATE_WIRING: ${
+      args.policyGateWiring && args.policyGateWiring !== 'shadow'
+        ? `**本次注入 '${args.policyGateWiring}'**（start-hidden.ps1 赋值区，跨部署持久；'on'=双闸执法生效）`
+        : "缺省 shadow（未注入 env；观测不执法，DEPLOYMENT §1.8）"
     }`,
   );
   return steps;
@@ -804,6 +829,19 @@ async function main() {
     const injected = injectBearerEnvAssignment(join(genDir, 'start-hidden.ps1'), args.bearerEnvName, bearerValue);
     console.log(
       `      回连凭据变量：$env:${injected.envName} 赋值行已${injected.inserted ? '注入' : injected.changed ? '更新' : '就位'}（值${injected.hasValue ? '已写入' : '为占位空串 ⇒ 请运维替换真值'}）`,
+    );
+  }
+  // Phase 5 批14：策略闸执法灰度跨部署持久化。非 shadow 值 ⇒ 经同款注入通路（锚定
+  // $env:WINVM_PSBRIDGE_READY_TIMEOUT_MS 赋值区、幂等替换、绝不落文件尾）写
+  // `$env:WINVM_POLICY_GATE_WIRING = '<值>'`。undefined/shadow ⇒ 不注入（缺省即 shadow）。
+  if (args.policyGateWiring && args.policyGateWiring !== 'shadow') {
+    const inj = injectBearerEnvAssignment(
+      join(genDir, 'start-hidden.ps1'),
+      'WINVM_POLICY_GATE_WIRING',
+      args.policyGateWiring,
+    );
+    console.log(
+      `      策略闸执法：$env:WINVM_POLICY_GATE_WIRING='${args.policyGateWiring}' 赋值行已${inj.inserted ? '注入' : inj.changed ? '更新' : '就位'}（跨部署持久；对照临时补丁法见 DEPLOYMENT §1.8）`,
     );
   }
   r = run('schtasks', ['/Create', '/TN', args.taskName, '/XML', taskXmlPath, '/F']);

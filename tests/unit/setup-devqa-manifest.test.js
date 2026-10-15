@@ -39,6 +39,27 @@ test('vmInstallCommand: still unpacks archive and removes it (existing behavior 
   assert.ok(cmd.includes('--skip-install --skip-build'));
 });
 
+/* -------- Phase 5 批14：策略闸执法灰度跨部署持久化透传 -------- */
+
+test('vmInstallCommand: policyGateWiring=on/off ⇒ 透传 --policy-gate-wiring（值在 --provider 前）', () => {
+  const on = vmInstallCommand({ ...baseCfg, policyGateWiring: 'on' });
+  assert.ok(on.includes('--policy-gate-wiring on --provider'), 'on 态必须带透传参且邻接 --provider');
+  const off = vmInstallCommand({ ...baseCfg, policyGateWiring: 'off' });
+  assert.ok(off.includes('--policy-gate-wiring off --provider'), 'off 态=双闸整体关闭同样持久化');
+});
+
+test('vmInstallCommand: 缺省/shadow/非法值 ⇒ 不注入（产物逐字节旧形态护栏）', () => {
+  for (const w of [undefined, '', 'shadow', 'ON ', 'exec']) {
+    const cmd = vmInstallCommand({ ...baseCfg, policyGateWiring: w });
+    assert.ok(!cmd.includes('--policy-gate-wiring'), `wiring=${JSON.stringify(w)} 不应透传（resolveConfig 已白名单化，此处防御双写）`);
+  }
+});
+
+test('vmInstallCommand: 透传后 MSYS 陷阱锁仍守（无 $() 入远端命令）', () => {
+  const cmd = vmInstallCommand({ ...baseCfg, policyGateWiring: 'on' });
+  assert.ok(!cmd.includes('$()'), 'no $() in remote command');
+});
+
 test('buildDeployManifest: contains required fields and probe paths under dev-and-qa', () => {
   const body = buildDeployManifest({
     deployedAt: '2026-09-23T12:00:00.000Z',
