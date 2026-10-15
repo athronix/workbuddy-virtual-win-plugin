@@ -45,7 +45,7 @@
 | 批 | 内容 | 台账映射 | 改动面 | 可证伪验收 |
 |---|---|---|---|---|
 | **批8 分发跟批+真机收口** | deploy-vm --apply + kill-restart → 行为指纹（直调 L2=DELEGATION_REQUIRED∧/health.policyGate 在册∧链上 matchedRule=policy:delegation-required）→ V17-2/3 端到端 → shadow 期 shadowHits 观测基线；runbook 新增"批合并→部署→指纹"闭环条目+文档时差声明（改口=部署后生效） | N-1 | ~2 文件+qa 证据 | 现网三指纹齐+runbook 条目在位；主理人真机窗执行 |
-| **批9 教学与登记诚实化** | 三册 resubscribe→真实通路改写；§2.6 补 3 码+retryable 统一核；"封闭 10 码"句式去数字；05-peripherals 批1 口径 2 处改口；claims-guard 治理面扩收集（05-peripherals/INSTALL-GUIDE/04-ops）；**新漂移钉**：errors.ts 枚举↔INTERFACES §2.6 双向 ⊆ 守卫（进 ST3 门禁件） | N-2/N-3/N-4/N-5/N-6 | ~10 文件 | 假方法教学 grep=0；漂移钉变异自检（删表行⇒红）；claims-guard 收集面≥30 件 |
+| **批9 教学与登记诚实化** ✅ **完赛（2026-10-14，commits 48472da/09d89b4/9e77690/本笔；施工记录 `docs/changes/phase4-b9-notes.md`。验收实测：全域假方法 grep=0（audit/qa 留痕除外）；漂移钉 8/8 绿含 M1–M4 变异自检；claims-guard 扩收集后收集面 30 件、11/11 绿；tsc EXIT=0。残留：skills 两 SKILL「封闭 10 码」表头+缺 2 码不在本批处方面，P2 随修——见 notes §8）** | 三册 resubscribe→真实通路改写；§2.6 补 3 码+retryable 统一核；"封闭 10 码"句式去数字；05-peripherals 批1 口径 2 处改口；claims-guard 治理面扩收集（05-peripherals/INSTALL-GUIDE/04-ops）；**新漂移钉**：errors.ts 枚举↔INTERFACES §2.6 双向 ⊆ 守卫（进 ST3 门禁件） | N-2/N-3/N-4/N-5/N-6 | ~10 文件 | 假方法教学 grep=0；漂移钉变异自检（删表行⇒红）；claims-guard 收集面≥30 件 |
 | **批10 缺省形态端到端+P2 随修** | 常驻委派 scope 链 E2E（含 shadow 改道计数断言、(c) 不误伤内层）；N-9 观测计数+窄窗限定句；F-5 合成步骤 risk 如实化；M6 SKILL 声明位补齐 | N-7/N-9/N-10/M6 声明 | ~6 文件 | 新 E2E 件在 gate 枚举面且绿；F-5 grep 清零；声明位 7/7 |
 | 观察窗（不立批） | 现网 shadowHits 7 天归稳→运维 on 评估；A5/V3/V4/V14/V15 既有真机观察件随批8 窗口顺带 | — | — | 登记 V17 系列终态于台账 §8 |
 
