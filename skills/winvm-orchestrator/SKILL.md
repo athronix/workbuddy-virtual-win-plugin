@@ -139,7 +139,7 @@ relatedSkills:
 - `tunnel ensure` / `tunnel restart` 均**幂等且收敛**：重复调用不会产生第二个 daemon 实例。
 - **健康确认口径（2026-10-13 批0 订正）**：
   - `ok:true` ⇒ 放行，可调用 MCP / A2A 工具；
-  - `ok:false` ⇒ **不要自锁等待等式成立**，按降级叙述处置：读 `provider.state`/`provider.detail` 归因（`unavailable` = provider 未加载，此时暴露面仅 `meta.*`，域能力调用会得到 `PROVIDER_UNAVAILABLE`/`CAPABILITY_NOT_EXPOSED`），先按上表 `tunnel ensure` + 必要时重启 VM 侧服务恢复 provider，恢复期间只保留 `meta.*` 健康自检调用并向用户如实报告 degraded；
+  - `ok:false` ⇒ **不要自锁等待等式成立**，按降级叙述处置：读 `provider.state`/`provider.detail` 归因（`unavailable` = provider 未加载，此时暴露面仅 `meta.*`，已暴露的域能力调用会得到 `PROVIDER_UNAVAILABLE`，未暴露能力此时直接 `-32602` 不在工具清单），先按上表 `tunnel ensure` + 必要时重启 VM 侧服务恢复 provider，恢复期间只保留 `meta.*` 健康自检调用并向用户如实报告 degraded；
   - provider 正常但 `available < count`（未来分级 provider 形态）⇒ 非门禁失败，按暴露面裁剪任务范围，勿循环重试健康确认。
 - **provider 能力子集（M7，切换 provider 前先读）**：安全/运维特性**随 provider 而异，不跟通道走**——`GET /health → capabilitiesProfile` 给出机器可读实况（三键派生自 provider 可选能力自省，非按类型猜）：
   | provider | 审批真值反查 | LLM 常驻会话 | 冷启动预热 | 说明 |

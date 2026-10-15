@@ -198,3 +198,27 @@ fidelity/mcp-signal 注释描述历史）——R4 `DIGIT_REWRITE=/封闭\s*\d+\s
 | G6 | `8e25bc3` | 漂移钉 R5 扩 SKILL 码表收集面 + M5/M6/M7 变异 |
 | G7 | `06164ce` | llmSession 工作集观测透传 + 新件 |
 | notes | 本笔 | 施工记录（台账批10行不动，主理人收口统一改） |
+
+## 11. QA 回归修正（⚠①）—— 五处 SKILL 归因订正（未暴露直调实为 JSON-RPC -32602）
+
+- **现象**（QA 亲验+主理人复验）：G4 声明段末句写「未暴露能力直接调用会得到
+  `CAPABILITY_NOT_EXPOSED` / `PROVIDER_UNAVAILABLE`」——归因失实（把两条语义各异的码
+  错安在"未暴露直调"这一不产出它们的场景上）。
+- **根因/实况锚点**（本次亲验）：未暴露能力**不进 `mcpTools` 注册**
+  （server.ts:1425 `mcpTools = exposedCapabilities.map`），MCP 框架对清单外工具名直接回
+  **JSON-RPC `-32602` 未知工具**（mcp-framework/src/server.ts:240），**不经策略/契约码通路**；
+  `CAPABILITY_NOT_EXPOSED` 仅在**批准后服务端重放路径**产出（server.ts:1334–1355，token
+  留存能力不在暴露面的复核早退）；`PROVIDER_UNAVAILABLE` 是**已暴露**能力在 provider
+  未就绪时的返回——与"未暴露"两回事。
+- **修正五处**（文档措辞面，同族同步）：
+  | # | 文件:行（改后） | 修正 |
+  |---|---|---|
+  | 1 | `winvm-system-admin/SKILL.md:53-56`（M6 声明段） | 末句改「未暴露能力不会进入工具清单，直调得到 JSON-RPC `-32602`（未知工具）而非契约错误码；`CAPABILITY_NOT_EXPOSED` 仅在批准后重放路径出现，`PROVIDER_UNAVAILABLE` 指已暴露能力的 provider 未就绪态（均与"未暴露直调"无涉——不重试，先核对暴露面）」 |
+  | 2 | `winvm-app-manager/SKILL.md:52-55` | 同 ①（四份逐字一致） |
+  | 3 | `winvm-storage-manager/SKILL.md:69-72` | 同 ① |
+  | 4 | `winvm-gui-automation/SKILL.md:63-66` | 同 ① |
+  | 5 | `winvm-orchestrator/SKILL.md:142` | 括号内旧句「域能力调用会得到 `PROVIDER_UNAVAILABLE`/`CAPABILITY_NOT_EXPOSED`」→「已暴露的域能力调用会得到 `PROVIDER_UNAVAILABLE`，未暴露能力此时直接 `-32602` 不在工具清单」（provider 降级语境保留） |
+- **撞守卫预检**：`git grep "CAPABILITY_NOT_EXPOSED" -- tests/` = **零命中**（无测试钉旧措辞；
+  claims-guard b/c 判据不含该词面，预期零红成立）。
+- **复跑**：`phase3-skill-claims-guard` **11/11**、`p4-b9-errcode-registration-pin` **12/12**
+  （R5 只扫 `error.code` 码表行，声明段措辞不入其收集面）。
