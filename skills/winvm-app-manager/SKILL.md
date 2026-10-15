@@ -46,6 +46,12 @@ relatedSkills:
 
 ## 能力清单
 
+> **发现类能力（M6 声明位）**：`meta.capability.list`（L0，全域通用）是服务端元能力，
+> 用于运行期核对当前 provider **实际暴露的能力面**（provider degraded 时收窄至仅
+> `meta.*`）。下表为本域**预期**清单；若不确定目标能力此刻是否可用，以 MCP `tools/list`
+> 的能力 ID 级暴露面为权威，或先 `meta.capability.list` 自检再决定直调/委派——对未暴露
+> 能力直接调用会得到 `CAPABILITY_NOT_EXPOSED` / `PROVIDER_UNAVAILABLE`（不重试，先核对暴露面）。
+
 | 能力 ID | 风险 | 说明 |
 |---|---|---|
 | `app.inventory.list` | L0 | 已装应用清单（可选含 UWP） |
