@@ -14,6 +14,7 @@ export {
   scopeFeedEnabled,
   isScopeGateRejection,
   enforceScopeRejection,
+  isDirectWithActiveTurn,
   buildPolicyGateHealth,
 } from '@winvm/core';
 export type {

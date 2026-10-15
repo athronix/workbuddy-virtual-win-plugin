@@ -68,6 +68,9 @@ function makeResidentProvider(state) {
       const coordinator = ctx?.approvalCoordinator;
       // 常驻桥形态①：进入委派 turn（真实服务里这一步发生在 CliLlmBridge）
       coordinator?.beginTask(goal.taskId ?? '');
+      // N-9 窄窗测试屏障（可选）：活动槽已持有 ⇒ 通知测试方，并可等待放行
+      state.resolveTurnActive?.();
+      if (state.turnHold) await state.turnHold;
       const innerCalls = [];
       try {
         for (const call of state.calls) {
@@ -179,6 +182,22 @@ async function delegate(base, metadata) {
   return body.result;
 }
 
+/** 非阻塞委派：立即返回 Task（runner 在后台继续），用于 N-9 窄窗真并发交错的夹具。 */
+async function delegateNonBlocking(base, metadata) {
+  const { body } = await postJson(base, '/a2a', {
+    jsonrpc: '2.0',
+    id: 101,
+    method: 'message/send',
+    params: {
+      message: { kind: 'message', role: 'user', messageId: `m_${Math.random().toString(36).slice(2)}`, parts: [{ kind: 'text', text: 'b10 e2e resident probe (hold)' }] },
+      metadata: { traceId: `tr_b10_hold_${Math.random().toString(36).slice(2)}`, ...metadata },
+      configuration: { blocking: false },
+    },
+  });
+  if (!body?.result) throw new Error(`非阻塞委派响应异常：${JSON.stringify(body)}`);
+  return body.result;
+}
+
 const DELETE_PARAMS = { path: 'C:\\WinVMWorkspace\\drafts\\old.txt' };
 
 /* ==================== shadow（缺省灰度档）形态 ==================== */
@@ -273,6 +292,65 @@ describe('E2E·批10 常驻 scope 链 · shadow 缺省态（评估不执法）',
     assert.equal(sc?.error?.code, 'DELEGATION_REQUIRED', `同请求翻回 (c) 收口：${JSON.stringify(sc?.error)}`);
     assert.equal(sc.error.retryable, false);
     assert.equal(sc.approval, undefined, '(c) 收口不发令牌');
+  });
+
+  test('N-9 窄窗实锤：委派 turn 进行中纯直调命中审批闸 ⇒ directWithActiveTurn +1 + 被按内层发令牌（(c) 不误伤对照），turn 结束后同请求恢复 DELEGATION_REQUIRED 且计数不再涨', async () => {
+    // 真并发交错：非阻塞委派（provider turn 内 beginTask 后挂起等待放行屏障）
+    // ⇒ 活动槽持续在场 ⇒ 此刻打**不带 dtid 的纯直调** ⇒ 服务端事实 activeTaskId
+    // ⇒ inner=true ⇒ (c) 不触发 ⇒ 注册令牌（N-9 登记的毫秒窗复活实况）+ 观测计数。
+    const before = await getHealth(runtime);
+    const c0 = before.policyGate.directWithActiveTurn ?? 0;
+    let releaseTurn;
+    let turnActiveSettled;
+    state.calls = [];
+    state.turnHold = new Promise((r) => {
+      releaseTurn = r;
+    });
+    state.resolveTurnActive = () => {};
+    turnActiveSettled = new Promise((r) => {
+      state.resolveTurnActive = r;
+    });
+    const task = await delegateNonBlocking(BASE, { allowedCapabilities: ['storage.file.read'] });
+    // 屏障握手：mock 桥 beginTask 完成后才 resolve ⇒ 槽确定在场
+    await turnActiveSettled;
+    const narrow = await postJson(BASE, '/mcp', {
+      jsonrpc: '2.0', id: 78, method: 'tools/call',
+      params: { name: 'storage.file.delete', arguments: DELETE_PARAMS },
+    });
+    const scN = narrow.body?.result?.structuredContent;
+    assert.equal(
+      scN?.error?.code,
+      'APPROVAL_REQUIRED',
+      `窄窗内纯直调被按内层处理（(c) 不误伤常驻 turn）：${JSON.stringify(scN?.error)}`,
+    );
+    assert.ok(scN.approval?.approvalId, '窄窗实况=注册续跑令牌（旧行为毫秒窗，warn-only 观测对象）');
+    const hN = await getHealth(runtime);
+    assert.equal(
+      hN.policyGate.directWithActiveTurn,
+      c0 + 1,
+      `窄窗计数 +1（${c0} → ${hN.policyGate.directWithActiveTurn}）`,
+    );
+    assert.equal(hN.policyGate.scopeEntries, 1, 'turn 进行中 scope 表项在场');
+    // 放行 turn：委派终态 ⇒ retire+endTask ⇒ 同请求恢复纯直调语义 ⇒ (c) 收口且计数不再涨
+    releaseTurn();
+    const deadline = Date.now() + 3_000;
+    for (;;) {
+      const hh = await getHealth(runtime);
+      if (hh.policyGate.scopeEntries === 0) break;
+      if (Date.now() > deadline) assert.fail('turn 放行后 scope 未在窗口内销账（retire 未生效？）');
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    const after = await postJson(BASE, '/mcp', {
+      jsonrpc: '2.0', id: 79, method: 'tools/call',
+      params: { name: 'storage.file.delete', arguments: DELETE_PARAMS },
+    });
+    const scA = after.body?.result?.structuredContent;
+    assert.equal(scA?.error?.code, 'DELEGATION_REQUIRED', '槽清除后 (c) 恢复收口（判别性：翻转由活动槽驱动）');
+    const h1 = await getHealth(runtime);
+    assert.equal(h1.policyGate.directWithActiveTurn, c0 + 1, '(c) 收口路径不属窄窗 ⇒ 计数不变');
+    assert.ok(task.id, '非阻塞委派应正常受理');
+    state.turnHold = undefined;
+    state.resolveTurnActive = undefined;
   });
 
   test('⑤ 链上取证：shadow 改道的评估事实可归因（scope 白名单/封顶规则名在 warn 观测面之外仍可由令牌留存印证）', async () => {

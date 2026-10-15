@@ -73,6 +73,7 @@ import {
   scopeFeedEnabled,
   isScopeGateRejection,
   enforceScopeRejection,
+  isDirectWithActiveTurn,
   buildPolicyGateHealth,
   type PolicyGateHealthView,
 } from './policy-gate.js';
@@ -1128,6 +1129,13 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
   const policyGateWiring = resolvePolicyGateWiring(process.env);
   /** shadow 命中观测计数（/health 可透出；执法与否与此计数严格分离）。 */
   const policyGateShadowHits = { count: 0 };
+  /**
+   * 批10 N-9（**纯附加观测计数，零行为改动**）：纯直调命中审批闸 ∧ 活动委派槽在场
+   * 的窄窗实况计数（被按 inner 处理、(c) 不触发、注册续跑令牌=N-9 登记的毫秒窗复活面）。
+   * warn-only：本计数不是修复承诺（显式身份标方案被 buildMcpConfig LEGACY_OUT 逐字节
+   * 守卫挡死，批1 亲验返工教训），只把「(c) 根治表述带窄窗限定」显形到 /health。
+   */
+  const policyGateCounters = { directWithActiveTurn: 0 };
   /** 批1 出路(c)：直调审批闸收口「须走委派」（缺省 on；off=回滚到旧死令牌行为）。 */
   const delegationRequiredPolicy = resolveDelegationRequiredPolicy(process.env);
 
@@ -1510,6 +1518,19 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
 
       if (!verdict.allowed) {
         if (verdict.requiresApproval) {
+          // 批10 N-9（纯观测，零行为改动）：纯直调（无 dtid）恰撞常驻委派 turn 窗口
+          // （活动槽在场）⇒ 被按 inner 处理、下面 (c) 不触发、走注册令牌窄窗 ⇒ 计数。
+          // 判据走 policy-gate 纯函数（生产与单测同源）；先于 (c) 判定计数——
+          // 窄窗的实况正是「(c) 在场却不收口」，与收口分支互斥。
+          if (isDirectWithActiveTurn({ ...channelProbe, requiresApproval: true })) {
+            policyGateCounters.directWithActiveTurn += 1;
+            logger.warn('批10 N-9 观测：纯直调命中审批闸且活动委派槽在场（窄窗：被按内层处理，(c) 不触发）', {
+              capabilityId: cap.id,
+              activeTaskId: channelProbe.activeTaskId,
+              traceId: ctx.traceId,
+              directWithActiveTurn: policyGateCounters.directWithActiveTurn,
+            });
+          }
           // ===== 批1 出路(c)：纯宿主直调命中审批闸 ⇒ 服务端策略收口「须走委派」 =====
           // 病灶（P0-1）：直调场景无任何可达批准入口（approval.reply 需 taskId；raise 的
           // 生产调用点在委派桥内）——旧行为是注册一个**永远批不下来**的死 approvalId 令牌，
@@ -2432,12 +2453,13 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       // 批1（纯附加）：双闸接线灰度与 (c) 策略化的**运行态显形**——运维/升级窗口需要
       // 一眼看出「现在到底在不执法、shadow 命中了多少、直调收口开没开、scope 表多大」，
       // 而不是事后翻 warn 日志拼线索（「门禁内稳门外盲」教训的体检面延伸）。
-      policyGate: buildPolicyGateHealth(
-        policyGateWiring,
-        policyGateShadowHits.count,
+      policyGate: buildPolicyGateHealth({
+        wiring: policyGateWiring,
+        shadowHits: policyGateShadowHits.count,
         delegationRequiredPolicy,
-        scopeRegistry.size,
-      ),
+        scopeEntries: scopeRegistry.size,
+        directWithActiveTurn: policyGateCounters.directWithActiveTurn,
+      }),
       // ENG-08：TaskStore 有界化事实（纯附加）。`live` 是内存驻留量，
       // 配合 `maxTasks` 让运维能看出「快到顶了」而不是等驱逐发生。
       // P2-T7（L1，纯附加）：再补 `evictedCount` —— 「已经回收了多少」此前完全不可见

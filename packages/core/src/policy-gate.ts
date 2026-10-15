@@ -88,6 +88,31 @@ export function isScopeGateRejection(matchedRule: string | undefined): boolean {
 }
 
 /**
+ * 批10 N-9（**纯观测判据**，warn-only 零行为改动）：本次「命中审批闸」是否属于
+ * **纯直调撞常驻委派 turn 窗口**的窄窗实况。
+ *
+ * 病灶（台账 N-9，(c) 设计自查的镜像面）：`isInnerDelegation` 的 dtid ∨ activeTaskId
+ * 两路证据里，activeTaskId 是服务级单例——纯宿主直调（调用方不带 `?dtid=`）恰撞
+ * 常驻委派 turn 进行中的毫秒窗口时，`getActiveTaskId()` 在场 ⇒ 被按内层处理 ⇒
+ * (c) 不触发 ⇒ 注册续跑令牌（=旧死令牌行为在窄窗内复活）。方向 fail-safe（无放宽
+ * 放行），但 (c) 的"根治"表述带此前置限定；显式身份标方案被 `buildMcpConfig`
+ * LEGACY_OUT 逐字节守卫挡死（批1 亲验），本批**只补观测不修复**。
+ *
+ * 判据（三事实全取服务端现场，调用方伪造无门）：
+ *  - `delegationId === undefined` ⇒ 调用通道无显式委派标（纯直调面）；
+ *  - `activeTaskId !== undefined` ⇒ 协调器活动委派槽在场（常驻 turn 进行中）；
+ *  - `requiresApproval` ⇒ 本次命中审批闸（窄窗只发生在该分支上）。
+ * 三者齐 ⇒ 该请求正落在「被按 inner 处理、(c) 不触发、注册令牌」的窄窗实况。
+ */
+export function isDirectWithActiveTurn(
+  input: ChannelProbeInput & { readonly requiresApproval: boolean },
+): boolean {
+  return (
+    input.requiresApproval && input.delegationId === undefined && input.activeTaskId !== undefined
+  );
+}
+
+/**
  * 三态灰度下最终是否执法一次 scope 拒绝。
  *  - `on`：执法（true）。
  *  - `shadow`：不执法（false ⇒ 调用方按无 scope 基线重评放行，仅计数观测）。
@@ -104,13 +129,31 @@ export interface PolicyGateHealthView {
   readonly shadowHits: number;
   readonly delegationRequiredPolicy: boolean;
   readonly scopeEntries: number;
+  /**
+   * 批10 N-9（**纯附加观测计数**）：纯直调命中审批闸**且**活动委派槽在场（被按 inner
+   * 处理、(c) 不触发、注册续跑令牌的窄窗实况）的累计次数。warn-only 零行为改动——
+   * 本计数**非**修复承诺，仅把「(c) 的根治表述带毫秒窗限定」显形为可 grep 的事实
+   * （判据 `isDirectWithActiveTurn`；文档限定句见 SECURITY-GOVERNANCE §2.3）。
+   */
+  readonly directWithActiveTurn: number;
 }
 
-export function buildPolicyGateHealth(
-  wiring: 'off' | 'shadow' | 'on',
-  shadowHits: number,
-  delegationRequiredPolicy: boolean,
-  scopeEntries: number,
-): PolicyGateHealthView {
-  return { wiring, shadowHits, delegationRequiredPolicy, scopeEntries };
+/**
+ * `/health.policyGate` 快照构造（批10 N-9 起收对象入参：字段可独立缺省 ⇒ 观测面
+ * 扩展不再牵动位置参数顺序；判据仍为纯函数，脱服务可测）。
+ */
+export function buildPolicyGateHealth(input: {
+  readonly wiring: 'off' | 'shadow' | 'on';
+  readonly shadowHits: number;
+  readonly delegationRequiredPolicy: boolean;
+  readonly scopeEntries: number;
+  readonly directWithActiveTurn: number;
+}): PolicyGateHealthView {
+  return {
+    wiring: input.wiring,
+    shadowHits: input.shadowHits,
+    delegationRequiredPolicy: input.delegationRequiredPolicy,
+    scopeEntries: input.scopeEntries,
+    directWithActiveTurn: input.directWithActiveTurn,
+  };
 }

@@ -138,6 +138,8 @@
 
 **读法约束**：本节与 §2 分层图第 6 层、§3.1 判定顺序第 7 步、`INTERFACES.md` §3.4 示例中出现的 `allowedCapabilities`/`maxRisk`，缺省按「宿主声明 + 审计留痕 + shadow 观测」理解，**不得**读作「服务端已强制封顶/白名单过滤」（那需要显式 `WINVM_POLICY_GATE_WIRING=on`）。真正拦阻 L2/L3 的缺省生效闸仍是第 5 层审批闸 + (c) 直调收口。
 
+**窄窗限定（批10 N-9 登记，非修复承诺）**：(c) 的「纯直调即收口」表述带一个毫秒级前置限定——纯宿主直调恰撞常驻委派 turn 进行中窗口时，服务端事实 `activeTaskId` 在场 ⇒ 该调用被按内层处理 ⇒ (c) 不触发、注册续跑令牌（旧行为在该窄窗内复现；方向 fail-safe，无放宽放行）。该实况现已可观测：`/health.policyGate.directWithActiveTurn` 计数（判据纯函数 `isDirectWithActiveTurn`，warn-only 零行为改动）；显式身份标方案被 `buildMcpConfig` LEGACY_OUT 逐字节守卫挡死（批1 亲验返工教训），维持观测不修复的裁断。
+
 ---
 
 ## 3. 策略引擎（`packages/core/policy`）

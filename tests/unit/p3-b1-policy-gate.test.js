@@ -23,6 +23,8 @@ import {
   scopeFeedEnabled,
   isScopeGateRejection,
   enforceScopeRejection,
+  isDirectWithActiveTurn,
+  buildPolicyGateHealth,
 } from '@winvm/vm-service';
 import { DelegationScopeRegistry } from '@winvm/vm-service';
 import { CapabilityRegistry, CorePolicyEngine } from '@winvm/core';
@@ -329,6 +331,78 @@ test('E-2 判别性：策略硬拒（非审批闸）不贴挂起显形键（只 
   } finally {
     delete process.env.WINVM_POLICY_GATE_WIRING;
   }
+});
+
+/* ==================== ⑧ 批10 N-9：窄窗观测判据纯函数真值表 ==================== */
+
+test('N-9 isDirectWithActiveTurn：纯直调(无 dtid)∧活动槽在场∧审批闸 ⇒ 窄窗计数真；其余形态全假', () => {
+  // 场景A 纯直调命中审批闸 + 活动槽在场 ⇒ 计数（窄窗实况：被按 inner 处理，(c) 不触发）
+  assert.equal(
+    isDirectWithActiveTurn({ activeTaskId: 'task_9', requiresApproval: true }),
+    true,
+    '纯直调+活动槽 ⇒ 窄窗真',
+  );
+  // 场景B 纯直调命中审批闸 + **槽空**（正常 (c) 生效路径）⇒ 非窄窗
+  assert.equal(
+    isDirectWithActiveTurn({ requiresApproval: true }),
+    false,
+    '槽空 ⇒ (c) 正常收口，绝不计数',
+  );
+  // 场景C 内层回连（dtid 命中，即便活动槽在场）⇒ 非"纯直调"，不计数
+  assert.equal(
+    isDirectWithActiveTurn({ delegationId: 'tr_1', activeTaskId: 'task_9', requiresApproval: true }),
+    false,
+    'dtid 在场 = 显式委派通道，非窄窗误判面',
+  );
+  // 判别性：未命中审批闸（放行/硬拒）⇒ 恒假（窄窗只在审批闸分支上）
+  assert.equal(
+    isDirectWithActiveTurn({ activeTaskId: 'task_9', requiresApproval: false }),
+    false,
+    '审批闸外（放行/策略硬拒）与窄窗计数无关',
+  );
+  // 与 (c) 收口判据的互斥性（设计自查镜像面）：窄窗真 ⇒ shouldReturn 必假（inner=true 不收口）
+  const narrow = { delegationId: undefined, activeTaskId: 'task_9' };
+  assert.equal(isInnerDelegation(narrow), true, '窄窗形态被按 inner（N-9 病灶本身）');
+  assert.equal(
+    shouldReturnDelegationRequired({ inner: true, requiresApproval: true, policyEnabled: true }),
+    false,
+    '(c) 在窄窗不触发 ⇒ 注册令牌=旧行为毫秒窗复活（warn-only 观测对象，非修复承诺）',
+  );
+});
+
+test('N-9 buildPolicyGateHealth 对象入参：directWithActiveTurn 字段在册且与其余四键同出', () => {
+  const v = buildPolicyGateHealth({
+    wiring: 'shadow',
+    shadowHits: 3,
+    delegationRequiredPolicy: true,
+    scopeEntries: 2,
+    directWithActiveTurn: 1,
+  });
+  assert.deepEqual(v, {
+    wiring: 'shadow',
+    shadowHits: 3,
+    delegationRequiredPolicy: true,
+    scopeEntries: 2,
+    directWithActiveTurn: 1,
+  });
+});
+
+test('N-9 server.ts 装配钉：窄窗计数判定在 (c) 收口**之前**、计数器透传 health（观测面防漂移）', () => {
+  assert.match(
+    SRC,
+    /if \(isDirectWithActiveTurn\(\{ \.\.\.channelProbe, requiresApproval: true \}\)\)/,
+    '窄窗判据必须走 policy-gate 纯函数（生产与单测同源）',
+  );
+  assert.match(SRC, /policyGateCounters\.directWithActiveTurn \+= 1;/, '命中即计数（warn-only，零行为改动）');
+  assert.match(
+    SRC,
+    /directWithActiveTurn: policyGateCounters\.directWithActiveTurn,/,
+    '/health 须透传窄窗计数',
+  );
+  // 顺序判别性：计数块必须在 (c) 收口块之前（窄窗=「(c) 在场却不收口」，互斥）
+  const narrowIdx = SRC.indexOf('isDirectWithActiveTurn({ ...channelProbe');
+  const cIdx = SRC.indexOf('shouldReturnDelegationRequired({ inner: innerDelegation');
+  assert.ok(narrowIdx > 0 && cIdx > narrowIdx, '窄窗计数须先于 (c) 判定');
 });
 
 /* ==================== ④ 源码钉：装配位置与纯函数调用在位（防漂移） ==================== */

@@ -159,6 +159,7 @@ export {
   scopeFeedEnabled,
   isScopeGateRejection,
   enforceScopeRejection,
+  isDirectWithActiveTurn,
   buildPolicyGateHealth,
 } from './policy-gate.js';
 export type { PolicyGateHealthView, ChannelProbeInput, DelegationRequiredInput } from './policy-gate.js';

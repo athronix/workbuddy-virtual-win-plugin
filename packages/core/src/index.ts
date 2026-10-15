@@ -50,6 +50,7 @@ export {
   scopeFeedEnabled,
   isScopeGateRejection,
   enforceScopeRejection,
+  isDirectWithActiveTurn,
   buildPolicyGateHealth,
 } from './policy-gate.js';
 export type {
