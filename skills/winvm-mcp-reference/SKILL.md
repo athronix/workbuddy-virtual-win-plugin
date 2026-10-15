@@ -80,7 +80,7 @@ token 以环境变量持久化于 `%HERMES_HOME%\.env`：`MCP_WINVM_API_KEY=<tok
 
 | 字段 | 取值 | 用途 |
 |---|---|---|
-| `error.code`（**契约层**封闭 10 码） | `INVALID_PARAMS` `UNKNOWN_CAPABILITY` `UNSUPPORTED_GOAL` `POLICY_DENIED` `APPROVAL_REQUIRED` `SESSION_UNAVAILABLE` `SESSION_BLACK_SCREEN` `PROVIDER_UNAVAILABLE` `TIMEOUT` `EXECUTION_FAILED` | 决定**是否 `retryable` / 是否需审批** |
+| `error.code`（**契约层**封闭码集，单源 `errors.ts`，登记 §2.6） | `INVALID_PARAMS` `UNKNOWN_CAPABILITY` `UNSUPPORTED_GOAL` `POLICY_DENIED` `APPROVAL_REQUIRED` `SESSION_UNAVAILABLE` `SESSION_BLACK_SCREEN` `PROVIDER_UNAVAILABLE` `TIMEOUT` `EXECUTION_FAILED` `TASK_CANCELED` `DELEGATION_REQUIRED` | 决定**是否 `retryable` / 是否需审批** |
 | `error.reason`（**领域层**原因码，可选） | `FILE_NOT_FOUND` / `PATH_NOT_FOUND` / `CLI_NOT_FOUND` / `SERVICE_NOT_FOUND` / `PROCESS_NOT_FOUND` / `REG_PATH_NOT_FOUND` / `INVALID_ARGUMENT` / `FILE_TOO_LARGE` / `PROTECTED_PROCESS` … | 决定**具体补救动作** |
 
 **排查规则（先 `code` 后 `reason`）**：
@@ -90,7 +90,9 @@ token 以环境变量持久化于 `%HERMES_HOME%\.env`：`MCP_WINVM_API_KEY=<tok
 - `reason=PATH_NOT_FOUND` / `FILE_NOT_FOUND` → 路径问题 → 改用白名单目录（`C:\WinVMWorkspace\**` 等），**别重试**；
 - `reason=SERVICE_NOT_FOUND` / `PROCESS_NOT_FOUND` → 名称/PID 不存在 → 用 `system.service.list`（模糊匹配）核对；
 - `reason=INVALID_ARGUMENT` → 参数非法（`code=INVALID_PARAMS`）→ **修参数、别重试**（见下「入参契约错误处理」）；
-- `code=TIMEOUT` → 执行超时 → **调大 `timeoutMs`**。
+- `code=TIMEOUT` → 执行超时 → **调大 `timeoutMs`**；
+- `code=TASK_CANCELED` → 任务被取消、执行体协作式退出 → **不要重发同一请求续跑**，重跑必须**重新委派、重过审批闸**（批1(c) 后直调通道无审批入口）；
+- `code=DELEGATION_REQUIRED` → L2/L3 纯 MCP 直调不予审批（批1(c)）→ **改走 `a2a.delegate` 委派**（宿主批准 → 服务端重放），重试同一请求无益。
 
 ## 入参契约错误处理（`INVALID_PARAMS` / `INVALID_ARGUMENT`）
 

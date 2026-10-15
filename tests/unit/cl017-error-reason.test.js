@@ -5,7 +5,7 @@
  * SERVICE_NOT_FOUND ...）。旧 `toBridgeError()` 只有 9 项白名单，领域码全部被压成
  * `EXECUTION_FAILED` 且**码丢失** → 调用方无法按原因路由补救动作。
  *
- * 现语义：`error.code` = 契约层封闭 10 码（决定重试 / 审批）；
+ * 现语义：`error.code` = 契约层封闭码集（单源 errors.ts，决定重试 / 审批）；
  *         `error.reason` = 领域层原因码（决定具体补救动作）。
  *
  * 本测试经 **公开路径** `execute()`（真实调用点 `catch → toBridgeError`）验证，
@@ -87,7 +87,7 @@ const CONTRACT_CODES = [
 ];
 
 describe('CL-017 D23 · 领域错误码分层（code + reason）', () => {
-  test('契约层 10 码原样透传（code 不变、message 不变、不带 reason）', async () => {
+  test('契约层封闭码集原样透传（code 不变、message 不变、不带 reason）', async () => {
     for (const code of CONTRACT_CODES) {
       const e = await normalizedError({ code, message: `${code} 说明` });
       assert.equal(e.code, code, `code 应原样透传：${code}`);
@@ -137,7 +137,7 @@ describe('CL-017 D23 · 领域错误码分层（code + reason）', () => {
   test('TIMEOUT → TIMEOUT（retryable=true；TIMEOUT 本身就是契约码，故不带 reason）', async () => {
     const e = await normalizedError({ code: 'TIMEOUT', message: 'TIMEOUT: ps-bridge 无响应' });
     assert.equal(e.code, 'TIMEOUT');
-    // TIMEOUT 属于契约层 10 码 → 走「原样透传」分支，无需再记 reason（原因即 code 本身）
+    // TIMEOUT 属于契约层封闭码集 → 走「原样透传」分支，无需再记 reason（原因即 code 本身）
     assert.equal(e.reason, undefined);
     assert.equal(e.retryable, true);
   });

@@ -349,10 +349,11 @@ winvm-a2a__a2a.delegate({
 
 | 字段 | 层级 | 作用 | 取值 |
 |---|---|---|---|
-| `error.code` | **契约层**（封闭 10 码） | 决定**能不能重试 / 要不要审批** | `INVALID_PARAMS` `UNKNOWN_CAPABILITY` `UNSUPPORTED_GOAL` `POLICY_DENIED` `APPROVAL_REQUIRED` `SESSION_UNAVAILABLE` `SESSION_BLACK_SCREEN` `PROVIDER_UNAVAILABLE` `TIMEOUT` `EXECUTION_FAILED` |
+| `error.code` | **契约层**（封闭码集，单源 `errors.ts`，登记 §2.6） | 决定**能不能重试 / 要不要审批** | `INVALID_PARAMS` `UNKNOWN_CAPABILITY` `UNSUPPORTED_GOAL` `POLICY_DENIED` `APPROVAL_REQUIRED` `SESSION_UNAVAILABLE` `SESSION_BLACK_SCREEN` `PROVIDER_UNAVAILABLE` `TIMEOUT` `EXECUTION_FAILED` `TASK_CANCELED` `DELEGATION_REQUIRED` |
 | `error.reason` | **领域层**（原因码，可选） | 决定**具体补救动作** | PS 侧领域码：`FILE_NOT_FOUND` / `PATH_NOT_FOUND` / `CLI_NOT_FOUND` / `SERVICE_NOT_FOUND` / `PROCESS_NOT_FOUND` / `REG_PATH_NOT_FOUND` / `INVALID_ARGUMENT` / `FILE_TOO_LARGE` / `PROTECTED_PROCESS` … |
 
 `retryable` 由 `code` 决定（`TIMEOUT` / `PROVIDER_UNAVAILABLE` / `APPROVAL_REQUIRED` / `SESSION_*` 为 `true`，其余 `false`）。
+两个 `false` 码的专属处置（语义单源=INTERFACES §2.6）：`TASK_CANCELED` = 任务被取消、执行体协作式退出 ⇒ **重跑必须重新委派、重过审批闸**（不要原地续跑）；`DELEGATION_REQUIRED` = L2/L3 纯 MCP 直调不予审批（批1(c)）⇒ **改走 `a2a.delegate` 委派**，重试同一请求无益。
 **先看 `code` 决定「能不能重试、要不要审批」，再看 `reason` 决定「怎么修」。**
 
 | `reason`（常见） | 含义 | 处置（**不要在无意义重试上耗时**） |

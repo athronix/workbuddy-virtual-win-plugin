@@ -28,8 +28,11 @@ import { PsBridge, type PsBridgeOptions } from '@winvm/vm-capabilities';
 export const PROVIDER_ID = 'workbuddy-deterministic';
 
 /**
- * 契约层「封闭 10 码」（= `@winvm/contracts` 的 `BridgeErrorCode`）。
- * 这 10 码决定**重试 / 审批**语义，是**对外契约**，不得因新增 PS 领域码而扩张。
+ * 契约层「封闭码集」的**镜像**（权威单源 = `@winvm/contracts` 的 `BridgeErrorCode`，
+ * 对外登记见 docs/02-design/INTERFACES.md §2.6）。
+ * 这些码决定**重试 / 审批**语义，是**对外契约**，不得因新增 PS 领域码而扩张。
+ * 本镜像只收 `toBridgeError` 通道会透传的码（批9 主理人裁定 notes §8a：两新码不经该通道；
+ * 数组本体与封闭码集不逐字相等属既有裁断，动它=行为改动，phase2-mcp-signal 钉形态）。
  */
 const BRIDGE_ERROR_CODES: readonly string[] = [
   'INVALID_PARAMS',
@@ -390,7 +393,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     if (cap.requiresSession) {
       const session = await this.sessionHealth();
       if (session.probeError) {
-        // 契约层不扩码（10 码封闭面）：code 沿用 SESSION_UNAVAILABLE（本就 retryable:true），
+        // 契约层不扩码（封闭码集，单源 errors.ts）：code 沿用 SESSION_UNAVAILABLE（本就 retryable:true），
         // 归因显形走 CL-017 D23 的领域层 reason='SESSION_PROBE_FAILED'——调用方/审计据此
         // 区分「探测通路故障（查 runbook）」vs「确不可用（恢复会话）」，正是 reason 字段的设计用途。
         const probeErr = makeError(
@@ -1138,7 +1141,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
    * `EXECUTION_FAILED`、码丢失**，导致调用方无法按原因路由补救动作。
    *
    * 现语义（三层，顺序敏感）：
-   *   ① `err.code` ∈ 契约层 10 码 → 原样透传（行为不变，details 仍不传）；
+   *   ① `err.code` ∈ 契约层封闭码集（单源 errors.ts）→ 原样透传（行为不变，details 仍不传）；
    *   ② `err.code` 匹配领域码形态 → 按**最小映射**定 base code，原领域码写入 `reason`，
    *      并透传 `err.details`（含上游 `exceptionType`）；
    *   ③ 无码 / 非法码 → `EXECUTION_FAILED`（不带 reason），与既行为完全一致。
@@ -1147,7 +1150,7 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     const err = e as { code?: string; message?: string; details?: unknown };
     const message = err?.message ?? String(e);
 
-    // ① 契约层 10 码：原样透传
+    // ① 契约层封闭码集：原样透传
     if (err?.code && BRIDGE_ERROR_CODES.includes(err.code)) {
       return makeError(err.code as never, message);
     }

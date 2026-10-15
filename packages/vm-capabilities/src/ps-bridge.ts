@@ -477,7 +477,7 @@ export class PsBridge {
   /**
    * 取消错误（ARCH-29）：领域码 `PSBRIDGE_CANCELED`。
    *
-   * 码形走**领域码**（`DOMAIN_CODE_RE` 命中）而非契约 10 码，故不进 `BRIDGE_ERROR_CODES`
+   * 码形走**领域码**（`DOMAIN_CODE_RE` 命中）而非契约层封闭码集，故不进 `BRIDGE_ERROR_CODES`
    * （对外契约码集不得因内部中止而扩张）；由消费侧显式识别后转 `TASK_CANCELED` 收口。
    */
   private canceledError(module: string, fn: string, cause: string): PsBridgeError {
