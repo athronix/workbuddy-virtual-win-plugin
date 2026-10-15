@@ -116,6 +116,17 @@ export interface LlmSessionHealth {
    *    ⇒ **冷启动发生**，可据此对账 `WINVM_LLM_SESSION_WARMUP_MS`/`readyTimeoutMs` 两旋钮。
    */
   readonly firstCallLatencyMs?: number;
+  /**
+   * 批10 G7（V14 · **纯附加可选**）：常驻会话工作集探针采样显形（此前仅内存判据
+   * 超限⇒释放重建，`/health.llmSession` 零读数=V14 观察窗无数据可读）。
+   * 三键**同进同缺**：探针未注入 / 服务生命周期内尚未采到数字样本 ⇒ 整体缺席
+   * （缺席=「未观测」，同 firstCallLatencyMs 的「绝不填 0」纪律）。
+   *  - `wsLatestMb` / `wsPeakMb`：最近一次 / 峰值工作集（MB，一位小数）。
+   *  - `wsEvictions`：因超限触发的计划内软释放次数（观测计数，非行为承诺）。
+   */
+  readonly wsLatestMb?: number;
+  readonly wsPeakMb?: number;
+  readonly wsEvictions?: number;
 }
 
 /**

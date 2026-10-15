@@ -233,6 +233,20 @@ export class PersistentCliSession {
   private plannedRecycles = 0;
   /** A2-3：一次回收发生、等待其「重建」被消费时置位（回收后若不重建则保留，绝不虚增 plannedRecycles）。 */
   private recyclePending = false;
+  /**
+   * 批10 G7（V14，**纯观测累计，零行为改动**）：工作集探针的采样事实。
+   * 探针只在 `tick()` 里被调用（超限判据本身不变），本组字段只**旁录读数**：
+   *  - `wsSampled` ⇒ 是否已采到**至少一个数字样本**（探针未注入 / pid 未知 / 采样失败 ⇒
+   *    恒 false ⇒ `snapshot()` 三个 ws 键整体不进 ⇒ K-13 禁显式 undefined + 守 D6 键序）。
+   *  - `wsLatestBytes` / `wsPeakBytes` ⇒ 最近一次 / 服务生命周期峰值（字节；透出换算 MB）。
+   *  - `wsEvictions` ⇒ 因工作集超限触发的计划内软释放次数（与 `tick` 超限回收同一判据点）。
+   * 累计口径与 `firstCallLatencyMs` 同族（服务生命周期内观测，`restartFresh()` **不清零**——
+   * 复位解除"当前不可用"不等于抹掉"历史上采样过/回收过"，保守口径避免误读为"峰值已消失"）。
+   */
+  private wsSampled = false;
+  private wsLatestBytes = 0;
+  private wsPeakBytes = 0;
+  private wsEvictions = 0;
   private disposed = false;
 
   private buffer = '';
@@ -303,6 +317,17 @@ export class PersistentCliSession {
       // P2-T9（E-1）：首调耗时一次性透出；**从未首调 ⇒ 键缺席**（不填 0——0 会被误读为
       // 「首调极快」，缺席才是「尚未发生首调」的诚实形状）。
       ...(this.firstCallLatencyMs !== undefined ? { firstCallLatencyMs: this.firstCallLatencyMs } : {}),
+      // 批10 G7（V14，纯附加）：工作集采样显形。**探针未注入 / 尚未采到数字样本 ⇒ 三键
+      // 整体不进**（缺席=「未观测」，绝不填 0/undefined——同 firstCallLatencyMs 纪律）。
+      // MB 换算 = 字节 / 1024² 保留一位小数（真机工作集量级为百 MB，舍入无损可读性；
+      // 换算口径如实写死，不复述原始字节 ⇒ 与 `maxWsBytes` 对账时读者知道这是 MB 视图）。
+      ...(this.wsSampled
+        ? {
+            wsLatestMb: Math.round((this.wsLatestBytes / 1_048_576) * 10) / 10,
+            wsPeakMb: Math.round((this.wsPeakBytes / 1_048_576) * 10) / 10,
+            wsEvictions: this.wsEvictions,
+          }
+        : {}),
     };
   }
 
@@ -982,7 +1007,15 @@ export class PersistentCliSession {
 
     if (this.childAlive() && this.opts.wsProbe) {
       const ws = this.opts.wsProbe();
+      if (typeof ws === 'number') {
+        // 批10 G7（纯观测旁录，零行为改动）：任何数字样本都记最新/峰值；判据与超限处置不变。
+        this.wsSampled = true;
+        this.wsLatestBytes = ws;
+        if (ws > this.wsPeakBytes) this.wsPeakBytes = ws;
+      }
       if (typeof ws === 'number' && ws > this.opts.maxWsBytes) {
+        // 超限触发的计划内软释放计数（观测面；与回收本身同判据点，非新行为）。
+        this.wsEvictions += 1;
         this.log('LLM 常驻会话工作集超限，回收重建', { wsBytes: ws, maxWsBytes: this.opts.maxWsBytes });
         this.recyclePending = true; // A2-3：ws 超限回收同样是计划内软释放，其后重建不计故障预算
         void this.dispose();
