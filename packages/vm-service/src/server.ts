@@ -57,6 +57,8 @@ import {
   resolveDelegationRequiredPolicy,
   resolveServiceConfig,
   validateServiceConfig,
+  foldK6Verdict,
+  K6_FAIL_MESSAGE,
   type FileLogger,
   type ServiceConfig,
 } from '@winvm/core';
@@ -1300,16 +1302,27 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     // 现由 provider.execute 内部的 reportNetCfg 注入回调统一上抛写入 netCfgCache，
     // MCP 与 A2A 两条路径共用同一 execute，全覆盖。此处不再重复捕获。
 
+    // C0（Phase 5）：K6 权威判定位折叠——执行器自报 `data.success === false`
+    // （严格，判据单源 @winvm/core k6-verdict）⇒ 信封 ok 改判 false。折叠发生在
+    // receiptCache.record **之前**：K5 回执链（/audit/receipt）、重放路径
+    // （toExecutedResult 读 structuredContent.ok，零改动即诚实改判）、委派 bridge
+    // 「服务端执行回执」转呈全部自动受益。data 原样保留（verified/residualEvidence
+    // 不吞）；error 块只在折叠**翻转判定**（res.ok=true 被折为 false）时补写——
+    // provider 已自报失败（res.ok=false）的回执携带自家 error，语义原样透传不覆盖。
+    const fold = foldK6Verdict(res.ok, res.data);
+    const k6Flip = fold.k6Failed && res.ok;
+
     // S-3（方案 B）：执行回执进**有界脱敏环形缓存**（≤200 条，不入链，重启即失）。
     // 键取 `res.traceId`（provider 回传值，与链上条目 traceId 一致）→ 端点按委派
     // traceId 直查命中壳条目自身的回执；内层回执经账本/链上 auditSeqs 展开命中。
-    receiptCache.record(res.traceId, cap.id, res.ok, res.data);
+    // C0：记**折叠后**的 ok——缓存与呈报同源，重放/取证面不再吃到未折叠旧信封。
+    receiptCache.record(res.traceId, cap.id, fold.ok, res.data);
 
     return {
-      isError: !res.ok,
+      isError: fold.isError,
       structuredContent: {
         traceId: res.traceId,
-        ok: res.ok,
+        ok: fold.ok,
         risk: cap.risk,
         data: res.data,
         ...(seg.replayed ? { replayed: true } : {}),
@@ -1318,7 +1331,18 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
           : {}),
         durationMs: res.durationMs,
         ...(res.auditRef ? { auditRef: res.auditRef } : {}),
-        ...(res.error ? { error: res.error } : {}),
+        ...(k6Flip
+          ? {
+              error: {
+                code: 'EXECUTION_FAILED',
+                message: fold.errorMessage ?? K6_FAIL_MESSAGE,
+                reason: 'K6_VERIFY_FAILED',
+                retryable: false,
+              },
+            }
+          : res.error
+            ? { error: res.error }
+            : {}),
       },
     };
   }
