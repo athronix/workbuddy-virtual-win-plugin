@@ -41,7 +41,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - **A5 / K-N1 / K-N2**：A5 L2 审批 `rejected` 置位路径真机不可达(activeTaskId 被 cancel 清掉)；K-N1 委派回合未发起 tools/call 致 K5 回执反查早退(0 执行仍 completed)；K-N2 dryRun 内层 success=false。均已有 `r19c-*` 单测覆盖。
 
 ## 关键口径
-- **测试基线 116 文件 / 2103 例（2101 pass/0 fail/2 skip）**（2026-10-15 Phase 4 批10 收口，全量 gate GREEN DISK=RUN=MATCH，qa/p3-batch-sweep/gate-b10-final.txt；2 skip 恒 ssh2-resolve OFFLINE_SKIP）。旧口径留档：Phase2 92/1889；Phase3 99/1945→105/1993→106/1999→110/2036→112/2046(Q3)→114/2079(批1)；Phase4 115/2087(批9，漂移钉入列)→**116/2103(批10，resident-scope-e2e 11+ws-health 9 入列)**。**Q3 起 sweep = tests/unit/** + delivery/__tests__/**（listSweepFiles 合流）**。**基线数字权威源=qa/ 最新 `gate-*.txt` 汇总行（README/06-OVERVIEW 已废静态数字）**。门禁=`npm run gate`/`gate:quick`/`lock-probe`（GATE-POLICY.md：跳过门禁即未验收）。
+- **测试基线 118 文件 / 2131 例（2129 pass/0 fail/2 skip）**（2026-10-16 Phase 5 残项收口，全量 gate GREEN DISK=RUN=MATCH，qa/p3-batch-sweep/gate-p5res-final.txt；2 skip 恒 ssh2-resolve OFFLINE_SKIP）。旧口径留档：Phase2 92/1889；Phase3 99/1945→…→114/2079(批1)；Phase4 115/2087(批9)→116/2103(批10)；Phase5 批14 +p5-b14-wiring-channel →117、残项 +p5-r1-capability-list+ssh2 可跑2例 →**118/2131**。**Q3 起 sweep = tests/unit/** + delivery/__tests__/**（listSweepFiles 合流）**。**基线数字权威源=qa/ 最新 `gate-*.txt` 汇总行（README/06-OVERVIEW 已废静态数字）**。门禁=`npm run gate`/`gate:quick`/`lock-probe`（GATE-POLICY.md：跳过门禁即未验收）。
 - 测试证据口径：每轮只留一份权威报告 `real-test-<date>-run<N>.md`；「未复现≠已修」须确定性注入回归；FAIL 给四元组(现象/根因/证据/路由)；证据目录删除必留痕。
 - 裁决必须落档再引用编号：权威层级=仓库文档>任务板>聊天；文档引用锚点段标签为主、行号(号)为辅（并行改动行号漂移）。
 - 证据文件「写完再读」：落在写入窗口内得 0B 假空→任何"为空/缺失"须二次确认(mtime+字节+进程存活)。
