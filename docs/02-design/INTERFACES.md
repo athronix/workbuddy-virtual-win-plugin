@@ -122,7 +122,7 @@ L2/L3 操作首次调用返回**待确认**（而非直接执行）：
 | `SESSION_BLACK_SCREEN` | 检出黑屏（**明确告警，不静默返回**） | 是（恢复后） |
 | `PROVIDER_UNAVAILABLE` | VM Agent provider 未就绪 | 是 |
 | `TIMEOUT` | 执行超时 | 是 |
-| `EXECUTION_FAILED` | 底层执行失败（附 PowerShell 错误） | 否 |
+| `EXECUTION_FAILED` | 底层执行失败（附 PowerShell 错误）；含执行器 K6 自报未成功的折叠呈报（`reason=K6_VERIFY_FAILED`，C0） | 否 |
 | `TASK_CANCELED` | 任务被取消，执行体协作式退出（重跑必须重新委派、重过审批闸） | 否 |
 | `DELEGATION_REQUIRED` | L2/L3 纯 MCP 直调不予审批，须改走 `a2a.delegate` 委派（批1(c)） | 否（须转委派，重试同一请求无益） |
 

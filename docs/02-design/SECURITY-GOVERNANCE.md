@@ -290,6 +290,27 @@ record_n.prevHash = hash_(n-1)
 | Base64 长串（>200 字符） | 截断 + 记长度 + 记 sha256 前缀 |
 | 截图 artifact | 只存 sha256 + 路径，不内联进审计行 |
 
+### 4.5 回执诚实（K6 折叠，C0 · 2026-10-16）
+
+执行器（psmod K6 状态机）回执携带权威判定位 `data.success`（exit0 ∧ 最终核验；
+核验不过 `success=false` + `residualEvidence`）。呈报链对它的消费是**单点纯函数
+`foldK6Verdict`（`packages/core/src/k6-verdict.ts`，严格判据 `success === false`）**，
+两个消费面同源：
+
+- **响应/回执面**：`vm-service` `executeCapability` 在 `receiptCache.record` **之前**
+  折叠 ⇒ MCP 回执 `ok/isError`、K5 重放映射（`toExecutedResult` 零改动）、委派转呈、
+  `/audit/receipt` 环形缓存全部诚实（error 复用契约码 `EXECUTION_FAILED` +
+  `reason=K6_VERIFY_FAILED`，残留证据截断进文案，data 不吞）；
+- **链条目面**：deterministic provider 审计写入点（`adapter-agent-workbuddy` execute
+  成功支）折叠命中 ⇒ 条目 `result.ok=false` + 诚实 summary ⇒ 委派账本
+  `recordExecuted` 归因随之诚实（防「响应诚实、链上仍记执行成功」的半截修复）。
+
+信封级失败（provider 抛错/超时）的既有码原样透传，折叠**只翻转** `res.ok=true`
+而 `data.success=false` 的假成功形态；`success` 键缺省的一切能力逐字旧行为。
+离线钉：`tests/unit/p5-c0-k6-verdict-fold.test.js`（判据真值表+变异自证）、
+`p5-c0-k6-fold-service.test.js`（服务行为面）、`p5-c0-k6-audit-fold.test.js`（链写入值面）；
+真机复验随主理人窗（RELEASE-NOTES §三-2 C0 行）。
+
 ---
 
 ## 5. Windows 会话保活（NFR-502，评估建议 §二）
