@@ -26,7 +26,7 @@
 
 ### 新钉 + 复跑
 - `p5-r1-capability-list-pin.test.js` **17 例**（A1 绑定与 description 兑现 / A2 形态与零桥往返 / A3 与注册表全集逐条一致+排序稳定 / A4 拦截定向性+诊断分支在册 / A5 三 provider 通配防漂移+委托面 / A6 SKILL 口径句回潮防线）。
-- 触及面复跑（逐件、非 glob）：psmod-contract 7、cl017 12、cl017-param-guard 10、cl017-param-value 34、r3-uninstall-verify 39、phase2-mcp-signal 54、phase2-contract-code-fidelity 22、phase2-contract-schema 23、phase2-snapshot-truth 17、p3-b1-policy-gate 29、phase3-skill-claims-guard 11、p4-b9-errcode-registration-pin 12、phase3-b2-deadlink-fix 6、r19b-s5-write-allowlist-pairing 39、r1-approval-card 69、host-adapter 35——**全绿**。
+- 触及面复跑（逐件、非 glob）：psmod-contract 7、cl017 12、cl017-param-guard 10、cl017-param-value 34、r3-uninstall-verify 39、phase2-mcp-signal 54、phase2-contract-code-fidelity 22、phase2-contract-schema 23、phase2-snapshot-truth 17、p3-b1-policy-gate 29、phase3-skill-claims-guard 11、p4-b9-errcode-registration-pin 12、phase3-b2-deadlink-fix 6、r19b-s5-write-allowlist-pairing 39、r1-approval-card 69、host-adapter 35、deploy-shared-skills 8——**全绿（17 件）**。
 
 ## R2 · V19 离线判据分析（不改实现）→ `docs/audit/2026-10-16-v19-analysis.md`
 
