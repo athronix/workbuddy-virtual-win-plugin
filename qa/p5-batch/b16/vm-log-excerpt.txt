@@ -1,0 +1,208 @@
+FILE|C:\Users\User\AppData\Local\WinVMBridge\logs\winvm-service-2026-10-17.log|mtime=2026-10-17T00:36:39.4661510+08:00|bytes=3809
+FILE|C:\Users\User\AppData\Local\WinVMBridge\logs\winvm-service-2026-10-16.log|mtime=2026-10-16T19:39:36.2611584+08:00|bytes=10571
+FILE|C:\Users\User\AppData\Local\WinVMBridge\logs\winvm-service-2026-10-15.log|mtime=2026-10-15T20:30:53.4106378+08:00|bytes=14089
+FILE|C:\Users\User\AppData\Local\WinVMBridge\logs\winvm-service-2026-10-14.log|mtime=2026-10-14T21:07:55.7730780+08:00|bytes=16369
+FILE|C:\Users\User\AppData\Local\WinVMBridge\logs\winvm-service-2026-10-13.log|mtime=2026-10-13T17:48:09.2879241+08:00|bytes=2220
+FILE|C:\Users\User\AppData\Local\WinVMBridge\logs\winvm-service-2026-10-11.log|mtime=2026-10-11T12:19:37.3396545+08:00|bytes=453418
+FILE|C:\Users\User\AppData\Local\WinVMBridge\logs\winvm-service-2026-10-10.log|mtime=2026-10-10T11:53:54.9764401+08:00|bytes=15338
+=== TAIL OF NEWEST 3 ===
+--- winvm-service-2026-10-17.log
+{"ts":"2026-10-16T16:30:21.262Z","level":"info","msg":"[llm-session] LLM 常驻会话重建","service":"winvm","attempt":3}
+{"ts":"2026-10-16T16:30:21.267Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":3}
+{"ts":"2026-10-16T16:31:21.301Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪超时","service":"winvm"}
+{"ts":"2026-10-16T16:31:21.444Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":60144,"ok":false}
+{"ts":"2026-10-16T16:32:45.254Z","level":"info","msg":"[llm-session] LLM 常驻会话重建","service":"winvm","attempt":4}
+{"ts":"2026-10-16T16:32:45.255Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":4}
+{"ts":"2026-10-16T16:33:21.051Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T16:33:31.276Z","level":"warn","msg":"批10 N-9 观测：纯直调命中审批闸且活动委派槽在场（窄窗：被按内层处理，(c) 不触发）","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mvb6ss9l_3"}
+{"ts":"2026-10-16T16:33:38.189Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":52925,"ok":true}
+{"ts":"2026-10-16T16:33:38.227Z","level":"warn","msg":"同一委派存在多个未决审批（请宿主逐条处理）","service":"winvm"}
+{"ts":"2026-10-16T16:33:38.317Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T16:33:45.736Z","level":"info","msg":"审批放行，服务端确定性重放执行","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mvb6ss9l_3-replay"}
+{"ts":"2026-10-16T16:34:12.496Z","level":"warn","msg":"会话状态变化","service":"winvm","from":"healthy","to":"unavailable","detail":"会话探针失败：调用 gui.Get-SessionHealth 超时（20000ms）"}
+{"ts":"2026-10-16T16:34:32.290Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T16:34:43.341Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":14350,"ok":true}
+{"ts":"2026-10-16T16:34:43.498Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T16:35:13.068Z","level":"info","msg":"会话状态变化","service":"winvm","from":"unavailable","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-16T16:35:43.877Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T16:35:53.133Z","level":"warn","msg":"批10 N-9 观测：纯直调命中审批闸且活动委派槽在场（窄窗：被按内层处理，(c) 不触发）","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mvb6vtsx_4"}
+{"ts":"2026-10-16T16:36:01.569Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":19280,"ok":true}
+{"ts":"2026-10-16T16:36:01.647Z","level":"warn","msg":"同一委派存在多个未决审批（请宿主逐条处理）","service":"winvm"}
+{"ts":"2026-10-16T16:36:01.680Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T16:36:12.343Z","level":"info","msg":"审批放行，服务端确定性重放执行","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mvb6vtsx_4-replay"}
+{"ts":"2026-10-16T16:36:32.652Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T16:36:38.903Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":7555,"ok":true}
+{"ts":"2026-10-16T16:36:39.047Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+--- winvm-service-2026-10-16.log
+{"ts":"2026-10-16T04:08:23.721Z","level":"info","msg":"复用服务注入的 ps-bridge 单例","service":"winvm","provider":"workbuddy-deterministic"}
+{"ts":"2026-10-16T04:08:23.755Z","level":"info","msg":"provider 已就绪","service":"winvm","provider":"workbuddy","kind":"llm-agent"}
+{"ts":"2026-10-16T04:08:23.774Z","level":"info","msg":"能力暴露面已确定","service":"winvm","count":54,"degraded":false}
+{"ts":"2026-10-16T04:08:23.783Z","level":"info","msg":"[llm-session] 启动预热开始（消除 A2A 冷启动停滞 K2）","service":"winvm"}
+{"ts":"2026-10-16T04:08:24.145Z","level":"info","msg":"WinVM Bridge 服务已启动","service":"winvm","host":"127.0.0.1","port":18443,"exposed":54,"degraded":false}
+{"ts":"2026-10-16T04:08:24.293Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":1}
+{"ts":"2026-10-16T04:08:24.459Z","level":"info","msg":"bearer 生效自检：回连通路状态未实证（默认态只观测不改判）","service":"winvm","reason":"authMode=loopback-only：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）"}
+{"ts":"2026-10-16T04:08:25.898Z","level":"info","msg":"启动归档校验完成","service":"winvm"}
+{"ts":"2026-10-16T04:08:29.172Z","level":"info","msg":"会话状态变化","service":"winvm","from":"(初始)","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-16T04:08:58.488Z","level":"info","msg":"网络配置缓存预热完成","service":"winvm","ttlMs":45000}
+{"ts":"2026-10-16T04:08:58.772Z","level":"warn","msg":"会话状态变化","service":"winvm","from":"healthy","to":"unavailable","detail":"会话探针失败：调用 gui.Get-SessionHealth 超时（20000ms）"}
+{"ts":"2026-10-16T04:09:09.191Z","level":"info","msg":"会话状态变化","service":"winvm","from":"unavailable","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-16T04:09:14.589Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T04:09:22.602Z","level":"info","msg":"[llm-session] 启动预热结束","service":"winvm"}
+{"ts":"2026-10-16T04:09:22.909Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T04:13:24.339Z","level":"info","msg":"[llm-session] LLM 常驻会话空闲回收","service":"winvm","ttlMs":300000}
+{"ts":"2026-10-16T07:24:25.629Z","level":"info","msg":"批1(c)：纯宿主直调命中审批闸 ⇒ 策略收口 DELEGATION_REQUIRED（不再注册死令牌）","service":"winvm","capabilityId":"app.winget.uninstall","risk":"L2","traceId":"tr_mvan6nb0_5"}
+{"ts":"2026-10-16T08:46:58.201Z","level":"info","msg":"复用服务注入的 ps-bridge 单例","service":"winvm","provider":"workbuddy-deterministic"}
+{"ts":"2026-10-16T08:46:58.208Z","level":"info","msg":"provider 已就绪","service":"winvm","provider":"workbuddy","kind":"llm-agent"}
+{"ts":"2026-10-16T08:46:58.210Z","level":"info","msg":"能力暴露面已确定","service":"winvm","count":54,"degraded":false}
+{"ts":"2026-10-16T08:46:58.213Z","level":"info","msg":"[llm-session] 启动预热开始（消除 A2A 冷启动停滞 K2）","service":"winvm"}
+{"ts":"2026-10-16T08:46:58.515Z","level":"info","msg":"WinVM Bridge 服务已启动","service":"winvm","host":"127.0.0.1","port":18443,"exposed":54,"degraded":false}
+{"ts":"2026-10-16T08:46:58.914Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":1}
+{"ts":"2026-10-16T08:46:59.147Z","level":"info","msg":"bearer 生效自检：回连通路状态未实证（默认态只观测不改判）","service":"winvm","reason":"authMode=loopback-only：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）"}
+{"ts":"2026-10-16T08:46:59.993Z","level":"info","msg":"启动归档校验完成","service":"winvm"}
+{"ts":"2026-10-16T08:47:02.026Z","level":"info","msg":"会话状态变化","service":"winvm","from":"(初始)","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-16T08:47:25.027Z","level":"info","msg":"网络配置缓存预热完成","service":"winvm","ttlMs":45000}
+{"ts":"2026-10-16T08:47:39.085Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T08:47:46.715Z","level":"info","msg":"[llm-session] 启动预热结束","service":"winvm"}
+{"ts":"2026-10-16T08:47:46.934Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T08:48:56.910Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T08:49:05.313Z","level":"warn","msg":"批10 N-9 观测：纯直调命中审批闸且活动委派槽在场（窄窗：被按内层处理，(c) 不触发）","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mvaq7itt_1"}
+{"ts":"2026-10-16T08:49:14.966Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":19828,"ok":true}
+{"ts":"2026-10-16T08:49:14.971Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T08:49:15.056Z","level":"warn","msg":"同一委派存在多个未决审批（请宿主逐条处理）","service":"winvm"}
+{"ts":"2026-10-16T08:49:25.378Z","level":"info","msg":"审批放行，服务端确定性重放执行","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mvaq7itt_1-replay"}
+{"ts":"2026-10-16T08:49:48.309Z","level":"warn","msg":"会话状态变化","service":"winvm","from":"healthy","to":"unavailable","detail":"会话探针失败：调用 gui.Get-SessionHealth 超时（20000ms）"}
+{"ts":"2026-10-16T08:49:52.781Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T08:50:05.648Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":14742,"ok":true}
+{"ts":"2026-10-16T08:50:05.663Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T08:50:06.207Z","level":"info","msg":"会话状态变化","service":"winvm","from":"unavailable","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-16T08:54:58.905Z","level":"info","msg":"[llm-session] LLM 常驻会话空闲回收","service":"winvm","ttlMs":300000}
+{"ts":"2026-10-16T09:07:24.866Z","level":"info","msg":"复用服务注入的 ps-bridge 单例","service":"winvm","provider":"workbuddy-deterministic"}
+{"ts":"2026-10-16T09:07:24.886Z","level":"info","msg":"provider 已就绪","service":"winvm","provider":"workbuddy","kind":"llm-agent"}
+{"ts":"2026-10-16T09:07:24.892Z","level":"info","msg":"能力暴露面已确定","service":"winvm","count":54,"degraded":false}
+{"ts":"2026-10-16T09:07:24.896Z","level":"info","msg":"[llm-session] 启动预热开始（消除 A2A 冷启动停滞 K2）","service":"winvm"}
+{"ts":"2026-10-16T09:07:25.070Z","level":"info","msg":"WinVM Bridge 服务已启动","service":"winvm","host":"127.0.0.1","port":18443,"exposed":54,"degraded":false}
+{"ts":"2026-10-16T09:07:25.141Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":1}
+{"ts":"2026-10-16T09:07:25.194Z","level":"info","msg":"bearer 生效自检：回连通路状态未实证（默认态只观测不改判）","service":"winvm","reason":"authMode=loopback-only：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）"}
+{"ts":"2026-10-16T09:07:25.708Z","level":"info","msg":"启动归档校验完成","service":"winvm"}
+{"ts":"2026-10-16T09:07:28.132Z","level":"info","msg":"会话状态变化","service":"winvm","from":"(初始)","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-16T09:07:45.347Z","level":"info","msg":"网络配置缓存预热完成","service":"winvm","ttlMs":45000}
+{"ts":"2026-10-16T09:07:56.748Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T09:08:09.235Z","level":"info","msg":"[llm-session] 启动预热结束","service":"winvm"}
+{"ts":"2026-10-16T09:08:09.544Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T09:09:00.830Z","level":"warn","msg":"会话状态变化","service":"winvm","from":"healthy","to":"unavailable","detail":"会话探针失败：调用 gui.Get-SessionHealth 超时（20000ms）"}
+{"ts":"2026-10-16T09:09:20.440Z","level":"info","msg":"会话状态变化","service":"winvm","from":"unavailable","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-16T09:09:29.222Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T09:09:44.785Z","level":"warn","msg":"批10 N-9 观测：纯直调命中审批闸且活动委派槽在场（窄窗：被按内层处理，(c) 不触发）","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mvaqy37c_1"}
+{"ts":"2026-10-16T09:09:55.155Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":49255,"ok":true}
+{"ts":"2026-10-16T09:09:55.250Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T09:09:55.373Z","level":"warn","msg":"同一委派存在多个未决审批（请宿主逐条处理）","service":"winvm"}
+{"ts":"2026-10-16T09:10:02.907Z","level":"info","msg":"审批放行，服务端确定性重放执行","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mvaqy37c_1-replay"}
+{"ts":"2026-10-16T09:10:30.688Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T09:11:06.804Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":36727,"ok":true}
+{"ts":"2026-10-16T09:11:06.868Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-16T09:15:31.558Z","level":"info","msg":"[llm-session] LLM 常驻会话空闲回收","service":"winvm","ttlMs":300000}
+{"ts":"2026-10-16T11:38:34.710Z","level":"info","msg":"[llm-session] LLM 常驻会话重建","service":"winvm","attempt":2}
+{"ts":"2026-10-16T11:38:34.798Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":2}
+{"ts":"2026-10-16T11:39:34.877Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪超时","service":"winvm"}
+{"ts":"2026-10-16T11:39:35.082Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":60281,"ok":false}
+--- winvm-service-2026-10-15.log
+{"ts":"2026-10-15T01:30:28.300Z","level":"info","msg":"复用服务注入的 ps-bridge 单例","service":"winvm","provider":"workbuddy-deterministic"}
+{"ts":"2026-10-15T01:30:28.315Z","level":"info","msg":"provider 已就绪","service":"winvm","provider":"workbuddy","kind":"llm-agent"}
+{"ts":"2026-10-15T01:30:28.317Z","level":"info","msg":"能力暴露面已确定","service":"winvm","count":54,"degraded":false}
+{"ts":"2026-10-15T01:30:28.319Z","level":"info","msg":"[llm-session] 启动预热开始（消除 A2A 冷启动停滞 K2）","service":"winvm"}
+{"ts":"2026-10-15T01:30:28.457Z","level":"info","msg":"WinVM Bridge 服务已启动","service":"winvm","host":"127.0.0.1","port":18443,"exposed":54,"degraded":false}
+{"ts":"2026-10-15T01:30:28.555Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":1}
+{"ts":"2026-10-15T01:30:28.627Z","level":"info","msg":"bearer 生效自检：回连通路状态未实证（默认态只观测不改判）","service":"winvm","reason":"authMode=loopback-only：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）"}
+{"ts":"2026-10-15T01:30:29.067Z","level":"info","msg":"启动归档校验完成","service":"winvm"}
+{"ts":"2026-10-15T01:30:30.929Z","level":"info","msg":"会话状态变化","service":"winvm","from":"(初始)","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-15T01:30:39.862Z","level":"info","msg":"网络配置缓存预热完成","service":"winvm","ttlMs":45000}
+{"ts":"2026-10-15T01:30:49.603Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T01:30:54.724Z","level":"info","msg":"[llm-session] 启动预热结束","service":"winvm"}
+{"ts":"2026-10-15T01:30:54.980Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T01:35:28.587Z","level":"info","msg":"[llm-session] LLM 常驻会话空闲回收","service":"winvm","ttlMs":300000}
+{"ts":"2026-10-15T09:46:16.335Z","level":"info","msg":"复用服务注入的 ps-bridge 单例","service":"winvm","provider":"workbuddy-deterministic"}
+{"ts":"2026-10-15T09:46:16.371Z","level":"info","msg":"provider 已就绪","service":"winvm","provider":"workbuddy","kind":"llm-agent"}
+{"ts":"2026-10-15T09:46:16.376Z","level":"info","msg":"能力暴露面已确定","service":"winvm","count":54,"degraded":false}
+{"ts":"2026-10-15T09:46:16.378Z","level":"info","msg":"[llm-session] 启动预热开始（消除 A2A 冷启动停滞 K2）","service":"winvm"}
+{"ts":"2026-10-15T09:46:17.038Z","level":"info","msg":"WinVM Bridge 服务已启动","service":"winvm","host":"127.0.0.1","port":18443,"exposed":54,"degraded":false}
+{"ts":"2026-10-15T09:46:17.352Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":1}
+{"ts":"2026-10-15T09:46:17.430Z","level":"info","msg":"bearer 生效自检：回连通路状态未实证（默认态只观测不改判）","service":"winvm","reason":"authMode=loopback-only：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）"}
+{"ts":"2026-10-15T09:46:18.992Z","level":"info","msg":"启动归档校验完成","service":"winvm"}
+{"ts":"2026-10-15T09:46:22.106Z","level":"info","msg":"会话状态变化","service":"winvm","from":"(初始)","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-15T09:46:50.722Z","level":"info","msg":"网络配置缓存预热完成","service":"winvm","ttlMs":45000}
+{"ts":"2026-10-15T09:46:56.495Z","level":"info","msg":"批1(c)：纯宿主直调命中审批闸 ⇒ 策略收口 DELEGATION_REQUIRED（不再注册死令牌）","service":"winvm","capabilityId":"storage.file.delete","risk":"L2","traceId":"tr_mv9cu2hp_1"}
+{"ts":"2026-10-15T09:47:23.460Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T09:47:28.106Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T09:47:28.823Z","level":"info","msg":"[llm-session] 启动预热结束","service":"winvm"}
+{"ts":"2026-10-15T09:51:17.462Z","level":"info","msg":"[llm-session] LLM 常驻会话空闲回收","service":"winvm","ttlMs":300000}
+{"ts":"2026-10-15T10:15:56.801Z","level":"info","msg":"复用服务注入的 ps-bridge 单例","service":"winvm","provider":"workbuddy-deterministic"}
+{"ts":"2026-10-15T10:15:56.820Z","level":"info","msg":"provider 已就绪","service":"winvm","provider":"workbuddy","kind":"llm-agent"}
+{"ts":"2026-10-15T10:15:56.824Z","level":"info","msg":"能力暴露面已确定","service":"winvm","count":54,"degraded":false}
+{"ts":"2026-10-15T10:15:56.825Z","level":"info","msg":"[llm-session] 启动预热开始（消除 A2A 冷启动停滞 K2）","service":"winvm"}
+{"ts":"2026-10-15T10:15:56.906Z","level":"info","msg":"WinVM Bridge 服务已启动","service":"winvm","host":"127.0.0.1","port":18443,"exposed":54,"degraded":false}
+{"ts":"2026-10-15T10:15:56.982Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":1}
+{"ts":"2026-10-15T10:15:57.009Z","level":"info","msg":"bearer 生效自检：回连通路状态未实证（默认态只观测不改判）","service":"winvm","reason":"authMode=loopback-only：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）"}
+{"ts":"2026-10-15T10:15:57.396Z","level":"info","msg":"启动归档校验完成","service":"winvm"}
+{"ts":"2026-10-15T10:15:58.413Z","level":"info","msg":"会话状态变化","service":"winvm","from":"(初始)","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-15T10:16:04.728Z","level":"info","msg":"网络配置缓存预热完成","service":"winvm","ttlMs":45000}
+{"ts":"2026-10-15T10:16:08.496Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T10:16:09.698Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T10:16:09.954Z","level":"info","msg":"[llm-session] 启动预热结束","service":"winvm"}
+{"ts":"2026-10-15T10:17:33.953Z","level":"info","msg":"复用服务注入的 ps-bridge 单例","service":"winvm","provider":"workbuddy-deterministic"}
+{"ts":"2026-10-15T10:17:33.961Z","level":"info","msg":"provider 已就绪","service":"winvm","provider":"workbuddy","kind":"llm-agent"}
+{"ts":"2026-10-15T10:17:33.963Z","level":"info","msg":"能力暴露面已确定","service":"winvm","count":54,"degraded":false}
+{"ts":"2026-10-15T10:17:33.964Z","level":"info","msg":"[llm-session] 启动预热开始（消除 A2A 冷启动停滞 K2）","service":"winvm"}
+{"ts":"2026-10-15T10:17:34.026Z","level":"info","msg":"WinVM Bridge 服务已启动","service":"winvm","host":"127.0.0.1","port":18443,"exposed":54,"degraded":false}
+{"ts":"2026-10-15T10:17:34.068Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":1}
+{"ts":"2026-10-15T10:17:34.104Z","level":"info","msg":"bearer 生效自检：回连通路状态未实证（默认态只观测不改判）","service":"winvm","reason":"authMode=loopback-only：守卫未挂载 ⇒ 回连通路无判定意义（只观测不改判，默认态恒不拒启）"}
+{"ts":"2026-10-15T10:17:34.306Z","level":"info","msg":"启动归档校验完成","service":"winvm"}
+{"ts":"2026-10-15T10:17:35.693Z","level":"info","msg":"会话状态变化","service":"winvm","from":"(初始)","to":"healthy","detail":"会话健康，GUI 能力可用"}
+{"ts":"2026-10-15T10:17:45.753Z","level":"info","msg":"网络配置缓存预热完成","service":"winvm","ttlMs":45000}
+{"ts":"2026-10-15T10:17:50.700Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T10:17:52.135Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T10:17:52.469Z","level":"info","msg":"[llm-session] 启动预热结束","service":"winvm"}
+{"ts":"2026-10-15T10:22:34.152Z","level":"info","msg":"[llm-session] LLM 常驻会话空闲回收","service":"winvm","ttlMs":300000}
+{"ts":"2026-10-15T10:53:00.988Z","level":"info","msg":"批1(c)：纯宿主直调命中审批闸 ⇒ 策略收口 DELEGATION_REQUIRED（不再注册死令牌）","service":"winvm","capabilityId":"storage.file.delete","risk":"L2","traceId":"tr_mv9f71hi_1"}
+{"ts":"2026-10-15T10:58:58.194Z","level":"info","msg":"[llm-session] LLM 常驻会话重建","service":"winvm","attempt":2}
+{"ts":"2026-10-15T10:58:58.197Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":2}
+{"ts":"2026-10-15T10:59:12.999Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T10:59:14.475Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T10:59:14.781Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":16580,"ok":false}
+{"ts":"2026-10-15T11:01:35.779Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:01:37.864Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":3494,"ok":false}
+{"ts":"2026-10-15T11:01:38.243Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:05:07.506Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:05:09.655Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":3304,"ok":false}
+{"ts":"2026-10-15T11:05:09.943Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:10:34.945Z","level":"info","msg":"[llm-session] LLM 常驻会话空闲回收","service":"winvm","ttlMs":300000}
+{"ts":"2026-10-15T11:57:02.611Z","level":"info","msg":"[llm-session] LLM 常驻会话重建","service":"winvm","attempt":3}
+{"ts":"2026-10-15T11:57:02.617Z","level":"info","msg":"[llm-session] LLM 常驻会话已启动","service":"winvm","attempt":3}
+{"ts":"2026-10-15T11:57:15.091Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:57:33.142Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":30523,"ok":true}
+{"ts":"2026-10-15T11:57:33.145Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:58:28.676Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:58:40.765Z","level":"warn","msg":"批10 N-9 观测：纯直调命中审批闸且活动委派槽在场（窄窗：被按内层处理，(c) 不触发）","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mv9hjhit_7"}
+{"ts":"2026-10-15T11:58:47.309Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":19310,"ok":true}
+{"ts":"2026-10-15T11:58:47.309Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:58:47.349Z","level":"warn","msg":"同一委派存在多个未决审批（请宿主逐条处理）","service":"winvm"}
+{"ts":"2026-10-15T11:59:18.144Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T11:59:21.437Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":3801,"ok":true}
+{"ts":"2026-10-15T11:59:21.438Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:00:16.967Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:00:52.592Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":36095,"ok":true}
+{"ts":"2026-10-15T12:00:52.659Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:01:39.489Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:01:55.268Z","level":"warn","msg":"批10 N-9 观测：纯直调命中审批闸且活动委派槽在场（窄窗：被按内层处理，(c) 不触发）","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mv9hnnlv_8"}
+{"ts":"2026-10-15T12:02:01.840Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":22851,"ok":true}
+{"ts":"2026-10-15T12:02:01.842Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:02:01.881Z","level":"warn","msg":"同一委派存在多个未决审批（请宿主逐条处理）","service":"winvm"}
+{"ts":"2026-10-15T12:02:09.330Z","level":"info","msg":"审批放行，服务端确定性重放执行","service":"winvm","capabilityId":"app.winget.uninstall","traceId":"tr_mv9hnnlv_8-replay"}
+{"ts":"2026-10-15T12:02:35.235Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:02:47.294Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":12929,"ok":true}
+{"ts":"2026-10-15T12:02:47.295Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:03:07.455Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:03:37.223Z","level":"info","msg":"[llm-session] LLM 常驻会话轮次完成","service":"winvm","durationMs":30685,"ok":true}
+{"ts":"2026-10-15T12:03:37.226Z","level":"info","msg":"[llm-session] LLM 常驻会话就绪","service":"winvm"}
+{"ts":"2026-10-15T12:08:36.108Z","level":"info","msg":"[llm-session] LLM 常驻会话空闲回收","service":"winvm","ttlMs":300000}
+{"ts":"2026-10-15T12:28:47.382Z","level":"warn","msg":"审批等待超时，任务按拒绝收口","service":"winvm","ttlMs":1800000}
+{"ts":"2026-10-15T12:30:52.644Z","level":"warn","msg":"审批等待超时，任务按拒绝收口","service":"winvm","ttlMs":1800000}

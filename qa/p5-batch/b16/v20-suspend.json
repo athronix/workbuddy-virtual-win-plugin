@@ -1,0 +1,68 @@
+{
+ "kind": "task",
+ "id": "32157eb5-9703-4e1c-a46a-db63ff298893",
+ "contextId": "23747453-e59a-4f17-b6ae-14394a770750",
+ "status": {
+  "state": "input-required",
+  "timestamp": "2026-10-16T16:33:38.247Z",
+  "message": {
+   "kind": "message",
+   "role": "agent",
+   "messageId": "b9033795-f533-4d5d-9012-7f3771ee12bd",
+   "taskId": "32157eb5-9703-4e1c-a46a-db63ff298893",
+   "parts": [
+    {
+     "kind": "text",
+     "text": "需要人工审批（风险 L2）后才能继续。\n操作：app.winget.uninstall\n真实目标：能力 app.winget.uninstall · 参数 id=Nonexistent.Test.Zzz\n说明：请立即调用工具 app.winget.uninstall，参数 id=\"Nonexistent.Test.Zzz\"（真卸载，不要 dryRun）。这是唯一动作，完成后停止，不要重试其他动作。\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_fa556138d46c40aca0d6\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+    },
+    {
+     "kind": "data",
+     "data": {
+      "type": "approval-request",
+      "approvalId": "apr_fa556138d46c40aca0d6",
+      "capabilityId": "app.winget.uninstall",
+      "risk": "L2",
+      "preview": {
+       "capabilityId": "app.winget.uninstall",
+       "risk": "L2",
+       "destructive": true,
+       "requiresSession": false,
+       "params": {
+        "id": "Nonexistent.Test.Zzz"
+       },
+       "dryRun": {
+        "supported": true,
+        "exempt": true,
+        "requested": false,
+        "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+        "hint": "params.dryRun === true 且能力声明 supportsDryRun 时免审批直接放行（dry-run 不改变系统状态）"
+       },
+       "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+      },
+      "impact": [
+       "id=Nonexistent.Test.Zzz"
+      ],
+      "expiresAtMs": 1792170218247,
+      "underlying": {
+       "capabilityId": "app.winget.uninstall",
+       "paramsSummary": "id=Nonexistent.Test.Zzz"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "artifacts": [],
+ "history": [
+  {
+   "role": "user",
+   "parts": [
+    {
+     "kind": "text",
+     "text": "请立即调用工具 app.winget.uninstall，参数 id=\"Nonexistent.Test.Zzz\"（真卸载，不要 dryRun）。这是唯一动作，完成后停止，不要重试其他动作。"
+    }
+   ]
+  }
+ ],
+ "metadata": {}
+}

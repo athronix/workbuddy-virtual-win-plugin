@@ -996,3 +996,242 @@
 - VM 172.16.100.2:22 = **OPEN** (reachable).
 - tunnel.pid file (JSON, pid 32583) → `kill -0 32583` ALIVE; /proc/32583 cmdline confirms real `tunnel-daemon.mjs --vm-host 172.16.100.2 ...` (started 2026-10-10T18:10). The earlier /proc "pid 4072 tunnel-daemon" hit was a self-match false positive (the probe bash cmdline itself contained the pattern string; /proc/4072 absent post-run).
 - Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning is the known quirk; all probes used absolute paths and succeeded.
+
+## 2026-10-11 04:14 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at user-level `~/.workbuddy/teams/` (70 dirs). `config.json` member objects carry NO `status` field (only agentId/agentType/tmuxPaneId/backendType), so strict "active/busy/running/in_progress" status scan = 0 active members across all 70 teams → no orphan/stuck teams by config status. Newest-file scan: only `software-winvm-phase2-t6` (19.7 min, in-process P2-T6 team created 03:54) is within 30-min window → legitimately live (current P2-T6 task), NOT orphan. Other 69 dirs are historical leftovers (newest ≥84 min ago, dead in-process agents died with their sessions). No actionable orphans.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (ok:true, provider=workbuddy/ready, session.state=healthy, psBridge=ready, 54/54 capabilities).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (JSON, pid 32583) → `kill -0 32583` ALIVE; /proc/32583 cmdline confirms real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443` (started 2026-10-10T18:10). Not 僵死.
+
+## 2026-10-11 05:15 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at user-level `~/.workbuddy/teams/` (70 dirs). `config.json` member objects carry NO `status` field (only agentId/agentType/tmuxPaneId/backendType), so strict "active/busy/running/in_progress" status scan = 0 active members across all 70 teams → no orphan/stuck teams by config status. Newest-file scan: only `software-winvm-phase2-t6` (16.2 min, in-process P2-T6 team) is within 30-min window → legitimately live (current P2-T6 task), NOT orphan. Other 69 dirs are historical leftovers (dead in-process agents died with their sessions). No actionable orphans.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (JSON, pid 32583) → `kill -0 32583` ALIVE; /proc/32583 cmdline confirms real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443` (started 2026-10-10T18:10). Not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning is the known quirk; all probes used absolute paths and succeeded.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning is the known quirk; all probes used absolute paths and succeeded.
+
+## 2026-10-11 06:16 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at user-level `~/.workbuddy/teams/` (71 dirs). `config.json` member objects still carry NO `status` field (only agentId/agentType/tmuxPaneId/backendType/etc) → strict "active/busy/running/in_progress" status scan = 0 active members across all 71 teams → no orphan/stuck team possible. Newest dir `software-asb-cl202d` (18 min, in-process) within 30-min window → legitimately live, NOT orphan. `software-winvm-phase2-t6` (77 min) and `software-asb-cl202c` (206 min) are historical leftovers with no active members (dead in-process agents).
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (JSON, pid 32583) → `kill -0 32583` ALIVE; /proc/32583 cmdline confirms real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 ...` (started 2026-10-10T18:10). Not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning is the known quirk; all probes used absolute paths and succeeded.
+
+## 2026-10-11 07:17 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at user-level `~/.workbuddy/teams/` (71 dirs). Strict config.json active-status scan = 0 active members across all 71 teams (no active/busy/running/in_progress status field present). Newest-file scan: 0 teams with file activity < 60 min (none within 30-min orphan window). No orphan/stuck teams.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (JSON, pid 32583) → `kill -0 32583` ALIVE; /proc/32583 cmdline confirms real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ...` (started 2026-10-10T18:10). Not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning known quirk; all probes used absolute paths.
+
+## 2026-10-11 08:27 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at user-level `~/.workbuddy/teams/` (71 dirs). `config.json` member objects still carry NO `status`/`state` field → strict active-status scan = 0 active members across all 71 teams → no orphan/stuck team possible. Newest file across recent teams: `software-asb-cl202d` (05:59, ~2.5h ago), `software-winvm-phase2-t6` (05:00) — all > 30 min old, no active members with stale mtime → no actionable orphan.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy; 200+OPEN baseline sustained since run #101).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (JSON, pid 32583) → `kill -0 32583` ALIVE; /proc/32583 cmdline confirms real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ...` (started 2026-10-10T18:10). Not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning known quirk; all probes used absolute paths.
+
+## 2026-10-11 09:36
+- status: healthy
+- teams: no .workbuddy/teams/ dir (no orphan teams)
+- winvm dir: absent (no tunnel.pid to check)
+- tunnel /health: 200 OK
+- VM 172.16.100.2:22: OPEN
+- action: none (no anomalies)
+
+## 2026-10-11 10:45 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams possible at project level). Real teams live at user-level `~/.workbuddy/teams/` (prior runs established 71 dirs, 0 members with active/busy/running/in_progress status field) → no orphan/stuck team.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy; 200+OPEN baseline sustained).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (JSON at `~/.workbuddy/winvm/tunnel.pid`, pid 32583) → `ps -p 32583` ALIVE (STAT S<s, ELAPSED 03:39:24, PPID 1). Not 僵死. (Note: 09:36 run mis-reported winvm dir absent due to cwd quirk; pidfile is at user-level and present.)
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning known quirk; all probes used absolute paths.
+
+## 2026-10-11 11:47 +0800 — RESULT: ANOMALY (visible alarm) — tunnel endpoint down, VM-side vm-service listener dead
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at `~/.workbuddy/teams/` (72 dirs). Strict active/busy/running/in_progress status scan = 0 active members (config.json carries no status field). Newest team `software-winvm-phase2-t7` newest file 14.9 min ago (within 30-min window → NOT orphan). All others >30 min, no active members. → No orphan/stuck teams, no SendMessage/TeamDelete.
+- Tunnel: GET 127.0.0.1:18443/health = **HTTP 000** (down). pid 32583 ALIVE but endpoint unresponsive → ran `winvm-plugin.mjs tunnel ensure` (refused: "online healthy"), escalated `tunnel restart` → new pid 9459 RUNNING (tunnel.log "隧道已就绪" 03:49:17). Re-probe /health x3 still **000**.
+- Root cause (SSH into VM): `Test-NetConnection 127.0.0.1:18443` inside VM = **False** → VM-side vm-service listener (127.0.0.1:18443) is DOWN. VM SSH 22 = **OPEN**. Host tunnel healthy + VM reachable, but forwarded-to service dead → /health 000. Prescribed host-side tunnel recovery cannot fix a VM-internal dead listener.
+- Decision: ANOMALY → visible alarm (not silent). Did NOT auto-restart VM-side service (outside watchdog scope / no authorization). Recommended: user restart WinVMBridge scheduled task (hosts ps-bridge.ps1) on the VM to bring 127.0.0.1:18443 back up; after that /health should return 200.
+
+## 2026-10-11 12:55 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at user-level `~/.workbuddy/teams/` (72 dirs). config.json member objects carry NO status/state field (statuses: NO_FIELD) → strict active/busy/running/in_progress scan = 0 active members across all 72 teams → no orphan/stuck team possible. Newest team `software-asb-cl203b` (mtime 12:33, ~21 min ago, in-process CL-203 r2 continuation) within 30-min window → legitimately live (current task), NOT orphan. No SendMessage/TeamDelete.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy). The 11:47 anomaly (VM-side vm-service listener dead → /health 000) is now RESOLVED — endpoint responsive again; no recovery command needed.
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (JSON at `~/.workbuddy/winvm/tunnel.pid`, pid 9459, started 2026-10-11T03:49:16) → `kill -0 9459` ALIVE; /proc/9459 exists. Not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning known quirk; all probes used absolute paths.
+
+## 2026-10-11 13:56 +08 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; real teams at user-level `~/.workbuddy/teams/` (72 dirs). config.json member objects carry NO active/busy/running/in_progress status field (only agentId/agentType/backendType/tmuxPaneId etc) → strict status scan = 0 active members → no orphan/stuck team by status. Newest-file scan: only `software-asb-cl203b` newest file 13:57 (0 min ago, in-process CL-203 r2 续跑) within 30-min window → legitimately live (current task), NOT orphan. Other 71 dirs >90 min old (dead in-process agents). No actionable orphan.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (JSON, pid 9459, started 2026-10-11T03:49:16) → `kill -0 9459` ALIVE; /proc/9459 cmdline confirms real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ...`. Not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 not down / pid alive). Stayed silent per spec. No recovery command, no SendMessage/TeamDelete. HMOS getcwd warning known quirk; all probes used absolute paths.
+
+## 2026-10-11 14:58 +08 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there). User-level `~/.workbuddy/teams/` = 74 dirs, NONE modified within last 30 min → no currently-active team; config.json members carry no active/busy/running/in_progress status field → no orphan/stuck team possible. No SendMessage/TeamDelete.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (`~/.workbuddy/winvm/tunnel.pid`, pid 9459, started 2026-10-11T03:49:16) → `kill -0 9459` ALIVE. Not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 / pid alive). Silent per spec. No recovery, no SendMessage/TeamDelete. HMOS getcwd quirk known; all probes used absolute paths.
+
+## 2026-10-11 16:00 +08 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT; user-level `~/.workbuddy/teams/` = 73 dirs, NONE modified within last 30 min (newest `software-asb-cl203b` mtime 12:33, ~3.5h ago) → no currently-active team. Cross-team config.json scan = 0 teams with active/busy/running/in_progress status field → no orphan/stuck team possible. No SendMessage/TeamDelete.
+- Tunnel: GET 127.0.0.1:18443/health = HTTP **200** (healthy).
+- VM 172.16.100.2:22 = **OPEN** (reachable).
+- tunnel.pid (`~/.workbuddy/winvm/tunnel.pid`, pid 9459, started 2026-10-11T03:49:16) → `kill -0 9459` ALIVE. Not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 / pid alive). Silent per spec. No recovery, no SendMessage/TeamDelete. HMOS getcwd quirk known; all probes used absolute paths.
+
+[2026-10-11 17:01 GMT+8] sweep: HEALTHY. teams/=absent(no orphans); tunnel /health=200; VM 172.16.100.2:22=OPEN; daemon PID 9459 alive(/proc). pid-file JSON consistent. no alert sent.
+
+[2026-10-11 19:03 GMT+8] sweep: HEALTHY (silent). teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` newest `software-winvm-phase2-t12`(18:48,~15m) and `software-asb-cl203c`(18:42,~21m) both within 30-min window → legitimately live, NOT orphan. config.json members carry NO status/state field (only agentId/agentType/backendType/tmuxPaneId) → strict active/busy/running/in_progress scan = 0 → no orphan/stuck team possible. No SendMessage/TeamDelete. Tunnel: GET 127.0.0.1:18443/health = HTTP 200 (healthy). VM 172.16.100.2:22 = OPEN (reachable). tunnel.pid(JSON,pid 9459,started 2026-10-11T03:49:16) → kill -0 9459 ALIVE; /proc/9459 owned by uid 20020171. Not 僵死. None of 3 alert triggers fired → silent per spec. No recovery command run. HMOS getcwd warning known quirk; all probes absolute-path.
+
+[2026-10-11 18:02 GMT+8] sweep: HEALTHY. teams/=absent(no orphans); tunnel /health=200; VM 172.16.100.2:22=OPEN; daemon PID 9459 alive (kill -0 ALIVE + /proc/9459 cmdline = tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519; only one tunnel-daemon on host). NOTE: `ps -p 9459` returned DEAD but that was a false negative from HMOS getcwd sandbox quirk — authoritative kill -0 + /proc confirm alive. pid-file JSON consistent. no alert sent.
+[2026-10-11 20:04 GMT+8] sweep: HEALTHY (silent). teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 75 dirs, config.json members carry NO active/busy/running/in_progress status field (0 matches) -> no orphan/stuck team possible; newest team 18:48 (~76m) -> no currently-active team. Tunnel: GET 127.0.0.1:18443/health = HTTP 200 (healthy). VM 172.16.100.2:22 = OPEN (reachable). daemon PID 9459 alive (kill -0 ALIVE + /proc/9459 cmdline = real tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519). tunnel.state.json RUNNING/alive=true consistent. None of 3 alert triggers fired -> silent per spec. No recovery, no SendMessage/TeamDelete. HMOS getcwd quirk known; all probes absolute-path.
+
+[2026-10-12 11:32 +0800] sweep: HEALTHY (silent).
+teams: project-root .workbuddy/teams/ ABSENT (no orphan teams there); user-level ~/.workbuddy/teams/ = 79 dirs, ALL config.json members carry NO active/busy/running/in_progress status field → strict status scan = 0 active members → no orphan/stuck team possible. Newest dir software-winvm-phase2-t8b (find newest-file age ~0min, current live task) NOT orphan; software-winvm-phase2-t8 (102min) and older all inactive. No SendMessage/TeamDelete.
+tunnel /health: HTTP 200 (healthy).
+VM 172.16.100.2:22: OPEN (reachable).
+tunnel.pid (~/.workbuddy/winvm/tunnel.pid, JSON pid 38438, started 2026-10-12T02:35:25Z — NOTE: pid rotated from 9459 since last runs, fresh daemon) → kill -0 38438 ALIVE; /proc/38438 cmdline = real tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ... Not 僵死.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd warning known quirk; all probes absolute-path.
+
+[2026-10-12 12:33 +0800] sweep: HEALTHY (silent).
+teams: user-level ~/.workbuddy/teams/ = 79 dirs; strict status scan = 0 active/busy/running/in_progress members (config.json carry no status field) -> no orphan/stuck team. Newest dir software-winvm-phase2-t8b age~0min (current live task) NOT orphan; software-asb-cl203e age~58min but no active status -> not stuck. No SendMessage/TeamDelete.
+tunnel /health: HTTP 200 (healthy).
+VM 172.16.100.2:22: OPEN (reachable).
+tunnel.pid (~/.workbuddy/winvm/tunnel.pid, JSON pid 38438, started 2026-10-12T02:35:25Z) -> kill -0 38438 ALIVE; /proc/38438 cmdline = real tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519. Not 僵死.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+[2026-10-12 13:34 +0800] sweep: HEALTHY (silent).
+teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 79 dirs, NONE modified within last 30 min (newest software-winvm-phase2-t8b 10:36 ~2h58m ago) and config.json members carry NO status/state field (0 active/busy/running/in_progress matches) -> no orphan/stuck team possible. No SendMessage/TeamDelete.
+tunnel /health: HTTP 200 (healthy).
+VM 172.16.100.2:22: OPEN (reachable).
+tunnel.pid (~/.workbuddy/winvm/tunnel.pid, JSON pid 38438, started 2026-10-12T02:35:25Z) -> kill -0 38438 ALIVE; /proc/38438 exists; ps shows MainThread. Not 僵死.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd warning known quirk; all probes absolute-path.
+
+[2026-10-12 14:36 +0800] sweep: HEALTHY (silent).
+teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 79 dirs, strict status scan = 0 config.json with active/busy/running/in_progress (0 carry any status/state field) -> no orphan/stuck team possible. Newest dir `software-winvm-phase2-t9` newest-file age ~20.7min (within 30-min window, current live task) NOT orphan. No SendMessage/TeamDelete.
+tunnel /health: HTTP 200 (healthy).
+VM 172.16.100.2:22: OPEN (reachable).
+tunnel.pid (~/.workbuddy/winvm/tunnel.pid, JSON pid 38438, started 2026-10-12T02:35:25Z) -> kill -0 38438 ALIVE; /proc/38438 cmdline = real tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519; tunnel.state.json RUNNING/alive=true consistent. Not 僵死.
+
+[2026-10-12 15:38 +0800] sweep: ANOMALY → AUTO-RECOVERED (visible report issued).
+teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 82 dirs, strict status scan = 0 config.json with active/busy/running/in_progress (0 carry any status/state field) -> no orphan/stuck team. Newest file `software-asb-cl203g` age~11min (within 30-min window, current live task) NOT orphan. No SendMessage/TeamDelete.
+tunnel /health: PRE-recovery HTTP 000 (down); recorded pid 38438 (from 02:35:25Z) -> kill -0 DEAD, /proc/38438 absent => tunnel process died between 14:36 and 15:38 sweeps. VM 172.16.100.2:22 = OPEN (reachable) -> ran `node .../winvm-plugin.mjs tunnel ensure` (idempotent, auto-read vm-conn.json) -> "隧道已启动 127.0.0.1:18443 → User@172.16.100.2:22 → 127.0.0.1:18443", exit 0.
+POST-recovery: /health = HTTP 200 (healthy, x3 consistent); new pid 51633 (started 07:40:28Z) -> kill -0 ALIVE; /proc/51633 cmdline = real tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519. Not 僵死.
+Decision: dead-tunnel anomaly auto-recovered to healthy (VM reachable so recovery valid). No orphan teams, no SendMessage/TeamDelete. HMOS getcwd quirk known; all probes absolute-path.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+
+## 2026-10-12T16:43 (run)
+- **Verdict: healthy — no alert emitted.**
+- Teams: `.workbuddy/teams/` absent (NO_TEAMS_DIR, Glob confirms no config.json) → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `.workbuddy/winvm/tunnel.pid` absent → no managed pid to check; tunnel answers 200 so not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stated state, stayed silent per spec.
+
+## 2026-10-12T17:44 (run)
+- **Verdict: healthy — no alert emitted.**
+- Teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 82 dirs, NONE modified within last 30 min (newest `software-winvm-phase2-t11` 16:07, ~97m ago) → no currently-active team; strict status scan across all config.json = 0 matches for active/busy/running/in_progress (members carry no status field) → no orphan/stuck team. No SendMessage/TeamDelete.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (healthy).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` → JSON pid 51633 (started 2026-10-12T07:40:28Z, fresh daemon since 15:38 recovery) → kill -0 ALIVE; /proc/51633 cmdline = real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519`. Not 僵死.
+- Decision: none of 3 triggers fired (no orphan team / tunnel 200 not down / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+
+## 2026-10-12T18:47 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 45 config.json, strict active/busy/running/in_progress status scan = 0 matches (members carry no status field) -> no orphan/stuck team possible. Newest dir `software-asb-cl203g` 14:58 (~3h49m ago) -> historical leftover, no active members, NOT orphan. No SendMessage/TeamDelete.
+- Tunnel `127.0.0.1:18443/health` = HTTP **200** (healthy).
+- VM `172.16.100.2:22` = **OPEN** (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` JSON pid 51633 (started 2026-10-12T07:40:28Z) -> kill -0 ALIVE; /proc/51633 cmdline = real tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519. Not 僵死.
+- Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+
+## 2026-10-12T19:48 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 47 config.json, strict active/busy/running/in_progress status scan = 0 matches (members carry no status/state field) -> no orphan/stuck team possible. Two newest dirs `software-asb-cl203h` (19:41, ~7 min ago) and `software-winvm-audit` (19:39, ~9 min ago) both within 30-min window -> legitimately live, NOT orphan. No SendMessage/TeamDelete.
+- Tunnel `127.0.0.1:18443/health` = HTTP **200** (healthy).
+- VM `172.16.100.2:22` = **OPEN** (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` JSON pid 51633 (started 2026-10-12T07:40:28Z) -> `ps -p 51633` ALIVE (MainThread); `kill -0` ALIVE; /proc/51633 cmdline = real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519`. Not 僵死.
+- Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+[2026-10-12 20:50 +0800] sweep: HEALTHY (silent).
+teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 47 dirs, strict active/busy/running/in_progress status scan = 0 matches (config.json members carry no status field) -> no orphan/stuck team. Newest dirs software-asb-cl203h(19:41)/software-winvm-audit(19:39) ~70min old -> no team active within 30-min window. No SendMessage/TeamDelete.
+tunnel /health = HTTP 200 (healthy). VM 172.16.100.2:22 = OPEN (reachable). tunnel.pid JSON pid 51633 (started 2026-10-12T07:40:28Z) -> kill -0 ALIVE; /proc/51633 cmdline = real tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519. Not 僵死.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. HMOS getcwd quirk known; all probes absolute-path.
+
+[2026-10-12 21:53 +0800] sweep: HEALTHY (silent).
+teams: project-root `.workbuddy/teams/` ABSENT; user-level `~/.workbuddy/teams/` = 47 dirs, strict active/busy/running/in_progress status scan = 0 matches (config.json members carry no status field) -> no orphan/stuck team. Newest dir software-asb-cl203h 19:41 (~72min ago) historical -> not stuck. No SendMessage/TeamDelete.
+tunnel /health = HTTP 200 (healthy). VM 172.16.100.2:22 = OPEN (reachable). tunnel.pid JSON pid 51633 (started 2026-10-12T07:40:28Z) -> kill -0 ALIVE; ps MainThread. Not 僵死.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. HMOS getcwd quirk known; all probes absolute-path.
+
+[2026-10-12 22:55 +0800] sweep: HEALTHY (silent).
+teams: project-root `.workbuddy/teams/` ABSENT; user-level `~/.workbuddy/teams/` = 47 dirs, strict active/busy/running/in_progress status scan = 0 matches (config.json members carry no status field) -> no orphan/stuck team. Newest dir software-asb-cl203h 19:41 (~3h14m ago) historical -> not stuck. ps confirms no OS subprocess for any team agent (in-process backendType == dies with session). No SendMessage/TeamDelete.
+tunnel /health = HTTP 200 (healthy). VM 172.16.100.2:22 = OPEN (reachable). tunnel.pid JSON pid 51633 (started 2026-10-12T07:40:28Z) -> ps -p ALIVE (MainThread), /proc cmdline real tunnel-daemon.mjs. Not 僵死.
+ancillary: 3 live a2a-bridge/cli.js (pids 13936/58056/59173, --endpoint 127.0.0.1:18443 --timeout 600000) = healthy A2A client sessions bound to live tunnel, not orphans.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. HMOS getcwd quirk known; all probes absolute-path.
+
+[2026-10-12 23:58 +0800] sweep: HEALTHY (silent).
+teams: project-root `.workbuddy/teams/` ABSENT; user-level `~/.workbuddy/teams/` = 47 dirs, strict active/busy/running/in_progress status scan = 0 matches (config.json members carry no status field) -> no orphan/stuck team possible. No SendMessage/TeamDelete.
+tunnel /health = HTTP 200 (healthy). VM 172.16.100.2:22 = OPEN (reachable). tunnel.pid JSON pid 51633 (started 2026-10-12T07:40:28Z) -> os.kill(pid,0) ALIVE; not 僵死.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+
+##  (run)
+- **Verdict: healthy — no alert emitted (output "healthy").**
+- Teams: `.workbuddy/teams/` absent (NO_TEAMS_DIR) → 0 teams → no orphan/stuck teams possible.
+- Tunnel `127.0.0.1:18443/health` → HTTP **200** (listening/healthy).
+- VM `172.16.100.2:22` → **OPEN** (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` → JSON pid 51633 → `kill -0` ALIVE; `/proc/51633/cmdline` = real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519`. Not 僵死.
+- Decision: none of the 3 triggers fired (no orphan team / no tunnel-down-with-dependent-team / no dead tunnel process). Stayed silent per spec. No recovery command run.
+
+## 2026-10-13 02:05 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT (no orphan teams there); user-level `~/.workbuddy/teams/` = 46 dirs, strict active/busy/running/in_progress status scan = 0 matches (config.json members carry no status field) -> no orphan/stuck team possible. Newest dir software-asb-cl203h 19:41 (~6h23m ago) -> historical leftover, no active members, NOT orphan. No SendMessage/TeamDelete.
+- Tunnel `127.0.0.1:18443/health` = HTTP 200 (healthy).
+- VM `172.16.100.2:22` = OPEN (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` JSON pid 51633 (started 2026-10-12T07:40:28Z) -> kill -0 ALIVE; /proc/51633 cmdline = real `tunnel-daemon.mjs --vm-host 172.16.100.2 --vm-user User --vm-ssh-port 22 --local-port 18443 --remote-port 18443 --key ~/.ssh/id_ed25519`. Not 僵死.
+- Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+
+## run 2026-10-13 03:05 GMT+8
+- scan ~/.workbuddy/teams: 46 dirs (all app-shell-bridge leftovers, mtime 2026-09-21..2026-10-12 19:41; none within 30min of 03:05). NO live member processes (config.json has no active-status field; no orphan winvm teams — those were cleaned earlier).
+- 46 stale dirs = historical debris user reserved ('待用户裁'); watchdog does NOT auto-delete (would override user decision).
+- tunnel /health -> HTTP 200; pid 51633 (tunnel-daemon.mjs) alive (ppid 1); +3 a2a-bridge cli.js all healthy.
+- VM 172.16.100.2:22 -> OPEN.
+- verdict: HEALTHY. No action taken.
+
+## run 2026-10-13 04:07 +0800
+- scan project-root `.workbuddy/teams/`: ABSENT → 0 teams → no orphan/stuck teams possible.
+- scan user-level `~/.workbuddy/teams/`: 46 dirs (all app-shell-bridge historical debris; none within 30min of 04:07). 0 config.json carry active/busy/running/in_progress status → no orphan/stuck team. 46 stale dirs reserved for user decision ('待用户裁'); watchdog does NOT auto-delete. No SendMessage/TeamDelete.
+- tunnel `127.0.0.1:18443/health` → HTTP 200 (healthy).
+- VM `172.16.100.2:22` → OPEN (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` JSON pid 51633 (started 2026-10-12T07:40:28Z) → `kill -0` ALIVE; not 僵死.
+- Decision: none of the 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+
+## run 2026-10-13 05:08 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT (0 teams there); user-level `~/.workbuddy/teams/` = 46 dirs, strict active/busy/running/in_progress status scan = 0 matches (config.json members carry no status field) -> no orphan/stuck team. Newest dir software-asb-cl203h 2026-10-12 19:41 (~9.5h ago) -> historical debris, NOT active. No SendMessage/TeamDelete.
+- Tunnel `127.0.0.1:18443/health` = HTTP 200 (healthy).
+- VM `172.16.100.2:22` = OPEN (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` JSON pid 51633 (started 2026-10-12T07:40:28Z) -> kill -0 ALIVE; ps MainThread; /proc cmdline = real tunnel-daemon.mjs. Not 僵死.
+- Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+[2026-10-13 06:09 +0800] sweep: HEALTHY (silent).
+teams: project-root `.workbuddy/teams/` ABSENT (0 teams); user-level `~/.workbuddy/teams/` = 46 dirs, strict active/busy/running/in_progress status scan = 0 matches (config.json members carry no status field) -> no orphan/stuck team. Newest dir software-asb-cl203h 2026-10-12 19:41 (~10.5h ago) -> historical debris, NOT active. No SendMessage/TeamDelete.
+tunnel /health = HTTP 200 (healthy). VM 172.16.100.2:22 = OPEN (reachable). tunnel.pid JSON pid 51633 (started 2026-10-12T07:40:28Z) -> kill -0 ALIVE; ps MainThread; /proc cmdline = real tunnel-daemon.mjs. Not 僵死.
+Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+
+## 2026-10-13T07:10 (sixteenth run — FIRST correct-path run)
+- **Verdict: healthy — no actionable orphan / tunnel 200 / VM OPEN → stayed silent per spec.**
+- **PATH CORRECTION (important):** prior 15 runs (2026-09-21 → 2026-09-24) inspected the project-relative path `.workbuddy/teams/`, which does NOT exist. The real team store is `~/.workbuddy/teams/`. This run is the first to inspect the correct absolute path; the previous 15 "healthy" verdicts were FALSE (they saw 0 teams because they looked in the wrong place).
+- **Teams:** 46 directories under `/storage/Users/currentUser/.workbuddy/teams/`, mtimes spanning 2026-09-20 → 2026-10-12 (all >30 min stale). `config.json` has NO member-status field; members are `backendType: in-process`, so member liveness tracks the lead session process.
+- **Liveness mapping:** every one of the 46 teams has a `leadSessionId` that matches a CURRENTLY-ALIVE electron/codebuddy (`--serve`) process — 44 → `be67d783-9c23-440a-8d2f-08f5b714359e` (pid 57905), 2 → `9560ea1f-c492-44c8-a208-f2eee657f6b4` (pid 59033). **0 teams have a dead lead** → no ended-session orphan under the watchdog's definition ("session ended but sub-agents still running").
+- **Interpretation:** the 46 stale teams are held by 2 live sessions (the user-parked residuals noted as "历史残骸待裁"), NOT runaway agents. No auto-delete — that is a destructive action the user explicitly parked.
+- **Tunnel:** `127.0.0.1:18443/health` → HTTP **200** (healthy). `.workbuddy/winvm/tunnel.pid` → pid **51633**, confirmed alive (`tunnel-daemon.mjs`), matches pidfile → not 僵死.
+- **VM:** `172.16.100.2:22` → **OPEN** (reachable).
+- **Decision:** none of the 3 alert triggers fired (no orphan team / no tunnel-down-with-VM-reachable / no dead tunnel process). Stated state, stayed silent. Recommend: the prior 15 runs' "healthy" should be treated as UNVERIFIED due to the wrong-path bug; this run establishes the first true baseline.
+
+## 2026-10-13T08:24 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT (0 teams there); user-level `~/.workbuddy/teams/` = 46 dirs, strict active/busy/running/in_progress status scan = 0 matches (config.json members carry no status field) -> no orphan/stuck team. Newest dir software-asb-cl203h 2026-10-12 19:41 (~12.7h ago) -> historical debris, NOT active. No SendMessage/TeamDelete.
+- Tunnel `127.0.0.1:18443/health` = HTTP 200 (healthy).
+- VM `172.16.100.2:22` = OPEN (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` JSON pid 51633 (started 2026-10-12T07:40:28Z) -> ps ALIVE; /proc cmdline = real tunnel-daemon.mjs. Not 僵死.
+- Decision: none of 3 alert triggers fired. Silent per spec. No recovery command run. HMOS getcwd quirk known; all probes absolute-path.
+
+## 2026-10-13T09:36 +0800 — RESULT: healthy (silent)
+- Teams: project-root `.workbuddy/teams/` ABSENT (0 teams there); user-level `~/.workbuddy/teams/` = 46 dirs, strict active/busy/running/in_progress status scan (config.json) = 0 matches -> no orphan/stuck team. Newest dir software-asb-cl203h 2026-10-12 19:41 (~13.9h ago) -> historical debris, NOT active. No SendMessage/TeamDelete.
+- Tunnel `127.0.0.1:18443/health` = HTTP 200 (healthy).
+- VM `172.16.100.2:22` = OPEN (reachable).
+- `~/.workbuddy/winvm/tunnel.pid` JSON pid 51633 (started 2026-10-12T07:40:28Z) -> kill -0 ALIVE; ps MainThread; /proc cmdline = real tunnel-daemon.mjs. Not 僵死.
+- Decision: none of 3 alert triggers fired (no orphan team / tunnel 200 / pid alive + VM open). Silent per spec. No recovery command run.

@@ -1,0 +1,6 @@
+16:30:20 起始 llm={"state":"stopped","restarts":1,"idleMs":17505715,"lastError":"常驻会话在 60000ms 内未收到 system/init（首条用户消息已写出）","lastErrorAt":"2026-10-16T11:39:34.877Z","firstCallLatencyMs":49278,"wsLatestMb":16.7,"wsPeakMb":18.3,"wsEvictions":0}
+16:30:20 === warm: 零工具 goal（预算 300s）===
+16:30:20 warm taskId=11beefde-3db5-4b3e-bf46-a655fb1931c5
+16:32:02 warm 终态=completed text=LLM 运行时完成目标：只回复两个字：好的（常驻会话不可用：常驻会话在 60000ms 内未收到 system/init（首条用户消息已写出），已降级为单次 -p 路径）
+16:32:03 收尾 llm={"state":"stopped","restarts":2,"idleMs":101862,"lastError":"常驻会话在 60000ms 内未收到 system/init（首条用户消息已写出）","lastErrorAt":"2026-10-16T16:31:21.300Z","firstCallLatencyMs":49278,"wsLatestMb":18.3,"wsPeakMb":18.3,"wsEvictions":0}
+16:32:03 WARM_OK

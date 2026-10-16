@@ -1,0 +1,68 @@
+{
+ "kind": "task",
+ "id": "1dfb694a-e191-4365-bd33-ca5d2d43c67f",
+ "contextId": "fd17992e-12d8-4a0b-b262-81e963313043",
+ "status": {
+  "state": "input-required",
+  "timestamp": "2026-10-16T16:36:01.652Z",
+  "message": {
+   "kind": "message",
+   "role": "agent",
+   "messageId": "766926a0-eece-4c78-8580-a8a8eac95533",
+   "taskId": "1dfb694a-e191-4365-bd33-ca5d2d43c67f",
+   "parts": [
+    {
+     "kind": "text",
+     "text": "需要人工审批（风险 L2）后才能继续。\n操作：app.winget.uninstall\n真实目标：能力 app.winget.uninstall · 参数 id=Nonexistent.Test.Zzz\n说明：你必须调用工具 app.winget.uninstall，参数 id=\"Nonexistent.Test.Zzz\"，不要 dryRun。不要只回复文字，必须先发起这一次工具调用。完成该调用后停止。\n确认后请回复 message/send（同一 taskId），附带 DataPart：{\"approvalId\":\"apr_4e8eea44b71b4c648e4f\",\"approved\":true}\n注意：审批等待有上限 1800000ms，超时任务按拒绝收口（不会执行该操作）。"
+    },
+    {
+     "kind": "data",
+     "data": {
+      "type": "approval-request",
+      "approvalId": "apr_4e8eea44b71b4c648e4f",
+      "capabilityId": "app.winget.uninstall",
+      "risk": "L2",
+      "preview": {
+       "capabilityId": "app.winget.uninstall",
+       "risk": "L2",
+       "destructive": true,
+       "requiresSession": false,
+       "params": {
+        "id": "Nonexistent.Test.Zzz"
+       },
+       "dryRun": {
+        "supported": true,
+        "exempt": true,
+        "requested": false,
+        "plan": "可传 dryRun:true 免审批预览 app.winget.uninstall 的影响后再决定是否真实执行",
+        "hint": "params.dryRun === true 且能力声明 supportsDryRun 时免审批直接放行（dry-run 不改变系统状态）"
+       },
+       "note": "L2 破坏性操作：将改变系统状态，请确认影响范围"
+      },
+      "impact": [
+       "id=Nonexistent.Test.Zzz"
+      ],
+      "expiresAtMs": 1792170361652,
+      "underlying": {
+       "capabilityId": "app.winget.uninstall",
+       "paramsSummary": "id=Nonexistent.Test.Zzz"
+      }
+     }
+    }
+   ]
+  }
+ },
+ "artifacts": [],
+ "history": [
+  {
+   "role": "user",
+   "parts": [
+    {
+     "kind": "text",
+     "text": "你必须调用工具 app.winget.uninstall，参数 id=\"Nonexistent.Test.Zzz\"，不要 dryRun。不要只回复文字，必须先发起这一次工具调用。完成该调用后停止。"
+    }
+   ]
+  }
+ ],
+ "metadata": {}
+}
