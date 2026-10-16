@@ -34,6 +34,17 @@ export type {
   ChainArchiveVerifyAuditInput,
 } from './approval-replay.js';
 /**
+ * C0（Phase 5）：K6 自报失败折叠**纯函数件**（呈报面单点判据，server.ts 执行回执
+ * 组装处消费）。再导出的唯一目的是让判据可脱 HTTP 服务与 ps-bridge 直测 ——
+ * 与 `approval-replay` / `http-guard` 同一纪律。
+ */
+export {
+  foldK6Verdict,
+  residualEvidenceSummary,
+  K6_FAIL_MESSAGE,
+  type K6Fold,
+} from './k6-verdict.js';
+/**
  * ARCH-07 / ENG-05（T4）—— 服务端 bearer 守卫（**纯函数模块**，豁免表硬编码不可配）。
  * 再导出的唯一目的是让判据可脱 ps-bridge 直测：本沙箱内 `createService` 会 spawn
  * PowerShell 桥并触发 V8 fatal ⇒ 装配层入口不是可用测试面（与 `approval-replay` /
