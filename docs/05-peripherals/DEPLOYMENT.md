@@ -131,6 +131,7 @@ node delivery/setup.mjs --apply --env=/path/to/.env
    - 新 psmod/桥逻辑：核对 `/health` 的 psmod 指纹字段（批2 R-4 通路）。
 4. **登记**：真机收口证据落 `qa/`（命令+输出原文），并在批次 notes 标注"现网已跟批 + 指纹清单"。**治理面文档写"已落地"的时点=指纹复验通过之后**，不得先于部署。
 5. **宿主侧对称条目**：改动涉及**宿主面**（host-a2a-bridge / install-host / skills/ / plugin spec / 连接器 mcp.json 形态）时，同批还须 `node delivery/install-host.mjs`（或 `setup.mjs --only-host`）刷新宿主插件缓存分发，并核行为指纹：宿主工具清单/工具描述新文案可见、`~/.workbuddy/plugins/cache/winvm/winvm-bridge/<version>/` 副本 mtime 跟批（**宿主插件缓存=运行态真相源**）。只跑 `deploy-vm` ≠ 宿主侧改动生效。
+   - **SKILL 分发落点实况（批15 实测补录）**：技能文本不在插件缓存内，宿主运行态落点=`~/.workbuddy/connectors/skills/connector-winvm/<skill-id>/SKILL.md`——跟批核对须对该目录做**逐字节 diff**（`git diff --no-index --stat`），不要凭短语 grep 判存在与否（转述词≠原文）。
 
 ### 1.8 策略闸执法切换 runbook（shadow → on，运维决策动作）
 

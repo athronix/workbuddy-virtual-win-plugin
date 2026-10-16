@@ -17,7 +17,7 @@
 
 | # | 级别 | 维 | 项 | 现场证据 | 定性/建议 |
 |---|---|---|---|---|---|
-| **N-1** | P2 | 部署运维 | **宿主分发面未跟批**（§1.7-5 现行第一击）：插件缓存 a2a-bridge dist mtime=10-14 11:07，而 10-15~16 三笔 SKILL 修正文本（d038964 五处归因修正、1e1f81e G4 声明段、7d80416 同源句）未同步宿主——宿主 LLM 读到的技能指引仍是旧文（本轮亲验缓存内 grep 修正句零命中） | `ls -la` 缓存目录 + 缓存内 grep 修正句零命中（仅 contracts 源码 -32602 在册，非 SKILL 文案） | 跑一次 `install-host` 跟批+§1.7-5 行为指纹核（工具描述新文案可见+缓存 mtime 跟批）。成本低，Phase 6 批15 |
+| **N-1** | ~~P2~~ **✅ 当日闭合（批15）** | 部署运维 | **宿主分发面未跟批**（§1.7-5 现行第一击）：插件缓存 a2a-bridge dist mtime=10-14 11:07，而 10-15~16 三笔 SKILL 修正文本（d038964 五处归因修正、1e1f81e G4 声明段、7d80416 同源句）未同步宿主——宿主 LLM 读到的技能指引仍是旧文（本轮亲验缓存内 grep 修正句零命中） | `ls -la` 缓存目录 + 缓存内 grep 修正句零命中（仅 contracts 源码 -32602 在册，非 SKILL 文案） | 跑一次 `install-host` 跟批+§1.7-5 行为指纹核（工具描述新文案可见+缓存 mtime 跟批）。成本低，Phase 6 批15 |
 | **N-2** | P2 | 测试/运维 | **C0 折叠的委派完成步自然样本未直达**：真机复验两层实证（回执+链上）达成，但委派终报携折叠回执那一发被 VM 失联后 LLM 瞬态降级干扰（VERDICT 已如实标"可选观察"，未冒充全绿） | `qa/p5-batch/c0/VERDICT.md` 分层矩阵 | 观察项 V20：会话健康期一次自然带 scope 委派即收口；不强造 |
 | **N-3** | P3 | 运维 | 现网 `llmSession.state=stopped`（restarts=0，idle≈83min）：VM 重启后按需形态，首调付 49.3s 冷启动（`firstCallLatencyMs`）——K2 预热只覆盖重启后紧随委派的旧口径仍有效，深度空闲首调成本属已知 | pano2 health 实采 | 无需动作；若运营期在意首响延迟，候选=idleTtl 回收+预热参数联动（登记不紧迫） |
 | **N-4** | P3 | 治理 | 旧 backlog 复宣（无变化）：D-3 capability.schema.json 缺 appops 枚举且全仓无运行期校验器消费；K3 兜底启发式待 bridge 直读根治（C0 折叠已消化其最大病灶面，启发式降为第二层）；SessionHealth 无法表达"未知"；非 winvm 团队残骸 45 个（用户裁永久不动） | MEMORY backlog 区 | 均为决策项非缺陷，进 Phase 6 批17 裁决单 |
@@ -42,7 +42,7 @@
 
 | 批 | 内容 | 验收 | 前置 |
 |---|---|---|---|
-| **批15 宿主跟批同步**（小批，立即） | `install-host` 跑批（缓存 skills/bridge/工具描述随 10-15~16 修正刷新）→ §1.7-5 行为指纹：宿主工具清单文案含 -32602 归因句、缓存 mtime 跟批；runbook 侧顺手把"VM+宿主双通道跟批"做成一条 checklist 命令（候选：setup.mjs --apply 全链或补 deploy 后提示行） | 指纹两中+登记 qa/ | 无 |
+| **批15 宿主跟批同步** ✅ **当日完赛（2026-10-16 18:3x）**：`install-host --yes` EXIT=0（H1 双连接器四账户断言全过）→ §1.7-5 指纹三中：① 插件缓存 a2a-bridge/cli.js+winvm-plugin.mjs mtime 10-14→**18:37 跟批**；② SKILL 真实落点=`~/.workbuddy/connectors/skills/connector-winvm/`（非插件缓存，教训补录 §1.7-5 见下），system-admin(-32602 修正句 1 处)/orchestrator(降级句+同源句) 与仓库 **git diff --no-index 逐字节 IDENTICAL×2**；③ H1 断言在册。证据 `qa/p3-batch-sweep/install-host-p6.txt`。runbook 补句："VM+宿主双通道跟批"——deploy-vm 后若同批含 skills/host 面改动，必跑 install-host 并按上②落点核对（差分判据用逐字节 diff 不靠短语 grep） | ✅ 指纹三中已登记 | 无 |
 | **批16 观察窗收口**（轻批） | V20（委派携折叠回执自然样本）/ B-5 evictions 长跑读数 / shadowHits 恒 0 周报；命中即登记销账，未命中如实 | VERDICT 增补行 | 自然运行期 |
 | **批17 决策族**（需用户裁） | ①D-3：schema 接入运行期校验 or 判死配置删除；②K3 启发式第二层保留/移除；③载荷全落链（C0 真机窗曾登记）；④deterministic 真挂起对齐；⑤llmSession 深度空闲冷启动优化是否值得做 | 各一条裁决落档 | 用户点头 |
 

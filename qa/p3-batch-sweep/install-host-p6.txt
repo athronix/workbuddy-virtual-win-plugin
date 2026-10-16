@@ -1,0 +1,79 @@
+=== 宿主环境依赖预检 ===
+[OK] 宿主已部署 WorkBuddy — 已找到 /storage/Users/currentUser/.workbuddy
+[OK] Node.js 运行时 — 检测到 v24.13.0（要求 >= 18.0.0）
+结论：环境依赖满足，可以继续安装。
+宿主机根目录 : /storage/Users/currentUser/.workbuddy
+Skills 源    : /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/skills
+传输         : SSH 隧道 User@172.16.100.2 (18443→18443)
+模式         : 实际安装
+默认私钥    : /storage/Users/currentUser/.ssh/id_ed25519（探测）
+
+A2A 委派桥 : 已复制到 /storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/a2a-bridge
+A2A 桥自包含依赖 : 已安装 4 个 @winvm 包到 node_modules
+目标账户   : 8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8, default, marketplace-meta, skills
+
+已加载 7 个 Skill：
+  - winvm-app-manager
+  - winvm-app-operation
+  - winvm-gui-automation
+  - winvm-mcp-reference
+  - winvm-orchestrator  (总控)
+  - winvm-storage-manager
+  - winvm-system-admin
+
+产物：12 个文件，2 个增量补丁
+全局 mcp.json : winvm / winvm-a2a 已就位（无变化）
+正式注册   : 已写入 winvm-bridge@winvm 到 installed_plugins.json（转正，不再孤儿）
+插件启用   : enabledPlugins 已含 winvm-bridge@winvm（跳过）
+管理命令     : 管理 CLI  : 已复制 /storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin.mjs
+管理命令     : 管理 CLI  : 已写 .winvm-context.json (side=host)
+管理命令     : 附带文件   : 已复制 oh-tunnel.mjs
+管理命令     : 附带文件   : 已复制 ssh2-resolve.mjs
+管理命令     : 附带文件   : 已复制 tunnel-daemon.mjs
+管理命令     : 附带文件   : 已复制 hooks/hooks.json
+管理命令     : 附带文件   : 已复制 hooks/session-start.sh
+管理命令     : 管理 CLI  : 跳过 winvm-plugin.cmd（非 Windows 宿主；POSIX 启动器已就位）
+管理命令     : 管理 CLI  : 已部署启动器 /storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin（winvm-plugin 命令可用；或 node winvm-plugin.mjs <cmd>）
+管理命令(仓库): 管理 CLI  : /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/delivery/winvm-plugin.mjs（已就位，跳过复制）
+管理命令(仓库): 管理 CLI  : 跳过 .winvm-context.json（writeContext=false，VM 侧由 install-vm 写 side:vm）
+管理命令(仓库): 附带文件   : oh-tunnel.mjs（已就位，跳过复制）
+管理命令(仓库): 附带文件   : ssh2-resolve.mjs（已就位，跳过复制）
+管理命令(仓库): 附带文件   : tunnel-daemon.mjs（已就位，跳过复制）
+管理命令(仓库): 管理 CLI  : 跳过 winvm-plugin.cmd（非 Windows 宿主；POSIX 启动器已就位）
+管理命令(仓库): 管理 CLI  : 已部署启动器 /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/delivery/winvm-plugin（winvm-plugin 命令可用；或 node winvm-plugin.mjs <cmd>）
+沙箱白名单 : 已把本插件路径写入 settings.json（回滚见 *.winvm-bak.*）
+管理命令     : 用户 PATH 已含 /storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0（跳过）
+VM 连接配置 : 已写入 /storage/Users/currentUser/.workbuddy/winvm/vm-conn.json（host=172.16.100.2 user=User port=18443）
+ssh2 依赖   : 已落地 5 个包到 /storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/node_modules（含纯 JS 传递依赖；optional 原生依赖跳过）
+
+分发新鲜度 : 缓存↔仓库构建物哈希对账
+  ✓ 对账面：186 个文件（源=仓库构建物 dist/delivery，目标=/storage/Users/currentUser/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0）
+  ✓ FRESH：缓存与仓库构建物逐文件 SHA256 全部一致（"实跑了 install-host 且此后未改 dist"已被当场证明）。
+隧道已在线健康（pid 10639），无需拉起
+常驻隧道   : 已拉起（零人工动作；winvm-plugin tunnel status 查看）
+启动服务   : 已写 tunnel-autostart.json（WorkBuddy 启动时可据此自动 ensure 隧道）
+
+已写入文件   : 12
+已增量合并   : /storage/Users/currentUser/.workbuddy/connectors/8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8/mcp.json, /storage/Users/currentUser/.workbuddy/connectors/default/mcp.json, /storage/Users/currentUser/.workbuddy/connectors/marketplace-meta/mcp.json, /storage/Users/currentUser/.workbuddy/connectors/skills/mcp.json
+
+注意事项：
+  ⚠ 已注册 A2A 委派桥连接器 connector:winvm-a2a：复杂 / 开放性任务用 a2a.delegate 交给 VM 内 AI Agent；单步、结构化任务仍走 connector:winvm 的 MCP 能力工具（点分能力 ID）。
+  ⚠ SSH 隧道模式：宿主侧由常驻 tunnel-daemon（进程内 ssh2）承载，调用工具前请确认隧道在线（winvm-plugin tunnel status），离线则 tunnel ensure 拉起；无需手工建立系统 ssh 本地转发隧道。
+  ⚠ VM 侧服务必须仅监听 127.0.0.1；严禁将 VM 服务暴露到公网。
+  ⚠ 已在宿主侧静态禁用 8 个高危工具（disabledTools）：system.service.configure, system.process.terminate, system.registry.write, system.power.control, app.winget.uninstall, storage.file.delete, storage.link.manage, appops.gui.produce
+
+后续动作：
+  → 重启 WorkBuddy 以加载新插件与连接器
+  → 确认 VM 隧道在线：winvm-plugin tunnel status（离线则 winvm-plugin tunnel ensure）
+  → 在连接器管理中确认 winvm 连接器已启用
+
+连接器自检 : 注册面就位 ✓（exit=0）
+  ⚠ connector-states.v3.json 不存在——trust/enabled 由平台在连接器页首次操作时创建；若新会话工具缺失，请先去连接器页确认已「信任 + 启用」winvm / winvm-a2a
+  若新会话 ToolSearch 找不到 winvm__* / a2a.* 工具：
+    ① WorkBuddy 连接器页确认 winvm / winvm-a2a 已「信任 + 启用」；
+    ② 重开一个新会话（旧会话永不热注入，属平台会话生命周期预期行为）；
+    ③ 仍异常则跑 node /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/delivery/tools/diagnose-connectors.mjs 并按 docs/INSTALL-GUIDE.md troubleshooting 处置。
+H1 加固断言 : 活跃账户 8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8 mcp.json 已含 connector:winvm / connector:winvm-a2a ✓
+H1 加固断言 : 活跃账户 default mcp.json 已含 connector:winvm / connector:winvm-a2a ✓
+H1 加固断言 : 活跃账户 marketplace-meta mcp.json 已含 connector:winvm / connector:winvm-a2a ✓
+H1 加固断言 : 活跃账户 skills mcp.json 已含 connector:winvm / connector:winvm-a2a ✓
