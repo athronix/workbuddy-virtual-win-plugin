@@ -1,0 +1,73 @@
+{
+ "kind": "task",
+ "id": "be727d37-b1a1-438a-97ea-35035ecef02f",
+ "contextId": "a340c557-2a5a-4c87-acf5-641053ae29a8",
+ "status": {
+  "state": "failed",
+  "timestamp": "2026-10-16T08:50:05.827Z",
+  "message": {
+   "kind": "message",
+   "role": "agent",
+   "messageId": "5069cc45-b7b0-4116-be60-ec4de250a016",
+   "taskId": "be727d37-b1a1-438a-97ea-35035ecef02f",
+   "parts": [
+    {
+     "kind": "text",
+     "text": "已降级为确定性执行，但执行器未匹配到模板：确定性执行器未匹配到内置目标模板。建议：① 改用 MCP 通道逐步调用具体能力；② 或升级 provider 为 LLM Agent（改配置 agent.provider 即可，框架无需改动）。"
+    },
+    {
+     "kind": "data",
+     "data": {
+      "ok": false,
+      "stepCount": 0,
+      "steps": []
+     }
+    }
+   ]
+  }
+ },
+ "artifacts": [
+  {
+   "artifactId": "958b47e5-024d-49f5-8266-d0a79f0554d7",
+   "name": "execution-steps",
+   "parts": [
+    {
+     "kind": "data",
+     "data": {
+      "ok": false,
+      "summary": "已降级为确定性执行，但执行器未匹配到模板：确定性执行器未匹配到内置目标模板。建议：① 改用 MCP 通道逐步调用具体能力；② 或升级 provider 为 LLM Agent（改配置 agent.provider 即可，框架无需改动）。",
+      "steps": []
+     }
+    }
+   ]
+  }
+ ],
+ "history": [
+  {
+   "role": "user",
+   "parts": [
+    {
+     "kind": "text",
+     "text": "请立即调用工具 app.winget.uninstall，参数 id=\"Nonexistent.Test.Zzz\"（真卸载，不要 dryRun）。这是唯一动作，完成后停止。"
+    }
+   ]
+  },
+  {
+   "role": "user",
+   "taskId": "be727d37-b1a1-438a-97ea-35035ecef02f",
+   "parts": [
+    {
+     "kind": "data",
+     "data": {
+      "approvalId": "apr_ecb7d15a358c4692a192",
+      "approved": true
+     }
+    }
+   ]
+  }
+ ],
+ "metadata": {
+  "goalSummary": "已降级为确定性执行，但执行器未匹配到模板：确定性执行器未匹配到内置目标模板。建议：① 改用 MCP 通道逐步调用具体能力；② 或升级 provider 为 LLM Agent（改配置 agent.provider 即可，框架无需改动）。",
+  "stepCount": 0
+ }
+}

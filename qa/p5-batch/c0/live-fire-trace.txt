@@ -1,0 +1,8 @@
+09:08:25 === 零副作用真机复验：不存在的包 ⇒ data.success=false ⇒ 折叠诚实呈报 ===
+09:09:00 taskId=a8f16150-7dcc-40f4-a858-00c86d8c0b36
+09:10:02 首轮态=input-required
+09:10:02 挂起 approvalId=apr_6214c4a670574e01aa70
+09:10:03 已批准 resp-state=working
+09:11:18 续跑终态=failed
+09:11:18 呈报文本: 已降级为确定性执行，但执行器未匹配到模板：确定性执行器未匹配到内置目标模板。建议：① 改用 MCP 通道逐步调用具体能力；② 或升级 provider 为 LLM Agent（改配置 agent.provider 即可，框架无需改动）。
+09:11:18 DONE
