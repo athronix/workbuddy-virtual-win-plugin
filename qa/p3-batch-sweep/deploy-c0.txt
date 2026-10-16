@@ -1,0 +1,22 @@
+读取配置：/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/.env
+
+══════════════════════════════════════════════════════════════
+ WinVM Bridge · VM 侧一键部署（于鸿蒙宿主端运行，SSH 推送至 VM）  [APPLY 真执行]
+ VM provider 选型：workbuddy
+══════════════════════════════════════════════════════════════
+ 将执行：BUILD → VM（scp→ssh install-vm.mjs）→ VM-START（重启服务）→ QA-PROBE（探针）→ 端口轮询验证
+
+[BUILD] 构建全部包...
+[BUILD] ✅ 完成
+[VM] 推送产物并安装到 VM...
+[VM] ✅ 完成（产物 + skills 已分发，已注册自启并自检）
+[VM-START] 重启 VM 服务并轮询端口监听...
+   (.ps1 已推送 winvm-setup-1792140381750.ps1 → VM)
+[VM-START] ✅ VM 服务已监听 127.0.0.1:18443
+[QA-PROBE] 分发 QA 探针夹具...
+   (qa/probes/qa-probe.ps1 → User@172.16.100.2:C:/WinVMBridge/dev-and-qa/probes)
+   (qa/probes/lead-md5-3.ps1 → User@172.16.100.2:C:/WinVMBridge/dev-and-qa/probes)
+[QA-PROBE] ✅ 已推送 2 个探针 → C:/WinVMBridge
+
+VM 侧一键部署完成 ✅（服务已监听、开机+登录自启已注册）。
+下一步：在鸿蒙宿主端运行 install-host.mjs（或 setup.mjs --only-host）完成宿主侧，或用 setup.mjs 联合验证。
