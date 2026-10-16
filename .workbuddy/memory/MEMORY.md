@@ -11,7 +11,7 @@
 - 鸿蒙沙箱：WB uid 20020171，每 App 独立挂载命名空间+HMMAC 无 root；`$HOME`(hmdfs) 唯一跨 App 通道；跨 App `kill -0`：EACCES≠死/ESRCH=死。
 
 ## 关键坑（改码/联调前必扫）
-- 远端 shell=Git Bash(MSYS)：`/` 开头参数被路径转换→远端逻辑写 `.ps1`→scp(远端路径须 `C:/…`)→`powershell -NoProfile -ExecutionPolicy Bypass -File`；载荷 ASCII 防乱码。杀隧道勿 `pkill -f 'ssh -N -L'`(自杀)→直 kill PID。
+- 远端 shell=Git Bash(MSYS)：`/` 开头参数被路径转换→远端逻辑写 `.ps1`→scp(远端路径须 `C:/…`)→`powershell -NoProfile -ExecutionPolicy Bypass -File`；载荷 ASCII 防乱码。**回向通道同理（C0 QA⚠ 实证）**：含中文证据**绝不用 `ssh … > 本地文件`**（VM 控制台码页腐化 UTF-8 尾字节吞引号=非法 JSON）→ VM 侧 `[IO.File]::WriteAllText(path,$ln,(New-Object Text.UTF8Encoding($false)))` 落文件→scp 回传→JSON.parse 自证。杀隧道勿 `pkill -f 'ssh -N -L'`(自杀)→直 kill PID。
 - **ssh `cmd &` 脱管（T7 实证双坑）**：ssh 退出后 Git Bash 后台进程**存活继续跑**，且"谁在跑什么"失去真相（成员对自家前轮 burst 探针失认）⇒ VM 长观测一律前台限时、或脚本自带 PID 落盘+心跳文件；真机窗口探针**串行化**。
 - **provider=workbuddy 禁批量 tasks/cancel（T7 真机红线）**：每个 requestCancel abort 打断**同一 LLM 常驻会话**当前轮⇒重建风暴⇒服务崩溃（实测 198×并发8 打挂+~90 孤儿 node）；单条 cancel 端到端 ~3.4s。filler 任务实况=working 数分钟自然收口（LLM 纯文本答完，非确定性执行器快速 failed）。
 - PS 5.1：`Sort-Object <裸键>` 对 `[ordered]@{}` 静默失效→`-Property { $_.key }`。
@@ -41,7 +41,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - **A5 / K-N1 / K-N2**：A5 L2 审批 `rejected` 置位路径真机不可达(activeTaskId 被 cancel 清掉)；K-N1 委派回合未发起 tools/call 致 K5 回执反查早退(0 执行仍 completed)；K-N2 dryRun 内层 success=false。均已有 `r19c-*` 单测覆盖。
 
 ## 关键口径
-- **测试基线 118 文件 / 2131 例（2129 pass/0 fail/2 skip）**（2026-10-16 Phase 5 残项收口，全量 gate GREEN DISK=RUN=MATCH，qa/p3-batch-sweep/gate-p5res-final.txt；2 skip 恒 ssh2-resolve OFFLINE_SKIP）。旧口径留档：Phase2 92/1889；Phase3 99/1945→…→114/2079(批1)；Phase4 115/2087(批9)→116/2103(批10)；Phase5 批14 +p5-b14-wiring-channel →117、残项 +p5-r1-capability-list+ssh2 可跑2例 →**118/2131**。**Q3 起 sweep = tests/unit/** + delivery/__tests__/**（listSweepFiles 合流）**。**基线数字权威源=qa/ 最新 `gate-*.txt` 汇总行（README/06-OVERVIEW 已废静态数字）**。门禁=`npm run gate`/`gate:quick`/`lock-probe`（GATE-POLICY.md：跳过门禁即未验收）。
+- **测试基线 121 文件 / 2162 例（2129→2160 pass/0 fail/2 skip）**（2026-10-16 C0 转呈面专项收口，全量 gate GREEN DISK=RUN=MATCH，qa/p3-batch-sweep/gate-p5-c0-final.txt；2 skip 恒 ssh2-resolve OFFLINE_SKIP）。旧口径留档：Phase2 92/1889；Phase3 99/1945→…→114/2079(批1)；Phase4 115/2087→116/2103(批10)；Phase5 批14→117、残项→118/2131、**C0 折叠三件(+31例)→121/2162**。**Q3 起 sweep = tests/unit/** + delivery/__tests__/**（listSweepFiles 合流）**。**基线数字权威源=qa/ 最新 `gate-*.txt` 汇总行（README/06-OVERVIEW 已废静态数字）**。门禁=`npm run gate`/`gate:quick`/`lock-probe`（GATE-POLICY.md：跳过门禁即未验收）。
 - 测试证据口径：每轮只留一份权威报告 `real-test-<date>-run<N>.md`；「未复现≠已修」须确定性注入回归；FAIL 给四元组(现象/根因/证据/路由)；证据目录删除必留痕。
 - 裁决必须落档再引用编号：权威层级=仓库文档>任务板>聊天；文档引用锚点段标签为主、行号(号)为辅（并行改动行号漂移）。
 - 证据文件「写完再读」：落在写入窗口内得 0B 假空→任何"为空/缺失"须二次确认(mtime+字节+进程存活)。
