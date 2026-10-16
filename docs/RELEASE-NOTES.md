@@ -28,7 +28,7 @@
 1. ~~双闸执法仍为 shadow~~ **已转 on（批12/14）**：现网 `policyGate.wiring=on` 三查回验全中；声明式持久=宿主 `.env` `WINVM_POLICY_GATE_WIRING`（批14 通道化，跨部署不丢）；回滚=清键重部署。执法实弹样本 V18 已由批13 委派链自然覆盖（replay `allow:policy-passed` 在链）；`shadowHits>0` 的"声明即自缚"形态样本仍未自然出现（离线 p3-b1/E2E 已实锤拦阻行为）。
 2. ~~V3/V4 服务层真卸载未实弹~~ **批13 已实弹 ✅**：审批闭环端到端真机实锤（挂起→批准→replay 24.9s 真实执行→复原零遗留）。**残余**：超时树杀 `[k6] TIMED-OUT/[q5]` 孤儿分支未自然触发（保留在册）；**V19 新观察**：portable 包卸载回执 `ok=true` 但 inventory 短暂残留（K6 核验矛盾面），后续专项定性——SSH 非交互会话直调 winget 属结构性不可用（MSIX alias）不变。
 3. ~~V14 长跑 eviction 未显形~~ **读数已在（批10 G7+批13 真机验证）**：`wsLatestMb/wsPeakMb/wsEvictions` 现网在册（峰值 18.5MB）；**残余**=超限 eviction 回收路径（`wsEvictions>0`）未自然触发，属长跑量问题非观测缺失。
-4. `meta.capability.list` 运行期返回**模块名**而非能力 ID 全清单（能力 ID 权威面=`tools/list`，SKILL 措辞已规避；实现对齐入后续小批）。
+4. ~~`meta.capability.list` 运行期返回**模块名**而非能力 ID 全清单~~ **名实对齐已修（Phase 5 残项 R1·方案A，仓库面）**：provider 照 D5 healthCheck 先例 Node 侧拦截（`__meta.capabilityList`，注册表 ∩ declareCapabilities 直供 `{capabilities:[{id,name,risk}],count,domains}`，与 `tools/list` 同源一致）；ps-bridge `listModules` 分支保留为内部诊断面。**现网生效随下次 deploy-vm + 服务重启**（psmod 外 Node 面，同样受部署节奏约束）。
 5. 审批挂起完整对齐（deterministic provider 真挂起 input-required）为登记 backlog：该形态触闸面为零，现以 `suspendSupported:false` 显形诚实收口。
 6. **`directWithActiveTurn`（(c) 并发窄窗）已有实况样本**：批13 实弹期计数=2（观测面按设计显形；方向 fail-safe 无放行放宽，限定句见 SECURITY-GOVERNANCE §2.3）。
 

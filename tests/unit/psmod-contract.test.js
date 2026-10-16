@@ -120,8 +120,14 @@ const META_SWITCH_BRANCHES = (() => {
   return [...body.matchAll(/^[ \t]*'([A-Za-z][\w]*)'[ \t]*\{/gm)].map((m) => m[1]);
 })();
 
-/** Node 侧内置拦截的 __meta 函数（不经 bridge；权威落点见文件头注释） */
-const NODE_BUILT_IN_META = new Set(['healthCheck']);
+/**
+ * Node 侧内置拦截的 __meta 函数（不经 bridge；权威落点见文件头注释）。
+ * B-4（Phase 5 残项）变更登记：`capabilityList` 加入内置集 ——
+ * `meta.capability.list` 的注册表绑定由 `listModules`（psmod 文件名扫描，返回**模块面**）
+ * 改为 `capabilityList`（provider 从注册表直供**能力 ID 清单**，照 D5 healthCheck 先例）。
+ * ps-bridge 的 `listModules` switch 分支**保留**（内部诊断面，注册表不再路由到它）。
+ */
+const NODE_BUILT_IN_META = new Set(['healthCheck', 'capabilityList']);
 
 const EXPECTED_TOTAL = 54;
 const EXPECTED_DOMAINS = { meta: 3, system: 14, app: 8, storage: 13, gui: 11, appops: 5 };
@@ -177,7 +183,8 @@ describe('psmod 契约 · 每条能力引用的函数必须真实存在', () => 
   /**
    * 核心不变式（体检 §2-QA-03 风险 a：改名/漏改即运行期 500/UNKNOWN_FUNCTION）：
    *   - 非 `__meta`：`<module>.ps1` 必须存在，且其中必须有 `function <fn>`（**大小写精确**匹配）。
-   *   - `__meta`：Node 内置（healthCheck）或 ps-bridge 的 switch 分支（listModules）。
+   *   - `__meta`：Node 内置（healthCheck / capabilityList〔B-4〕）或 ps-bridge 的 switch
+   *     分支（ping / fingerprint / listModules——listModules 现为内部诊断面，注册表已不指向它）。
    */
   test('54 条 implementation.{module,function} 全部可解析到真实实现', () => {
     const caps = loadRegistryFromSource();

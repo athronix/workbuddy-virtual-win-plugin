@@ -786,8 +786,9 @@ cd "$REPO" && "$NODE" -e 'const{execFileSync}=require("child_process");const r=J
 #### TC-MCP-02 · `meta.capability.list`（meta｜MCP）
 - **目的**：验证能力发现。
 - **前置**：同通用。
-- **期望结果**：`ok:true`，`data.modules` 列出已注册域。
-- **通过判据**：`ok:true` 且 `data.modules` 为**含 5 个域名的数组**（实测 `["app","appops","gui","storage","system"]`，注意**不含 `meta`**）。
+- **期望结果**（R1·方案A 名实对齐后形态，2026-10-16 仓库面变更，现网生效=下次 deploy-vm+服务重启）：`ok:true`，`data.capabilities` 为能力条目数组（每条含 `id/name/risk`）、`data.count` 为条数、`data.domains` 为域前缀数组；**不再有** `data.modules`（旧模块面已退役为内部诊断面）。
+- **通过判据**：`ok:true` 且 `data.count == 54` 且 `data.capabilities` 每条含 `id,risk`；能力 ID 集与 `tools/list` 逐条一致（同源注册表直供）；`data` 无 `modules` 键。
+- **回退判据**（若现网仍是旧态=未随部署生效）：`data.modules` 为含 5 个域名的数组（`["app","appops","gui","storage","system"]`，不含 `meta`）⇒ 报告「Node 面未部署」，非缺陷。
 - **清理**：无。
 
 ```bash

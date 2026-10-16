@@ -20,10 +20,11 @@ import {
   type ProgressSink,
   type BridgeError,
   makeError,
+  matchesCapability,
   riskAtLeast,
 } from '@winvm/contracts';
 import { newId, newTraceId, guiAllowed, nonGuiAllowed, describeSessionState, resolvePolicyGateWiring } from '@winvm/core';
-import { PsBridge, type PsBridgeOptions } from '@winvm/vm-capabilities';
+import { PsBridge, WINDOWS_CAPABILITIES, type PsBridgeOptions } from '@winvm/vm-capabilities';
 
 export const PROVIDER_ID = 'workbuddy-deterministic';
 
@@ -470,21 +471,30 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
 
       // D5：meta.health.check 由 Node 侧**内置**返回与 GET /health 同构的快照
       //     （原绑定 system.Get-SystemInfo 返回的是系统信息而非健康态，语义不符）。
-      // 其余 __meta.* 仍走 ps-bridge（保持既有语义）。
+      // B-4（Phase 5 残项）：meta.capability.list 同理由 Node 侧**注册表直供**真实能力清单
+      //     （原绑定 __meta.listModules 实返 ps1 文件名=模块面，与 description「列出当前
+      //     已注册并暴露的能力清单」名实落差在实现侧；ps-bridge listModules 分支保留为
+      //     内部诊断面，注册表不再路由到它）。
+      // 其余 __meta.*（如 meta.session.status=gui.Get-SessionHealth）仍走 ps-bridge。
       //
       // ARCH-29（P2-T4）：`req.signal` 在场时走**带 signal 的分支**（ps-bridge 内部把 abort
       // 与「等回执」竞速，并从 pending 表摘除等待位 —— 因此不存在「取消后迟到的 reject 变成
       // 未处理拒绝」的风险；用外层 `Promise.race` 反而会有这个崩溃面，故不采）；
       // 缺席时**逐字节保留旧调用形态**（4 参），这条分支是 `r3-uninstall-verify` 的
       // T02b 超时形态静态钉所锁的字面量 ⇒ 不得改写。
+      // B-4 拦截形态：Node 内置面置于三元链**最左**（healthCheck 判定逐字节不动，
+      // r3 T02b ⑤ 静态钉依赖其字面量）；capabilityList 同样**不经 bridge.call** ⇒
+      // 零桥往返、零会话依赖（degraded 窄窗下 ps-bridge 未就绪时仍可自省暴露面）。
       const raw =
         impl.module === '__meta' && impl.fn === 'healthCheck'
           ? await this.buildHealthSnapshot()
-          : req.signal
-            ? await bridge.call(impl.module, impl.fn, req.params, capTimeoutMs ?? req.timeoutMs ?? 30_000, {
-                signal: req.signal,
-              })
-            : await bridge.call(impl.module, impl.fn, req.params, capTimeoutMs ?? req.timeoutMs ?? 30_000);
+          : impl.module === '__meta' && impl.fn === 'capabilityList'
+            ? this.buildCapabilityList()
+            : req.signal
+              ? await bridge.call(impl.module, impl.fn, req.params, capTimeoutMs ?? req.timeoutMs ?? 30_000, {
+                  signal: req.signal,
+                })
+              : await bridge.call(impl.module, impl.fn, req.params, capTimeoutMs ?? req.timeoutMs ?? 30_000);
 
       // D10：列表类能力强制保形为数组（空 → []，单元素 → [{...}]）。
       // 注意：bridge.call 的 lazy 自愈（D2）在此处生效 —— 进程死亡时会先自愈再执行。
@@ -1088,6 +1098,40 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     )?.healthSnapshot;
     if (typeof injected === 'function') return await injected();
     return (await this.health()) as unknown as Record<string, unknown>;
+  }
+
+  /**
+   * B-4（Phase 5 残项）：构造 meta.capability.list 的真实能力清单（Node 侧注册表直供）。
+   *
+   * 语义（与 description「列出当前已注册并暴露的能力清单」逐字对齐）：
+   *   暴露面 = `WINDOWS_CAPABILITIES` ∩ `declareCapabilities()` —— 与服务端
+   *   `vm-service/server.ts` 的 `exposedCapabilities = registry.intersectDeclared(…)`
+   *   **同一算法**（`intersectDeclared` 内部即按 `matchesCapability` 通配过滤，且
+   *   registry 由 `registerAll(WINDOWS_CAPABILITIES)` 构建 ⇒ 单一数据源成立），
+   *   因此本清单与 MCP `tools/list` 的能力 ID 暴露面逐条一致（兑现 SKILL 面
+   *   「以 tools/list 为权威，capability.list 与之一致」的口径）。
+   *   LLM（`WorkbuddyLlmProvider`）与 hermes 的 `execute()` 均委托本确定性执行器
+   *   （index.ts `executor.execute(req)`），三个 provider 的 `declareCapabilities()`
+   *   通配集由 `p5-r1-capability-list-pin` 静态钉防漂移；若未来某 provider 收窄声明，
+   *   该钉会显形要求把差异接进本函数（改读注入声明而非硬编码），而不是静默失真。
+   *
+   * 形态：`{ ok:true, count, capabilities:[{id,name,risk}], domains:[...] }`。
+   *   旧 psmod `listModules` 的 `modules`（ps1 文件名）键**不再出现在本能力回执**中
+   *   （名实落差的根源）；ps-bridge 的 listModules switch 分支保留为内部诊断面
+   *   （ping/fingerprint 同族，经 rawCall 直达，不经注册表路由）。
+   */
+  private buildCapabilityList(): Record<string, unknown> {
+    const declared = this.declareCapabilities();
+    const exposed = WINDOWS_CAPABILITIES.filter((cap) =>
+      declared.some((pattern) => matchesCapability(pattern, cap.id)),
+    );
+    const capabilities = exposed
+      .map((cap) => ({ id: cap.id, name: cap.name, risk: cap.risk }))
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const domains = [...new Set(exposed.map((cap) => cap.id.split('.')[0] ?? ''))]
+      .filter(Boolean)
+      .sort();
+    return { ok: true, count: capabilities.length, capabilities, domains };
   }
 
   /**
