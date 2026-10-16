@@ -23,7 +23,7 @@ import {
   matchesCapability,
   riskAtLeast,
 } from '@winvm/contracts';
-import { newId, newTraceId, guiAllowed, nonGuiAllowed, describeSessionState, resolvePolicyGateWiring } from '@winvm/core';
+import { newId, newTraceId, guiAllowed, nonGuiAllowed, describeSessionState, resolvePolicyGateWiring, foldK6Verdict } from '@winvm/core';
 import { PsBridge, WINDOWS_CAPABILITIES, type PsBridgeOptions } from '@winvm/vm-capabilities';
 
 export const PROVIDER_ID = 'workbuddy-deterministic';
@@ -514,6 +514,16 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         }
       }
 
+      // C0（2c）：链上审计诚实化 —— 本条目 `result.ok` 此前恒 true（bridge.call
+      // 未抛=进程级送达），`data.success===false` 的 K6 失败在此被记作「执行成功」。
+      // 与响应面（server.ts executeCapability 的 foldK6Verdict，2b）**同源同函数**：
+      // 折叠命中 ⇒ 条目 ok=false + 诚实 summary（含残留证据截断）+ errorCode 落位。
+      // 注意：provider 返回信封保持 res.ok=true（送达事实），K6 折叠呈报在服务层
+      // （回执面）与本处（链条目面）各自由同一纯函数判 —— 两处不叠加、互不覆盖。
+      // 消费面：delegation-audit `recordExecuted(record, record.result?.ok===true)`
+      // 读此位 ⇒ 账本 executed 归因随之诚实。
+      const fold = foldK6Verdict(true, data);
+
       const audit = await ctx.audit.append({
         ts: new Date().toISOString(),
         traceId: req.traceId,
@@ -539,7 +549,13 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
               },
             }
           : {}),
-        result: { ok: true, summary: `${req.capabilityId} 执行成功` },
+        result: fold.k6Failed
+          ? {
+              ok: false,
+              errorCode: 'EXECUTION_FAILED',
+              summary: `${req.capabilityId} 执行未成功：${fold.errorMessage ?? '执行器自报未成功（K6 核验未过）'}`,
+            }
+          : { ok: true, summary: `${req.capabilityId} 执行成功` },
         ...(artifacts.length > 0 ? { artifacts: artifacts.map((a) => `sha256:${a.name}`) } : {}),
         durationMs,
         // K-N1 通道 2（精确归因）：委派回连条目带 ext.delegationId（账本据此归入 executed）
