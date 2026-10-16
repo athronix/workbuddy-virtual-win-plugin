@@ -1,0 +1,36 @@
+{
+ "traceId": "tr_mvagb119_4",
+ "ok": true,
+ "risk": "L2",
+ "data": {
+  "id": "BurntSushi.ripgrep.MSVC",
+  "dryRun": true,
+  "exitCode": 0,
+  "success": true,
+  "verified": null,
+  "fallbackUsed": false,
+  "plan": {
+   "packageId": "BurntSushi.ripgrep.MSVC",
+   "displayName": "RipGrep MSVC",
+   "version": "15.2.0",
+   "installerType": "other",
+   "installed": true,
+   "registryKey": "BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe",
+   "hive": "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+   "installRoot": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe",
+   "expectedAction": "uninstall-via-winget",
+   "actions": [
+    "winget uninstall --exact --id BurntSushi.ripgrep.MSVC（≤300s 软预算；本预览不执行）",
+    "installerType=other —— 非 NSIS 永不回退，核验未过即 success=false"
+   ],
+   "systemImpact": "dry-run 自身：零系统变更（未发起任何子进程）；真实执行将移除 RipGrep MSVC 的程序文件与卸载注册表键（安装根 C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe）"
+  },
+  "output": [
+   "[k6] dry-run: 宿主侧纯注册表只读预览（零子进程、零 winget 调用、零系统变更；verified=null & fallbackUsed=false）",
+   "[k6] dry-run: success=true 仅表示预览构造成功，**不代表包已安装**；installed=True",
+   "[k6] dry-run: registryKey=BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe installerType=other installRoot=C:\\Users\\User\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe expectedAction=uninstall-via-winget"
+  ]
+ },
+ "durationMs": 1963,
+ "auditRef": "aud_acce564eed5348228418"
+}

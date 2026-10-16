@@ -1,0 +1,12 @@
+=== S1 registry three-hive enumerate ripgrep ===
+S1-entries=1
+  PSChildName=BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe
+  DisplayName=RipGrep MSVC | DisplayVersion=15.2.0 | InstallDate=20260921
+  InstallLocation=C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe
+  UninstallString=winget uninstall --product-code BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe
+  QuietUninstallString=
+  ----
+=== S2 portable true-body baseline ===
+S2-Packages-subdirs=1
+  C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\BurntSushi.ripgrep.MSVC_Microsoft.Winget.Source_8wekyb3d8bbwe
+S2-Links-rg.exe-exists=False
