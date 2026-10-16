@@ -3,7 +3,7 @@
  *
  * 背景（立案见 `qa/p5-batch/v19-VERDICT.md`）：呈报全链只消费信封 `ok`，
  * `data.success===false` 的 K6 失败回执被压平成「执行成功」。折叠件
- * `packages/vm-service/src/k6-verdict.ts` 的判据面在此逐例钉死：
+ * `packages/core/src/k6-verdict.ts`（2a 下沉真源）的判据面在此逐例钉死：
  *  ① 触发面：plain object ∧ `success === false`（严格布尔）⇒ ok=false /
  *    isError=true / k6Failed=true / errorMessage 含 K6 文案；
  *  ② 不触发面（严格判据，向后兼容零误伤）：`success:true` / 无键 `{}` /
@@ -21,11 +21,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
+// 真源 = @winvm/core（2a 下沉；vm-service 侧为再导出垫片）。
 import {
   foldK6Verdict,
   residualEvidenceSummary,
   K6_FAIL_MESSAGE,
-} from '@winvm/vm-service';
+} from '@winvm/core';
 
 /* ==================== ① 触发面（严格 false） ==================== */
 

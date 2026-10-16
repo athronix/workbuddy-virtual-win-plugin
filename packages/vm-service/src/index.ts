@@ -35,15 +35,15 @@ export type {
 } from './approval-replay.js';
 /**
  * C0（Phase 5）：K6 自报失败折叠**纯函数件**（呈报面单点判据，server.ts 执行回执
- * 组装处消费）。再导出的唯一目的是让判据可脱 HTTP 服务与 ps-bridge 直测 ——
- * 与 `approval-replay` / `http-guard` 同一纪律。
+ * 组装处 + adapter 链上审计写入点双侧消费）。真源已下沉 `@winvm/core`（2a），
+ * 此处再导出保持 vm-service 消费面稳定（同 policy-gate.ts 垫片纪律）。
  */
 export {
   foldK6Verdict,
   residualEvidenceSummary,
   K6_FAIL_MESSAGE,
   type K6Fold,
-} from './k6-verdict.js';
+} from '@winvm/core';
 /**
  * ARCH-07 / ENG-05（T4）—— 服务端 bearer 守卫（**纯函数模块**，豁免表硬编码不可配）。
  * 再导出的唯一目的是让判据可脱 ps-bridge 直测：本沙箱内 `createService` 会 spawn

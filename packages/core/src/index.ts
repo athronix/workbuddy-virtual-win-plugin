@@ -141,6 +141,14 @@ export {
   hashApprovalPreview,
 } from './approval-hash.js';
 
+/* ---------------------- C0：K6 自报失败折叠（呈报面单源判据，双侧消费） ---------------------- */
+export {
+  foldK6Verdict,
+  residualEvidenceSummary,
+  K6_FAIL_MESSAGE,
+} from './k6-verdict.js';
+export type { K6Fold } from './k6-verdict.js';
+
 /* ------------------------------ trace ------------------------------ */
 import { randomUUID } from 'node:crypto';
 
