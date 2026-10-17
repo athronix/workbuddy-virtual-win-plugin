@@ -35,6 +35,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { buildVmPs1 } from '../../delivery/uninstall.mjs';
 
 const ROOT = join(import.meta.dirname, '..', '..');
 const read = (...p) => readFileSync(join(ROOT, ...p), 'utf8');
@@ -1359,6 +1360,91 @@ describe('R17-T02b · A2A 路径超时以注册表为权威（静态守卫）', 
         ADAPTER_INDEX,
       ),
       'meta.health.check 仍须走 Node 内置快照，不受 T02b 影响',
+    );
+  });
+});
+
+describe('uninstall VM 段顺序铁律：先查杀看门狗与 services（用户纪律 2026-10-18）', () => {
+  // 背景：旧 VM 段顺序 = 先 schtasks /Delete 再杀进程，且未显式覆盖 ps-bridge.ps1 孤儿。
+  // 缺口：① RestartOnFailure（PT1M×3）可在删除窗口内重新拉起启动器；
+  //      ② vm-service 先死时 ps-bridge 脱离进程树，继续占用 18443 ⇒ 重装 VM-START 撞 bind EACCES。
+  // 新顺序：/End 熔断看门狗 → 三签名查杀（node / start-hidden / ps-bridge）→ /Delete → 兜底复查 → 删目录。
+  // 断言对象 = buildVmPs1 生成物本身（export 后可直接 import，无需真机）。
+  const ps1 = buildVmPs1({ purgeWorkspace: false });
+  const lines = ps1.split('\r\n');
+  const firstIdx = (needle) => lines.findIndex((l) => l.includes(needle));
+
+  test('顺序铁律：Kill-Sig 定义 < /End 熔断 < 三签名查杀 < /Delete < 删目录', () => {
+    const iDef = firstIdx('function Kill-Sig');
+    const iEnd = firstIdx('schtasks /End (fuse watchdog RestartOnFailure)');
+    const iKillNode = firstIdx("Kill-Sig 'vm-service node'");
+    const iKillBridge = firstIdx("Kill-Sig 'ps-bridge'");
+    const iDelete = firstIdx('Act ("schtasks /Delete "');
+    const iRemove = firstIdx('"Remove-Item -Recurse -Force " + $BridgeDir');
+    for (const [name, i] of [['Kill-Sig def', iDef], ['/End fuse', iEnd], ['node kill', iKillNode], ['ps-bridge kill', iKillBridge], ['/Delete', iDelete], ['Remove-Item', iRemove]]) {
+      assert.ok(i >= 0, `缺少锚点：${name}`);
+    }
+    assert.ok(iDef < iEnd, 'Kill-Sig 助手须先于 /End 熔断定义');
+    assert.ok(iEnd < iKillNode, '/End 熔断看门狗须先于服务进程查杀（阻断 RestartOnFailure 重启窗口）');
+    assert.ok(iKillNode <= iKillBridge, '三类签名查杀同段（node → start-hidden → ps-bridge）');
+    assert.ok(iKillBridge < iDelete, 'ps-bridge 孤儿查杀须先于 /Delete（先杀服务后拆看门狗注册）');
+    assert.ok(iDelete < iRemove, '/Delete 须先于删目录');
+  });
+
+  test('ps-bridge.ps1 孤儿显式覆盖（段 0b + 段 2 兜底各一次）', () => {
+    const calls = lines.filter((l) => l.startsWith("Kill-Sig 'ps-bridge'") || l.startsWith("Kill-Sig 'leftover ps-bridge'"));
+    assert.equal(calls.length, 2, `ps-bridge 签名查杀应出现 2 次（段0b + 兜底），实际 ${calls.length}`);
+    // 注释里提 ps-bridge 不算覆盖——判据是真实的 Kill-Sig 调用
+    assert.ok(
+      lines.some((l) => l === "Kill-Sig 'ps-bridge' 'powershell.exe' 'ps-bridge'"),
+      '段 0b 须有真实 Kill-Sig 调用覆盖 ps-bridge 孤儿',
+    );
+  });
+
+  test('三类服务签名均在段 0b 与段 2 兜底出现（node / start-hidden / ps-bridge ×2）', () => {
+    for (const sig of ['vm-service node', 'start-hidden wrapper', 'ps-bridge']) {
+      const inPhase0 = lines.some((l) => l.startsWith(`Kill-Sig '${sig}'`) && !l.startsWith("Kill-Sig 'leftover"));
+      const inPhase2 = lines.some((l) => l.startsWith(`Kill-Sig 'leftover ${sig}'`));
+      assert.ok(inPhase0, `段 0b 缺少 ${sig} 查杀`);
+      assert.ok(inPhase2, `段 2 兜底缺少 ${sig} 复查`);
+    }
+  });
+
+  test('旧合并行 /End + /Delete 不得回归（熔断与拆除必须分离）', () => {
+    assert.ok(!ps1.includes('schtasks /End + /Delete'), '旧顺序把熔断与拆除合并成一步，须保持分离');
+  });
+
+  test('Kill-Sig 按命令行签名识别且排除自身（防误杀共享 node 与 WorkBuddy MCP）', () => {
+    const fnBody = ps1.slice(ps1.indexOf('function Kill-Sig'), ps1.indexOf('\r\n}', ps1.indexOf('function Kill-Sig')));
+    assert.ok(fnBody.includes('CommandLine -match'), 'Kill-Sig 须按命令行签名匹配');
+    assert.ok(fnBody.includes('ProcessId -ne $PID'), 'Kill-Sig 须排除自身进程');
+    assert.ok(/taskkill \/PID \$p\.ProcessId \/T \/F/.test(fnBody), 'Kill-Sig 须树杀（/T /F）');
+  });
+
+  test('VM 侧 ps1 载荷 ASCII-only（PS 5.1 无 BOM UTF-8 会乱码——本项目既有坑）', () => {
+    assert.ok(!/[^\x00-\x7F]/.test(ps1), 'buildVmPs1 生成物含非 ASCII 字符——PS 5.1 执行会乱码');
+  });
+
+  test('既有语义不回归：PRE/POST STATUS、VM_CLEANUP_DONE、workspace 默认保留、CRLF', () => {
+    assert.ok(ps1.includes('--- PRE STATUS ---'), 'PRE STATUS 段须保留');
+    assert.ok(ps1.includes('--- POST STATUS ---'), 'POST STATUS 段须保留');
+    assert.ok(ps1.includes('VM_CLEANUP_DONE'), 'VM_CLEANUP_DONE 完成标记须保留');
+    assert.ok(ps1.includes('[KEEP] workspace kept by default'), 'workspace 默认保留语义须保留');
+    assert.ok(ps1.includes('BRIDGE_NODE_LEFT='), 'POST STATUS 的残留 node 检查须保留');
+    assert.ok(!ps1.includes('\n') || ps1.split('\r\n').length > 100, '行尾须为 CRLF');
+  });
+
+  test('workspace 删除受 $PurgeWorkspace 守卫；调用方仅显式开关才传 -PurgeWorkspace', () => {
+    // 生成物恒含条件分支（buildVmPs1 两态 identical by design），缺省安全由
+    // 调用方不传 -PurgeWorkspace switch 保证 ⇒ 判据 = 守卫位置 + 调用方契约。
+    const guardIdx = lines.findIndex((l) => l.includes('if ($PurgeWorkspace) {'));
+    const rmIdx = lines.findIndex((l) => l.includes('Remove-Item $WorkspaceDir -Recurse -Force'));
+    assert.ok(guardIdx >= 0, 'ps1 须含 $PurgeWorkspace 守卫');
+    assert.ok(rmIdx > guardIdx, 'workspace 删除行须在 $PurgeWorkspace 条件分支内（缺省不执行）');
+    const src = read('delivery', 'uninstall.mjs');
+    assert.ok(
+      /if \(purgeWorkspace\) remoteArgs\[remoteArgs\.length - 1\] \+= ' -PurgeWorkspace'/.test(src),
+      'runVmPhase 须仅在 purgeWorkspace=true 时向远端追加 -PurgeWorkspace',
     );
   });
 });

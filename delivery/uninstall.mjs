@@ -558,8 +558,21 @@ function cleanHostDirectories(hostRoot, trashBase, dryRun, log) {
 /**
  * Build the VM-side uninstaller .ps1 (ASCII, CRLF). All remote logic lives here -
  * it is scp'd and run via `powershell -File` (never inline over ssh).
+ *
+ * VM 段顺序铁律（用户 2026-10-18 裁定）：**uninstall 前先查杀 VM 端本项目的
+ * 看门狗与 services**。VM 侧自愈看门狗有两层，均须先于删目录熔断：
+ *   ① 任务级看门狗：`WinVMBridge.Service` 的 `RestartOnFailure`（Interval PT1M /
+ *      Count 3）——动作进程（start-hidden -Wait）死掉后调度器每分钟重试重启；
+ *   ② 进程级看护：vm-service 对 ps-bridge 的 respawn（psBridge.restarts 字段）。
+ * 故顺序为：**先 /End 熔断看门狗**（停当前实例、阻断重启窗口）→ **按签名查杀服务进程链**
+ * （vm-service node / start-hidden wrapper / ps-bridge.ps1 孤儿）→ **后 /Delete 拆除
+ * 看门狗注册** → 兜底复查 → 删目录。旧顺序（先 /Delete 再杀进程）在删除前留有
+ * RestartOnFailure 重新拉起启动器的窗口；且未显式覆盖 ps-bridge 孤儿（vm-service
+ * 先死时它脱离进程树，会继续占用 18443 令后续重装撞 EADDRINUSE）。
+ *
+ * Exported for unit tests (buildVmPs1 is pure: {purgeWorkspace} -> ps1 text).
  */
-function buildVmPs1({ purgeWorkspace }) {
+export function buildVmPs1({ purgeWorkspace }) {
   const lines = [
     'param(',
     '  [switch]$Apply,',
@@ -587,39 +600,64 @@ function buildVmPs1({ purgeWorkspace }) {
     "Write-Output ('SSHD=' + $(if ($sshd) { $sshd.Status } else { 'NOT_FOUND' }))",
     "Write-Output ('AUTH_KEYS=' + (Test-Path \"$env:USERPROFILE\\.ssh\\authorized_keys\"))",
     '',
-    '# ---------- 1) scheduled task: /End then /Delete ----------',
+    '# ---------- 0) kill watchdog + services FIRST (user rule 2026-10-18) ----------',
+    '# Signature-based (command-line) process kill helper - NEVER match by executable path:',
+    '# node is shared with WorkBuddy MCP servers (workbuddy-builtin sheetagent / weixinpay ...);',
+    '# killing by path would take those down too.',
+    'function Kill-Sig([string]$label, [string]$exe, [string]$pattern) {',
+    '  $procs = Get-CimInstance Win32_Process -Filter "Name=\'$exe\'" -ErrorAction SilentlyContinue | Where-Object { ($_.CommandLine -match $pattern) -and ($_.ProcessId -ne $PID) }',
+    '  foreach ($p in $procs) {',
+    '    Act ("taskkill /T /F " + $label + " PID " + $p.ProcessId)',
+    '    if ($Apply) { $null = taskkill /PID $p.ProcessId /T /F 2> $null }',
+    '  }',
+    '}',
+    '',
+    '# 0a) Watchdog fuse: /End stops the task current running instance (start-hidden -Wait',
+    '#     keeps the action process Running), blocking RestartOnFailure (PT1M x Count 3) from',
+    '#     re-spawning the launcher inside the kill/delete window below.',
     "$null = schtasks /Query /TN $TaskName 2> $null",
     'if ($LASTEXITCODE -eq 0) {',
-    '  Act ("schtasks /End + /Delete " + $TaskName)',
+    '  Act ("schtasks /End (fuse watchdog RestartOnFailure) " + $TaskName)',
+    '  if ($Apply) { $null = schtasks /End /TN $TaskName 2> $null }',
+    '} else {',
+    '  Write-Output ("[SKIP] task not present: " + $TaskName)',
+    '}',
+    '',
+    '# 0b) Service process-chain kill. The ps-bridge.ps1 orphan MUST be covered explicitly:',
+    '#     when vm-service dies first it leaves the process tree, taskkill /T cannot take it,',
+    '#     and it keeps holding 18443 so the next redeploy VM-START hits bind EACCES.',
+    "Kill-Sig 'vm-service node' 'node.exe' ([regex]::Escape($BridgeDir))",
+    "Kill-Sig 'start-hidden wrapper' 'powershell.exe' 'start-hidden'",
+    "Kill-Sig 'ps-bridge' 'powershell.exe' 'ps-bridge'",
+    'if ($Apply) {',
+    '  Start-Sleep -Seconds 2',
+    '  $still = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue',
+    '  if ($still) { Write-Output "[WARN] port still listening after service kills" }',
+    '  else { Write-Output "[OK]  services killed, port freed" }',
+    '}',
+    '',
+    '# ---------- 1) watchdog removal: /Delete the task (services dead - no restart risk) ----------',
+    "$null = schtasks /Query /TN $TaskName 2> $null",
+    'if ($LASTEXITCODE -eq 0) {',
+    '  Act ("schtasks /Delete " + $TaskName)',
     '  if ($Apply) {',
-    '    $null = schtasks /End /TN $TaskName 2> $null',
     '    $null = schtasks /Delete /TN $TaskName /F 2> $null',
     '    if ($LASTEXITCODE -eq 0) { Write-Output ("[OK]  task removed: " + $TaskName) }',
     '    else { Write-Output ("[WARN] task delete exit=" + $LASTEXITCODE) }',
     '  }',
     '} else {',
-    '  Write-Output ("[SKIP] task not present: " + $TaskName)',
+    '  Write-Output ("[SKIP] task already absent: " + $TaskName)',
     '}',
     '',
-    '# ---------- 2) kill vm-service node tree + start-hidden wrappers ----------',
-    '# Identify by the C:\\WinVMBridge command-line SIGNATURE, never by executable path:',
-    '# the service node binary is the user-wide node install shared with WorkBuddy MCP',
-    '# servers (workbuddy-builtin sheetagent / weixinpay ...) which MUST NOT be killed.',
-    "$nodes = Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match [regex]::Escape($BridgeDir) }",
-    'foreach ($p in $nodes) {',
-    '  Act ("taskkill /T /F node PID " + $p.ProcessId)',
-    '  if ($Apply) { $null = taskkill /PID $p.ProcessId /T /F 2> $null }',
-    '}',
-    "$wraps = Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" -ErrorAction SilentlyContinue | Where-Object { ($_.CommandLine -match 'start-hidden') -and ($_.ProcessId -ne $PID) }",
-    'foreach ($p in $wraps) {',
-    '  Act ("taskkill /T /F start-hidden wrapper PID " + $p.ProcessId)',
-    '  if ($Apply) { $null = taskkill /PID $p.ProcessId /T /F 2> $null }',
-    '}',
+    '# ---------- 2) leftover sweep: re-run signature kills for stragglers (idempotent) ----------',
+    "Kill-Sig 'leftover vm-service node' 'node.exe' ([regex]::Escape($BridgeDir))",
+    "Kill-Sig 'leftover start-hidden wrapper' 'powershell.exe' 'start-hidden'",
+    "Kill-Sig 'leftover ps-bridge' 'powershell.exe' 'ps-bridge'",
     'if ($Apply) {',
     '  Start-Sleep -Seconds 2',
-    '  $still = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue',
-    '  if ($still) { Write-Output "[WARN] port still listening after kills" }',
-    '  else { Write-Output "[OK]  port freed" }',
+    '  $still2 = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue',
+    '  if ($still2) { Write-Output "[WARN] port still listening after leftover sweep" }',
+    '  else { Write-Output "[OK]  port freed (final)" }',
     '}',
     '',
     '# ---------- 3) remove C:/WinVMBridge ----------',
