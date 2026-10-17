@@ -57,11 +57,15 @@ function git(args) {
   const r = spawnSync(GIT, ['-C', ROOT, ...args], { encoding: 'utf8' });
   return { status: r.status, stdout: (r.stdout ?? '').trim(), stderr: (r.stderr ?? '').trim() };
 }
-function assertPreflight(args) {
+function assertPreflight(args, version) {
   const dirty = git(['status', '--porcelain']);
   if (dirty.status !== 0) fail(`git status 失败：${dirty.stderr}`);
-  if (dirty.stdout && !args.allowDirty) {
-    fail(`工作区不干净，拒绝打包（发布必须可复现）：\n${dirty.stdout}\n（确认无秘书写 --allow-dirty）`);
+  // 豁免本次运行自己生成/覆写的证据文件（qa/release/<version>-pack.txt）——
+  // 否则"打包→证据变 dirty→下次打包拒打包"鸡生锈；其余任何未提交变更一律拒绝。
+  const ownEvidence = relative(ROOT, resolve(ROOT, args.evidenceDir, `${version}-pack.txt`));
+  const lines = dirty.stdout.split('\n').filter((l) => l.trim() && !l.trim().endsWith(` ${ownEvidence}`));
+  if (lines.length && !args.allowDirty) {
+    fail(`工作区不干净，拒绝打包（发布必须可复现）：\n${lines.join('\n')}\n（确认无秘书写 --allow-dirty）`);
   }
   const distMissing = [];
   for (const n of packageNames()) {
@@ -370,7 +374,7 @@ function main() {
   const head = git(['rev-parse', '--short', 'HEAD']);
   COMMIT = head.status === 0 ? head.stdout : 'unknown';
   console.log(`\n== pack-release ${version} @ ${COMMIT} ==`);
-  assertPreflight(args);
+  assertPreflight(args, version);
 
   const dest = resolve(ROOT, args.out, version);
   if (existsSync(dest)) fail(`目标已存在：${relative(ROOT, dest)}（请先移走，避免半新半旧包）`);
