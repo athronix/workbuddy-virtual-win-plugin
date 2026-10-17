@@ -1,4 +1,4 @@
-# WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4 · 2026-10-15）
+# WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4.0 · 2026-10-18）
 
 > 本文取代 `V1.0.0-release-notes.md` 的"演进路线"职能（后者已加冻结头注留痕）。**权威口径**：里程碑链来自 git log + `docs/changes/` 各批 notes + 两份终版台账（`docs/audit/2026-10-12-full-audit.md`、`docs/audit/2026-10-14-full-audit.md`），数字均实测登记值。
 
@@ -9,8 +9,9 @@
 - **双通道**：MCP 直调（简单任务，`/mcp`）∥ A2A 委派（复杂任务，`/a2a`，streaming 进度+input-required 审批挂起）。
 - **VM 侧 Agent 选型**（`WINVM_VM_PROVIDER`）：`workbuddy-deterministic`（确定性基准）/ `workbuddy`（LLM 常驻会话，缺省）/ `hermes-agent`（MCP 预注册）。
 - **治理栈**：风险分级 L0-L3 + 双闸（`allowedCapabilities` 白名单/`maxRisk` 封顶，**接线在位，执法灰度现况见 §3**）+ 审批闭环（委派通道：挂起→宿主批准→服务端留存值重放，批准即删一次性令牌+previewHash 换参拒绑）+ 哈希链审计（终态拒绝全入链：策略硬拒/审批拦截/委派收口/早退族）。
-- **测试**：**118 文件 / 2131 例（2129 pass / 0 fail / 2 skip）GREEN**（`qa/p3-batch-sweep/gate-p5res-final.txt`，Phase 5 残项收口锚点）；门禁 FULL/QUICK 双档 + 守卫基建四件套（dep-lint/config-key-lint/gate/lock-probe），「跳过门禁即未验收」（GATE-POLICY）。
+- **测试**：**124 文件 / 2179 例（2177 pass / 0 fail / 2 skip）GREEN**（`qa/p3-batch-sweep/gate-p6-b20-final.txt`，Phase 6 批20 锚点；本行原写 118/2131 为 Phase 5 残项期陈旧值，2026-10-18 随 V1.4.0 发布订正）；门禁 FULL/QUICK 双档 + 守卫基建四件套（dep-lint/config-key-lint/gate/lock-probe），「跳过门禁即未验收」（GATE-POLICY）。
 - **分发**：双端一键（`setup.mjs`/`install-host`/`deploy-vm`），preflight 登录态探测、psmod/服务版本指纹、隧道守护（进程内 ssh2+指数退避+仅绑回环）、分发跟批闭环（DEPLOYMENT §1.7）。
+- **发布工程（V1.4.0 新增）**：`release/V1.4.0/{host,vm,overall}` 三包一键部署（`delivery/pack-release.mjs` 构建，逐文件 sha256 MANIFEST + 包内 V1-V4 验证 + `--skip-build`）；发布问题按「版本→迭代」记 `docs/release/issues.md`。
 
 ## 二、里程碑链
 
@@ -22,6 +23,8 @@
 | Phase 2（10-12） | 治理纵深 | T1–T12 全交付；守卫基建入门禁；QA 严过关 IS_PASS=YES（92/1889）；K3 假成功根治、S-4 策略拒绝入审计 |
 | Phase 3（10-13~14） | 承诺兑现（P0×4 收敛） | 批0 文档止血；批2 部署可达（DB-1..12 一键化）；批3 速赢交互；批4 M7 provider 差集/M3 预检/M6 读写分派；批5 保留期/取消风暴/孤儿门禁化；批6 深债（bearer 自检/wsProbe/schema 漂移钉）；**批1 审批闭环专项**：出路(c) `DELEGATION_REQUIRED`（纯直调 L2/L3 收口"须走委派"，根治"死令牌信任核弹"）+双闸三调用点接线+F-1/F-2/F-3 装配单源/scope 留存/判源零断崖 |
 | Phase 4（10-14~15） | 再审计补课（P1×3+P2×6 销账） | 批8 分发跟批+真机 V17 指纹；批9 教学诚实化（三册假方法 `tasks/resubscribe`→真实通路、§2.6 码表补齐+**漂移钉入 ST3**、claims-guard 治理面 25→30 件）；批10 缺省形态 E2E（常驻 scope 链五象限）、F-5 合成步骤 risk 如实化、`directWithActiveTurn` 窄窗观测、llmSession 工作集读数透传、SKILL 码表双向对账。两轮 QA 独立回归 **IS_PASS=YES + 活性反证**（防装饰品守卫/侥幸绿） |
+| Phase 5（10-15~16） | C0 转呈面专项 + 残项 | 批11~14 完赛；C0：`foldK6Verdict` 把 `data.success===false` 折叠为诚实失败终态（呈报回执/重放转呈/环形缓存/链条目四点同源），假成功压平面离线钉死 + 三组变异反证；批14 执法通道化（`--policy-gate-wiring`） |
+| Phase 6（10-16~18） | 全景再审计 + 决策族 + 技术债 + **V1.4.0 发布** | 批15 宿主跟批闭合；批16 V20 观察窗（暴露 N-5 实弹级委派呈报失真）；批17 决策族 7 项用户全裁；批18 **D-6 根治**（`DelegationTruthProbe.delegationActivity` 降级抑制，V20 达成、链上 err `UNKNOWN_CAPABILITY`→`REPLAY_FAILED`）+ D-5 就绪超时 60s→180s + D-7 matchedRule 订正；批19 SessionHealth 语义边界文档注明（销账模式）；批20 四项技术债闭合（2 项 stale 销账 / GUI 锁屏诚实定性 / 冷启动用户裁保持 5min 转观察项）；**REL-V1.4.0**：tag V1.4.0 + `release/V1.4.0/{host,vm,overall}` 三包 + 清空历史部署真机重装 + 完整功能验证（54 能力/双通道/审计链）全过（`docs/release/issues.md` 迭代1 关闭） |
 
 ## 三、已知限制（如实，2026-10-15 批11~14 后态）
 

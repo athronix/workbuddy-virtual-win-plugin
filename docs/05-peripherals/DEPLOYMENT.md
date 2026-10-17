@@ -601,3 +601,57 @@ junction 免管理员、免联网、幂等（已指向正确目标则跳过，�
 
 - 想保留 `npm ci` 路径（如要做二次开发）：去掉 `--skip-install`，安装器走 `npm ci`。
 - 想跳过软链（如你已手动建好 node_modules）：加 `--skip-links`。
+
+## 9. 发布包与一键部署（V1.4.0 起，REL 工程）
+
+发布包由 `delivery/pack-release.mjs` 从**干净工作区 + 已构建 dist** 生成，结构（版本=git tag=目录名）：
+
+```
+release/
+└── V1.4.0/
+    ├── host/      # 宿主机一键部署发布包（install-host 闭包 + skills + packages + node_modules）
+    ├── vm/        # VM 一键部署发布包（deploy-vm→setup→install-vm 闭包 + skills + packages + 探针）
+    └── overall/   # 整体一键（host ∪ vm ∪ bootstrap/uninstall + docs/ 全套文档）
+```
+
+每个包含：一键脚本（`deploy-host.sh` / `deploy-vm.sh` / `deploy-all.sh`）、`README.md`（用法/前置/验证/回滚）、`MANIFEST.txt`（逐文件 sha256 + 总体指纹）。构建证据（三包指纹 + 包内 V1-V4 验证 + 目录树）落 `qa/release/<version>-pack.txt`。
+
+### 9.1 构建发布包
+
+```bash
+npm run build                                   # dist 必须就位（pack 前置断言）
+node delivery/pack-release.mjs --version V1.4.0 # 产出 release/V1.4.0/{host,vm,overall}
+```
+
+包内验证（失败即中止、不产出可信包）：**V1** 三包必存文件结构断言（`PACKAGE_REQUIRED`，防闭包漏"读文件"型依赖——迭代1 即漏 `vm-service.config.json`）、**V2** host 闭包 dry-run、**V3** vm 闭包 dry-run、**V4** 能力计数=54。
+
+### 9.2 一键部署（整体包）
+
+```bash
+cd release/V1.4.0/overall
+cp ../../.env .env            # 或由 .env.example 生成后编辑（VM_HOST/VM_USER/WINVM_VM_PROVIDER…）
+./deploy-all.sh --wipe        # ★ 发布迭代铁律：先清空历史部署，再重装
+./deploy-all.sh               # 不清场直接重装（仅限同版本热修，不构成迭代验收）
+```
+
+- 一键脚本默认 `--skip-build`：包内 dist 已构建且 MANIFEST 指纹在册，且包**不含 src/tsconfig/tsc**（无法重建）。仓库态部署省略该 flag 即走完整 BUILD。
+- `--wipe` = 双端 `uninstall.mjs --apply`（宿主持久化与 VM `C:/WinVMBridge` 入回收站可恢复；`C:/WinVMWorkspace` 默认保留）后再 `setup.mjs --apply --skip-build`。
+- 单边：`host/deploy-host.sh` / `vm/deploy-vm.sh`（后者交互确认后 `--apply --skip-build`）。
+
+### 9.3 发布迭代铁律（用户 2026-10-18 裁定）
+
+> **每个迭代重新部署新版本前，必须清空历史部署**（`deploy-all.sh --wipe`）。不清场的重装只是"补部署"，不构成迭代验收；功能验证矩阵必须在该迭代的清空重装态上取数。迭代问题按「版本→迭代」记 `docs/release/issues.md`，关闭条件=复验通过。
+
+### 9.4 部署后验证矩阵（V1.4.0 实测全过）
+
+| # | 验证项 | 通过判据 |
+|---|---|---|
+| 1 | `/health`（隧道） | ok:true、provider=ready、session.state=healthy |
+| 2 | MCP `meta.capability.list` | count=54、六域齐 |
+| 3 | MCP `system.info.get` | 实调返回 OS/CPU/内存/isAdmin |
+| 4 | A2A `a2a.delegate`（L1 goal） | 终态 ok、steps 结构化回执 |
+| 5 | `gui.session.status` | healthy / locked=false |
+| 6 | 审计链 | 委派 traceId 在链、字段级回执；`a2a.health` Agent Card 可达 |
+| 7 | 双侧部署态 | 宿主缓存版本路径在册；VM `C:/WinVMBridge` + 计划任务 + dev-and-qa MANIFEST 在册 |
+
+设计依据：`docs/release/DESIGN-V1.4.0.md`；发布说明：`docs/release/RELEASE-V1.4.0.md`；问题台账：`docs/release/issues.md`。
