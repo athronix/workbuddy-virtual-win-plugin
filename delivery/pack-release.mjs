@@ -164,18 +164,17 @@ function assembleCommon(dest) {
   copyEntry(join(ROOT, 'package.json'), join(dest, 'package.json'));
   copyEntry(join(ROOT, '.env.example'), join(dest, '.env.example'));
 }
-/** host 专属：delivery 子集 + node_modules（@winvm 实体副本 + ssh2 链） */
+/** host 专属：node_modules（@winvm 实体副本 + ssh2 链） */
 function assembleHostNodeModules(dest) {
+  const entries = pkgRuntimeEntries();
   for (const n of packageNames()) {
     const pkgDest = join(dest, 'node_modules', '@winvm', n);
-    for (const { rel, src } of pkgRuntimeEntries().filter((e) => rel0(e.rel) === `packages/${n}`)) {
-      copyEntry(src, join(pkgDest, relAfter(e.rel, `packages/${n}/`)));
+    for (const { rel, src } of entries.filter((x) => x.rel.startsWith(`packages/${n}/`))) {
+      copyEntry(src, join(pkgDest, rel.slice(`packages/${n}/`.length)));
     }
   }
   for (const n of ssh2Closure()) copyEntry(join(ROOT, 'node_modules', n), join(dest, 'node_modules', n));
 }
-const rel0 = (rel) => rel.split('/').slice(0, 2).join('/');
-const relAfter = (rel, prefix) => rel.slice(prefix.length);
 
 /* ------------------------------ 一键脚本 ------------------------------ */
 const NODE_RESOLVE = [
