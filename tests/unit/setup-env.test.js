@@ -12,6 +12,7 @@ import {
   distPaths,
   manifestPaths,
   packagePayloadPaths,
+  evaluateTunnelReuse,
 } from '../../delivery/setup.mjs';
 
 const SAMPLE = `
@@ -148,6 +149,27 @@ describe('buildPlan', () => {
     const cfg = resolveConfig({ ...APPLY_ENV, VM_HOST: '' }, { apply: true });
     const phases = buildPlan(cfg).map((p) => p.phase);
     assert.ok(!phases.includes('QA-PROBE'));
+  });
+
+  // OBS-1（REL-V1.4.0 迭代2）：TUNNEL 相位复用判据——daemon 自报态仅作信息，
+  // 后端 /health 打通为唯一硬判据（run1 观察项：daemon healthy 但 VM 服务死 = 隧道黑洞）。
+  test('evaluateTunnelReuse：后端打通即可复用（不论 daemon 自报态）', () => {
+    assert.equal(evaluateTunnelReuse(true, true).reusable, true);
+    assert.equal(evaluateTunnelReuse(false, true).reusable, true);
+    assert.equal(evaluateTunnelReuse(true, true).blackhole, false);
+  });
+
+  test('evaluateTunnelReuse：daemon 自报 healthy 但后端未通 = 黑洞，不得复用（run1 回归）', () => {
+    const v = evaluateTunnelReuse(true, false);
+    assert.equal(v.reusable, false);
+    assert.equal(v.blackhole, true);
+    assert.match(v.note, /隧道黑洞/);
+  });
+
+  test('evaluateTunnelReuse：daemon 未报健康且后端未通 → 不可复用但非黑洞', () => {
+    const v = evaluateTunnelReuse(false, false);
+    assert.equal(v.reusable, false);
+    assert.equal(v.blackhole, false);
   });
 
   test('QA-PROBE 夹具清单为 qa-probe.ps1 + lead-md5-3.ps1（qa-verify.mjs vmps() 引用全集）', async () => {

@@ -828,13 +828,42 @@ async function probeTunnelHttp(port, timeoutMs = 8_000) {
 }
 
 /**
+ * OBS-1（REL-V1.4.0 迭代2）：TUNNEL 相位「复用/就绪」判据（纯函数，供单测钉死）。
+ *
+ * 病灶（迭代1 run1 观察项）：daemon 自报 healthy（本地端口在听、pidfile 在位）但 VM 服务
+ * 已死时，旧判据「daemon healthy ⇒ 直接复用」会放行**隧道黑洞**——本地活 ≠ 后端活，
+ * 部署日志一片 ✅，后续 HEALTH 相位才炸，误导定位方向。
+ * 修复口径：**daemon 自报态仅作信息；后端 /health 经本地端口打通为唯一硬判据**。
+ *
+ * @param {boolean} daemonHealthy daemon 权威态自报 healthy（`tunnel status` 输出）
+ * @param {boolean} httpOk 本地回环端口已打通 VM `/health`
+ * @returns {{reusable: boolean, blackhole: boolean, note: string}}
+ *   reusable=true ⇒ 可判相位成功（复用）；blackhole=true ⇒ daemon 自报健康但后端未通（隧道黑洞嫌疑）。
+ */
+export function evaluateTunnelReuse(daemonHealthy, httpOk) {
+  if (httpOk) {
+    return { reusable: true, blackhole: false, note: '后端 /health 已打通' };
+  }
+  if (daemonHealthy) {
+    return {
+      reusable: false,
+      blackhole: true,
+      note: 'daemon 自报 healthy 但后端未通——疑似隧道黑洞',
+    };
+  }
+  return { reusable: false, blackhole: false, note: 'daemon 未报健康且后端未通' };
+}
+
+/**
  * D14：TUNNEL 相位 —— daemon-aware 幂等（修复「与常驻 daemon 抢端口 → EADDRINUSE → 整体 EXIT 1」）。
+ * OBS-1（迭代2）修订判据口径：**daemon 自报态仅作信息，后端 /health 打通为唯一硬判据**。
  *
  * 决策顺序：
- *  1) **复用**：`127.0.0.1:<port>` 已监听且确实打通（daemon 权威态 `healthy:true`，或经它 `/health` 可达）
- *     → 直接复用，**不建新隧道**，相位判成功（不产生第二实例）。
+ *  1) **复用**：`127.0.0.1:<port>` 已监听且**后端 /health 确实打通** → 直接复用，**不建新隧道**，
+ *     相位判成功（不产生第二实例）。daemon 权威态仅写入日志佐证，不作放行依据——
+ *     run1 观察项：daemon 自报 healthy 但 VM 服务死 = 隧道黑洞（本地活 ≠ 后端活）。
  *  2) **拉起**：未打通 → 优先 `winvm-plugin tunnel ensure`（与常驻 daemon 同一机制、持久、幂等）；
- *     成功即相位成功。
+ *     就绪判据同为 /health 打通（ensure 刚返回时给一次短重试，容忍后端启动瞬态）；成功即相位成功。
  *  3) **回落**：`ensure` 不可用/失败 → 保持既有「进程内 ssh2 / 系统 ssh」自建路径，并**显式告警**
  *     可能与 daemon 端口冲突（安全网，非主路径）。
  * @returns {Promise<{ok: boolean, reused: boolean, pid: number|null, elapsedMs: number, handle?: unknown}>}
@@ -843,22 +872,24 @@ async function runTunnelPhase(cfg) {
   const port = cfg.tunnelLocalPort;
   const daemonOk = tunnelDaemonSupported();
 
-  // —— 1) 复用探测 ——
+  // —— 1) 复用探测（OBS-1：先探后端，daemon 态仅作信息）——
   if (await checkTcpOpen(port)) {
-    if (daemonOk) {
-      const st = await pluginTunnelStatus(cfg);
-      if (st.healthy) {
-        log(`   ♻️ 复用常驻 tunnel-daemon（pid ${st.pid ?? '?'}），跳过自建 —— 本地 127.0.0.1:${port} 已在监听且健康`);
-        return { ok: true, reused: true, pid: st.pid ?? null, elapsedMs: 0 };
-      }
-      if (await probeTunnelHttp(port)) {
-        log(`   ♻️ 复用已在线隧道（本地 127.0.0.1:${port} 可打通 /health；daemon 态=${st.state ?? '未知'}），跳过自建`);
-        return { ok: true, reused: true, pid: st.pid ?? null, elapsedMs: 0 };
-      }
-      log(`   ⚠️ 127.0.0.1:${port} 已监听但未打通（daemon 态=${st.state ?? '未知'}）→ 尝试由 daemon 恢复/拉起`);
-    } else if (await probeTunnelHttp(port)) {
-      log(`   ♻️ 复用系统 ssh 隧道（本地 127.0.0.1:${port} 可打通 /health），跳过自建`);
-      return { ok: true, reused: true, pid: null, elapsedMs: 0 };
+    const t0 = Date.now();
+    const httpOk = await probeTunnelHttp(port);
+    const probeMs = Date.now() - t0;
+    const st = daemonOk ? await pluginTunnelStatus(cfg) : null;
+    const verdict = evaluateTunnelReuse(st?.healthy === true, httpOk);
+    if (verdict.reusable) {
+      const who = daemonOk
+        ? `常驻 tunnel-daemon（pid ${st.pid ?? '?'}，态=${st.state ?? '未知'}）`
+        : '系统 ssh 隧道';
+      log(`   ♻️ 复用${who} —— 本地 127.0.0.1:${port} 可打通 /health（探测 ${probeMs}ms），跳过自建`);
+      return { ok: true, reused: true, pid: st?.pid ?? null, elapsedMs: probeMs };
+    }
+    if (verdict.blackhole) {
+      log(`   ⚠️ 隧道黑洞嫌疑：daemon 自报 healthy（pid ${st.pid ?? '?'}）但本地 127.0.0.1:${port} 未打通 /health → 尝试由 daemon 恢复/拉起`);
+    } else if (daemonOk) {
+      log(`   ⚠️ 127.0.0.1:${port} 已监听但未打通 /health（daemon 态=${st.state ?? '未知'}）→ 尝试由 daemon 恢复/拉起`);
     } else {
       log(`   ⚠️ 127.0.0.1:${port} 已监听但未打通 → 尝试重建`);
     }
@@ -873,11 +904,18 @@ async function runTunnelPhase(cfg) {
     const r = await run(process.execPath, [PLUGIN_CLI, 'tunnel', 'ensure', ...pluginVmArgs(cfg)], { timeoutMs: 90_000 });
     const elapsedMs = Date.now() - t0;
     const st = await pluginTunnelStatus(cfg);
-    if ((r.ok && st.healthy) || (await probeTunnelHttp(port))) {
-      log(`   ✅ 常驻隧道已就绪（tunnel ensure 用时 ${(elapsedMs / 1000).toFixed(1)}s，pid ${st.pid ?? '?'}）—— 本地 127.0.0.1:${port} 可连`);
+    // OBS-1：daemon 自报 healthy 仅作信息，就绪判据=后端 /health 打通。
+    // ensure 刚返回时后端可能仍在起（VM-START 紧随其后），r.ok 时给一次短重试窗口。
+    let httpOk = await probeTunnelHttp(port);
+    if (!httpOk && r.ok) {
+      await sleep(2_000);
+      httpOk = await probeTunnelHttp(port);
+    }
+    if (httpOk) {
+      log(`   ✅ 常驻隧道已就绪且后端已打通（tunnel ensure 用时 ${(elapsedMs / 1000).toFixed(1)}s，pid ${st.pid ?? '?'}，daemon 态=${st.state ?? '未知'}）—— 本地 127.0.0.1:${port} 可连`);
       return { ok: true, reused: false, pid: st.pid ?? null, elapsedMs };
     }
-    log(`   ❌ tunnel ensure 未达成健康（用时 ${(elapsedMs / 1000).toFixed(1)}s，state=${st.state ?? '未知'}）→ 回落自建隧道`);
+    log(`   ❌ tunnel ensure 后后端仍未打通（用时 ${(elapsedMs / 1000).toFixed(1)}s，state=${st.state ?? '未知'}）→ 回落自建隧道`);
   }
 
   // —— 3) 回落：既有「进程内 ssh2 / 系统 ssh」自建路径（保留原语义） ——
