@@ -636,11 +636,14 @@ cp ../../.env .env            # 或由 .env.example 生成后编辑（VM_HOST/VM
 
 - 一键脚本默认 `--skip-build`：包内 dist 已构建且 MANIFEST 指纹在册，且包**不含 src/tsconfig/tsc**（无法重建）。仓库态部署省略该 flag 即走完整 BUILD。
 - `--wipe` = 双端 `uninstall.mjs --apply`（宿主持久化与 VM `C:/WinVMBridge` 入回收站可恢复；`C:/WinVMWorkspace` 默认保留）后再 `setup.mjs --apply --skip-build`。
+- **VM 段清场顺序（迭代3 起）**：先 `schtasks /End` **熔断任务级看门狗**（RestartOnFailure PT1M×3），再按命令行**签名**查杀 services（vm-service node / start-hidden wrapper / **ps-bridge 孤儿**——均排除自身、绝不按可执行体路径匹配，防误杀共享 node 的 WorkBuddy MCP servers），然后 `schtasks /Delete` 拆除看门狗注册，兜底复查残留签名进程，最后删 `C:/WinVMBridge`。此顺序消除旧版「先删任务再杀进程」的看门狗重启窗口与 ps-bridge 脱树占口（18443）问题。
 - 单边：`host/deploy-host.sh` / `vm/deploy-vm.sh`（后者交互确认后 `--apply --skip-build`）。
 
-### 9.3 发布迭代铁律（用户 2026-10-18 裁定）
+### 9.3 发布迭代纪律（用户 2026-10-18 裁定）
 
-> **每个迭代重新部署新版本前，必须清空历史部署**（`deploy-all.sh --wipe`）。不清场的重装只是"补部署"，不构成迭代验收；功能验证矩阵必须在该迭代的清空重装态上取数。迭代问题按「版本→迭代」记 `docs/release/issues.md`，关闭条件=复验通过。
+> **① 清空重装**：每个迭代重新部署新版本前，必须清空历史部署（`deploy-all.sh --wipe`）。不清场的重装只是"补部署"，不构成迭代验收；功能验证矩阵必须在该迭代的清空重装态上取数。迭代问题按「版本→迭代」记 `docs/release/issues.md`，关闭条件=复验通过。
+> **② 清场先杀看门狗**：uninstall 必须先查杀 VM 端本项目的看门狗与 services，再执行卸载清场（已内建于 `uninstall.mjs` VM 段，见 §9.2）。
+> **③ 迭代即推送**：每个迭代完成后 git commit 必须 push 到 origin（GitHub `athronix/workbuddy-virtual-win-plugin`，private）。
 
 ### 9.4 部署后验证矩阵（V1.4.0 实测全过）
 

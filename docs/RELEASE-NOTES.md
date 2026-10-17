@@ -9,7 +9,7 @@
 - **双通道**：MCP 直调（简单任务，`/mcp`）∥ A2A 委派（复杂任务，`/a2a`，streaming 进度+input-required 审批挂起）。
 - **VM 侧 Agent 选型**（`WINVM_VM_PROVIDER`）：`workbuddy-deterministic`（确定性基准）/ `workbuddy`（LLM 常驻会话，缺省）/ `hermes-agent`（MCP 预注册）。
 - **治理栈**：风险分级 L0-L3 + 双闸（`allowedCapabilities` 白名单/`maxRisk` 封顶，**接线在位，执法灰度现况见 §3**）+ 审批闭环（委派通道：挂起→宿主批准→服务端留存值重放，批准即删一次性令牌+previewHash 换参拒绑）+ 哈希链审计（终态拒绝全入链：策略硬拒/审批拦截/委派收口/早退族）。
-- **测试**：**124 文件 / 2179 例（2177 pass / 0 fail / 2 skip）GREEN**（`qa/p3-batch-sweep/gate-p6-b20-final.txt`，Phase 6 批20 锚点；本行原写 118/2131 为 Phase 5 残项期陈旧值，2026-10-18 随 V1.4.0 发布订正）；门禁 FULL/QUICK 双档 + 守卫基建四件套（dep-lint/config-key-lint/gate/lock-probe），「跳过门禁即未验收」（GATE-POLICY）。
+- **测试**：**124 文件 / 2193 例（2191 pass / 0 fail / 2 skip）GREEN**（`qa/p3-batch-sweep/gate-rel-v1.4.0-it3.txt`，V1.4.0 发布工程迭代3 锚点；迭代2=2185、批20=2179、原 118/2131 为 Phase 5 残项期陈旧值——基线随发布迭代推进逐档刷新，权威源恒为 `qa/` 最新 `gate-*.txt` 汇总行）；门禁 FULL/QUICK 双档 + 守卫基建四件套（dep-lint/config-key-lint/gate/lock-probe），「跳过门禁即未验收」（GATE-POLICY）。
 - **分发**：双端一键（`setup.mjs`/`install-host`/`deploy-vm`），preflight 登录态探测、psmod/服务版本指纹、隧道守护（进程内 ssh2+指数退避+仅绑回环）、分发跟批闭环（DEPLOYMENT §1.7）。
 - **发布工程（V1.4.0 新增）**：`release/V1.4.0/{host,vm,overall}` 三包一键部署（`delivery/pack-release.mjs` 构建，逐文件 sha256 MANIFEST + 包内 V1-V4 验证 + `--skip-build`）；发布问题按「版本→迭代」记 `docs/release/issues.md`。
 
