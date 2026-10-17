@@ -37,11 +37,12 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - **Phase 3(10-13~14)**：批0文档止血→批6深债四件；真机 E2E 16/16 PASS(P0-4 收口)；用户五裁项入库。批1 审批闭环 P0-1 收官：新契约码 `DELEGATION_REQUIRED`(retryable=false)按通道事实(isInnerDelegation=dtid∨协调器活动委派槽,不可自报,全fail-safe)收口；双闸 evaluateScoped 单点+三调用点；判源 `maxRiskSource==='agent'`；灰度 `WINVM_POLICY_GATE_WIRING` 缺省 shadow。**教训**：动传输/配置形态先 grep 断言面（src=vmagent 方案被 LEGACY_OUT 38 处逐字节守卫挡死）；执法单点定服务层。
 - **Phase 4 再审计(10-14)→批10 完赛(10-15)**：P1×3+P2×6 全销账，基线 116/2103 GREEN。N-1 分发未跟批（仓库≠分发真相源）、N-5 文档教不存在的 `tasks/resubscribe`（真实通路=client.replyApproval→message/send data→continueTask→resolveApproval）、N-2 错误码表 vs errors.ts 封闭集漂移（同病三次）。
 - **Phase 5(10-15~16)**：批11-14 + 残项（capability.list 名实、skip 档、V19 定性→C0）+ **C0 转呈面专项**（`foldK6Verdict` 把 `data.success===false` 翻转为 `ok:false/isError:true/EXECUTION_FAILED/K6_VERIFY_FAILED`，在 `receiptCache.record` 前折叠⇒K5/重放转呈/哈希链同源诚实）；QA 回归 IS_PASS=YES（三组变异反证 6/1/1 红还原全绿）；**基线 121 件/2162 例 GREEN**（`qa/p3-batch-sweep/gate-p5-c0-final.txt`）。批14 执法通道化：`install-vm.mjs --policy-gate-wiring off|shadow|on`（注入 start-hidden.ps1 **赋值区**，须 env 行号 < Start-Process 行号）+ DEPLOYMENT.md §1.7/1.8 runbook。
-- **Phase 6(10-16~)**：第二轮全景 `docs/audit/2026-10-16-panorama-phase6.md`；批15 宿主跟批闭合（SKILL 真实落点=`~/.workbuddy/connectors/skills/connector-winvm/`，跟批判据 `git diff --no-index` 逐字节 IDENTICAL）；批16 V20 观察窗（委派完成步携折叠回执的自然样本，依赖 LLM 会话健康）**进行中**；批17 决策族待裁决。
+- **Phase 6(10-16~)**：第二轮全景 `docs/audit/2026-10-16-panorama-phase6.md`；批15 宿主跟批闭合（SKILL 真实落点=`~/.workbuddy/connectors/skills/connector-winvm/`，跟批判据 `git diff --no-index` 逐字节 IDENTICAL）；批16 V20 观察窗收口（三轮真委派暴露实弹级 N-5 委派呈报失真：服务端已执行并写诚实 K6 折叠回执、任务层却报"未匹配到模板"、链上 err 被顶替 `UNKNOWN_CAPABILITY`；C0 真机复验那轮 seq=6 即同路径⇒稳定复现非偶发）；批17 决策族 7 项经用户裁决全按建议处置→**批18 完赛**（commit 398d5ba）。
+- **批18(10-17)**：D-6 根治——`shouldDegrade` 命中 D4.4 前先经既有 `DelegationTruthProbe.delegationActivity` 反查（同 K-N1 接口/账本/traceId 键，不增契约面）：`total>0` 抑制降级+终态透传服务端活动事实与 LLM 真实码（steps 全翻 ok:false，sink 回传 D-6 状态）；`total=0` 照常降级但 summary 必带 `（LLM 侧收口：<code>[/<reason>]）`+`error.details.degradedFrom*`；probe 缺席/抛错 fail-open ⇒ 真机 V20 达成（stepCount 0→1、err→`REPLAY_FAILED`），destructive"已执行却报未匹配"静默窗消除；D-5 ready 超时默认 60s→**180s** 与 WARMUP 对齐（真机 restarts=0、首调 49278→12858ms）；D-7 失败站点 `matchedRule` 由 error.code 订正为 `runtime:execution-failed`（错误语义归 `result.errorCode` 独立承载）；D-1/D-2 backlog 陈旧销账（schema enum/pattern 早已含 appops 且有反向守卫钉"运行期不接"；`phase2-approval-wait-fallback.test.js` 24 例即"要补的单测"）；D-3/D-4 固化 SECURITY-GOVERNANCE §4.6（链存归因不存全量载荷）/§4.7（deterministic 不挂起）；N-6 定性=设计行为非缺陷（多未决审批取最旧一条改判，其余 warn+details.others 透出）。
 - K2 预热 `provider.warmup()`（`WINVM_LLM_SESSION_WARMUP_MS` 默认180s）；K3 假成功根治（shadow 门控 `reconcileApprovalWait`，灰度 `approvalTruth`）；S-4 POLICY_DENIED 零审计已修（注入 `recordPolicyDeniedAudit`）；A5/K-N1/K-N2 均有 `r19c-*` 单测覆盖。
 
 ## 关键口径
-- **测试基线权威源 = `qa/` 最新 `gate-*.txt` 汇总行**（README/06-OVERVIEW 静态数字已废）。当前 **121 文件 / 2162 例 GREEN**（2 skip 恒 ssh2-resolve OFFLINE_SKIP）。Q3 起 sweep = `tests/unit/**` + `delivery/__tests__/**`。门禁=`npm run gate`/`gate:quick`/`lock-probe`。
+- **测试基线权威源 = `qa/` 最新 `gate-*.txt` 汇总行**（README/06-OVERVIEW 静态数字已废）。当前 **124 文件 / 2179 例 GREEN**（`qa/p3-batch-sweep/gate-p6-b18-final.txt`；2 skip 恒 ssh2-resolve OFFLINE_SKIP）。Q3 起 sweep = `tests/unit/**` + `delivery/__tests__/**`。门禁=`npm run gate`/`gate:quick`/`lock-probe`。
 - 测试证据：每轮只留一份权威报告 `real-test-<date>-run<N>.md`；「未复现≠已修」须确定性注入回归；FAIL 给四元组(现象/根因/证据/路由)；证据目录删除必留痕。
 - 裁决必须落档再引用：权威层级=仓库文档>任务板>聊天；文档引用以锚点段标签为主、行号为辅（并行改动行号漂移）。
 - 证据文件「写完再读」：写入窗口内读会得 0B 假空→任何"为空/缺失"须二次确认(mtime+字节+进程存活)。
@@ -49,11 +50,10 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 ## 团队/A2A 派发纪律
 后台 worker「completed 通知」与「SendMessage 回报」异步分离→fresh Agent+极窄任务书+每逻辑单元即 commit+主理人按 HEAD 独立核验；**同任务严禁双进程并发**；只读任务也须指定增量落盘文件(绝对路径)+每节结论即 commit。
 
-## backlog（未修·P2，转批17 决策族）
-- **D-3**：`capability.schema.json` 缺 `appops` 且**无运行期校验器消费**（`additionalProperties:false` 从未兑现）→ 裁「schema 接入运行期校验」or 清扫死配置。
-- K3 兜底是启发式(依赖 LLM 措辞)，根治=bridge 直读 MCP 结构化结果；建议补 `reconcileApprovalWait` 直接单测。
-- 预热会话 idle 回收(5min)后深度空闲首调仍付冷启动（K2 只覆盖重启后紧随委派）；**N-3 实测深度空闲冷启动 ~49.3s，可撞 60s `system/init` 判死阈值**（10-16 暖身 TIMEOUT 实证）。
-- `SessionHealth` 无法表达「未知」→ 先文档注明"仅 state==='healthy' 才有意义"。
+## backlog（未修·P2）
+- `SessionHealth` 无法表达「未知」→ 先文档注明"仅 state==='healthy' 才有意义"（**唯一待用户裁项**）。
 - 真实 GUI 自动化点击端到端回归受远端锁屏限制。
-- 载荷全落链、deterministic 真挂起通路（待裁决）。
+- 深度空闲冷启动 ~49.3s 仍存在（K2 预热只覆盖重启后紧随委派）；D-5 已把判死阈值提至 180s ⇒ 不再误杀，但首调延迟本身未消除。
+- K3 兜底仍为启发式（依赖 LLM 措辞）；批18 裁**保留**作 fail-safe，根治=bridge 直读 MCP 结构化结果，暂缓。
 - R4 根治=B3 实测(commit 7e5e6c1)：误开 enforceBearer 实况=VM 内回连 401 打在工具面⇒委派**零副作用虚假完成**，非"当场 401"；文档六处已订正，待补 bearer 生效自检。
+- ~~teams 非 winvm 残骸 45 个~~ → **已于 Phase2(10-12) 用户终裁永久不动**（`phase2-arch-design.md` §7-③"一律不动（永久纪律）"，后续任何批次不得触碰 `~/.workbuddy/teams` 非 winvm 域）⇒ 非待裁项。
