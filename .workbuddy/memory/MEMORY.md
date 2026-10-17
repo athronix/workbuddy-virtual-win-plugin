@@ -52,8 +52,8 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 
 ## backlog（未修·P2）
 - ~~SessionHealth 无法表达「未知」~~ → **批19 销账**：E-2（P2-T9）早已以 `probeError`/`probeErrorCode` 三码（PROBE_NOT_WIRED/TIMEOUT/EXCEPTION）根治「未知」表达并三处载明（SECURITY §5.3 / INTERFACES IF-6 / 契约注释）；批19 按用户裁决以**准确措辞**补 IF-6 消费者注（state 四值均有效观测、无 unknown 枚举系 B6 设计裁定、不得把非 healthy 反推为未知）——原建议裸表述「仅 state==='healthy' 才有意义」被 E5 静态守卫钉禁（未兑现临时口径），见 `docs/changes/phase6-b19-notes.md`。
-- 真实 GUI 自动化点击端到端回归受远端锁屏限制。
-- 深度空闲冷启动 ~49.3s 仍存在（K2 预热只覆盖重启后紧随委派）；D-5 已把判死阈值提至 180s ⇒ 不再误杀，但首调延迟本身未消除。
-- K3 兜底仍为启发式（依赖 LLM 措辞）；批18 裁**保留**作 fail-safe，根治=bridge 直读 MCP 结构化结果，暂缓。
-- R4 根治=B3 实测(commit 7e5e6c1)：误开 enforceBearer 实况=VM 内回连 401 打在工具面⇒委派**零副作用虚假完成**，非"当场 401"；文档六处已订正，待补 bearer 生效自检。
+- ~~真实 GUI 自动化点击端到端回归受远端锁屏限制~~ → **批20 定性**：锁屏态=Winlogon 安全桌面，会话内进程无法合成输入解锁（Windows 安全边界）+ tscon 需管理员提升 ⇒ **不可代码修复**；批20 已订正 §5.4 过期注释（"工具面无 sessionId 数据源"不成立——sessionId 契约必填且 /health 透出）并补 E2E 前置人工配方（powercfg 禁休眠/待机+屏幕保护+/health.session.state==='healthy' 前置门）；P2 观察项=E2E preflight 早失败钩子。
+- 深度空闲冷启动 ~49.3s：**批20 用户裁定 idle TTL 保持 5min（300_000）不变** ⇒ 冷启动定性为 TTL 回收语义的固有代价（codebuddy CLI 进程级冷启动，外部特性不可根除）；D-5 的 180s 判死阈值已保证不误杀；保活机制列 P2 观察（未评估副作用：串行链排队可能增加首调延迟）。
+- ~~K3 兜底仍启发式~~ → **批20 销账**：根治早已兑现——`reconcileApprovalTruth` 服务端审批账本结构化反查（delegation-truth.ts）+ P2-T8 归属键放宽 `taskId ?? traceId` + `WINVM_APPROVAL_TRUTH` 缺省 **on**（constants.ts:316）；文本兜底按用户裁决（SK-9）保留作 fail-safe；SECURITY §3.3 已固化运营观测口径（decidedBy='text-fallback' 计数=兜底命中率，长期观察项）。
+- ~~R4 待补 bearer 生效自检~~ → **批20 销账**：P2-T5（commit d277882）已落地挂载自检五码+innerReconnect 三态+fail-closed 拒启+链上取证（45 例；http-guard.ts:179 `runBearerMountSelfCheck`、server.ts:830-943 装配）；P2-T6（e0b6945）补齐回连凭据通路；B3 两段式实况（7e5e6c1）与文档六处订正在册。
 - ~~teams 非 winvm 残骸 45 个~~ → **已于 Phase2(10-12) 用户终裁永久不动**（`phase2-arch-design.md` §7-③"一律不动（永久纪律）"，后续任何批次不得触碰 `~/.workbuddy/teams` 非 winvm 域）⇒ 非待裁项。
