@@ -87,8 +87,10 @@ release/
 | 脚本 | 行为 | 参数透传 |
 |---|---|---|
 | `host/deploy-host.sh` | 校验 node/`.env`（缺则从 env.example 复制并警告需编辑）→ `exec node delivery/install-host.mjs "$@"` | 全部（--dry-run/--no-tunnel/--vm-host…） |
-| `vm/deploy-vm.sh` | 同上校验 → 无参时交互确认后追加 `--apply`；`exec node delivery/deploy-vm.mjs "$@"` | 全部 |
-| `overall/deploy-all.sh` | 前置检查（node/.env/ssh 到 VM 可达）→ `--wipe` 时先跑双端 uninstall → `node delivery/setup.mjs --apply` → 后置验证（隧道 /health + 能力计数）→ 打印摘要 | `--wipe`/`--yes`/其余透传 |
+| `vm/deploy-vm.sh` | 同上校验 → 无参时交互确认后追加 `--apply --skip-build`；`exec node delivery/deploy-vm.mjs "$@"` | 全部 |
+| `overall/deploy-all.sh` | 前置检查（node/.env/关键键值）→ `--wipe` 时先跑双端 uninstall → `node delivery/setup.mjs --apply --skip-build` → 后置验证（隧道 /health）→ 打印摘要 | `--wipe`/`--yes`/其余透传 |
+
+**`--skip-build`（REL-V1.4.0 新增，setup.mjs/deploy-vm.mjs）**：发布包内 dist 已构建且 MANIFEST 逐文件指纹在册，且包**不含 src/tsconfig/tsc**（无条件重跑 BUILD 必失败）⇒ 包内一键脚本默认传 `--skip-build` 省略 BUILD 相位；仓库态默认不跳（行为零变化）。实现：`resolveConfig` 增 `skipBuild`（`opts.skipBuild===true ‖ WINVM_SKIP_BUILD=1`）；`buildPlan` 条件省略 BUILD；`--only-host/--only-vm` 保留集同步去 BUILD。
 
 ## 五、打包脚本 `delivery/pack-release.mjs` 设计
 

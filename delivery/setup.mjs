@@ -108,6 +108,9 @@ export function resolveConfig(env, opts = {}) {
     setupTunnel: bool('WINVM_SETUP_TUNNEL'),
     tunnelLocalPort: num('WINVM_TUNNEL_LOCAL_PORT', 18443),
     tunnelRemotePort: num('WINVM_TUNNEL_REMOTE_PORT', 18443),
+    // REL-V1.4.0：发布包场景——包内 dist 已构建且 MANIFEST 指纹在册，且包不含 src/tsconfig/tsc，
+    // 无条件重跑 BUILD 必失败。--skip-build / WINVM_SKIP_BUILD=1 显式跳过（仓库态默认不跳）。
+    skipBuild: opts.skipBuild === true || bool('WINVM_SKIP_BUILD'),
   };
 }
 
@@ -115,12 +118,15 @@ export function resolveConfig(env, opts = {}) {
 export function buildPlan(cfg) {
   const steps = [];
   const mode = cfg.dryRun ? 'dry-run（只规划）' : 'apply（真执行）';
-  steps.push({
-    phase: 'BUILD',
-    description: `构建全部包（npm run build）[${mode}]`,
-    command: 'npm run build',
-    apply: !cfg.dryRun,
-  });
+  // REL-V1.4.0：skipBuild 时省略 BUILD 相位（发布包 dist 已指纹在册；见 resolveConfig 注释）
+  if (!cfg.skipBuild) {
+    steps.push({
+      phase: 'BUILD',
+      description: `构建全部包（npm run build）[${mode}]`,
+      command: 'npm run build',
+      apply: !cfg.dryRun,
+    });
+  }
   if (cfg.hostDeploy) {
     const args = ['node', 'delivery/install-host.mjs'];
     if (cfg.dryRun) args.push('--dry-run');
@@ -1013,6 +1019,7 @@ const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 async function main() {
   const args = process.argv.slice(2);
   const apply = args.includes('--apply');
+  const skipBuild = args.includes('--skip-build');
   const envPath = args.find((a) => a.startsWith('--env='))?.slice('--env='.length) ?? '';
   const target = envPath || resolve(ROOT, '.env');
 
@@ -1031,7 +1038,7 @@ async function main() {
     log(`未找到 .env，使用模板 ${fallback}（请复制为 .env 后填写）`);
   }
 
-  const cfg = resolveConfig(env, { apply });
+  const cfg = resolveConfig(env, { apply, skipBuild });
   const isUninstall = args.includes('--uninstall');
   const plan = isUninstall ? buildUninstallPlan(cfg) : buildPlan(cfg);
 
@@ -1059,8 +1066,8 @@ async function main() {
   // 使「计划预览」与「实际执行」都只含该侧步骤（而非仅把其它相位标记为不执行）。
   const onlyKeep = (onlyHost || onlyVm) && !isUninstall && !phaseFilter
     ? (onlyHost
-        ? new Set(['BUILD', 'HOST', 'TEST'])
-        : new Set(['BUILD', 'VM', 'VM-START', 'QA-PROBE']))
+        ? new Set(cfg.skipBuild ? ['HOST', 'TEST'] : ['BUILD', 'HOST', 'TEST'])
+        : new Set(cfg.skipBuild ? ['VM', 'VM-START', 'QA-PROBE'] : ['BUILD', 'VM', 'VM-START', 'QA-PROBE']))
     : null;
   const modeTag = onlyHost ? '仅宿主侧' : onlyVm ? '仅 VM 侧' : '双端';
 

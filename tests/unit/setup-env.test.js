@@ -97,6 +97,26 @@ describe('buildPlan', () => {
     }
   });
 
+  // REL-V1.4.0：发布包 dist 已指纹在册且包内无 src/tsconfig/tsc ⇒ --skip-build 省略 BUILD 相位
+  test('skipBuild 时省略 BUILD，其余七相位顺序不变（发布包场景）', () => {
+    const cfg = resolveConfig(parseEnv(SAMPLE), { skipBuild: true });
+    const phases = buildPlan(cfg).map((p) => p.phase);
+    assert.deepEqual(phases, ['HOST', 'VM', 'VM-START', 'TUNNEL', 'TEST', 'QA-PROBE', 'HEALTH']);
+    assert.ok(!phases.includes('BUILD'), 'skipBuild 时不应出现 BUILD 相位');
+  });
+
+  test('WINVM_SKIP_BUILD=1 经 env 等效 skipBuild（声明式持久口径）', () => {
+    const cfg = resolveConfig(parseEnv(`${SAMPLE}\nWINVM_SKIP_BUILD=1`), {});
+    assert.equal(cfg.skipBuild, true);
+    assert.ok(!buildPlan(cfg).some((p) => p.phase === 'BUILD'));
+  });
+
+  test('防呆：缺省与显式 false 均保留 BUILD（仓库态行为零变化）', () => {
+    assert.equal(resolveConfig(parseEnv(SAMPLE), {}).skipBuild, false);
+    assert.equal(resolveConfig(parseEnv(SAMPLE), { skipBuild: false }).skipBuild, false);
+    assert.ok(buildPlan(resolveConfig(parseEnv(SAMPLE), {})).some((p) => p.phase === 'BUILD'));
+  });
+
   test('VM_HOST 为空时 VM 阶段转为手动部署指引（apply=false）', () => {
     const cfg = resolveConfig({ VM_DEPLOY: '1', WINVM_DRY_RUN: '1' }, {});
     const plan = buildPlan(cfg);

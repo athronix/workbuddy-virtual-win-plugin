@@ -4,7 +4,8 @@ node_modules/
 **/*.tsbuildinfo
 
 # 发布包（可重建产物：由 delivery/pack-release.mjs 生成，逐文件指纹与构建证据入 qa/release/）
-release/
+# ⚠ 必须根限定（/release/）：无斜杠前缀的 release/ 会误伤 docs/release/（发布文档与台账目录）
+/release/
 
 # 运行时 / 生成物
 # 注意：`.workbuddy/` 整目录随仓库同步（含迁移交接档案 handover/ 与每日工作记忆 memory/），

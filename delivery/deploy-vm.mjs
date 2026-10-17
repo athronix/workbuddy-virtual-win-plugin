@@ -72,6 +72,7 @@ function run(cmd, args, opts = {}) {
 async function main() {
   const args = process.argv.slice(2);
   const apply = args.includes('--apply');
+  const skipBuild = args.includes('--skip-build');
   const isUninstall = args.includes('--uninstall');
   const envPath = args.find((a) => a.startsWith('--env='))?.slice('--env='.length) ?? '';
   const target = envPath || resolve(ROOT, '.env');
@@ -91,14 +92,14 @@ async function main() {
     log(`未找到 .env，使用模板 ${fallback}（请复制为 .env 后填写）`);
   }
 
-  const cfg = resolveConfig(env, { apply });
+  const cfg = resolveConfig(env, { apply, skipBuild });
 
   log('');
   log('══════════════════════════════════════════════════════════════');
   log(` WinVM Bridge · VM 侧一键部署（于鸿蒙宿主端运行，SSH 推送至 VM）  [${cfg.dryRun ? 'DRY-RUN 只规划' : 'APPLY 真执行'}]`);
   log(` VM provider 选型：${cfg.vmProvider}`);
   log('══════════════════════════════════════════════════════════════');
-  log(' 将执行：BUILD → VM（scp→ssh install-vm.mjs）→ VM-START（重启服务）→ QA-PROBE（探针）→ 端口轮询验证');
+  log(' 将执行：' + (cfg.skipBuild ? '' : 'BUILD → ') + 'VM（scp→ssh install-vm.mjs）→ VM-START（重启服务）→ QA-PROBE（探针）→ 端口轮询验证' + (cfg.skipBuild ? '（--skip-build：使用包内已构建 dist）' : ''));
   log('');
 
   if (cfg.dryRun) {
@@ -117,11 +118,15 @@ async function main() {
     return;
   }
 
-  // 1) BUILD（产出 dist 与运行时资产，VM 分发依赖）
-  log('[BUILD] 构建全部包...');
-  const b = await run('npm', ['run', 'build'], { timeoutMs: 300_000 });
-  if (!b.ok) { log(`❌ 构建失败（exit ${b.code}）：${b.out.slice(0, 400)}`); process.exitCode = 1; return; }
-  log('[BUILD] ✅ 完成');
+  // 1) BUILD（产出 dist 与运行时资产，VM 分发依赖）——发布包场景 --skip-build 跳过
+  if (cfg.skipBuild) {
+    log('[BUILD] 已跳过（--skip-build：发布包 dist 已构建且 MANIFEST 指纹在册）');
+  } else {
+    log('[BUILD] 构建全部包...');
+    const b = await run('npm', ['run', 'build'], { timeoutMs: 300_000 });
+    if (!b.ok) { log(`❌ 构建失败（exit ${b.code}）：${b.out.slice(0, 400)}`); process.exitCode = 1; return; }
+    log('[BUILD] ✅ 完成');
+  }
 
   // 2) VM 分发 + 安装
   log('[VM] 推送产物并安装到 VM...');
