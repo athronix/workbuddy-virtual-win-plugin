@@ -132,9 +132,33 @@ const VM_DELIVERY = [
   'delivery/deploy-shared-skills.mjs', 'delivery/link-workspace.mjs',
   'delivery/deploy-winvm-plugin.mjs', 'delivery/path-util.mjs', 'delivery/preflight.mjs',
   'delivery/env.example',
+  // install-vm.mjs 的**非 import 硬依赖**（读文件生成 runtime.json；迭代1 教训：dry-run 抓不到这类缺失）
+  'delivery/vm-service.config.json',
 ];
 const OVERALL_EXTRA_DELIVERY = ['delivery/bootstrap.mjs', 'delivery/prepare-vm.mjs', 'delivery/uninstall.mjs'];
 const VM_PROBES = ['qa/probes/qa-probe.ps1', 'qa/probes/lead-md5-3.ps1'];
+/**
+ * 包内必存文件（V1 结构断言）——防"闭包清单漏文件"（迭代1 即漏 vm-service.config.json，
+ * install-vm 读文件而非 import，dry-run 抓不到）。新增入口/数据文件时同步维护本表。
+ */
+const PACKAGE_REQUIRED = {
+  host: [
+    'delivery/install-host.mjs', 'delivery/tunnel-daemon.mjs', 'delivery/winvm-plugin.mjs',
+    'delivery/hooks/hooks.json', 'delivery/env.example', 'package.json', '.env.example',
+    'node_modules/@winvm/host-sdk/package.json', 'node_modules/ssh2/package.json',
+  ],
+  vm: [
+    'delivery/deploy-vm.mjs', 'delivery/setup.mjs', 'delivery/install-vm.mjs',
+    'delivery/vm-service.config.json', 'delivery/env.example', 'package.json', '.env.example',
+    'qa/probes/qa-probe.ps1', 'qa/probes/lead-md5-3.ps1',
+  ],
+  overall: [
+    'delivery/install-host.mjs', 'delivery/deploy-vm.mjs', 'delivery/setup.mjs',
+    'delivery/install-vm.mjs', 'delivery/vm-service.config.json', 'delivery/bootstrap.mjs',
+    'delivery/uninstall.mjs', 'delivery/env.example', 'package.json', '.env.example',
+    'docs/DEPLOYMENT.md', 'docs/RELEASE-V1.4.0.md', 'docs/issues.md',
+  ],
+};
 const OVERALL_DOCS = [
   ['docs/05-peripherals/DEPLOYMENT.md', 'DEPLOYMENT.md'],
   ['docs/INSTALL-GUIDE.md', 'INSTALL-GUIDE.md'],
@@ -308,6 +332,13 @@ function verifyPackages(dest, version) {
     return ok;
   };
   const NODE = process.execPath;
+  // V1 结构断言：各包必存文件逐一 existsSync（闭包漏文件的机械化防线）
+  for (const kind of ['host', 'vm', 'overall']) {
+    const missing = (PACKAGE_REQUIRED[kind] ?? []).filter((rel) => !existsSync(join(dest, kind, rel)));
+    const ok = missing.length === 0;
+    results.push({ label: `V1 ${kind} 必存文件`, ok, status: ok ? 0 : 1, tail: missing.join(', ') });
+    console.log(`  ${ok ? '✓' : '✗'} V1 ${kind} 必存文件${ok ? '' : `（缺失：${missing.join(', ')}）`}`);
+  }
   // V2 host 闭包：静态 import 全部解析 + dry-run 计划可出
   run('V2 host 闭包 dry-run', NODE, [
     'delivery/install-host.mjs', '--dry-run', '--no-preflight', '--no-tunnel',

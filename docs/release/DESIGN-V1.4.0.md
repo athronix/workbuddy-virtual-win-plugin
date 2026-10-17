@@ -56,6 +56,7 @@ release/
 | `delivery/deploy-shared-skills.mjs`、`link-workspace.mjs` | install-vm.mjs:95-96 import（shared-skills 发布 + junction 软链） |
 | `delivery/deploy-winvm-plugin.mjs`、`path-util.mjs`、`preflight.mjs` | install-vm.mjs:97-99 import |
 | `delivery/env.example` | .env 模板 |
+| `delivery/vm-service.config.json` | install-vm.mjs 的**非 import 硬依赖**（读文件生成 `.generated/vm-service.runtime.json`；迭代1 教训：此类缺失 dry-run 抓不到，须靠 PACKAGE_REQUIRED 结构断言） |
 | `skills/` | tgz 组成（setup.mjs:612 sources = delivery + skills + 包运行时资产 + package.json） |
 | `packages/*`（同 host 排除规则） | VM 运行期资产（dist/package.json/psmod/schemas，排除法防漏发） |
 | `package.json` | tgz 组成 |
@@ -103,10 +104,12 @@ release/
 
 | 查 | 命令（在各包目录内） | 通过判据 |
 |---|---|---|
-| V1 结构 | 脚本内置：清单逐项 existsSync + sha256 复核 | 零缺失 |
+| V1 结构 | 脚本内置：`PACKAGE_REQUIRED` 逐包 existsSync 断言（入口脚本+数据文件+探针+文档） | 零缺失 |
 | V2 host 闭包 | `node delivery/install-host.mjs --dry-run --no-tunnel` | exit 0 且计划含 BUILD/HOST 相位（静态 import 全部解析成功） |
 | V3 vm 闭包 | `node delivery/deploy-vm.mjs`（无 --apply 即 dry-run） | exit 0 且计划含 VM/VM-START/QA-PROBE 相位 |
 | V4 能力面 | 读 `packages/vm-capabilities/dist` 注册表计数 | = 54 |
+
+> **迭代1 实证的盲区**：V2/V3 只验证 import 闭包，**抓不到"读文件"型依赖**（install-vm 读 `vm-service.config.json` 生成 runtime.json）。V1 结构断言即为此增设的机械化防线——新增任何入口/数据文件必须同步 `PACKAGE_REQUIRED`。
 
 真机验证（步骤 3）剧本：快照现网 → 双端 uninstall 清场（回收站可恢复）→ `overall/deploy-all.sh --wipe`（先清后装由脚本内 sequencing 保证）→ 验证矩阵：
 
