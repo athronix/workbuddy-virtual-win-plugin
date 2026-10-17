@@ -97,6 +97,30 @@
 
 **结论：迭代 2 关闭。OBS-1 修复经「单测钉判据 + 真机实弹黑洞场景正确处置 + 清空重装态验证矩阵 7 项全过」三重验证；发布包 V1.4.0 在含本轮修复的状态下完成发布、部署与完整功能验证。**
 
-### 迭代 3 及以后
+### 迭代 3（2026-10-18 03:0x-03:4x）——清场强化：uninstall 前先查杀 VM 端看门狗与 services
 
-> （预留）每次迭代 = 依据本轮 issues 做仓库侧优化 → 重新打包 → `--wipe` 清空重装 → 重新验证。当前无未关闭问题/观察项；若用户提出新的验收要求或复验暴露新问题，按同一循环推进。
+> **状态：已关闭**。驱动项=用户纪律（2026-10-18 03:07）：「uninstall 前都先查杀 VM 端本项目的 service 的看门狗和 services」，并裁定实现路径=「在 uninstall 脚本里先查杀看门狗和 service，再 uninstall」。本轮=清场能力强化（VM 段重构）→ 重打包 → `--wipe` 清空重装（run4）→ 新清场真机验证 + 矩阵 7 项全过。
+
+| ID | 阶段 | 现象 | 根因 | 处置 | 复验 | 状态 |
+|---|---|---|---|---|---|---|
+| I-3.1 | 部署·清场（uninstall VM 段） | 旧 VM 段顺序=先 `schtasks /End + /Delete` 再杀进程，且进程杀仅覆盖 node + start-hidden wrapper | ① `/Delete` 在杀进程**之前**，留有 `RestartOnFailure`（任务级看门狗，PT1M×3）在窗口内重新拉起启动器的风险；② **ps-bridge.ps1 孤儿未覆盖**——vm-service（node）先死时 ps-bridge 脱离进程树，`taskkill /T` 带不走，会继续占用 18443 令重装 VM-START 撞 bind EACCES（本项目已知坑的变体） | `uninstall.mjs` `buildVmPs1` 段 0 重构：**(a) `schtasks /End` 先熔断看门狗**（`start-hidden -Wait` 使动作进程常驻 Running，/End 即停当前实例并阻断重启窗口）→ **(b) `Kill-Sig` 三签名查杀 services**（vm-service node 按 `C:\WinVMBridge` 命令行签名 / start-hidden wrapper / **ps-bridge.ps1**，排除 `$PID` 自身、绝不按可执行体路径匹配——node 与 WorkBuddy MCP servers 共享，误杀伤无辜）→ **(c) `schtasks /Delete` 拆除看门狗注册**（services 已死，无重启风险）→ **(d) 段 2 兜底复查**（三签名再扫一遍，幂等）；`buildVmPs1` 改 `export` 供单测直接断言生成物；载荷 **ASCII-only**（PS 5.1 无 BOM UTF-8 乱码——本项目既有坑，初稿中文注释即中招）（commit db3491e） | **run4 真机**：清场输出即新结构——`/End (fuse watchdog)` → `taskkill vm-service node PID 4140` → `services killed, port freed` → `/Delete` → `port freed (final)` → `Remove-Item C:\WinVMBridge`；POST STATUS 全复位 + 17 项 checklist 全 PASS + `VM_CLEANUP_DONE` | **已关闭** |
+| OBS-1（回归确认） | 验证·TUNNEL | 迭代2 修复的判据在本轮再次实战有效 | — | 无需处置（观察复验） | **run4 再现黑洞场景**：uninstall 杀旧 daemon 后看门狗自动化抢拉起新 daemon(pid 7850) 自报 healthy 但 VM 服务重装未起 ⇒ `⚠️ 隧道黑洞嫌疑…未打通 /health → 尝试由 daemon 恢复/拉起` → ensure 恢复 → HEALTH ✅（TUNNEL 8.4s 真实成功） | 复验通过 |
+
+#### 迭代 3 过程记录
+
+- **门禁瞬态插曲（诚实记录）**：it3 全量 gate **首跑 RED**——`phase1-t5-llm-cancel.test.js` 1 例失败。单跑该文件 12/12 GREEN，且该文件（LLM 取消透传）与本轮改动（uninstall 清场）**零交集**；定性=首跑时前一后台 gate 任务被取消留下的资源竞争所致瞬态。按「权威态须可复现」口径重跑：**GREEN 124 文件 / 2193 例 / 0 fail / 2 skip**（`qa/p3-batch-sweep/gate-rel-v1.4.0-it3.txt` 头注已载明此插曲）。
+- **重打包**（步骤2）：`release/V1.4.0` 重建——host 847 文件/6694K/sha256 `6301780a…`、vm 344 文件/2820K/sha256 `f1f4e019…`、overall 866 文件/7093K/sha256 `a619f076…`；V1-V4 包内验证全过；it2 旧包改名保留 `release/V1.4.0.superseded-it2`（同 it1 处置，可回退）。
+- **清空重装（步骤3，铁律）**：`deploy-all.sh --wipe`（run4，`qa/release/V1.4.0-deploy-run4.log`）——**新 uninstall VM 段结构在真机输出一字确认**（见 I-3.1 复验栏）；17 项清场 checklist 全 PASS；七相位全过：HOST 1.3s / VM 32.7s / VM-START 18.2s / **TUNNEL 8.4s（黑洞场景复验）** / TEST 0.4s / QA-PROBE 67.1s / HEALTH 0.5s。
+- **完整功能验证矩阵（run4 清空重装态取数）**：
+
+| # | 验证项 | 结果 | 证据（run4 态） |
+|---|---|---|---|
+| 1 | `/health` 三态 | ✅ ok:true / provider=workbuddy ready / approvalTruth on / session=healthy interactive / psBridge ready（restarts=0） | run4 日志 HEALTH + 后置 curl |
+| 2 | MCP `meta.capability.list` | ✅ **count=54**、六域 | tr_mvcsugfy_2，3ms |
+| 3 | MCP `system.info.get` | ✅ Win11 家庭版 26200 / ARM64 / 8187MB / isAdmin=true | tr_mvcsugey_1，1404ms |
+| 4 | A2A 委派（LLM 常驻会话） | ✅ steps[0] ok:true、**12.8s**（预热生效，明显快于 it2 的 23.1s）、结构化回执 | tr_mvcsvh9y_10 |
+| 5 | `gui.session.status` | ✅ healthy / interactive=true / locked=false / blackScreen=false / explorerAlive=true | tr_mvcsuggc_3，1596ms |
+| 6 | 审计链 + Agent Card | ✅ 委派 traceId 命中**链上 37 条 + 字段级回执 1 条**；直调 traceId 命中 1 条+回执 1 条（链健康）；Agent Card v0.1.0 可达、五技能 | audit.receipt（tr_mvcsvh9y_10 / tr_mvcsugey_1）+ a2a.health |
+| 7 | 双侧部署态 | ✅ 宿主缓存 `winvm-bridge/0.1.0`（5.0M 重装）；VM `WinVMBridge.Service` **Running**（lastRun 03:34:37=VM-START 时刻）+ dev-and-qa MANIFEST 在册 | ls + system.task.scheduled（tr_mvct0ldv_5）+ QA-PROBE 相位日志 |
+
+**结论：迭代 3 关闭。清场能力按用户纪律强化（先熔断看门狗→再杀 services→后拆注册→兜底复查），run4 真机确认新结构逐字生效且 18443 端口两次确认释放；V1.4.0 发布包在「判据收紧 + 清场强化」状态下完成发布、清空重装与完整功能验证。issues.md 当前无未关闭问题/观察项。**
