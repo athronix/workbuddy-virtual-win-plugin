@@ -42,6 +42,26 @@
 
 **结论：V1.4.0 发布包真机部署 + 完整功能验证全部通过 ⇒ 迭代 1 关闭，「成功发布、部署和完整功能验证」达成。**
 
+#### run3：清空重装闭环（铁律合规，2026-10-18 02:2x）
+
+用户裁定「每个迭代重新部署新版本前都要清空历史部署」后，用**更新文档后的重新打包**（overall 含 DEPLOYMENT §9）执行符合铁律的完整闭环：
+
+- **清场**：`deploy-all.sh --wipe` ⇒ 双端 uninstall checklist 全 PASS（`APPLY complete: all cleanup steps done and verification checklist passed.`）
+- **重装**（`qa/release/V1.4.0-deploy-run3.log`）：七相位全过——HOST 1.3s / VM 30.4s / VM-START 14.9s / TUNNEL 0.3s / TEST 0.3s / QA-PROBE 67.0s / HEALTH 0.4s；后置 curl ok:true、provider=ready、session=healthy、psBridge 新起（uptimeMs≈72396）
+- **验证矩阵（清空重装态取数，权威）**：
+
+| # | 验证项 | 结果 | 证据（run3 态） |
+|---|---|---|---|
+| 1 | `/health` 三态 | ✅ ok:true / provider=ready / session=healthy | run3 日志尾部 |
+| 2 | MCP `meta.capability.list` | ✅ **count=54**、六域 | tr_mvcqfh2w_1，durationMs 1 |
+| 3 | MCP `system.info.get` | ✅ Win11 26200 / ARM64 / isAdmin=true | tr_mvcqfh3d_3，1503ms |
+| 4 | A2A 委派（LLM 常驻会话） | ✅ steps[0] ok:true、16.1s | tr_mvcqfylq_4 |
+| 5 | `gui.session.status` | ✅ healthy / locked=false / explorerAlive=true | tr_mvcqfh3b_2，1595ms |
+| 6 | 审计链 | ✅ 链上 35 条记录 + 字段级回执；Agent Card 五技能 | audit.receipt + a2a.health |
+| 7 | 双侧部署态 | ✅ 宿主缓存 0.1.0 重装；VM 任务+MANIFEST 在册 | run3 相位 + VM 侧 |
+
+> 说明：run2（未清场）的验证数据保留在上节作过程记录；**run3 为铁律合规的权威验收态**。后续任何迭代重部署，一律先 `--wipe` 再验证。
+
 ### 迭代 2 及以后
 
 > （预留）每次迭代 = 依据本轮 issues 做仓库侧优化 → 重新打包 → 重新部署 → 重新验证。

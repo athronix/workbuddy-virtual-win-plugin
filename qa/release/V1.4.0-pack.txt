@@ -1,12 +1,12 @@
 # pack-release 证据 · V1.4.0
-commit: 8e10918
-date: 2026-10-17T17:48:09.035Z
+commit: 3a271a1
+date: 2026-10-17T18:27:44.809Z
 node: v24.13.0
 verify: PASS (V2/V3/V4)
 
-host    : files=847 bytes=6855014 total-sha256=697928a290cbb6c1967b01eb9af62cf89ee29ab1034a74a943d0a7b951c96899
-vm      : files=343 bytes=2881315 total-sha256=0953301eca225003e852b378d9d1e1bd77ecd9d73dd01751444c76c169593ad8
-overall : files=865 bytes=7237116 total-sha256=35ce8b85b017d2bceb4cd01651526a5a8e323b07bfd5a368e53c46d9e1291950
+host    : files=847 bytes=6855014 total-sha256=cab08024b62b6356da48e769ed0aa0411afdb2764afc88ef7596e726638b068c
+vm      : files=344 bytes=2885917 total-sha256=58ac5caa94180e246b2282bae14f62ec2f84cbe05352c2a7228fd167ad3ed9a0
+overall : files=866 bytes=7251790 total-sha256=fa66577db97a2996e49993a1a69b6af14a7c32623b5d1688a6c6ce8d4a88b7ba
 
 # 目录树（release/V1.4.0）
 host/
@@ -426,6 +426,7 @@ overall/
     ssh2-resolve.mjs
     tunnel-daemon.mjs
     uninstall.mjs
+    vm-service.config.json
     winvm-plugin.mjs
   deploy-all.sh
   docs/
@@ -830,6 +831,7 @@ vm/
     path-util.mjs
     preflight.mjs
     setup.mjs
+    vm-service.config.json
   deploy-vm.sh
   MANIFEST.txt
   package.json
