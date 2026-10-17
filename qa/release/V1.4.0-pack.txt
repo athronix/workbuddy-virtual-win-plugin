@@ -1,12 +1,12 @@
 # pack-release 证据 · V1.4.0
-commit: 3a271a1
-date: 2026-10-17T18:27:44.809Z
+commit: 23fa078
+date: 2026-10-17T18:50:28.188Z
 node: v24.13.0
 verify: PASS (V2/V3/V4)
 
-host    : files=847 bytes=6855014 total-sha256=cab08024b62b6356da48e769ed0aa0411afdb2764afc88ef7596e726638b068c
-vm      : files=344 bytes=2885917 total-sha256=58ac5caa94180e246b2282bae14f62ec2f84cbe05352c2a7228fd167ad3ed9a0
-overall : files=866 bytes=7251790 total-sha256=fa66577db97a2996e49993a1a69b6af14a7c32623b5d1688a6c6ce8d4a88b7ba
+host    : files=847 bytes=6855014 total-sha256=2bd8af32299c4a0585f035aae7173f0de676f0bf6d51e50eccde66289bf9c42f
+vm      : files=344 bytes=2888082 total-sha256=0588c2f4dba28635537108aa114f947625f5710fe405c3e6bb886ec0de982f41
+overall : files=866 bytes=7255654 total-sha256=a65c868fe9c2c10667ffdbdd46e54cd6b43bd4367634efcd6e3f6a22cc2ca7f5
 
 # 目录树（release/V1.4.0）
 host/
