@@ -300,6 +300,8 @@ submitted → working → input-required → working → completed
 
 > `session.state` 为 `unavailable`/`blackScreen` 时，GUI 能力全部返回 `SESSION_UNAVAILABLE` / `SESSION_BLACK_SCREEN`，**绝不静默返回黑图**。
 
+> **`session.state` 取值语义（消费者必读）**：四值 `healthy`/`degraded`/`unavailable`/`black-screen` **均为有效观测**——`healthy` 为会话健康；`degraded`/`black-screen` 为探针应答后确认的异常；`unavailable` 为确实无交互式会话。合约**不引入 `unknown` 枚举**（会话状态三态化已被设计否决，`tests/unit/phase2-session-unknown.test.js` B6 钉）：「探测未能得出结论」**不由 `state` 承载**，而由 `probeError`/`probeErrorCode` 显形（见下注）⇒ 消费者**不得**把非 `healthy` 的 `state` 反推为「状态未知」；只有 `unavailable` 且两键缺席，才是「确实无交互会话」的结论。
+
 > **P2-T9（E-2）`session.probeError` / `session.probeErrorCode` 字段注**：`session` 块可能额外携带这两个
 > **纯附加可选**键。它们在场表示**本次探测未能得出结论**（探针未接入 `PROBE_NOT_WIRED` / 子探针超时
 > `PROBE_TIMEOUT` / 探针调用异常 `PROBE_EXCEPTION`），此时块内 `interactive`/`locked`/`blackScreen`

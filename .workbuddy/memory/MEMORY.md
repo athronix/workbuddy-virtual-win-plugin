@@ -17,7 +17,7 @@
 - PS 5.1：`Sort-Object <裸键>` 对 `[ordered]@{}` 静默失效→`-Property { $_.key }`。
 - 沙箱：`/tmp` 只读(用 `$HOME/wbtmp`)；**git 不在 PATH 但二进制在** `/storage/Users/currentUser/.harmonybrew/opt/git/bin/git`(v2.55.0)→用全路径；`rm` shim 坏→用 `fs.unlinkSync`/`renameSync`；node 必须 `/data/storage/el1/bundle/libs/arm64/node/bin/node`；`getcwd` 偶发异常(用绝对路径)。
 - **单测绝不整批跑**→`node --test <单文件>`（`link-workspace.test.js` junction 整批触发 `0xC0000005` 假全红）。
-- **注释文本也是静态守卫输入面**（`phase2-snapshot-truth` 等白名单守卫扫全仓 src 含注释）：写病灶注释引用被守卫字段名/字样前，先 grep 同名静态断言。
+- **注释文本也是静态守卫输入面**（`phase2-snapshot-truth` 等白名单守卫扫全仓 src 含注释；`phase2-session-unknown` E5 还钉禁四份活文档出现裸表述「仅 state==='healthy' 才有意义」）：写病灶注释、**乃至向用户提的裁决建议措辞**，引用被守卫字段名/字样前，先 grep 同名静态断言（批19 建议措辞即因此返工）。
 - **慢执行假死→熔断误判→双棒并发**：LLM 成员长静默写作期与网络致死窗口外观同形；判活看**双 timeline+git status 差异**而非只看 mtime；**同任务严禁双进程并发**。
 - **Grep 工具对大文件/多词 `|` 搜索假阴性**→用目录级 grep/Read/Glob；仓库清点用 `git ls-files`/`git grep`（getcwd 失效下 FS 搜索产假象）。
 - **版本指纹 > uptime**：`psBridge.uptimeMs` 只证明重启时间，证明版本须用行为/字段指纹（`/health` 开关字段、`steps[0].risk`）。
@@ -38,7 +38,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 - **Phase 4 再审计(10-14)→批10 完赛(10-15)**：P1×3+P2×6 全销账，基线 116/2103 GREEN。N-1 分发未跟批（仓库≠分发真相源）、N-5 文档教不存在的 `tasks/resubscribe`（真实通路=client.replyApproval→message/send data→continueTask→resolveApproval）、N-2 错误码表 vs errors.ts 封闭集漂移（同病三次）。
 - **Phase 5(10-15~16)**：批11-14 + 残项（capability.list 名实、skip 档、V19 定性→C0）+ **C0 转呈面专项**（`foldK6Verdict` 把 `data.success===false` 翻转为 `ok:false/isError:true/EXECUTION_FAILED/K6_VERIFY_FAILED`，在 `receiptCache.record` 前折叠⇒K5/重放转呈/哈希链同源诚实）；QA 回归 IS_PASS=YES（三组变异反证 6/1/1 红还原全绿）；**基线 121 件/2162 例 GREEN**（`qa/p3-batch-sweep/gate-p5-c0-final.txt`）。批14 执法通道化：`install-vm.mjs --policy-gate-wiring off|shadow|on`（注入 start-hidden.ps1 **赋值区**，须 env 行号 < Start-Process 行号）+ DEPLOYMENT.md §1.7/1.8 runbook。
 - **Phase 6(10-16~)**：第二轮全景 `docs/audit/2026-10-16-panorama-phase6.md`；批15 宿主跟批闭合（SKILL 真实落点=`~/.workbuddy/connectors/skills/connector-winvm/`，跟批判据 `git diff --no-index` 逐字节 IDENTICAL）；批16 V20 观察窗收口（三轮真委派暴露实弹级 N-5 委派呈报失真：服务端已执行并写诚实 K6 折叠回执、任务层却报"未匹配到模板"、链上 err 被顶替 `UNKNOWN_CAPABILITY`；C0 真机复验那轮 seq=6 即同路径⇒稳定复现非偶发）；批17 决策族 7 项经用户裁决全按建议处置→**批18 完赛**（commit 398d5ba）。
-- **批18(10-17)**：D-6 根治——`shouldDegrade` 命中 D4.4 前先经既有 `DelegationTruthProbe.delegationActivity` 反查（同 K-N1 接口/账本/traceId 键，不增契约面）：`total>0` 抑制降级+终态透传服务端活动事实与 LLM 真实码（steps 全翻 ok:false，sink 回传 D-6 状态）；`total=0` 照常降级但 summary 必带 `（LLM 侧收口：<code>[/<reason>]）`+`error.details.degradedFrom*`；probe 缺席/抛错 fail-open ⇒ 真机 V20 达成（stepCount 0→1、err→`REPLAY_FAILED`），destructive"已执行却报未匹配"静默窗消除；D-5 ready 超时默认 60s→**180s** 与 WARMUP 对齐（真机 restarts=0、首调 49278→12858ms）；D-7 失败站点 `matchedRule` 由 error.code 订正为 `runtime:execution-failed`（错误语义归 `result.errorCode` 独立承载）；D-1/D-2 backlog 陈旧销账（schema enum/pattern 早已含 appops 且有反向守卫钉"运行期不接"；`phase2-approval-wait-fallback.test.js` 24 例即"要补的单测"）；D-3/D-4 固化 SECURITY-GOVERNANCE §4.6（链存归因不存全量载荷）/§4.7（deterministic 不挂起）；N-6 定性=设计行为非缺陷（多未决审批取最旧一条改判，其余 warn+details.others 透出）。
+- **批18(10-17)**：D-6 根治——`shouldDegrade` 命中 D4.4 前先经既有 `DelegationTruthProbe.delegationActivity` 反查（同 K-N1 接口/账本/traceId 键，不增契约面）：`total>0` 抑制降级+终态透传服务端活动事实与 LLM 真实码（steps 全翻 ok:false，sink 回传 D-6 状态）；`total=0` 照常降级但 summary 必带 `（LLM 侧收口：<code>[/<reason>]）`+`error.details.degradedFrom*`；probe 缺席/抛错 fail-open ⇒ 真机 V20 达成（stepCount 0→1、err→`REPLAY_FAILED`），destructive"已执行却报未匹配"静默窗消除；D-5 ready 超时默认 60s→**180s** 与 WARMUP 对齐（真机 restarts=0、首调 49278→12858ms）；D-7 失败站点 `matchedRule` 由 error.code 订正为 `runtime:execution-failed`（错误语义归 `result.errorCode` 独立承载）；D-1/D-2 backlog 陈旧销账（schema enum/pattern 早已含 appops 且有反向守卫钉"运行期不接"；`phase2-approval-wait-fallback.test.js` 24 例即"要补的单测"）；D-3/D-4 固化 SECURITY-GOVERNANCE §4.6（链存归因不存全量载荷）/§4.7（deterministic 不挂起）；N-6 定性=设计行为非缺陷（多未决审批取最旧一条改判，其余 warn+details.others 透出）。**批19 开**（10-17）：T1 SessionHealth 文档注明执行完（销账模式，见 backlog 区；第三例 stale backlog）。
 - K2 预热 `provider.warmup()`（`WINVM_LLM_SESSION_WARMUP_MS` 默认180s）；K3 假成功根治（shadow 门控 `reconcileApprovalWait`，灰度 `approvalTruth`）；S-4 POLICY_DENIED 零审计已修（注入 `recordPolicyDeniedAudit`）；A5/K-N1/K-N2 均有 `r19c-*` 单测覆盖。
 
 ## 关键口径
@@ -51,7 +51,7 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 后台 worker「completed 通知」与「SendMessage 回报」异步分离→fresh Agent+极窄任务书+每逻辑单元即 commit+主理人按 HEAD 独立核验；**同任务严禁双进程并发**；只读任务也须指定增量落盘文件(绝对路径)+每节结论即 commit。
 
 ## backlog（未修·P2）
-- `SessionHealth` 无法表达「未知」→ 先文档注明"仅 state==='healthy' 才有意义"（**唯一待用户裁项**）。
+- ~~SessionHealth 无法表达「未知」~~ → **批19 销账**：E-2（P2-T9）早已以 `probeError`/`probeErrorCode` 三码（PROBE_NOT_WIRED/TIMEOUT/EXCEPTION）根治「未知」表达并三处载明（SECURITY §5.3 / INTERFACES IF-6 / 契约注释）；批19 按用户裁决以**准确措辞**补 IF-6 消费者注（state 四值均有效观测、无 unknown 枚举系 B6 设计裁定、不得把非 healthy 反推为未知）——原建议裸表述「仅 state==='healthy' 才有意义」被 E5 静态守卫钉禁（未兑现临时口径），见 `docs/changes/phase6-b19-notes.md`。
 - 真实 GUI 自动化点击端到端回归受远端锁屏限制。
 - 深度空闲冷启动 ~49.3s 仍存在（K2 预热只覆盖重启后紧随委派）；D-5 已把判死阈值提至 180s ⇒ 不再误杀，但首调延迟本身未消除。
 - K3 兜底仍为启发式（依赖 LLM 措辞）；批18 裁**保留**作 fail-safe，根治=bridge 直读 MCP 结构化结果，暂缓。
