@@ -1,0 +1,512 @@
+#!/usr/bin/env node
+/**
+ * pack-release.mjs — WinVM Bridge 发布打包器（REL-V1.4.0）
+ *
+ * 依据 `docs/release/DESIGN-V1.4.0.md` §3/§5/§6 实现：
+ *   release/<version>/{host,vm,overall} 三包 + 一键脚本 + README + MANIFEST。
+ *
+ * 闭包推导（非拍脑袋，详见设计文档 §3）：
+ *   host    = install-host.mjs 的 import/spawn 闭包 + skills + packages 运行时资产
+ *             + node_modules(@winvm 实体副本 + ssh2 纯 JS 链) + package.json
+ *   vm      = deploy-vm.mjs→setup.mjs→install-vm.mjs 闭包 + skills + packages 运行时资产
+ *             + qa/probes 两件 + package.json（宿主驱动仅 node 内置，无需 node_modules）
+ *   overall = host ∪ vm ∪ {bootstrap,prepare-vm,uninstall} ∪ 文档包
+ *
+ * 用法：
+ *   node delivery/pack-release.mjs --version V1.4.0
+ *   node delivery/pack-release.mjs                      # 从 HEAD 的 tag 自动推导（fail-loud）
+ *   node delivery/pack-release.mjs --allow-dirty        # 仅调试用
+ *
+ * 安全红线：本脚本只读仓库、只写 release/ 与 qa/release/；绝不触碰 VM/隧道/运行态。
+ */
+import {
+  existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, readdirSync,
+  statSync, chmodSync,
+} from 'node:fs';
+import { createHash } from 'node:crypto';
+import { join, dirname, resolve, relative } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(HERE, '..');
+const GIT = '/storage/Users/currentUser/.harmonybrew/opt/git/bin/git';
+
+/* ------------------------------ 参数 ------------------------------ */
+function parseArgs(argv) {
+  const out = { version: null, out: 'release', evidenceDir: 'qa/release', allowDirty: false, skipVerify: false };
+  for (let i = 0; i < argv.length; i++) {
+    switch (argv[i]) {
+      case '--version': out.version = argv[++i]; break;
+      case '--out': out.out = argv[++i]; break;
+      case '--evidence-dir': out.evidenceDir = argv[++i]; break;
+      case '--allow-dirty': out.allowDirty = true; break;
+      case '--skip-verify': out.skipVerify = true; break;
+      case '--help': case '-h': printUsage(); process.exit(0); break;
+      default: console.error(`未知参数：${argv[i]}`); printUsage(); process.exit(2);
+    }
+  }
+  return out;
+}
+function printUsage() {
+  console.log('用法：node delivery/pack-release.mjs [--version Vx.y.z] [--out release] [--allow-dirty] [--skip-verify]');
+}
+
+/* ------------------------------ 前置断言 ------------------------------ */
+function git(args) {
+  const r = spawnSync(GIT, ['-C', ROOT, ...args], { encoding: 'utf8' });
+  return { status: r.status, stdout: (r.stdout ?? '').trim(), stderr: (r.stderr ?? '').trim() };
+}
+function assertPreflight(args) {
+  const dirty = git(['status', '--porcelain']);
+  if (dirty.status !== 0) fail(`git status 失败：${dirty.stderr}`);
+  if (dirty.stdout && !args.allowDirty) {
+    fail(`工作区不干净，拒绝打包（发布必须可复现）：\n${dirty.stdout}\n（确认无秘书写 --allow-dirty）`);
+  }
+  const distMissing = [];
+  for (const n of packageNames()) {
+    if (!existsSync(join(ROOT, 'packages', n, 'dist'))) distMissing.push(n);
+  }
+  if (distMissing.length) fail(`以下包缺少 dist（请先 npm run build）：${distMissing.join(', ')}`);
+  if (!existsSync(join(ROOT, 'node_modules', 'ssh2'))) fail('缺少 node_modules/ssh2（宿主隧道离线分发源）');
+  if (!existsSync(join(ROOT, '.env.example'))) fail('缺少根 .env.example');
+}
+function resolveVersion(args) {
+  if (args.version) {
+    if (!/^V\d+\.\d+\.\d+$/.test(args.version)) fail(`版本号非法（须 Vx.y.z）：${args.version}`);
+    return args.version;
+  }
+  const pointed = git(['tag', '--points-at', 'HEAD']);
+  const tag = pointed.stdout.split('\n').find((t) => /^V\d+\.\d+\.\d+$/.test(t));
+  if (!tag) fail('未指定 --version 且 HEAD 无 Vx.y.z tag（拒绝静默默认）');
+  return tag;
+}
+function fail(msg) {
+  console.error(`\n✗ pack-release 中止：${msg}\n`);
+  process.exit(1);
+}
+
+/* ------------------------------ 文件闭包 ------------------------------ */
+const PKG_EXCLUDE = new Set(['src', 'node_modules', 'tsconfig.json', 'tsconfig.tsbuildinfo', '.generated', '.DS_Store']);
+
+function packageNames() {
+  return readdirSync(join(ROOT, 'packages'))
+    .filter((n) => existsSync(join(ROOT, 'packages', n, 'package.json')))
+    .sort();
+}
+/** 各包运行期资产（排除法，与 setup.mjs packagePayloadPaths 同规则——防新增资产漏发） */
+function pkgRuntimeEntries() {
+  const out = [];
+  for (const n of packageNames()) {
+    for (const e of readdirSync(join(ROOT, 'packages', n), { withFileTypes: true })) {
+      if (PKG_EXCLUDE.has(e.name)) continue;
+      out.push({ rel: `packages/${n}/${e.name}`, src: join(ROOT, 'packages', n, e.name) });
+    }
+  }
+  return out;
+}
+/** ssh2 纯 JS 传递链（仅 dependencies，optional 原生依赖按 install-host 规则跳过） */
+function ssh2Closure() {
+  const names = new Set();
+  const walk = (name) => {
+    if (names.has(name)) return;
+    const pj = join(ROOT, 'node_modules', name, 'package.json');
+    if (!existsSync(pj)) return;
+    names.add(name);
+    let pkg = {};
+    try { pkg = JSON.parse(readFileSync(pj, 'utf8')); } catch { return; }
+    for (const d of Object.keys(pkg.dependencies ?? {})) walk(d);
+  };
+  walk('ssh2');
+  return [...names].sort();
+}
+
+const HOST_DELIVERY = [
+  'delivery/install-host.mjs', 'delivery/deploy-winvm-plugin.mjs', 'delivery/path-util.mjs',
+  'delivery/account-resolve.mjs', 'delivery/preflight.mjs', 'delivery/ssh2-resolve.mjs',
+  'delivery/oh-tunnel.mjs', 'delivery/tunnel-daemon.mjs', 'delivery/winvm-plugin.mjs',
+  'delivery/hooks', 'delivery/env.example',
+];
+const VM_DELIVERY = [
+  'delivery/deploy-vm.mjs', 'delivery/setup.mjs', 'delivery/install-vm.mjs',
+  'delivery/deploy-shared-skills.mjs', 'delivery/link-workspace.mjs',
+  'delivery/deploy-winvm-plugin.mjs', 'delivery/path-util.mjs', 'delivery/preflight.mjs',
+  'delivery/env.example',
+];
+const OVERALL_EXTRA_DELIVERY = ['delivery/bootstrap.mjs', 'delivery/prepare-vm.mjs', 'delivery/uninstall.mjs'];
+const VM_PROBES = ['qa/probes/qa-probe.ps1', 'qa/probes/lead-md5-3.ps1'];
+const OVERALL_DOCS = [
+  ['docs/05-peripherals/DEPLOYMENT.md', 'DEPLOYMENT.md'],
+  ['docs/INSTALL-GUIDE.md', 'INSTALL-GUIDE.md'],
+  ['docs/05-peripherals/USER-MANUAL.md', 'USER-MANUAL.md'],
+  ['docs/05-peripherals/SCENARIOS.md', 'SCENARIOS.md'],
+  ['docs/RELEASE-NOTES.md', 'RELEASE-NOTES.md'],
+  ['docs/release/DESIGN-V1.4.0.md', 'DESIGN-V1.4.0.md'],
+  ['docs/release/RELEASE-V1.4.0.md', 'RELEASE-V1.4.0.md'],
+  ['docs/release/issues.md', 'issues.md'],
+];
+
+/* ------------------------------ 组装 ------------------------------ */
+function ensureDir(p) { mkdirSync(p, { recursive: true }); }
+function copyEntry(src, dest) {
+  if (!existsSync(src)) fail(`闭包源缺失：${src}`);
+  ensureDir(dirname(dest));
+  cpSync(src, dest, { recursive: true });
+}
+function copyList(rels, destRoot) {
+  for (const rel of rels) copyEntry(join(ROOT, rel), join(destRoot, rel));
+}
+
+/** 三包公共：packages 运行时资产 + skills + package.json + .env.example */
+function assembleCommon(dest) {
+  for (const { rel, src } of pkgRuntimeEntries()) copyEntry(src, join(dest, rel));
+  copyEntry(join(ROOT, 'skills'), join(dest, 'skills'));
+  copyEntry(join(ROOT, 'package.json'), join(dest, 'package.json'));
+  copyEntry(join(ROOT, '.env.example'), join(dest, '.env.example'));
+}
+/** host 专属：delivery 子集 + node_modules（@winvm 实体副本 + ssh2 链） */
+function assembleHostNodeModules(dest) {
+  for (const n of packageNames()) {
+    const pkgDest = join(dest, 'node_modules', '@winvm', n);
+    for (const { rel, src } of pkgRuntimeEntries().filter((e) => rel0(e.rel) === `packages/${n}`)) {
+      copyEntry(src, join(pkgDest, relAfter(e.rel, `packages/${n}/`)));
+    }
+  }
+  for (const n of ssh2Closure()) copyEntry(join(ROOT, 'node_modules', n), join(dest, 'node_modules', n));
+}
+const rel0 = (rel) => rel.split('/').slice(0, 2).join('/');
+const relAfter = (rel, prefix) => rel.slice(prefix.length);
+
+/* ------------------------------ 一键脚本 ------------------------------ */
+const NODE_RESOLVE = [
+  'NODE_BIN="${WINVM_NODE_BIN:-}"',
+  'if [ -z "$NODE_BIN" ]; then',
+  '  if command -v node >/dev/null 2>&1; then NODE_BIN="node";',
+  '  elif [ -x /data/storage/el1/bundle/libs/arm64/node/bin/node ]; then NODE_BIN=/data/storage/el1/bundle/libs/arm64/node/bin/node;',
+  '  else echo "错误：未找到 node（可 export WINVM_NODE_BIN 指定）" >&2; exit 1; fi',
+  'fi',
+];
+const ENSURE_ENV = [
+  'cd "$HERE"',
+  'if [ ! -f .env ]; then',
+  '  if [ -f .env.example ]; then cp .env.example .env; echo "已由 .env.example 生成 .env——请编辑填写 VM_HOST/VM_USER/WINVM_VM_PROVIDER 等后重跑" >&2; exit 2; fi',
+  '  echo "错误：缺少 .env 与 .env.example" >&2; exit 2;',
+  'fi',
+];
+function writeScript(path, lines) {
+  writeFileSync(path, ['#!/usr/bin/env bash', '# WinVM Bridge 发布包一键脚本（由 delivery/pack-release.mjs 生成，勿手改）', 'set -euo pipefail', ...lines].join('\n') + '\n');
+  chmodSync(path, 0o755);
+}
+function genHostScript(dest, version) {
+  writeScript(join(dest, 'deploy-host.sh'), [
+    `echo "== WinVM Bridge ${version} · 宿主机一键部署 =="`,
+    'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+    ...NODE_RESOLVE,
+    ...ENSURE_ENV,
+    'echo "node=$NODE_BIN  目标：安装 WorkBuddy 插件 + 连接器 + Skills + 隧道"',
+    'exec "$NODE_BIN" delivery/install-host.mjs "$@"',
+  ]);
+}
+function genVmScript(dest, version) {
+  writeScript(join(dest, 'deploy-vm.sh'), [
+    `echo "== WinVM Bridge ${version} · VM 一键部署（宿主驱动） =="`,
+    'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+    ...NODE_RESOLVE,
+    ...ENSURE_ENV,
+    'if [ $# -eq 0 ]; then',
+    '  read -r -p "无参数：将执行 deploy-vm.mjs --apply（真部署到 VM）。确认？[y/N] " ans',
+    '  case "$ans" in y|Y) set -- --apply ;; *) echo "已取消（可传 --dry-run 预览）"; exit 0 ;; esac',
+    'fi',
+    'echo "node=$NODE_BIN  目标：打包推送 VM 载荷 → install-vm → 起服务 → QA 探针"',
+    'exec "$NODE_BIN" delivery/deploy-vm.mjs "$@"',
+  ]);
+}
+function genOverallScript(dest, version) {
+  writeScript(join(dest, 'deploy-all.sh'), [
+    `echo "== WinVM Bridge ${version} · 整体一键部署（宿主机 + VM） =="`,
+    'HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+    ...NODE_RESOLVE,
+    ...ENSURE_ENV,
+    '# 读 .env 的关键值做前置提示（缺失即中止，不做默认猜测）',
+    'set -a; . ./.env; set +a',
+    'for k in VM_HOST VM_USER WINVM_VM_PROVIDER; do',
+    '  v="$(printenv "$k" || true)"',
+    '  if [ -z "$v" ]; then echo "错误：.env 缺少 $k" >&2; exit 2; fi',
+    'done',
+    'echo "VM=${VM_USER}@${VM_HOST}:${VM_SSH_PORT:-22}  provider=${WINVM_VM_PROVIDER}"',
+    'WIPE=0; PASSTHRU=()',
+    'for a in "$@"; do',
+    '  case "$a" in',
+    '    --wipe) WIPE=1 ;;',
+    '    *) PASSTHRU+=("$a") ;;',
+    '  esac',
+    'done',
+    'if [ "$WIPE" = "1" ]; then',
+    '  echo "—— --wipe：先双端清空历史部署（移入回收站，可恢复）——"',
+    '  "$NODE_BIN" delivery/uninstall.mjs --apply --vm-host "$VM_HOST" --vm-user "$VM_USER" --vm-ssh-port "${VM_SSH_PORT:-22}"',
+    'fi',
+    'echo "—— 执行 setup.mjs --apply（BUILD→HOST→VM→VM-START→TUNNEL→TEST→QA-PROBE→HEALTH）——"',
+    '"$NODE_BIN" delivery/setup.mjs --apply ${PASSTHRU[@]+"${PASSTHRU[@]}"}',
+    'echo "—— 后置验证：隧道 /health ——"',
+    'curl -s --noproxy "*" -m 10 "http://127.0.0.1:${WINVM_TUNNEL_LOCAL_PORT:-18443}/health" | head -c 500 || echo "（health 探测失败，请查隧道）"',
+    'echo',
+    `echo "== ${version} 部署完成。完整功能验证清单见 README.md §验证 =="`,
+  ]);
+}
+
+/* ------------------------------ README / MANIFEST ------------------------------ */
+function writeReadme(dest, kind, version, extra) {
+  const lines = [`# WinVM Bridge ${version} · ${extra.title}`, '', `> 由 delivery/pack-release.mjs 生成于 commit ${COMMIT}；随包文档见 overall/docs/（整体包）。`, ''];
+  lines.push(...extra.body);
+  writeFileSync(join(dest, 'README.md'), lines.join('\n') + '\n');
+}
+function sha256File(p) {
+  return createHash('sha256').update(readFileSync(p)).digest('hex');
+}
+function walkFiles(dir) {
+  const out = [];
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else out.push(p);
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
+function writeManifest(dest, version, kind) {
+  const files = walkFiles(dest);
+  const rows = files.map((p) => {
+    const rel = relative(dest, p);
+    return `${rel}  ${sha256File(p)}`;
+  });
+  const total = createHash('sha256').update(rows.join('\n')).digest('hex');
+  const bytes = files.reduce((s, p) => s + statSync(p).size, 0);
+  const header = [
+    '# WinVM Bridge Release Manifest',
+    `version: ${version}`,
+    `commit: ${COMMIT}`,
+    `date: ${new Date().toISOString()}`,
+    `package: ${kind}`,
+    `files: ${files.length}`,
+    `bytes: ${bytes}`,
+    `total-sha256: ${total}`,
+    '# ---- per-file (relpath  sha256) ----',
+  ];
+  writeFileSync(join(dest, 'MANIFEST.txt'), [...header, ...rows].join('\n') + '\n');
+  return { files: files.length, bytes, total };
+}
+
+/* ------------------------------ 包内验证 V1-V4 ------------------------------ */
+function verifyPackages(dest, version) {
+  const results = [];
+  const run = (label, cmd, args, cwd) => {
+    const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' });
+    const ok = r.status === 0;
+    results.push({ label, ok, status: r.status, tail: (r.stdout ?? '') + (r.stderr ?? '') });
+    console.log(`  ${ok ? '✓' : '✗'} ${label}（exit ${r.status}）`);
+    return ok;
+  };
+  const NODE = process.execPath;
+  // V2 host 闭包：静态 import 全部解析 + dry-run 计划可出
+  run('V2 host 闭包 dry-run', NODE, [
+    'delivery/install-host.mjs', '--dry-run', '--no-preflight', '--no-tunnel',
+    '--vm-host', '127.0.0.1', '--vm-user', 'release-pack-check',
+  ], join(dest, 'host'));
+  // V3 vm 闭包：deploy-vm dry-run（无 --apply 即预览）
+  run('V3 vm 闭包 dry-run', NODE, ['delivery/deploy-vm.mjs'], join(dest, 'vm'));
+  // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
+  const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
+  if (existsSync(capPkg)) {
+    const main = JSON.parse(readFileSync(capPkg, 'utf8')).main ?? 'dist/index.js';
+    const entry = pathToFileURL(join(dest, 'overall', 'packages', 'vm-capabilities', main)).href;
+    const r = spawnSync(NODE, ['-e', `import(${JSON.stringify(entry)}).then(m=>{const c=m.WINDOWS_CAPABILITIES;const n=Array.isArray(c)?c.length:Object.keys(c).length;console.log('CAP_COUNT='+n);process.exit(n===54?0:1)}).catch(e=>{console.error(e.message);process.exit(1)})`], { cwd: join(dest, 'overall'), encoding: 'utf8' });
+    const ok = r.status === 0 && (r.stdout ?? '').includes('CAP_COUNT=54');
+    results.push({ label: 'V4 能力计数=54', ok, status: r.status, tail: (r.stdout ?? '') + (r.stderr ?? '') });
+    console.log(`  ${ok ? '✓' : '✗'} V4 能力计数=54（exit ${r.status}）${ok ? '' : `\n${r.stdout}${r.stderr}`}`);
+  } else {
+    results.push({ label: 'V4 能力计数=54', ok: false, status: -1, tail: 'vm-capabilities/package.json 缺失' });
+    console.log('  ✗ V4 能力计数=54（vm-capabilities/package.json 缺失）');
+  }
+  return results;
+}
+
+/* ------------------------------ 主流程 ------------------------------ */
+let COMMIT = 'unknown';
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const version = resolveVersion(args);
+  const head = git(['rev-parse', '--short', 'HEAD']);
+  COMMIT = head.status === 0 ? head.stdout : 'unknown';
+  console.log(`\n== pack-release ${version} @ ${COMMIT} ==`);
+  assertPreflight(args);
+
+  const dest = resolve(ROOT, args.out, version);
+  if (existsSync(dest)) fail(`目标已存在：${relative(ROOT, dest)}（请先移走，避免半新半旧包）`);
+  for (const kind of ['host', 'vm', 'overall']) ensureDir(join(dest, kind));
+
+  // —— host ——
+  console.log('· 组装 host/（install-host 闭包）');
+  assembleCommon(join(dest, 'host'));
+  copyList(HOST_DELIVERY, join(dest, 'host'));
+  assembleHostNodeModules(join(dest, 'host'));
+  genHostScript(join(dest, 'host'), version);
+  writeReadme(join(dest, 'host'), 'host', version, {
+    title: '宿主机一键部署发布包',
+    body: [
+      '## 内容',
+      '- `delivery/`：install-host.mjs 及其 import/spawn 闭包（含隧道三件套、hooks、env.example）',
+      '- `skills/`：7 个连接器 Skills（渲染进 ~/.workbuddy/connectors/skills/connector-winvm/）',
+      '- `packages/`：各包运行期资产（dist/psmod/schemas，排除 src 与构建中间物）',
+      '- `node_modules/@winvm/*`：实体副本（ESM 裸包名解析；不依赖 symlink）',
+      '- `node_modules/ssh2` 链：进程内 ssh2 隧道离线分发（纯 JS 传递依赖）',
+      '',
+      '## 一键部署',
+      '```bash',
+      './deploy-host.sh                # 安装 WorkBuddy 插件+连接器+Skills+隧道（首次会先生成 .env 需编辑）',
+      './deploy-host.sh --dry-run      # 预览',
+      './deploy-host.sh --no-tunnel    # 跳过隧道（调试）',
+      '```',
+      '',
+      '## 前置',
+      '- 宿主机已部署 WorkBuddy；node ≥18（脚本自动解析：$WINVM_NODE_BIN → PATH → OH 内置路径）',
+      '- `.env` 已填写 VM_HOST / VM_USER / WINVM_VM_PROVIDER（缺 .env 时脚本自动由 .env.example 生成并退出）',
+      '',
+      '## 验证',
+      '- 安装尾自动做「仓库/包 ↔ 缓存」SHA256 新鲜度对账（失败即 exit 1）',
+      '- `winvm-plugin health` 或 `curl http://127.0.0.1:18443/health`',
+    ],
+  });
+  const hostMan = writeManifest(join(dest, 'host'), version, 'host');
+
+  // —— vm ——
+  console.log('· 组装 vm/（deploy-vm 闭包）');
+  assembleCommon(join(dest, 'vm'));
+  copyList(VM_DELIVERY, join(dest, 'vm'));
+  copyList(VM_PROBES, join(dest, 'vm'));
+  genVmScript(join(dest, 'vm'), version);
+  writeReadme(join(dest, 'vm'), 'vm', version, {
+    title: 'VM 一键部署发布包（宿主驱动）',
+    body: [
+      '## 内容',
+      '- `delivery/`：deploy-vm.mjs → setup.mjs → install-vm.mjs 闭包（VM 内执行体随 tgz 落 C:/WinVMBridge）',
+      '- `skills/`：VM 内 AI Agent 技能规范（shared-skills）',
+      '- `packages/`：VM 运行期资产（dist + psmod 54 能力 PowerShell 实现 + schemas）',
+      '- `qa/probes/`：QA-PROBE 相位推送物',
+      '- 不含 node_modules：VM 侧经 install-vm `--skip-install` + junction 软链解析',
+      '',
+      '## 一键部署',
+      '```bash',
+      './deploy-vm.sh                  # 交互确认后执行 --apply（真部署）',
+      './deploy-vm.sh --dry-run        # 预览计划',
+      './deploy-vm.sh --apply --provider workbuddy --cli <CLI路径>',
+      '```',
+      '',
+      '## 前置',
+      '- 宿主可 ssh 免密登录 VM（~/.ssh/id_ed25519，vm-conn.json 或 .env 指向 VM_HOST/VM_USER）',
+      '- VM 内 node/npm/Agent CLI 就位（deterministic provider 缺 CLI 仅 WARN）',
+      '- 注册计划任务 WinVMBridge.Service 需 VM 账户有管理员权限',
+      '',
+      '## 验证',
+      '- deploy-vm 的 HEALTH 相位：经隧道 curl /health（provider/session/psBridge 三态）',
+      '- VM 内 `C:/WinVMBridge/dev-and-qa/logs/<日期>/install-vm-run.log` 逐步留痕',
+    ],
+  });
+  const vmMan = writeManifest(join(dest, 'vm'), version, 'vm');
+
+  // —— overall ——
+  console.log('· 组装 overall/（整体包 = host ∪ vm ∪ 编排与文档）');
+  assembleCommon(join(dest, 'overall'));
+  copyList([...new Set([...HOST_DELIVERY, ...VM_DELIVERY, ...OVERALL_EXTRA_DELIVERY])], join(dest, 'overall'));
+  copyList(VM_PROBES, join(dest, 'overall'));
+  assembleHostNodeModules(join(dest, 'overall'));
+  genOverallScript(join(dest, 'overall'), version);
+  ensureDir(join(dest, 'overall', 'docs'));
+  for (const [src, name] of OVERALL_DOCS) {
+    if (!existsSync(join(ROOT, src))) fail(`overall 文档源缺失：${src}（请先撰写）`);
+    cpSync(join(ROOT, src), join(dest, 'overall', 'docs', name));
+  }
+  writeReadme(join(dest, 'overall'), 'overall', version, {
+    title: '整体一键部署发布包（宿主机 + VM + 文档）',
+    body: [
+      '## 内容',
+      '- host 包与 vm 包的全部条目（并集，共享同一闭包）',
+      '- `delivery/bootstrap.mjs` / `prepare-vm.mjs`：环境自检 + SSH 信任 + env 生成（备环境）',
+      '- `delivery/uninstall.mjs`：双端清场（回收站可恢复）',
+      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账',
+      '',
+      '## 一键部署',
+      '```bash',
+      './deploy-all.sh --wipe          # 双端清空历史部署后整体重装（推荐用于首发/灾难恢复）',
+      './deploy-all.sh                 # 不清场，直接 setup.mjs --apply',
+      './deploy-all.sh --wipe --yes    # 预留：其余参数透传 setup.mjs',
+      '```',
+      '',
+      '## 完整功能验证清单（部署后逐项过）',
+      '1. `curl http://127.0.0.1:18443/health`：provider=ready、session.state=healthy',
+      '2. MCP 直调 `meta.capability.list`：count=54',
+      '3. MCP 直调 `system.info.get`：实调返回',
+      '4. A2A `a2a.delegate`（system.info.get）：streaming 终态 ok',
+      '5. `gui.session.status`：healthy / locked=false',
+      '6. 审计链：委派 traceId 在链、delegation.complete 诚实回执',
+      '',
+      '## 回滚',
+      '- 宿主机：`node delivery/uninstall.mjs --apply`（插件缓存/连接器移入回收站）',
+      '- VM：install-vm.mjs --uninstall 或 uninstall.mjs 双端（删 C:/WinVMBridge、注销计划任务）',
+    ],
+  });
+  const overallMan = writeManifest(join(dest, 'overall'), version, 'overall');
+
+  // —— 包内验证 ——
+  let verifyOk = true;
+  if (args.skipVerify) {
+    console.log('· 跳过包内验证（--skip-verify）');
+  } else {
+    console.log('· 包内验证（V2 host 闭包 / V3 vm 闭包 / V4 能力计数）');
+    const rs = verifyPackages(dest, version);
+    verifyOk = rs.every((r) => r.ok);
+    if (!verifyOk) {
+      console.error('\n✗ 包内验证未全过——发布包不可信，终止（不写证据）。失败项：');
+      for (const r of rs.filter((x) => !x.ok)) console.error(`  - ${r.label}\n${r.tail.slice(-2000)}`);
+      process.exit(1);
+    }
+  }
+
+  // —— 证据（版本化入库；release/ 本体不入库） ——
+  const evDir = resolve(ROOT, args.evidenceDir);
+  ensureDir(evDir);
+  const evLines = [
+    `# pack-release 证据 · ${version}`,
+    `commit: ${COMMIT}`,
+    `date: ${new Date().toISOString()}`,
+    `node: ${process.version}`,
+    `verify: ${args.skipVerify ? 'SKIPPED' : 'PASS (V2/V3/V4)'}`,
+    '',
+    `host    : files=${hostMan.files} bytes=${hostMan.bytes} total-sha256=${hostMan.total}`,
+    `vm      : files=${vmMan.files} bytes=${vmMan.bytes} total-sha256=${vmMan.total}`,
+    `overall : files=${overallMan.files} bytes=${overallMan.bytes} total-sha256=${overallMan.total}`,
+    '',
+    '# 目录树（release/' + version + '）',
+    ...treeOf(join(dest)),
+  ];
+  const evPath = join(evDir, `${version}-pack.txt`);
+  writeFileSync(evPath, evLines.join('\n') + '\n');
+
+  console.log(`\n✓ 发布包已生成：${relative(ROOT, dest)}`);
+  console.log(`  host    ${hostMan.files} 文件 / ${(hostMan.bytes / 1024).toFixed(0)}K / sha256 ${hostMan.total.slice(0, 16)}…`);
+  console.log(`  vm      ${vmMan.files} 文件 / ${(vmMan.bytes / 1024).toFixed(0)}K / sha256 ${vmMan.total.slice(0, 16)}…`);
+  console.log(`  overall ${overallMan.files} 文件 / ${(overallMan.bytes / 1024).toFixed(0)}K / sha256 ${overallMan.total.slice(0, 16)}…`);
+  console.log(`  证据：${relative(ROOT, evPath)}`);
+  console.log(`\n下一步：cd ${relative(ROOT, dest)}/overall && ./deploy-all.sh --wipe   （清空历史部署后整体重装）\n`);
+}
+function treeOf(dir, prefix = '') {
+  const out = [];
+  for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+    if (e.name === 'node_modules') { out.push(`${prefix}${e.name}/  （@winvm 实体副本 + ssh2 链，逐文件见 MANIFEST）`); continue; }
+    out.push(`${prefix}${e.name}${e.isDirectory() ? '/' : ''}`);
+    if (e.isDirectory() && e.name !== 'node_modules') out.push(...treeOf(join(dir, e.name), prefix + '  '));
+  }
+  return out;
+}
+main();
