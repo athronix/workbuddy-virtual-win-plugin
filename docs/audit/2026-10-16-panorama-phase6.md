@@ -20,7 +20,7 @@
 | **N-1** | ~~P2~~ **✅ 当日闭合（批15）** | 部署运维 | **宿主分发面未跟批**（§1.7-5 现行第一击）：插件缓存 a2a-bridge dist mtime=10-14 11:07，而 10-15~16 三笔 SKILL 修正文本（d038964 五处归因修正、1e1f81e G4 声明段、7d80416 同源句）未同步宿主——宿主 LLM 读到的技能指引仍是旧文（本轮亲验缓存内 grep 修正句零命中） | `ls -la` 缓存目录 + 缓存内 grep 修正句零命中（仅 contracts 源码 -32602 在册，非 SKILL 文案） | 跑一次 `install-host` 跟批+§1.7-5 行为指纹核（工具描述新文案可见+缓存 mtime 跟批）。成本低，Phase 6 批15 |
 | **N-2** | P2 | 测试/运维 | **C0 折叠的委派完成步自然样本未直达**：真机复验两层实证（回执+链上）达成，但委派终报携折叠回执那一发被 VM 失联后 LLM 瞬态降级干扰（VERDICT 已如实标"可选观察"，未冒充全绿） | `qa/p5-batch/c0/VERDICT.md` 分层矩阵 | 观察项 V20：会话健康期一次自然带 scope 委派即收口；不强造 |
 | **N-3** | P3 | 运维 | 现网 `llmSession.state=stopped`（restarts=0，idle≈83min）：VM 重启后按需形态，首调付 49.3s 冷启动（`firstCallLatencyMs`）——K2 预热只覆盖重启后紧随委派的旧口径仍有效，深度空闲首调成本属已知 | pano2 health 实采 | 无需动作；若运营期在意首响延迟，候选=idleTtl 回收+预热参数联动（登记不紧迫） |
-| **N-4** | P3 | 治理 | 旧 backlog 复宣（无变化）：D-3 capability.schema.json 缺 appops 枚举且全仓无运行期校验器消费；K3 兜底启发式待 bridge 直读根治（C0 折叠已消化其最大病灶面，启发式降为第二层）；SessionHealth 无法表达"未知"；非 winvm 团队残骸 45 个（用户裁永久不动） | MEMORY backlog 区 | 均为决策项非缺陷，进 Phase 6 批17 裁决单 |
+| **N-4** | P3 | 治理 | 旧 backlog 复宣 —— **批18 逐项回仓核验后订正**：①「D-3 schema 缺 appops 且零消费者」**已不成立**（`domain.enum`/`id.pattern` 均已含 `appops`，且 `tests/unit/phase2-contract-schema.test.js:237` 有反向守卫钉住"运行期不接"这一**既有裁决** ⇒ Phase 3 批6 已实际销账，本条属陈旧复宣，**批18 销账**）；②K3 兜底启发式：裁决**保留**（fail-safe 兜底，C0 已消化其最大病灶面），且"补直接单测"这一 backlog **亦已不成立** —— `tests/unit/phase2-approval-wait-fallback.test.js`（P2-T10 K3-C4）就是直接单测，24 例全绿；③`SessionHealth` 无法表达"未知"（仍待裁）；④非 winvm 团队残骸 45 个（用户裁永久不动） | MEMORY backlog 区 | ①②批18 已裁决销账；③④仍待用户裁 |
 
 **未发现新 P0/P1**。健康面复核：policyGate 在册（on/hits=0/dWAT=1 重启新纪元）、capability.list=54 与 tools/list 逐条、`cache.netCfg ageMs=5145264∧ttl=45000` 属诚实显形（陈旧即示陈旧，CL-019 语义正确工作）、ws 读数新 epoch（2.1/3.8MB）正常。
 
@@ -45,6 +45,7 @@
 | **批15 宿主跟批同步** ✅ **当日完赛（2026-10-16 18:3x）**：`install-host --yes` EXIT=0（H1 双连接器四账户断言全过）→ §1.7-5 指纹三中：① 插件缓存 a2a-bridge/cli.js+winvm-plugin.mjs mtime 10-14→**18:37 跟批**；② SKILL 真实落点=`~/.workbuddy/connectors/skills/connector-winvm/`（非插件缓存，教训补录 §1.7-5 见下），system-admin(-32602 修正句 1 处)/orchestrator(降级句+同源句) 与仓库 **git diff --no-index 逐字节 IDENTICAL×2**；③ H1 断言在册。证据 `qa/p3-batch-sweep/install-host-p6.txt`。runbook 补句："VM+宿主双通道跟批"——deploy-vm 后若同批含 skills/host 面改动，必跑 install-host 并按上②落点核对（差分判据用逐字节 diff 不靠短语 grep） | ✅ 指纹三中已登记 | 无 |
 | **批16 观察窗收口**（轻批） | V20（委派携折叠回执自然样本）/ B-5 evictions 长跑读数 / shadowHits 恒 0 周报；命中即登记销账，未命中如实 | VERDICT 增补行 | 自然运行期 |
 | **批17 决策族**（需用户裁） | ①D-3：schema 接入运行期校验 or 判死配置删除；②K3 启发式第二层保留/移除；③载荷全落链（C0 真机窗曾登记）；④deterministic 真挂起对齐；⑤llmSession 深度空闲冷启动优化是否值得做 | 各一条裁决落档 | 用户点头 |
+| **批18 决策族执行** ✅ **完赛（2026-10-17）**：用户 7 项全按建议处置。**D-6（N-5 委派呈报失真，实弹级）已根治** —— 降级前经 `DelegationTruthProbe.delegationActivity` 反查服务端活动，有活动即抑制降级并复用服务端事实（终态带 K6 折叠回执 + traceId，错误码不再被兜底码顶替）；D-7 `matchedRule` 订正为 `runtime:execution-failed`；D-5 就绪超时 60s→180s 与预热对齐；D-1/D-2 销账（两项 backlog 经核验早已完成）；D-3/D-4 文档固化（SECURITY-GOVERNANCE §4.6/§4.7）。全量 gate **GREEN 124/2179**（基线 121/2162），真机复验：V20 目标达成、链上 `delegation.complete` err `UNKNOWN_CAPABILITY`→`REPLAY_FAILED`、`llmSession restarts=0`/`firstCallLatencyMs` 49278→12858 | ✅ 7/7 闭合 | `docs/changes/phase6-b17-decisions.md` + `phase6-b18-notes.md` + `qa/p5-batch/b16/VERDICT.md` §六 |
 
 **优先级**：批15 立即（唯一现行失配，10 分钟成本）；批16 零成本顺带；批17 择机集中裁决。
 
@@ -57,7 +58,8 @@
 | 新项 | 级别 | 一句话 | 证据 |
 |---|---|---|---|
 | **N-5** | **P2** | 委派放行后服务端**真实执行**并写入诚实折叠回执（链 seq=20，`ok=false/EXECUTION_FAILED/K6 核验未过`），A2A 任务层却呈报「已降级为确定性执行，但执行器未匹配到模板」且 `steps=[]` —— 同一事实两个相反陈述；对 destructive 能力尤危（已卸载却报未匹配），且真实错误码在终态被丢弃 | `qa/p5-batch/b16/VERDICT.md` §二/§三 |
-| N-6 | P3 | 单个工具调用却产生「同一委派存在多个未决审批」（两轮日志均现），宿主只批一条即收口，疑与 N-5 零步骤同源 | 同上 §五-1 |
+| **N-5 状态** | — | **✅ 已根治（2026-10-17 批18 D-6）**：降级前反查服务端委派活动，有活动即抑制降级；真机复验任务层已携带折叠回执（`stepCount=1`）、链上 `delegation.complete` err `UNKNOWN_CAPABILITY`→`REPLAY_FAILED`；回归 `tests/unit/p6-d6-degrade-suppress.test.js`（10 例） | `docs/changes/phase6-b18-notes.md` §一/§9.4 |
+| N-6 | P3 | 单个工具调用却产生「同一委派存在多个未决审批」（两轮日志均现）。**批18 定性完成 = 设计行为非缺陷**：`delegation-truth.ts` 判据 3 取**最旧**一条改判，其余经 warn + `error.details.others` 透出提示宿主逐条处理。残留观察（不修）：宿主只批最旧一条时其余按 TTL 收口 | 同上 §五-1 + `docs/changes/phase6-b18-notes.md` §七 |
 | N-7 | P3 | 失败路径把错误码写进 `policyDecision.matchedRule`（seq=16 该字段 = `EXECUTION_FAILED`），字段语义漂移 | 同上 §五-2 |
 | D-5 定性修订 | — | 原「冷启动 49s」升级后又**收窄**：轮3 起始 `llmSession=ready` 仍失败 ⇒ 冷启动**非**委派失败主因（主因=N-5）；自愈形态=重建一次即就绪（attempt3 超时→attempt4 35.8s 就绪） | `v20-warm2.txt` / `vm-log-excerpt.txt` |
 

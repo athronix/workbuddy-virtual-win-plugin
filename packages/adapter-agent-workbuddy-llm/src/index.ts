@@ -20,6 +20,7 @@ import {
   type BridgeContext,
   type CapabilityRequest,
   type CapabilityResult,
+  type DelegationActivityCount,
   type DelegationTruthProbe,
   type GoalRequest,
   type GoalResult,
@@ -475,20 +476,83 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
       //  1) 委派账本反查改判（reason=NO_EXECUTION_RECEIPT）不降级 —— 改判本身**就是终态**；
       //  2) disabled 拒绝（reason=LLM_SESSION_DISABLED）同理不进此分支（已提前 return）。
       // K5 的 REPLAY_FAILED 等既有 reason 行为不变（保持 D4.4 原语义）。
+      //
+      // **D-6（P2·实弹，2026-10-17 真机实证）**：降级前**必须**反查「本委派回合服务端是否
+      // 真有过活动」。实证场景（`qa/p5-batch/b16/VERDICT.md`）：委派经审批放行后，服务端
+      // 确定性重放**真实执行**了能力并写入诚实折叠回执（链 seq=20：`ok=false` /
+      // `EXECUTION_FAILED` / K6 核验未过），但 LLM 侧收口为 `ok=false` 且零产物 ⇒ 命中本
+      // 降级分支 ⇒ 确定性兜底既不复用服务端重放结果、也不知悉"已执行"事实，其失败文案成为
+      // 终态 summary ⇒ **宿主读到「未匹配到模板」而真实卸载早已发生**（destructive 能力尤危），
+      // 且链上 `delegation.complete` 的错误码被替换成兜底的 `UNKNOWN_CAPABILITY`，真实病因
+      // 永久丢失。判据：服务端委派账本对**本 traceId** 有活动记录（executed/blocked/wild
+      // 任一非零）⇒ 该回合确实到过服务端 ⇒ 降级只会把已发生的事实改写掉，故抑制降级。
       if (this.shouldDegrade(res) && res.error?.reason !== 'NO_EXECUTION_RECEIPT') {
+        const activity = await this.delegationActivityFor(goal);
+        if (activity && activity.total > 0) {
+          const facts =
+            `服务端已记录本委派活动（executed=${activity.executed}/blocked=${activity.blocked}/wild=${activity.wild}）`;
+          this.ctx.logger.warn(
+            'D-6：服务端已有委派活动证据，抑制降级（避免把已执行事实改写为"未匹配到模板"）',
+            {
+              taskId: goal.taskId ?? '',
+              traceId: goal.traceId,
+              llmCode: res.error?.code ?? 'UNKNOWN',
+              ...(res.error?.reason ? { llmReason: res.error.reason } : {}),
+              executed: activity.executed,
+              blocked: activity.blocked,
+              wild: activity.wild,
+            },
+          );
+          sink.onStatus('working', `D-6：${facts}，不降级为确定性执行器`);
+          return {
+            ok: false,
+            summary:
+              `${res.summary}；${facts}，未降级为确定性执行器` +
+              `（真实执行/拦截已发生，详见审计链 traceId=${goal.traceId}）`,
+            artifacts: res.artifacts,
+            // 与 K5 / K-N1 两条真值判据同构：终态失败时步骤不得保留 ok:true 的完成声称。
+            steps: res.steps.map((s) => ({
+              ...s,
+              ok: false,
+              summary: '服务端已记录本委派活动，LLM 侧收口失败（未降级为确定性执行器）',
+            })),
+            error: res.error,
+            ...(res.degraded ? { degraded: res.degraded } : {}),
+            ...(res.approvalTruth ? { approvalTruth: res.approvalTruth } : {}),
+          };
+        }
+
         sink.onStatus(
           'working',
           `LLM 运行时不可用（${res.error?.code ?? 'UNKNOWN'}），降级为确定性执行器`,
         );
         const fallback = await this.executor.runGoal(goal, sink);
+        // D-6(c)：终态 summary **必须**带 LLM 侧真实收口码 —— 否则链上/宿主只看到确定性
+        // 兜底的码（`UNSUPPORTED_GOAL`），真实病因被永久抹掉（本轮即因此误判过一次归因）。
+        // 兜底错误本体保留为 `error`（既有语义/守卫逐字不变），真实码经 `details.degradedFrom*`
+        // 与 summary 双通道透出。
+        const llmCode = res.error?.code ?? 'UNKNOWN';
+        const llmReason = res.error?.reason;
+        const truthTag = `（LLM 侧收口：${llmCode}${llmReason ? `/${llmReason}` : ''}）`;
         return {
           ok: fallback.ok,
           summary: fallback.ok
-            ? `已降级为确定性执行：${fallback.summary}`
-            : `已降级为确定性执行，但执行器未匹配到模板：${fallback.summary}`,
+            ? `已降级为确定性执行：${fallback.summary}${truthTag}`
+            : `已降级为确定性执行，但执行器未匹配到模板：${fallback.summary}${truthTag}`,
           artifacts: fallback.artifacts,
           steps: fallback.steps,
-          ...(fallback.error ? { error: fallback.error } : {}),
+          ...(fallback.error
+            ? {
+                error: {
+                  ...fallback.error,
+                  details: {
+                    ...(fallback.error.details ?? {}),
+                    degradedFromCode: llmCode,
+                    ...(llmReason ? { degradedFromReason: llmReason } : {}),
+                  },
+                },
+              }
+            : {}),
         };
       }
       return {
@@ -512,6 +576,25 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
       // P2-T8 G-b：真值判据归因透传到 GoalResult（服务端 observer 落 ext.approvalTruth 的唯一来源）
       ...(res.approvalTruth ? { approvalTruth: res.approvalTruth } : {}),
     };
+  }
+
+  /**
+   * D-6：反查「本委派回合服务端是否真有过活动」（委派账本三通道计数）。
+   *
+   * 判据来源 = `DelegationTruthProbe.delegationActivity` —— 与 K-N1 账本反查
+   * （`delegation-truth.ts` 判据 1）**同一接口、同一账本、同一 traceId 键**，不新增契约面。
+   * vm-service 在 `bridgeCtx` 经 `delegationProbe` cast 注入（`init()` 读取），缺席即旧行为。
+   *
+   * fail-open：probe 缺席（旧服务端 / 单测 / degraded 态）或抛错 ⇒ `undefined` ⇒ 调用方按
+   * 原 D4.4 语义照常降级 —— 取证失败**绝不**改变执行行为（与 K-N1 门 4 同纪律）。
+   */
+  private async delegationActivityFor(goal: GoalRequest): Promise<DelegationActivityCount | undefined> {
+    if (!this.probe || !goal.traceId) return undefined;
+    try {
+      return await this.probe.delegationActivity(goal.traceId);
+    } catch {
+      return undefined;
+    }
   }
 
   /**

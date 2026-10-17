@@ -1259,7 +1259,14 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
         capabilityId: req.capabilityId,
         risk: ctx.capabilities.get(req.capabilityId)?.risk ?? 'L3',
         params: req.params,
-        policyDecision: { allowed: false, matchedRule: error.code },
+        // D-7（Phase 6 批18）：`matchedRule` 承载**规则名/事实名**，不承载错误码。
+        // 原实现写 `matchedRule: error.code` ⇒ 链上出现 `matchedRule='EXECUTION_FAILED'`
+        // （真机实证 seq=16），把「运行时失败」污染成「策略规则名」，与
+        // `task-evict-audit` 的同族语义（matchedRule=事实陈述、allowed=许可判定）相悖，
+        // 也会让任何按规则名前缀归因的消费方（如 `isScopeGateRejection`）读到噪声。
+        // 错误语义由下一行 `result.errorCode` **独立**承载，二者不互相顶替。
+        // 命名沿用 server.ts 既有 `runtime:<fact>` 约定（`runtime:provider-unavailable`）。
+        policyDecision: { allowed: false, matchedRule: 'runtime:execution-failed' },
         result: { ok: false, errorCode: error.code, summary: error.message },
         durationMs,
         ...(req.delegationId

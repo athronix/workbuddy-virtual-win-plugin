@@ -128,17 +128,26 @@
 
 ---
 
-## 裁决回执表（待填）
+## 裁决回执表
+
+> **状态：7 项全部已裁决并执行完毕（2026-10-17 批18）**。施工记录与真机复验见
+> `docs/changes/phase6-b18-notes.md`。
 
 | 项 | 裁决 | 执行批 | 落档 |
 |---|---|---|---|
-| D-1 | ☐ A（销账） ☐ B | 无需（A） | 本单 + 全景 N-4 订正 |
-| D-2 | ☐ A ☐ B ☐ C | 批18（A=仅补单测） | |
-| D-3 | ☐ A ☐ B ☐ C | 批18（A=仅文档） | |
-| D-4 | ☐ A ☐ B | 无需（A） | |
-| D-5 | ☐ A ☐ B ☐ C | 批18（严重度已下调，可让位 D-6） | |
-| **D-6** | ☐ A+C（建议） ☐ B ☐ 暂缓 | **批18（实弹级，优先）** | `qa/p5-batch/b16/VERDICT.md` |
-| D-7 | ☐ A ☐ B | 批18（顺手） | |
+| D-1 | ✅ **A（销账）** | 无需 | 本单 + 全景 N-4 订正 |
+| D-2 | ✅ **A（保留）** | 批18（单测**早已存在**：`phase2-approval-wait-fallback.test.js` 24 例全绿，backlog 销账） | 本单 + b18 notes §四 |
+| D-3 | ✅ **A（维持摘要口径）** | 批18（仅文档） | `SECURITY-GOVERNANCE.md` 新增 §4.6 |
+| D-4 | ✅ **A（不补）** | 无需（仅文档） | `SECURITY-GOVERNANCE.md` 新增 §4.7 |
+| D-5 | ✅ **B（阈值对齐，A 的诊断随修复自然获得）** | 批18 | `constants.ts` 60s→180s + b18 notes §三 |
+| **D-6** | ✅ **A+C（已修复）** | **批18（实弹级，优先）** | `qa/p5-batch/b16/VERDICT.md` §六（V20 达成） |
+| D-7 | ✅ **A（订正）** | 批18（顺手） | `adapter-agent-workbuddy` 失败站点 |
+
+**门禁**：全量 gate **GREEN · 124 文件 / 2179 例 / 0 fail / 2 skip**
+（`qa/p3-batch-sweep/gate-p6-b18-final.txt`；基线 121/2162 → +3 文件 +17 例）。
+**真机复验**：`deploy-vm --apply` EXIT=0；D-6 委派层折叠回执达成、链上 `err` 由
+`UNKNOWN_CAPABILITY` → `REPLAY_FAILED`；D-7 `matchedRule=runtime:execution-failed`；
+D-5 `llmSession restarts=0`、`firstCallLatencyMs` 49278 → 12858。
 
 ---
 

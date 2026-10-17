@@ -311,6 +311,43 @@ record_n.prevHash = hash_(n-1)
 `p5-c0-k6-fold-service.test.js`（服务行为面）、`p5-c0-k6-audit-fold.test.js`（链写入值面）；
 真机复验随主理人窗（RELEASE-NOTES §三-2 C0 行）。
 
+### 4.6 链存归因、不存全量载荷（裁决 D-3 · 2026-10-17 批18）
+
+审计哈希链的定位是**归因账本**，不是数据湖。条目按下列边界落盘：
+
+| 面 | 落链内容 | 不落链内容 |
+|---|---|---|
+| `params` | 调用参数原样入链 | —— |
+| `result` | `{ ok, errorCode, summary }` 三元 | 完整 `data`（含 K6 `residualEvidence`，仅以 200 字符截断进 summary） |
+| `artifacts` | `sha256:<name>` 摘要 | 产物本体（截图等一律只存哈希+路径，见 §4 脱敏表） |
+
+**理由（三条，均为安全/治理性质而非存储成本）**：
+1. **不可篡改性即不可删除性** —— 链上内容无法按保留期策略（90 天 / 2GB 超限删最老）删除，
+   全量载荷入链等于把删除权让渡给链；
+2. **敏感面放大** —— 能力输出可能含文件内容、路径清单、账号信息，永久写入只增不减的
+   账本与 §4 脱敏纪律（`*password*`/`*secret*`/长 Base64/截图）方向相反；
+3. **体积/可审性** —— 全量落链使人工审阅与归档校验（`verifyArchive`）成本线性爆炸。
+
+需要完整产物时走 `artifacts` 指向的产物目录与 `/audit/receipt` 环形缓存（有界、脱敏、
+重启即失，本就是为"取全量"设计的通道）。**若未来确有全量落链诉求，必须先解决"链上删除"
+这一前提，否则不予受理。**
+
+### 4.7 deterministic 执行器不实现审批挂起（裁决 D-4 · 2026-10-17 批18）
+
+`workbuddy-deterministic`（`adapter-agent-workbuddy` 的 in-process step 咽喉点，不经
+`/mcp` 服务层）命中 L2/L3 时的收口是 **`DELEGATION_REQUIRED`（retryable=false）**
+—— 即"拒绝本次执行并要求改走 A2A 委派通道"，**不产生 `input-required` 真挂起**。
+
+**这是裁决后的稳定形态，不是待补缺陷**，理由：
+1. deterministic 的定位是**基准/测试执行器**，非生产委派通路；为它引入令牌生命周期 +
+   重放语义成本显著而受益面为零；
+2. 当前收口方向是 **fail-safe（拒绝而非放行）**，不存在"绕过审批"的安全缺口；
+3. "审批挂起"端到端场景已由 workbuddy(LLM) provider 真机实锤覆盖（批13 / C0 复验），
+   deterministic 无需重复建设。
+
+**代价（如实登记）**：deterministic 永远无法单独覆盖"审批挂起"端到端回归，该场景必须
+依赖 LLM provider 或 MCP 直调面。
+
 ---
 
 ## 5. Windows 会话保活（NFR-502，评估建议 §二）

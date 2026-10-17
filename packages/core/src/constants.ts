@@ -109,12 +109,21 @@ export const LLM_SESSION_IDLE_MS_DEFAULT = 300_000;
 /**
  * 就绪（首个 `system/init`）等待上限。
  *
- * ⚠ 与设计文档的「30s」不同：架构师真机实测冷启动 16–25s（并存在 36s 离群），
- *   30s 会把「正常慢启动」误判为不可用而**降级到单次 `-p`（又一次全额冷启动）**，
- *   与 AC1.2/AC1.5 目标相悖。故放宽到 60s（仍远小于宿主 600s 委派预算）。
+ * 演进（三次真机实测推动，勿凭注释猜）：
+ *   ① 架构师真机实测冷启动 16–25s（离群 36s）⇒ 从设计文档的「30s」放宽到 60s；
+ *   ② K2 补测：codebuddy **进程级**冷启动（auth probe + agent 端点）≈ **75–107s**
+ *      —— 已超过 60s 上限本身；
+ *   ③ D-5（2026-10-17 真机实证，`qa/p5-batch/b16/v20-warm2.txt`）：深度空闲 4.86h 后
+ *      首调冷启动实测 **49.3s**（`firstCallLatencyMs=49278`），逼近 60s 阈值 ⇒
+ *      「常驻会话在 60000ms 内未收到 system/init」概率性误判 ⇒ 该次委派静默落到
+ *      单次 `-p` 降级路径（自证文本：「已降级为单次 -p 路径」），且 `restarts` 递增。
+ *
+ * 故与 `LLM_SESSION_WARMUP_MS_DEFAULT`（180s，K2 为覆盖同一冷启动成本而设）**对齐**：
+ * 预热预算与真实轮次预算描述的是**同一个**冷启动过程，二者不一致等于让预热白做。
+ * 仍远小于宿主 600s 委派预算；运行时经 `WINVM_LLM_SESSION_READY_MS` 可调。
  */
 export const ENV_LLM_SESSION_READY_MS = 'WINVM_LLM_SESSION_READY_MS';
-export const LLM_SESSION_READY_MS_DEFAULT = 60_000;
+export const LLM_SESSION_READY_MS_DEFAULT = 180_000;
 /** 累计重建上限：超限置 disabled（此后恒定回退单次 `-p`，不再尝试常驻） */
 export const ENV_LLM_SESSION_MAX_RESTARTS = 'WINVM_LLM_SESSION_MAX_RESTARTS';
 export const LLM_SESSION_MAX_RESTARTS_DEFAULT = 5;

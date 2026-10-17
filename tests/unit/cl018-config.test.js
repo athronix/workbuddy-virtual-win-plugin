@@ -43,7 +43,12 @@ describe('CL-018 T01 · 配置默认段', () => {
       enabled: true,
       sessionId: 'winvm-persistent',
       idleTtlMs: 300_000,
-      readyTimeoutMs: 60_000,
+      // D-5（Phase 6 批18，2026-10-17）：60s → 180s，与 warmupReadyMs 对齐。
+      // 依据：codebuddy 进程级冷启动实测 49.3–107s，**已超过原 60s 阈值本身** ⇒
+      // 「60000ms 内未收到 system/init」概率性误判 ⇒ 委派静默落单次 `-p` 降级路径。
+      // 预热预算与真实轮次预算描述同一个冷启动过程，不一致等于让预热白做。
+      // 回归钉：tests/unit/p6-d5-ready-timeout-align.test.js
+      readyTimeoutMs: 180_000,
       maxRestarts: 5,
       maxWsBytes: 512 * 1024 * 1024,
       warmupReadyMs: 180_000,

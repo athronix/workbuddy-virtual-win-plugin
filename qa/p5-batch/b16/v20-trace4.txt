@@ -1,0 +1,12 @@
+01:10:22 起始 llm={"state":"ready","pid":8052,"restarts":0,"idleMs":112100,"wsLatestMb":8.3,"wsPeakMb":18.4,"wsEvictions":0}
+01:10:22 === V20 重打：趁常驻会话 ready ===
+01:10:22 taskId=8cb03b4e-6465-4529-b426-10540600c1b4
+01:10:37 首轮态=input-required
+01:10:37 approvalId=apr_3cc5e5ba42c243b0b392
+01:10:37 批准 resp=working
+01:11:28 续跑终态=failed
+01:11:28 呈报: 服务端执行回执（app.winget.uninstall）失败：app.winget.uninstall 执行未成功：执行器自报未成功（K6 核验未过）（执行器自报未成功（K6 核验未过））；服务端已记录本委派活动（executed=0/blocked=1/wild=1），未降级为确定性执行器（真实执行/拦截已发生，详见审计链 traceId=tr_f9b1253f-f6c4-4fe8-8a77-cad2019bdf7d）
+01:11:28 data keys=ok,stepCount,steps ok=false stepCount=1
+01:11:28 step: cap=appops.workflow.run ok=false errCode= summary=服务端已记录本委派活动，LLM 侧收口失败（未降级为确定性执行器）
+01:11:28 收尾 policyGate={"wiring":"on","shadowHits":0,"delegationRequiredPolicy":true,"scopeEntries":0,"directWithActiveTurn":1} llm={"state":"ready","pid":8052,"restarts":0,"idleMs":40335,"firstCallLatencyMs":12858,"wsLatestMb":2.6,"wsPeakMb":18.4,"wsEvictions":0}
+01:11:28 DONE

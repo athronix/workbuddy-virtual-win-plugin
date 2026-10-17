@@ -2,6 +2,9 @@
 
 > 观察对象：**V20 = 委派完成步（`data.steps[]`）携带 K6 折叠回执的自然样本**
 > 结论：**V20 目标面未命中，但采样过程暴露一个真实 P2 缺陷（N-5）** ⇒ V20 由「待自然样本」转「结构性不可达（依附 N-5）」，不再作为独立观察项挂账。
+>
+> **【2026-10-17 09:1x 更新 · 批18 D-6 修复后】** N-5 已修复并经真机复验，
+> **V20 目标正式达成** —— 见本文 §六 与 `docs/changes/phase6-b18-notes.md` §9.4。
 
 ---
 
@@ -83,3 +86,25 @@ V20 **不再单列**为观察项：其目标面的不可达已由 N-5 解释清�
 ---
 
 *留痕：主理人亲验（三轮真机 A2A 委派 + VM 日志 + 审计链双向取证），未派审计棒。证据获取遵循「含中文证据一律 VM 侧 UTF8 字节级落文件 + scp 回传」纪律，未走 ssh stdout 重定向。*
+
+---
+
+## 六、批18 D-6 修复后复验（2026-10-17 09:1x）—— V20 达成
+
+修复落地后重打同一委派场景（`app.winget.uninstall id="Nonexistent.Test.Zzz"` → L2 挂起
+`apr_3cc5e5ba42c243b0b392` → 批准 → 服务端确定性重放），证据
+`v20-trace4.txt` / `v20-final4.json` / `chain-after-d6-fix.txt`：
+
+| 面 | 修复前 | 修复后 |
+|---|---|---|
+| 任务终态 | failed，呈报「已降级为确定性执行，但**执行器未匹配到模板**」 | failed，呈报「**服务端执行回执失败**：…执行器自报未成功（K6 核验未过）；服务端已记录本委派活动（executed=0/blocked=1/wild=1），**未降级为确定性执行器**（真实执行/拦截已发生，详见审计链 traceId=tr_f9b1253f-…）」 |
+| `data.steps` | `stepCount=0` / `steps=[]` | **`stepCount=1`**，step 携带诚实失败文案 |
+| 链上 `delegation.complete` | `err=UNKNOWN_CAPABILITY`（兜底码顶替真实病因） | **`err=REPLAY_FAILED`** |
+| 服务端账本 `underlying` | 有记录但任务层不消费 | 有记录且**已被任务层消费** |
+
+**结论**：N-5（委派呈报失真）已根治；V20 目标（委派完成步携带折叠回执）**正式达成**；
+"已卸载却报未匹配"的 destructive 静默窗口消除。修复实现与判据见
+`docs/changes/phase6-b18-notes.md` §一，回归钉 `tests/unit/p6-d6-degrade-suppress.test.js`（10 例）。
+
+**附带（D-5）**：同轮 `/health` 显示 `llmSession={state:"ready", restarts:0}`、
+`firstCallLatencyMs=12858`（修复前 49278）—— 就绪超时与预热预算对齐后常驻会话零重建。
