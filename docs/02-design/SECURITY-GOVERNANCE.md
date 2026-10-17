@@ -193,6 +193,7 @@
 审批记录包含：审批者、时间、预览内容哈希（**当前服务端侧恒空、绑定批6 在建**，见下方订正注记）、审批结果（**批准 / 拒绝 / 超时 / 取消** 四态，不得折叠为「未批准」）。
 
 > **审批真值层的覆盖面（P2-T8 · 2026-10-12 口径更新）**：CL-K3R `reconcileApprovalTruth`（桥侧对 LLM 完成声称的结构化反查，服务端账本为唯一权威）的门 1 归属键已由「必须有 `taskId`」放宽为 **`taskId ?? traceId`** ⇒ 上表 **MCP 直调 / 委派 CLI 回连**（无 `taskId` 有 `traceId`）的回合同样进入结构化反查覆盖面；串台安全由服务端归因规则 R2 精确排除 + R3 时间窗/能力面过滤兜住，SK-1「无归属不介入」逐字保留（归属键**双缺**即回退文本兜底，且探针零调用）。文本启发式 `reconcileApprovalWait` 降为**兜底，且已知会漏同义改写**（六条漏判反例钉在 `tests/unit/phase2-truth-mcp-direct.test.js` D 组——属**诚实登记边界**，不是已修复；关键词集合钉 `[APPROVAL_REQUIRED, 等待审批]`，新增须同批改测试）⇒ **不得以兜底命中作为主要取证面**。归因可观测：每条 `delegation.complete` 可带 `ext.approvalTruth = { decidedBy:'server'|'text-fallback'|'shadow'|'pass-through', gate, taskIdPresent, traceIdPresent, approvalId? }`（纯附加可选，缺席即链上逐字节旧形状），使「结构化救回来的 vs 兜底救回来的」可计数、兜底命中率可监控。灰度 `WINVM_APPROVAL_TRUTH=on|shadow|off`（缺省 `on`；`shadow` 只记不判、`off` 一键回滚）语义不破。详见 `K5-server-replay-approval.md` §7。
+> **运营观测口径（2026-10-17 批20 固化）**：链上 `decidedBy='text-fallback'` 的计数即文本兜底命中率，列为长期观察项（不设门禁、不强触发）；若长期 >0 且集中于单一门（如门 5「结构化判定无未决审批」），再评估针对性收敛——观察数据出来前不预设收敛方案。
 
 预览内容哈希（`previewHash`）**V1 由宿主侧计算并记录**，落点 `packages/host-a2a-bridge/src/approval-audit.ts`，算法为 `sha256(canonicalJson({ capabilityId, risk, preview, impact }))`；用于比对「当时给用户看的」与「实际执行的」。**订正注记（2026-10-13 批0，ARCH-09 用户终裁=补建）**：上述"比对"所需的**绑定机制批6 在建，当前 previewHash 为空**——服务端侧恒 `''`（`vm-service/server.ts:250/:1187` 注释自证"预留供 ARCH-09 批次复用"），宿主侧仅进程内 Map，两侧数据物理上尚未打通，"预览 ≠ 执行"比对**从未真实运行**；哈希不一致即标记"不静默通过"是**批6 接线后的目标行为**，现阶段不得作为已生效保障引用。凭据类字段（`password` / `privateKey` / `passphrase` / token / secret）**永不入账**（此项在位）。
 
@@ -390,12 +391,18 @@ record_n.prevHash = hash_(n-1)
 
 | 场景 | 动作 | 执行形态 |
 |---|---|---|
-| RDP 断开导致挂起 | `tscon <sessionId> /dest:console`（需管理员） | **人工**（session-guard 自动恢复为规划项·未实现；工具面无 sessionId 数据源，Agent 不可自动执行） |
+| RDP 断开导致挂起 | `tscon <sessionId> /dest:console`（需管理员） | **人工**（session-guard 自动恢复为规划项·未实现；sessionId 自契约起在 `SessionHealth` 必填、VM 探针实测采集并经 `/health.session.sessionId` 与 `gui.session.status` 透出 ⇒ 数据源在场；未自动化的真实约束 = tscon 需管理员提升（ps-bridge 以登录用户非提升运行）+ 锁屏态 = Winlogon 安全桌面、会话内进程无法合成输入解锁（Windows 安全边界，非实现缺口）） |
 | 重启后无人登录 | 自动登录（Sysinternals Autologon 风格配置，**凭据由 VM 侧安全存储，不落明文**） | **人工配置**（自动登录生成器未实现，批X 规划项） |
 | 锁屏/休眠 | 调整电源与屏幕保护策略（禁休眠、禁锁屏超时） | **人工配置**（powercfg 策略接线未实现） |
 | 无法恢复 | 服务置 `degraded`，GUI 能力返回 `SESSION_UNAVAILABLE`，**明确报错而非静默黑图** | ✅ 在位（探针检测/告警链路真实存在） |
 
 > **诚实化注记（2026-10-13 批0，P0-3 族①）**：上表前三行的"动作"是**给运维的人工配方**（设计意图保留），不是插件已提供的自动恢复能力——session-guard 自动恢复链路代码零实现，口径详见 `ARCHITECTURE.md` §6.3 订正注记。
+
+> **E2E 回归前置 · VM 一次性人工配方（2026-10-17 批20 补）**：跑 GUI 类端到端回归前，在 VM 上一次性执行（属环境配置，非插件能力；Autologon 等涉凭据配置归 §6 人工口径，默认不含）：
+> - `powercfg /change monitor-timeout-ac 0`、`powercfg /change standby-timeout-ac 0`（关闭显示器/待机超时）
+> - `powercfg /h off`（禁用休眠）
+> - 屏幕保护关闭：`HKCU\Control Panel\Desktop` 的 `ScreenSaveActive=0`
+> 开跑前以 `/health.session.state === 'healthy'` 为前置门（探针在位，§5.3）；锁屏态下 GUI 自动化不可达——Winlogon 安全桌面、同会话进程无法合成输入解锁，属 Windows 安全边界而非插件缺陷 ⇒ 真实 GUI 自动化点击端到端回归受此环境限制，不以「自动恢复」名义编造实现（诚实化注记延续）。
 
 ### 5.5 降级语义（重要）
 
