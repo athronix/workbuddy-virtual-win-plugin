@@ -658,3 +658,7 @@ cp ../../.env .env            # 或由 .env.example 生成后编辑（VM_HOST/VM
 | 7 | 双侧部署态 | 宿主缓存版本路径在册；VM `C:/WinVMBridge` + 计划任务 + dev-and-qa MANIFEST 在册 |
 
 设计依据：`docs/release/DESIGN-V1.4.0.md`；发布说明：`docs/release/RELEASE-V1.4.0.md`；问题台账：`docs/release/issues.md`。
+
+### 9.5 新鸿蒙机 + 铠大师 App 部署方案
+
+在无既有部署的**新鸿蒙机**（已建 Windows VM）上安装本项目 Release 版，推荐经自有**铠大师 App**（鸿蒙高权限、可在 VM 装软件）做「权限补位 + 交互降维」：铠大师负责共享目录落包与 VM 系统层前置（sshd/防火墙/Node/公钥注入，解决「sshd 未装则 SSH 通道不存在」的鸡生蛋），WorkBuddy 负责隧道/部署/验证全链，二者经 `deploy-report.json` 状态交接口闭环；用户动作 = 3 次点击 + 粘贴 1 条 install prompt。方案详见 `docs/deploy/通过铠大师app安装部署.md`（V1 设计稿，含三方职责矩阵、prompt 模板、report 契约、坑清单 G1–G12、无铠大师降级路径）。
