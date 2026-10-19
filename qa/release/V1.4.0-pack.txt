@@ -7,6 +7,8 @@ verify: PASS (V2/V3/V4)
 host    : files=847 bytes=6855014 total-sha256=6301780a020ff1aadc74e7cd4de0561ffdacc2c3770e05a08495cfbb991a39f3
 vm      : files=344 bytes=2888082 total-sha256=f1f4e0198e9f28e3928e0832c2b5dcad83131608cd821361d3e0734d7b60bc9f
 overall : files=866 bytes=7263387 total-sha256=a619f07670ea42159a47ef9222637636df209a45d9c732c66a03546ac5ae6ad1
+overall-zip: release/V1.4.0/winvm-overall-V1.4.0.zip sha256=22eda02a5d669c6ddbbab36ec90047e1614b16ee25dbbb063bab1237982c1828 bytes=2701725
+overall-zip-sha256-file: release/V1.4.0/winvm-overall-V1.4.0.zip.sha256
 
 # 目录树（release/V1.4.0）
 host/

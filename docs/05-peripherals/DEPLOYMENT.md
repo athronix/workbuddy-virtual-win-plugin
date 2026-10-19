@@ -625,13 +625,31 @@ node delivery/pack-release.mjs --version V1.4.0 # 产出 release/V1.4.0/{host,vm
 
 包内验证（失败即中止、不产出可信包）：**V1** 三包必存文件结构断言（`PACKAGE_REQUIRED`，防闭包漏"读文件"型依赖——迭代1 即漏 `vm-service.config.json`）、**V2** host 闭包 dry-run、**V3** vm 闭包 dry-run、**V4** 能力计数=54。
 
+### 9.1a zip 产物 + GitHub Release 上架（REL-11 发布链）
+
+V1-V4 全过后，pack-release 追加生成 **overall zip**（GitHub Release 分发单元）：`release/<version>/winvm-overall-<version>.zip`（`zip -qr` 从 `release/<version>/` 执行 ⇒ 包内根恒为 `overall/`；zip/unzip 往返保留 `deploy-all.sh` 的 0755 执行位，鸿蒙沙箱实测；hmdfs 落包仍建议 `bash deploy-all.sh` 显式解释，Q-4）。同时生成**旁挂校验文件** `winvm-overall-<version>.zip.sha256`（Q-2：一行 `<hex>  <zipname>`，`sha256sum -c` 兼容）。证据文件新增两行 `overall-zip: <path> sha256=<hex> bytes=<n>` 与 `overall-zip-sha256-file: <path>`——**新机侧校验优先用旁挂文件 `sha256sum -c`（解包前整包校验），pack 证据行为第二对账源**。
+
+上架 GitHub Release（仓库 public，新鸿蒙机匿名 `curl -L` 即可取包）：
+
+```bash
+git push origin V1.4.0                    # tag 必须先在 GitHub 存在（上架器不建 tag）
+node delivery/publish-release.mjs --tag V1.4.0 --zip release/V1.4.0/winvm-overall-V1.4.0.zip          # 默认 dry-run：只打印计划
+node delivery/publish-release.mjs --tag V1.4.0 --zip release/V1.4.0/winvm-overall-V1.4.0.zip --apply   # 真上架
+```
+
+- **安全默认 dry-run**：不带 `--apply` 零写操作（GET 只读探测容错无网络）；`--apply` 才创建/复用 release、清理同名旧 asset、上传资产。
+- **双资产上架（Q-2）**：zip 与旁挂 `winvm-overall-<version>.zip.sha256` 一并上传（同名删重逻辑对两个各自生效；旁挂缺失 warn 继续只上架 zip，兼容旧包）。
+- token 解析顺序 `GH_TOKEN` env → `--token` → `~/.config/gh/hosts.yml`（值绝不打印）。
+- 成功后打印 `Release html_url` + 匿名下载 URL `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-overall-<tag>.zip`（prompt 模板/铠大师取包按钮的目标地址，见 `docs/deploy/通过铠大师app安装部署.md` §3-A1/§4.4）。
+- VM 环境准备脚本单一真相源：`tools/winvm-prepare.ps1`（ASCII+CRLF，KV 输出契约八键恒在——功能跳过时值为 SKIPPED，Q-3；守卫单测钉死）。
+
 ### 9.2 一键部署（整体包）
 
 ```bash
 cd release/V1.4.0/overall
 cp ../../.env .env            # 或由 .env.example 生成后编辑（VM_HOST/VM_USER/WINVM_VM_PROVIDER…）
-./deploy-all.sh --wipe        # ★ 发布迭代铁律：先清空历史部署，再重装
-./deploy-all.sh               # 不清场直接重装（仅限同版本热修，不构成迭代验收）
+bash deploy-all.sh --wipe     # ★ 发布迭代铁律：先清空历史部署，再重装（bash 显式解释不依赖执行位——新机 hmdfs 解包推荐，Q-4；本地已保位目录直接执行亦可）
+bash deploy-all.sh            # 不清场直接重装（仅限同版本热修，不构成迭代验收）
 ```
 
 - 一键脚本默认 `--skip-build`：包内 dist 已构建且 MANIFEST 指纹在册，且包**不含 src/tsconfig/tsc**（无法重建）。仓库态部署省略该 flag 即走完整 BUILD。
@@ -643,7 +661,7 @@ cp ../../.env .env            # 或由 .env.example 生成后编辑（VM_HOST/VM
 
 > **① 清空重装**：每个迭代重新部署新版本前，必须清空历史部署（`deploy-all.sh --wipe`）。不清场的重装只是"补部署"，不构成迭代验收；功能验证矩阵必须在该迭代的清空重装态上取数。迭代问题按「版本→迭代」记 `docs/release/issues.md`，关闭条件=复验通过。
 > **② 清场先杀看门狗**：uninstall 必须先查杀 VM 端本项目的看门狗与 services，再执行卸载清场（已内建于 `uninstall.mjs` VM 段，见 §9.2）。
-> **③ 迭代即推送**：每个迭代完成后 git commit 必须 push 到 origin（GitHub `athronix/workbuddy-virtual-win-plugin`，private）。
+> **③ 迭代即推送**：每个迭代完成后 git commit 必须 push 到 origin（GitHub `athronix/workbuddy-virtual-win-plugin`，public；tag+Release zip 资产上架见 §9.1a）。
 
 ### 9.4 部署后验证矩阵（V1.4.0 实测全过）
 
