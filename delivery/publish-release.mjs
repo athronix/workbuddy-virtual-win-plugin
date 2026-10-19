@@ -183,14 +183,41 @@ export function assertTag(tag) {
 
 /* ------------------------------ GitHub REST（fetch） ------------------------------ */
 
-/** GET 探测（只读；dry-run 网络不可达时由调用方容错）。返回 {status, body}。 */
-async function ghFetch(url, token, init) {
-  const headers = {
+/**
+ * 规范化 upload_url 并拼接资产名（真机 --apply 首跑暴露的坑：GitHub 返回的 upload_url
+ * 带 RFC6570 简单模板后缀 `{?name,label}`，直接拼 `?name=` 会生成畸形 URL ⇒ GitHub 网关
+ * HTTP 400『Multipart form data required』——raw body 端点路径本身被模板括号破坏。
+ * 判据：剥离末尾 `{?name,label}` 模板段，再以标准查询串追加 name（无查询则 ?，有则 &）。
+ * @param {string} uploadUrl  release.upload_url 原值
+ * @param {string} name       资产文件名
+ * @returns {string} 可直接 fetch 的上传 URL
+ */
+export function buildUploadUrl(uploadUrl, name) {
+  const base = String(uploadUrl).replace(/\{[^}]*\}$/, '');
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}name=${encodeURIComponent(name)}`;
+}
+
+/**
+ * 请求头合并（导出供单测钉死）：默认头打底，**调用方 init.headers 胜出**。
+ * 真机 --apply 首跑连爆两雷的沉淀：①upload_url 模板段（buildUploadUrl）；
+ * ②原 `{...init, headers: 默认头}` 写法让默认头反压调用方 Content-Type ⇒ uploads
+ * 端点 HTTP 400『Invalid Content-Type』。上传必须能带自己的 Content-Type。
+ * @param {string|null} token
+ * @param {Record<string,string>} [initHeaders]
+ */
+export function buildHeaders(token, initHeaders = {}) {
+  return {
     'Accept': 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...initHeaders,
   };
-  const res = await fetch(url, { ...init, headers });
+}
+
+/** GitHub REST（读写共用）；头合并经 buildHeaders（调用方 Content-Type 胜出，勿回退旧合并序）。 */
+async function ghFetch(url, token, init = {}) {
+  const res = await fetch(url, { ...init, headers: buildHeaders(token, init.headers) });
   let body = null;
   try { body = await res.json(); } catch { /* 非 JSON（如代理门户）按 null 处理 */ }
   return { status: res.status, body };
@@ -301,7 +328,8 @@ export async function main(argv = process.argv.slice(2)) {
   for (const a of assets) {
     const buf = readFileSync(a.path);
     // 注：不显式设 Content-Length——Buffer body 由 undici 自动计算（显式设置反成 forbidden-header 风险面）
-    const upl = await ghFetch(`${uploadUrl}?name=${encodeURIComponent(a.name)}`, tok.token, {
+    // 上传 URL 经 buildUploadUrl 规范化（剥离 upload_url 的 {?name,label} 模板段，见该函数头注的真机 400 根因）。
+    const upl = await ghFetch(buildUploadUrl(uploadUrl, a.name), tok.token, {
       method: 'POST',
       headers: { 'Content-Type': a.contentType },
       body: buf,

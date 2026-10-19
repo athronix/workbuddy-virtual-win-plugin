@@ -124,3 +124,37 @@
 | 7 | 双侧部署态 | ✅ 宿主缓存 `winvm-bridge/0.1.0`（5.0M 重装）；VM `WinVMBridge.Service` **Running**（lastRun 03:34:37=VM-START 时刻）+ dev-and-qa MANIFEST 在册 | ls + system.task.scheduled（tr_mvct0ldv_5）+ QA-PROBE 相位日志 |
 
 **结论：迭代 3 关闭。清场能力按用户纪律强化（先熔断看门狗→再杀 services→后拆注册→兜底复查），run4 真机确认新结构逐字生效且 18443 端口两次确认释放；V1.4.0 发布包在「判据收紧 + 清场强化」状态下完成发布、清空重装与完整功能验证。issues.md 当前无未关闭问题/观察项。**
+
+### 迭代 4（2026-10-19）——发布包上 GitHub Release + 新机分发链路（software-winvm-release 团队 SOP）
+
+> **状态：已关闭**。驱动项=用户请求「最终发布包应在 GitHub 上，新机安装部署验证都从 GitHub release 包开始」+ 完善方案文档/仓库/release + 推进 K1-K3。交付经 PM（K1-K3 规格书）→ 工程师（分发链代码）→ QA（两轮独立回归）三段 SOP。
+
+| ID | 阶段 | 现象 | 根因 | 处置 | 复验 | 状态 |
+|---|---|---|---|---|---|---|
+| I-4.0 | 查证·仓库 | 用户疑「GitHub repo 好像还没建立」 | 仓库**早已存在且同步**（main=2e1d693、tag V1.4.0、release 数=0），但为 **private**——未登录访问 GitHub 返 404（GitHub 对 private 的标准「不泄露存在性」行为） | 经设备码 gh OAuth（scope=repo）认证 API 复核 + 用户裁定**改 public**（PATCH 执行，匿名 API 转 200）⇒ 新机零 token 匿名下载成立 | 匿名 `curl releases/download` 全链实测（见 I-4.1 复验） | **已关闭** |
+| I-4.1 | 验证·发布物（**安全·QA 首轮拦下**） | QA V4-④ 复算发现 `winvm-overall-V1.4.0.zip` 卷入 `overall/.env`（真机配置：VM_HOST/VM_USER/内网拓扑）+ `delivery/winvm-plugin` shim；且双道校验（旁挂 sha256sum -c + MANIFEST 逐行）**检不出多余文件** | 迭代3 run4 在包目录 `release/V1.4.0/overall/` 内实机部署（`cp .env` + 原地 deploy-all.sh）留下运行残留，本次重打 zip 时被 `zip -qr` 卷入；**结构性盲区**：MANIFEST 只保证「在册文件在」，不保证「无额外文件」——public 仓库匿名即泄真机 .env | `pack-release.mjs`：`makeOverallZip` 增 **zip 条目集 ⊆ MANIFEST行集 ∪ {MANIFEST.txt}** fail-loud 断言（读 zip 中央目录字节流本身、extras 非空即删半成品拒产出、`unzip -Z1` 失败按不可信中止）；纯函数 `diffZipEntriesVsManifest` +4 例；清源（仅删非 MANIFEST 成员）重打 → 新 sha=`22eda02a…` 旁挂/证据三方联动 | QA R1 复算：`unzip -Z1` 条目 867=MANIFEST 866∪{MANIFEST.txt} 双向差集皆空、`.env`/shim 零命中、`unzip -t` CRC 全过；R3 变异「差集恒空」→2 例红（断言非恒真） | **已关闭** |
+| I-4.2 | 部署·上架（收口 --apply 首跑） | 上传 asset HTTP 400「Multipart form data required」 | GitHub `release.upload_url` 带 RFC6570 模板后缀 `…assets{?name,label}`，代码直接拼 `?name=` 生成畸形 URL ⇒ uploads 网关退回 multipart 要求。**纯函数单测覆盖不到真网络路径**（该教训=发布链首次实弹才暴露） | `publish-release.mjs` 新增导出纯函数 `buildUploadUrl()`：剥离末尾 `{?...}` 模板段再以标准查询追加 name；+3 例钉（含「绝不含花括号」「无 `}?` 畸形形态」） | 真 --apply 重跑：zip 上传通过（转入 I-4.3） | **已关闭** |
+| I-4.3 | 部署·上架（同次 --apply 二连爆） | 上传 asset HTTP 400「Invalid Content-Type」 | `ghFetch` 头合并写法 `{...init, headers}` 让**默认头反压**了调用方传入的 `Content-Type: application/zip` | 抽 `buildHeaders(token, initHeaders)`：默认头打底、**调用方 headers 胜出**；+2 例钉（Content-Type 覆盖/无 init 仅默认头） | 真 --apply 三跑：**双资产上架成功**（zip+旁挂）、Release 页 417165896、匿名下载 URL 双条产出 | **已关闭** |
+
+#### 迭代 4 过程记录
+
+- **仓库优化**（software-winvm-release 团队：PM 许清楚→工程师寇豆码→QA 严过关）：
+  - 工程师 #1（commit 13543eb）：`pack-release` zip+旁挂+纯净断言；`delivery/publish-release.mjs`（幂等上架、dry-run 默认零写、token 三源 GH_TOKEN/--token/gh hosts.yml **值绝不打印**、双资产同名 DELETE-先于-POST、旁挂缺失 warn 降级兼容旧包）；`tools/winvm-prepare.ps1`（单一真相源：ASCII+CRLF 字节级钉、八核心键恒定输出+无公钥显式 SKIPPED 在 else 臂+SSH_PORT 附加、G1 公钥双文件+icacls、幂等）；守卫 publish-release/winvm-prepare-ps1 入 gate ST3 双写表。
+  - PM #2：`docs/deploy/铠大师app功能规格书.md` V1.2——K1-K3=F-01~F-05 P0/契约 C-1~C-5/用户故事×4(GWT)/里程碑 M1-M3/G1-G12 闭环映射；Q-1~Q-6 六项接口裁决记录（首机公钥摆渡、.sha256 旁挂、KV 恒定输出、bash 前缀、latest 缺省、三口径统一）。
+  - 方案文档改造（commit 8bfc854）：`通过铠大师app安装部署.md` 分发起点=GitHub Release 匿名下载、§5.4 首机时序、DEPLOYMENT §9.1a 上架 runbook + §9.3 纪律 public 订正。
+- **QA 两轮回归**：首轮 IS_PASS=NO（抓 I-4.1 发布闸口级安全缺陷 + 三口径上报）→ 修复复验 IS_PASS=YES（R1-R6 全绿，含变异自证反恒真、MANIFEST 866 行第三方复证冻结包回滚字节忠实）。证据 `qa/p3-batch-sweep/gate-rel-v1.4.0-qa.txt` + it4→it6（工程师）+ it7（复验）。
+- **收口实操**：commit（13543eb/8bfc854/记忆批）→ push main → **tag V1.4.0 重指**至收口态（`9dfd758` peel=`01d6010`，发布纪律「tag=检出即验证态」延伸）→ `publish-release --apply` 上架（连爆 I-4.2/I-4.3 两真网 bug，即修即验，第三跑成功）。
+- **GitHub Release 终态（公开可验）**：
+  - Release：`https://github.com/athronix/workbuddy-virtual-win-plugin/releases/tag/V1.4.0`
+  - 匿名下载：`…/releases/download/V1.4.0/winvm-overall-V1.4.0.zip`（2,701,725 B）+ `…zip.sha256`
+- **匿名下载回环实测（模拟新机 F-02 全流程）**：隔离目录 `curl -L` 双资产 → 下载 zip 实算 sha256 `22eda02a…` == **旁挂 == 本地 pack 权威行**（三方一致，信任链闭合）→ `unzip` 解包 → `deploy-all.sh` 执行位 **0770 保留** → 解出树 `.env`/shim **零命中**（无真机残留）→ 条目计数 972 含目录项与在册一致。
+
+| # | 验证项（分发链） | 结果 | 证据 |
+|---|---|---|---|
+| D1 | 双资产上架 | ✅ zip + .zip.sha256 均在 Release | publish-release --apply 输出 + releases/tags API |
+| D2 | 匿名下载 | ✅ curl 零 token 即得（仓库 public） | wbtmp/dltest 隔离实测 2,701,725B |
+| D3 | 信任链 | ✅ DL sha256 == 旁挂 == pack 证据（三方一致） | DL==PACK_AUTHORITY=true / MATCH_SIDECAR=true |
+| D4 | 纯净性 | ✅ zip 条目集=MANIFEST∪{MANIFEST.txt}，无 .env/shim | QA R1 unzip -Z1 双向差集空 + 主理人解包 find 复核 |
+| D5 | 可执行 | ✅ deploy-all.sh 执行位保留（0770） | stat 实测（bash 前缀 Q-4 另作纵深） |
+
+**结论：迭代 4 关闭。发布包已上 GitHub Release（public、双资产、匿名可达），新机分发信任链（下载→整包校验→解包纯净→执行位）全链实测闭合，K1-K3 规格书可交铠大师 App 团队实施。I-4.1~I-4.3 三缺陷全部复验关闭；issues.md 无未关闭问题。**

@@ -19,6 +19,8 @@ import {
   resolveRepo,
   planUpload,
   downloadUrl,
+  buildUploadUrl,
+  buildHeaders,
   isDryRun,
   assertTag,
   buildAssetList,
@@ -283,4 +285,35 @@ test('publish zipName 与 pack zipNameFor 一字不差（下载 URL 契约不断
     downloadUrl({ repo: 'athronix/workbuddy-virtual-win-plugin', tag: 'V1.4.0', zipName: name }),
     'https://github.com/athronix/workbuddy-virtual-win-plugin/releases/download/V1.4.0/winvm-overall-V1.4.0.zip',
   );
+});
+
+test('buildUploadUrl：剥离 RFC6570 模板后缀 {?name,label} 后以 ?name= 追加（真机 400 根因防回归）', () => {
+  const u = buildUploadUrl('https://uploads.github.com/repos/a/b/releases/1/assets{?name,label}', 'winvm-overall-V1.4.0.zip');
+  assert.equal(u, 'https://uploads.github.com/repos/a/b/releases/1/assets?name=winvm-overall-V1.4.0.zip');
+  assert.ok(!u.includes('{'), '结果绝不含模板花括号');
+  assert.ok(!/\}\?/.test(u), '绝不再出现模板段紧跟查询的畸形形态（400 根因）');
+});
+
+test('buildUploadUrl：资产名含特殊字符仍正确编码', () => {
+  const u = buildUploadUrl('https://uploads.github.com/x/assets{?name,label}', 'win vm+overall.zip');
+  assert.ok(u.endsWith('name=win%20vm%2Boverall.zip'), u);
+});
+
+test('buildUploadUrl：无模板段原样使用；已含查询则 & 追加（防御性）', () => {
+  assert.equal(buildUploadUrl('https://u.example/assets', 'a.zip'), 'https://u.example/assets?name=a.zip');
+  assert.equal(buildUploadUrl('https://u.example/assets?foo=1', 'a.zip'), 'https://u.example/assets?foo=1&name=a.zip');
+});
+
+test('buildHeaders：调用方 Content-Type 胜出（真机 400 Invalid Content-Type 根因防回归）', () => {
+  const h = buildHeaders('tk', { 'Content-Type': 'application/zip' });
+  assert.equal(h['Content-Type'], 'application/zip');
+  assert.equal(h.Authorization, 'Bearer tk');
+  assert.equal(h.Accept, 'application/vnd.github+json');
+});
+
+test('buildHeaders：不传 init.headers 时仅默认头+token；无 token 无 Authorization', () => {
+  assert.deepEqual(Object.keys(buildHeaders(null)).sort(), ['Accept', 'X-GitHub-Api-Version']);
+  const h = buildHeaders('tk');
+  assert.equal(h.Authorization, 'Bearer tk');
+  assert.ok(!('Content-Type' in h));
 });
