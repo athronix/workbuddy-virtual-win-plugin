@@ -112,6 +112,16 @@ export const GATE_GUARD_FILES = [
     id: 'errcode-registration-pin',
     why: 'P4-N-2 契约码登记漂移钉：errors.ts 封闭码集 ↔ INTERFACES §2.6 表双向对账（加码欠登记/表私加幽灵码/retryable 漂移皆红）——同病再发两次的码表只有机检能终结（Phase 4 批9 处方）',
   },
+  {
+    file: 'winvm-prepare-ps1.test.js',
+    id: 'winvm-prepare-ps1',
+    why: 'REL-11 发布链：tools/winvm-prepare.ps1 = 铠大师执行的**磁盘静态资产**（无生成器兜底），PS 5.1 无 BOM UTF-8 码页乱码是本仓反复踩的坑；ASCII/CRLF/无BOM + KV 输出契约八键 + G1 双文件注入锚点被文档 §4.2 承诺解析——静默改名=双端分叉，只有机检能拦',
+  },
+  {
+    file: 'publish-release.test.js',
+    id: 'publish-release',
+    why: 'REL-11 GitHub Release 上架契约纯函数钉：token 优先级/上传计划（建 vs 复用 release、zip+旁挂 sha256 双资产同名先删后传顺序 Q-2、无 token 显形警告）/匿名下载 URL 形态/dry-run 安全默认/tag 校验/zip 名与旁挂内容 pack↔publish 一字不差——下载 URL 是新机分发链唯一入口，拼错=文档全链静默失效',
+  },
 ];
 
 /**

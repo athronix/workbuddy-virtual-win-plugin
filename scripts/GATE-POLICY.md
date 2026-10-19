@@ -106,6 +106,8 @@ ARCHIVE_VERIFY_MAX_SHARDS / GENESIS_HASH`）。core 未来新增 `audit/*` 导�
 | `psmod-contract.test.js` | psmod-contract | 注册表 ↔ PowerShell **跨语言隐式契约**（54 条映射）：编译器与 `tsc` 都看不见它；2026-10-08 全维度体检实测当时**零回归覆盖** |
 | `phase3-skill-claims-guard.test.js` | skill-claims | 批0 文档止血的**反向守卫**：SKILL/治理面点分 token ∈ 注册 id ∪ 白名单（幻觉能力钉）+ 续跑承诺现在时回潮钉（P0-1 四处文案族）+ 收集面下限断言（防目录迁移致判据空转恒真）。**QA 回归 D-3 补登记**——此前"写了没进 ST3"恰是本守卫反对的"写了没人跑"病灶自体复现 |
 | `p4-b9-errcode-registration-pin.test.js` | errcode-registration-pin | Phase 4 批9（N-2/N-6）**错误码登记漂移钉**：`errors.ts` 封闭码集 ↔ `INTERFACES.md` §2.6 表**双向**对账（加码欠登记⇒红、表私加幽灵码⇒红、retryable 列与 `DEFAULT_RETRYABLE` 实值不符⇒红）+「封闭 N 码」数字复写防回潮钉；N-2 同病再发两次（10→12 两次欠账），只有机检能终结 |
+| `winvm-prepare-ps1.test.js` | winvm-prepare-ps1 | REL-11 发布链：`tools/winvm-prepare.ps1` = 铠大师「VM 环境准备」按钮推送执行的**磁盘静态资产**（非生成器产物 ⇒ 无生成兜底）。判据：字节级 ASCII + CRLF 无孤立 LF + 无 BOM（**PS 5.1 无 BOM UTF-8 按 ANSI 码页乱码 = 本仓反复踩的坑**）+ KV 输出契约八键齐（文档 §4.2 承诺铠大师解析，静默改名=双端分叉）+ Q-3 跳过态显式 SKIPPED（键恒在）+ G1 双文件注入/icacls 收紧锚点。纯磁盘读、零 spawn，入选标准 (a)(b)(c) 全满足 |
+| `publish-release.test.js` | publish-release | REL-11 GitHub Release **上架契约**纯函数钉：token 三源优先级（含空白=空、hosts.yml 正则提取、注入隔离真机文件）、上传计划判定（release 建 vs 复用、**zip+旁挂 sha256 双资产**同名先删后传动作顺序钉、Q-2）、匿名下载 URL 形态（新机分发链唯一入口，拼错=文档全链静默失效）、dry-run 安全默认（`apply!==true` 即 dry）、tag 校验、`zipNameFor`/旁挂名/`sha256sum -c` 兼容内容/pack↔publish 一字不差接缝。零网络零写盘 |
 
 > **裁决项去向注**：设计 §6 P2-T11 行的字面表述是「契约一致性 + schema shape 校验」⇒ 上表
 > `contract-schema` / `contract-code-fidelity` 两行即其承载；§13.2-② 的 policy 白名单 ⇒ ST2b 承载。

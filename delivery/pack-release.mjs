@@ -4,6 +4,9 @@
  *
  * 依据 `docs/release/DESIGN-V1.4.0.md` §3/§5/§6 实现：
  *   release/<version>/{host,vm,overall} 三包 + 一键脚本 + README + MANIFEST。
+ *   REL-11 增：V1-V4 验证通过后产出 overall zip（GitHub Release 分发单元，
+ *   winvm-overall-<version>.zip，包内根=overall/），sha256+bytes 入包证据；
+ *   上架由 delivery/publish-release.mjs --apply 承接（见 DEPLOYMENT.md §9.1a）。
  *
  * 闭包推导（非拍脑袋，详见设计文档 §3）：
  *   host    = install-host.mjs 的 import/spawn 闭包 + skills + packages 运行时资产
@@ -21,7 +24,7 @@
  */
 import {
   existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, readdirSync,
-  statSync, chmodSync,
+  statSync, chmodSync, rmSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, dirname, resolve, relative } from 'node:path';
@@ -140,6 +143,9 @@ const VM_DELIVERY = [
   'delivery/vm-service.config.json',
 ];
 const OVERALL_EXTRA_DELIVERY = ['delivery/bootstrap.mjs', 'delivery/prepare-vm.mjs', 'delivery/uninstall.mjs'];
+// REL-11/Q-3（规格书 F-03·D-4）：winvm-prepare.ps1 随 overall 包分发——
+// 铠大师「VM 环境准备」推送的脚本 = 包内这一份（单一真相源入包），App 不自持副本。
+const OVERALL_TOOLS = ['tools/winvm-prepare.ps1'];
 const VM_PROBES = ['qa/probes/qa-probe.ps1', 'qa/probes/lead-md5-3.ps1'];
 /**
  * 包内必存文件（V1 结构断言）——防"闭包清单漏文件"（迭代1 即漏 vm-service.config.json，
@@ -161,6 +167,7 @@ const PACKAGE_REQUIRED = {
     'delivery/install-vm.mjs', 'delivery/vm-service.config.json', 'delivery/bootstrap.mjs',
     'delivery/uninstall.mjs', 'delivery/env.example', 'package.json', '.env.example',
     'docs/DEPLOYMENT.md', 'docs/RELEASE-V1.4.0.md', 'docs/issues.md',
+    'tools/winvm-prepare.ps1',
   ],
 };
 const OVERALL_DOCS = [
@@ -325,6 +332,106 @@ function writeManifest(dest, version, kind) {
   return { files: files.length, bytes, total };
 }
 
+/* ------------------------------ zip 发布资产（REL-11 A：GitHub Release 分发单元） ------------------------------ */
+/** zip 文件名（与 GitHub Release 匿名下载 URL 的 {zipname} 一字不差，勿随意改名） */
+export function zipNameFor(version) { return `winvm-overall-${version}.zip`; }
+/** 旁挂校验文件资产名（Q-2：随 zip 一起上架，解包前整包校验用） */
+export function sha256SidecarNameFor(zipName) { return `${zipName}.sha256`; }
+/**
+ * sha256sum -c 兼容内容（一行 `<hex>  <name>`，两空格=二进制模式；纯函数供单测）。
+ * zip 名用相对名（旁挂文件与 zip 同目录 ⇒ `sha256sum -c` 在解包目录即可校验）。
+ */
+export function sha256SidecarContent(zipName, hex) { return `${hex}  ${zipName}\n`; }
+/**
+ * zip 命令计划（纯函数，供单测断言）：从 release/<version> 目录执行
+ * `zip -qr <zipName> overall` ⇒ 包内根恒为 overall/（新机解包即得 overall 目录）。
+ * @param {string} destVersionDir release/<version> 绝对路径
+ * @param {string} version
+ * @returns {{cmd:string, args:string[], cwd:string, outPath:string, zipName:string}}
+ */
+export function buildZipSpawn(destVersionDir, version) {
+  const zipName = zipNameFor(version);
+  return { cmd: 'zip', args: ['-qr', zipName, 'overall'], cwd: destVersionDir, outPath: join(destVersionDir, zipName), zipName };
+}
+/**
+ * 缺陷#1（QA it6，发布闸口级安全）：zip 条目集 ⊆ MANIFEST 行集 ∪ {MANIFEST.txt} 的差集判据。
+ * 真机部署会在包目录混入非设计成员（.env 含 VM 内网拓扑、winvm-plugin 运行 shim）——
+ * 旁挂 sha256sum -c 与 MANIFEST 逐行校验都只检"在册文件字节对不对"，**检不出多出来的文件**
+ * （结构性盲区）。仓库 public 后匿名 curl 即得 ⇒ 必须在打包时机械拦截。
+ * @param {string[]} zipEntries `unzip -Z1` 输出的条目路径（含目录条目 `overall/xxx/` 尾斜杠）
+ * @param {string[]} manifestRows MANIFEST.txt 数据行原文（`<relpath>  <sha256>`，两空格分隔）
+ * @returns {string[]} 差集=额外条目（zip 里有、设计成员集里没有）；空数组=干净。
+ *   豁免规则：①目录条目（尾斜杠）不计（MANIFEST 只登记文件）；②`overall/MANIFEST.txt`
+ *   自身豁免（它由 writeManifest 先落盘再入 zip，但不在自己的行集里，属设计）。
+ */
+export function diffZipEntriesVsManifest(zipEntries, manifestRows) {
+  const manifestPaths = new Set();
+  for (const l of manifestRows) {
+    // 行格式=`<relpath>  <sha256>`（writeManifest 两空格口径）；relpath 可含点前缀（.env.example）
+    const i = l.lastIndexOf('  ');
+    if (i <= 0) continue;
+    if (/^[0-9a-f]{64}$/.test(l.slice(i + 2))) manifestPaths.add(l.slice(0, i));
+  }
+  const extras = [];
+  for (const entry of zipEntries) {
+    if (!entry || entry.endsWith('/')) continue; // 目录条目豁免
+    if (!entry.startsWith('overall/')) { extras.push(entry); continue; } // 非包内根=异常，显形
+    const rel = entry.slice('overall/'.length);
+    if (rel === 'MANIFEST.txt') continue; // MANIFEST 自身豁免
+    if (!manifestPaths.has(rel)) extras.push(entry);
+  }
+  return extras;
+}
+/**
+ * 生成 overall zip 并返回证据三元组（sha256/bytes 取**zip 实体**，非目录聚合值——
+ * 新机 curl 校验的就是这个字节流）。任何失败 fail-loud（调用点在证据写出之前 ⇒ 不落残缺证据）。
+ * Q-2 旁挂：zip 生成后立即写 `winvm-overall-<version>.zip.sha256`（sha256sum -c 兼容一行），
+ * 与 zip 同目录、随 publish-release 一并上架 ⇒ 铠大师/WB 解包前即可整包校验。
+ * 缺陷#1 断言：zip 条目集 ⊆ MANIFEST ∪ {MANIFEST.txt}，杂文件混入 ⇒ 删半成品 + fail-loud。
+ */
+export function makeOverallZip(destVersionDir, version) {
+  destVersionDir = resolve(destVersionDir); // 绝对化：spawn cwd 与条目列举的相对基准必须同源（缺陷#1 首跑即踩）
+  const plan = buildZipSpawn(destVersionDir, version);
+  if (!existsSync(join(plan.cwd, 'overall'))) fail(`zip 源目录缺失：${join(plan.cwd, 'overall')}`);
+  if (existsSync(plan.outPath)) fail(`zip 目标已存在：${relative(ROOT, plan.outPath)}（请移走旧 zip，避免新旧混发）`);
+  const manifestPath = join(plan.cwd, 'overall', 'MANIFEST.txt');
+  if (!existsSync(manifestPath)) fail(`zip 断言缺源：${relative(ROOT, manifestPath)} 不存在（先 writeManifest 再生成 zip）`);
+  const r = spawnSync(plan.cmd, plan.args, { cwd: plan.cwd, encoding: 'utf8' });
+  if (r.status !== 0 || !existsSync(plan.outPath)) {
+    fail(`zip 生成失败（exit ${r.status}）：${(r.error ? r.error.message : (r.stderr || r.stdout || '')).toString().trim().slice(0, 400)}——若为 command not found，请安装 zip（本仓发布链依赖 zip/unzip 往返保留 0755）`);
+  }
+  // —— 缺陷#1 条目集断言（读 zip 中央目录，不读盘上目录：判的就是上架字节流本身）——
+  const list = spawnSync('unzip', ['-Z1', plan.outPath], { cwd: plan.cwd, encoding: 'utf8' });
+  if (list.status !== 0) {
+    try { fs.rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
+    fail(`zip 条目列举失败（unzip -Z1 exit ${list.status}）：${(list.stderr || list.stdout || '').toString().trim().slice(0, 300)}——断言无法执行 ⇒ 按不可信处理，半成品已删除`);
+  }
+  const zipEntries = list.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+  const manifestRows = readFileSync(manifestPath, 'utf8').split('\n');
+  const extras = diffZipEntriesVsManifest(zipEntries, manifestRows);
+  if (extras.length) {
+    try { fs.rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
+    fail(`zip 混入非 MANIFEST 成员（发布闸口拦截，仓库 public 后这些文件将匿名可取）：\n  ${extras.join('\n  ')}\n——从包目录移除上述杂文件（勿删 MANIFEST 在册成员/.env.example）后重试`);
+  }
+  const zip = { path: plan.outPath, zipName: plan.zipName, sha256: sha256File(plan.outPath), bytes: statSync(plan.outPath).size };
+  // 旁挂 .sha256（同目录；写完即回读自证——发布链字节级承诺不容半截文件）
+  zip.sidecarName = sha256SidecarNameFor(plan.zipName);
+  zip.sidecarPath = join(destVersionDir, zip.sidecarName);
+  writeFileSync(zip.sidecarPath, sha256SidecarContent(plan.zipName, zip.sha256));
+  if (!existsSync(zip.sidecarPath) || readFileSync(zip.sidecarPath, 'utf8') !== sha256SidecarContent(plan.zipName, zip.sha256)) {
+    fail(`旁挂校验文件写出回读不一致：${relative(ROOT, zip.sidecarPath)}`);
+  }
+  return zip;
+}
+/** 证据行（单一格式口径，供 evLines 与单测共用） */
+export function overallZipEvidenceLine(relPathFromRoot, zip) {
+  return `overall-zip: ${relPathFromRoot} sha256=${zip.sha256} bytes=${zip.bytes}`;
+}
+/** 旁挂资产证据行（Q-2；前缀口径=team-lead 定稿 `overall-zip-sha256-file:`） */
+export function overallZipSha256EvidenceLine(relPathFromRoot) {
+  return `overall-zip-sha256-file: ${relPathFromRoot}`;
+}
+
 /* ------------------------------ 包内验证 V1-V4 ------------------------------ */
 function verifyPackages(dest, version) {
   const results = [];
@@ -456,6 +563,7 @@ function main() {
   console.log('· 组装 overall/（整体包 = host ∪ vm ∪ 编排与文档）');
   assembleCommon(join(dest, 'overall'));
   copyList([...new Set([...HOST_DELIVERY, ...VM_DELIVERY, ...OVERALL_EXTRA_DELIVERY])], join(dest, 'overall'));
+  copyList(OVERALL_TOOLS, join(dest, 'overall'));
   copyList(VM_PROBES, join(dest, 'overall'));
   assembleHostNodeModules(join(dest, 'overall'));
   genOverallScript(join(dest, 'overall'), version);
@@ -475,9 +583,9 @@ function main() {
       '',
       '## 一键部署',
       '```bash',
-      './deploy-all.sh --wipe          # 双端清空历史部署后整体重装（推荐用于首发/灾难恢复）',
-      './deploy-all.sh                 # 不清场，直接 setup.mjs --apply --skip-build',
-      './deploy-all.sh --wipe --yes    # 预留：其余参数透传 setup.mjs',
+      'bash deploy-all.sh --wipe         # 双端清空历史部署后整体重装（推荐用于首发/灾难恢复；bash 显式解释防 hmdfs 丢执行位）',
+      'bash deploy-all.sh                # 不清场，直接 setup.mjs --apply --skip-build',
+      'bash deploy-all.sh --wipe --yes   # 预留：其余参数透传 setup.mjs',
       '```',
       '',
       '> 一键脚本默认 `--skip-build`：发布包内 dist 已构建且逐文件 sha256 指纹在 MANIFEST.txt，',
@@ -513,6 +621,12 @@ function main() {
     }
   }
 
+  // —— zip 发布资产（V1-V4 全过后才做；失败 fail-loud ⇒ 不落残缺证据）——
+  // overall 是唯一面向新机分发的单元：GitHub Release 匿名 curl 下载的就是这个 zip；
+  // Q-2 旁挂 <zip>.sha256（sha256sum -c 兼容）随 zip 一同上架，解包前即可整包校验。
+  console.log('· 生成 overall zip + sha256 旁挂（GitHub Release 分发单元）');
+  const overallZip = makeOverallZip(dest, version);
+
   // —— 证据（版本化入库；release/ 本体不入库） ——
   const evDir = resolve(ROOT, args.evidenceDir);
   ensureDir(evDir);
@@ -526,6 +640,8 @@ function main() {
     `host    : files=${hostMan.files} bytes=${hostMan.bytes} total-sha256=${hostMan.total}`,
     `vm      : files=${vmMan.files} bytes=${vmMan.bytes} total-sha256=${vmMan.total}`,
     `overall : files=${overallMan.files} bytes=${overallMan.bytes} total-sha256=${overallMan.total}`,
+    overallZipEvidenceLine(relative(ROOT, overallZip.path), overallZip),
+    overallZipSha256EvidenceLine(relative(ROOT, overallZip.sidecarPath)),
     '',
     '# 目录树（release/' + version + '）',
     ...treeOf(join(dest)),
@@ -537,8 +653,9 @@ function main() {
   console.log(`  host    ${hostMan.files} 文件 / ${(hostMan.bytes / 1024).toFixed(0)}K / sha256 ${hostMan.total.slice(0, 16)}…`);
   console.log(`  vm      ${vmMan.files} 文件 / ${(vmMan.bytes / 1024).toFixed(0)}K / sha256 ${vmMan.total.slice(0, 16)}…`);
   console.log(`  overall ${overallMan.files} 文件 / ${(overallMan.bytes / 1024).toFixed(0)}K / sha256 ${overallMan.total.slice(0, 16)}…`);
+  console.log(`  overall-zip ${relative(ROOT, overallZip.path)} / ${(overallZip.bytes / 1024).toFixed(0)}K / sha256 ${overallZip.sha256.slice(0, 16)}…  旁挂 ${relative(ROOT, overallZip.sidecarPath)}  →上架：node delivery/publish-release.mjs --tag ${version} --zip ${relative(ROOT, overallZip.path)} [--apply]`);
   console.log(`  证据：${relative(ROOT, evPath)}`);
-  console.log(`\n下一步：cd ${relative(ROOT, dest)}/overall && ./deploy-all.sh --wipe   （清空历史部署后整体重装）\n`);
+  console.log(`\n下一步：cd ${relative(ROOT, dest)}/overall && bash deploy-all.sh --wipe   （清空历史部署后整体重装；bash 显式解释防 hmdfs 丢执行位）\n`);
 }
 function treeOf(dir, prefix = '') {
   const out = [];
@@ -549,4 +666,8 @@ function treeOf(dir, prefix = '') {
   }
   return out;
 }
-main();
+/* 直接执行守卫：`node delivery/pack-release.mjs` 才跑主流程；
+ * 单测 import 纯函数（zipNameFor / buildZipSpawn / overallZipEvidenceLine / publish*）不触发副作用。 */
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}
