@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "宿主壳（仅挂载 WinVM 功能页面，无业务代码）"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "WinVM Bridge 部署助手入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "WinVM部署助手"
+    },
+    {
+      "name": "perm_download_reason",
+      "value": "需要访问共享下载目录以落放发布包并读回部署报告"
+    }
+  ]
+}

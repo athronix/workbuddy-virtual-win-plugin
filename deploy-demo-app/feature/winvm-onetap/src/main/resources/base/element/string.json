@@ -1,0 +1,12 @@
+{
+  "string": [
+    {
+      "name": "har_desc",
+      "value": "WinVM Bridge 一键部署功能模块（可移植 HAR）"
+    },
+    {
+      "name": "module_desc",
+      "value": "功能层：取包/校验/解压/落盘/prompt/报告读回"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "files": [
+    "**/*.ets"
+  ],
+  "ignore": [
+    "**/oh_modules/**",
+    "**/build/**"
+  ],
+  "ruleSet": [],
+  "checkedFiles": [
+    "**/*.ets"
+  ]
+}

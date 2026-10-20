@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "WinVM部署助手"
+    },
+    {
+      "name": "module_desc",
+      "value": "宿主框架层（仅挂载功能页面）"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "WinVM Bridge 部署助手入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "WinVM部署助手"
+    }
+  ]
+}

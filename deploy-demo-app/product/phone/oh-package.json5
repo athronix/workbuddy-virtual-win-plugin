@@ -1,0 +1,11 @@
+{
+  "name": "phone",
+  "version": "1.0.0",
+  "description": "WinVM deploy demo host shell (framework layer only)",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "winvm_onetap": "file:../../feature/winvm-onetap"
+  }
+}

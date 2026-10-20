@@ -1,0 +1,9 @@
+{
+  "name": "winvmonetapdemo",
+  "version": "1.0.0",
+  "description": "WinVM Bridge one-tap deploy demo (HarmonyOS native)",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {}
+}

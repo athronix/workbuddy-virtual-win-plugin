@@ -1,0 +1,9 @@
+{
+  "name": "winvm_onetap",
+  "version": "1.0.0",
+  "description": "WinVM Bridge one-tap deploy feature (portable HAR: download-verify-extract-prompt-report)",
+  "main": "Index.ets",
+  "author": "",
+  "license": "",
+  "dependencies": {}
+}
