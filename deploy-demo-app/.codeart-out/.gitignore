@@ -1,0 +1,11 @@
+# 构建产物与日志 —— 不入库，仅在共享目录流转给 WB 分析
+*.log
+*.hap
+*.app
+*.map
+build/
+**/build/
+node_modules/
+hvigorw
+hvigorw.bat
+.ohpm/

@@ -4,7 +4,8 @@
 
 ## 当前变更
 
-（无——CL-001..004 已全部完成并迁移至 changed-log.md）
+- **CL-005（构建管线脚手架）**：新增 `.codeart-tasks/`（README + TASK-001）、`tools/build.sh`、` .codeart-out/`（.gitignore + .gitkeep），
+  建立 WB↔CodeArts Agent 文件交接管线；同步索引。TASK-001 执行待 bridge 在 CodeArts Agent 跑通。
 
 ## 说明
 

@@ -1,0 +1,5 @@
+# WorkBuddy 内部/工具态文件（非源码，不入库）
+.merkle-snapshot.json
+.workbuddy/
+
+# 注意：.codeart-out/ 的忽略规则在其目录内 .gitignore，保留 .gitkeep 入版本库

@@ -17,7 +17,9 @@
 | `docs/guides/` | 移植指南 / 用户手册 |
 | `docs/03-impl/` | 实现逻辑（IMPLEMENTATION-LOGIC.md） |
 | `docs/04-verification/` | 静态验证报告（TEST-REPORT-static-review.md） |
-| `tools/` | 图标生成脚本（make_icon.py，zlib 手编 PNG） |
+| `tools/` | 构建/图标脚本（make_icon.py，build.sh） |
+| `.codeart-tasks/` | WB↔CodeArts Agent 文件交接管线指令（TASK-NNN.md，入库） |
+| `.codeart-out/` | Agent 输出（log/hap，按 .gitignore 不入库） |
 | `.dev/` | DDD 六索引 |
 
 ## 关键文件索引
@@ -49,6 +51,10 @@
 | `docs/03-impl/IMPLEMENTATION-LOGIC.md` | 实现逻辑说明 | v1.0.0 |
 | `docs/04-verification/TEST-REPORT-static-review.md` | 静态验证报告 | v1.0.0 |
 | `tools/make_icon.py` | 图标生成（zlib 手工编码 PNG） | v1.0.0 |
+| `tools/build.sh` | 一键 lint/build 封装（Agent 执行成本最低化） | v1.0.0 |
+| `.codeart-tasks/README.md` | 文件交接管线协议 | v1.0.0 |
+| `.codeart-tasks/TASK-001.md` | 任务①规则检查+HAP构建（编译器裁决） | v1.0.0 |
+| `.codeart-out/.gitignore` | 构建产物/日志不入库 | v1.0.0 |
 | `.dev/project-dev-status.md` | 任务树/阶段状态 | v1.1.0 |
 | `.dev/changing-log.md` / `.dev/changed-log.md` | 变更登记 / 已完成变更（CL-001..004） | v1.1.0 |
 
