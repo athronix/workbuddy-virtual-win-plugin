@@ -122,6 +122,11 @@ export const GATE_GUARD_FILES = [
     id: 'publish-release',
     why: 'REL-11 GitHub Release 上架契约纯函数钉：token 优先级/上传计划（建 vs 复用 release、zip+旁挂 sha256 双资产同名先删后传顺序 Q-2、无 token 显形警告）/匿名下载 URL 形态/dry-run 安全默认/tag 校验/zip 名与旁挂内容 pack↔publish 一字不差——下载 URL 是新机分发链唯一入口，拼错=文档全链静默失效',
   },
+  {
+    file: 'cl026-approval-presentation.test.js',
+    id: 'cl026-approval-presentation',
+    why: 'CL-026 审批卡**强制呈现**安全承诺钉：审批挂起时返回面（delegate 早退文案/approval 字段/task.get 观测面/两工具 description）必须内嵌「呈现要求」指令——缺它则出卡全凭宿主 agent 自由发挥（真机实证：卡片靠主理人手工渲染，非系统保证）。含四行契约与两工具名绑定、纯附加字段幂等、通道隔离红线（新改动面零 MCP 续跑标记 + MCP 小节不被误删的反向钉）、SKILL.md 不新增三级标题（否则 r1-approval-card R1-9 节切片静默截断）与变异自证。纯离线 0.9s，入选标准 (a)(b)(c) 全满足',
+  },
 ];
 
 /**

@@ -41,8 +41,10 @@ relatedSkills:
 
 **标准执行路径**（每个 VM 任务都走同一条路，仅参数不同）：
 1. 调用本会话已注入的连接器工具：简单任务 `winvm`（MCP 直调，如 `app.winget.uninstall`）；复杂/开放任务 `winvm-a2a`（`a2a.delegate` 委派）。
-2. 委派返回审批挂起（`data.type='approval-request'` + `approval` + `approvalId` + 真实目标）→ 向用户转呈审批
-   （**两段式**：`show_widget` 渲染卡片 + `AskUserQuestion` 收口，见 §审批闸协议），**严禁代替用户放行**。
+2. **（MUST）** 委派返回审批挂起（`data.type='approval-request'` + `approval` + `approvalId` + 真实目标）
+   → 返回体自带**呈现要求**指令，宿主 agent 必须逐条执行，**顺序不可颠倒**：
+   ① `show_widget` 渲染七槽位审批卡 → ② `AskUserQuestion` 权威收口（两段式，见 §审批闸协议）。
+   **禁止以纯文本转呈代替出卡、严禁代替用户放行**；渲染面任一不可用 → 逐字降级文本模板（非跳过展示）。
 3. 用户批准 → `a2a.approval.reply { taskId, approvalId, approved: true }` → `a2a.task.get` 轮询至终态 → 向用户汇报结果与证据。
 4. 期间进度/状态一律经工具回查询得并回馈用户；任何一步工具不可用 → 停止并请求启用连接器。
 
@@ -274,13 +276,33 @@ winvm-a2a__a2a.delegate({
 > 这是「L3 先 dry-run 再确认」得以真正执行的前提：**先 dry-run 拿计划 → 展示 → 用户确认 → 再去掉 dryRun 执行**。
 > 审批预览会对支持 `dryRun` 的能力附带 dry-run 计划摘要。
 
-### A2A 通道（经 winvm-a2a 连接器）——**两段式原生渲染**（R17/R1）
+### A2A 通道（经 winvm-a2a 连接器）——**两段式原生渲染**（R17/R1 · CL-026 强制呈现）
 `a2a.delegate` 返回 `state: "input-required"`，并带
-`approval { approvalId, message, risk, capabilityId, summary, impact, preview, resumeHint, underlying }`。
+`approval { approvalId, message, risk, capabilityId, summary, impact, preview, resumeHint, underlying, presentationDirective }`。
 （以上字段由宿主桥透传：`impact` / `preview` 与 VM 下发**逐项一致**；凭据类字段 `password` / `privateKey` / `passphrase` / token / secret **已脱敏、永不呈现**。）
 
 **识别**：审批请求的判据是数据分片 `data.type === 'approval-request'`（且带 `approvalId`）。
 仅凭 `state: "input-required"` **不**构成审批请求——那可能只是任务在问补充信息，按普通问答处理。
+
+**呈现要求（MUST · 返回体自带，不是可选建议）**：审批挂起时，宿主桥在返回文案（`summary` 与
+`content[0].text`）内嵌一段「呈现要求」指令，并在 `approval` 的 `presentationDirective` 字段
+给出同一条权威串（`docs/design/cl026-approval-presentation.md` §1）。宿主 agent **必须逐条执行、
+顺序不可颠倒**：
+
+- **MUST ①** 先 `show_widget` 出审批卡——七槽位**全部取本 approval 载荷**（操作 / 目标 = `underlying`
+  真实意图优先 / 通道 / 风险 / 影响清单 / 可逆性 / 预览），并展示 `approvalId` 与续跑指令；
+- **MUST ②** 随后 `AskUserQuestion` 权威收口，三选项 = **批准 / 拒绝 / 暂不决定（超时观察，任务保持挂起）**，
+  选项文案带 `approvalId` 摘要；
+- **MUST ③** **禁止**用纯文本转呈代替出卡、**禁止**代替用户批准；两工具任一不可用 → 逐字降级文本模板
+  （见下方红线 3），**降级 ≠ 跳过展示**；
+- **MUST ④** 批准后调 `a2a.approval.reply`，再用 `a2a.task.get` 轮询至终态并汇报证据。
+
+**第三选项的等价口径（不得读作第三种放行）**：「暂不决定（超时观察）」= 「未作答」⇒
+**不发任何 reply**、VM 侧任务恒挂起、超时按拒绝处理（fail-closed、零重放），与下方「收口后」的
+未作答分支**完全同义**。`approval.reply` 只在用户明确选择「批准」或「拒绝」后调用。
+
+**同一呈现要求的第二个携带面**：超时/重连后用 `a2a.task.get` 取回的任务若仍挂起在审批
+（返回体带 `approval`），**同样必须**先出卡再收口——挂起审批不因观测工具不同而降级为纯文本。
 
 **两段式（缺一不可，顺序不可颠倒）**：
 

@@ -137,6 +137,30 @@
 
 任务挂起 → 宿主**必须先向用户展示影响清单** → 取得确认后才调 `a2a.approval.reply`。桥只做搬运，不代为决策；VM 侧超时按拒绝处理（fail-closed）。
 
+#### 4.4.1 呈现要求内嵌（CL-026，2026-10-20）
+
+「展示影响清单」此前是**软描述**——是否出审批卡全凭宿主 agent 自由发挥（真机实证：卡片由主理人
+现场按 R17 规范手工渲染，非系统保证）。CL-026 把指挥信号下移到**工具返回面**：桥在审批挂起时
+内嵌一段「呈现要求」指令，宿主 agent 必然读到、必然执行。
+
+| 携带面 | 位置 | 形态 |
+|---|---|---|
+| L1 | `a2a.delegate` 早退文案（`summary` / `content[0].text`） | 既有「任务挂起等待审批：…」文本**尾部换行追加**（前缀逐字不变） |
+| L2 | `a2a.delegate` 的 `approval` 载荷 | 纯附加可选字段 `presentationDirective`（权威串单源，幂等补挂） |
+| L3 | `a2a.task.get` 观测到挂起审批 | 同 L2 + 文案面（挂起审批不因观测工具不同而降级为纯文本） |
+| L4/L5 | `a2a.delegate` / `a2a.approval.reply` 工具 description | 说明书面：出卡先于收口、收口只来自 `AskUserQuestion` |
+
+指令内容四条（权威正文单源 = `packages/host-a2a-bridge/src/tools.ts` 的 `APPROVAL_PRESENTATION_DIRECTIVE`，
+规范文案入档见 `docs/design/cl026-approval-presentation.md` §1）：
+① `show_widget` 出七槽位卡（取本 approval 载荷）；② `AskUserQuestion` 权威收口（批准 / 拒绝 /
+暂不决定·超时观察，选项带 `approvalId` 摘要）；③ 禁止纯文本转呈代替出卡、禁止代用户批准，
+渲染面不可用则逐字降级 `references/approval-card.md` 文本模板；④ 批准后 reply + `a2a.task.get` 轮询至终态。
+
+**MCP 直调路径不落地（口径明确，非遗漏）**：`DELEGATION_REQUIRED`（批1(c) 纯直调收口）**不发审批载荷**
+⇒ 无槽位可填，`approval-card.md` §4/§7「无 `approvalId` ⇒ 不得出卡片」是权威；正确闭环 = 转委派后由 L1/L2 携带指令。
+`APPROVAL_REQUIRED` 令牌态面向 VM 内 Agent / 回滚位，其续跑标记与 A2A 卡片红线互斥（通道隔离），故同样不加。
+两通道口径 = **A2A 委派通道的 delegate 早退面 + task.get 观测面**两处内嵌。
+
 ### 4.5 取消的呈现口径（Phase 1 T5，ARCH-22 / §10 R10）
 
 `tasks/cancel` 是**协作式**取消：执行体在"能力调用边界"消费取消信号，**正在执行的那一次调用会跑完**。因此宿主呈现面必须事实化，不得宣称"未执行任何变更"（那是 R10 点名的预期管理红线）。两态判据：

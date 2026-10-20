@@ -80,11 +80,39 @@ export interface ExtractedApproval {
   readonly impact?: readonly string[];
   /** dry-run 预览（VM 已下发时原样透传，含空对象） */
   readonly preview?: Record<string, unknown>;
-  /** 宿主侧合成的续跑提示（A2A 通道，绝不含 __approvalId） */
+  /** 宿主侧合成的续跑提示（A2A 通道，绝不含 MCP 续跑标记） */
   readonly resumeHint?: string;
   /** K5：真实意图（VM 下发时透传，各子字段缺失即省略；整块缺失则字段不出现） */
   readonly underlying?: ExtractedUnderlying;
+  /**
+   * CL-026：呈现要求指令（宿主 agent 的强制动作契约）。
+   * 纯附加可选字段，取值恒等于 `APPROVAL_PRESENTATION_DIRECTIVE`（权威串单源）。
+   */
+  readonly presentationDirective?: string;
 }
+
+/**
+ * CL-026 —— 审批卡强制呈现指令（**恰好 4 行**，行数被 `tests/unit/cl026-approval-presentation.test.js` C-1 钉死）。
+ *
+ * 病灶（真机实证 2026-10-20）：审批挂起时返回载荷数据齐全，但**没有任何一面指挥宿主 agent 出卡**，
+ * 是否渲染审批卡全凭 agent 自由发挥（当时那张卡是主理人现场按 R17 规范手工渲染，非系统保证）。
+ * 本常量把指挥信号下移到工具返回面 ⇒ 每次挂起必然「先 `show_widget` 出卡、再 `AskUserQuestion` 收口」。
+ *
+ * 纪律：
+ * - **固定文本、零插值** ⇒ 天然不含凭据、不含 MCP 续跑标记（R1-a 通道隔离红线）；
+ * - 渲染契约沿用 R17（`docs/design/r17-design.md` §A1.1）：视觉载体只展示不放行，
+ *   权威放行只来自 `AskUserQuestion` 的结构化答案；
+ * - 第三选项「暂不决定（超时观察）」= 「未作答」同义（不发续跑指令、任务恒挂起、fail-closed），
+ *   **不是**第三种放行口实；
+ * - 降级权威与槽位/续跑口径以 `references/approval-card.md`（唯一正文）为准，本串只引用不复述。
+ * 规范文案入档：`docs/design/cl026-approval-presentation.md` §1。
+ */
+export const APPROVAL_PRESENTATION_DIRECTIVE: string = [
+  '【呈现要求·MUST】① 先 show_widget 出审批卡：七槽位取本 approval 载荷（操作/目标=underlying 真实意图/通道/风险/影响清单/可逆性/预览），并展示 approvalId 与续跑指令。',
+  '② 随后 AskUserQuestion 权威收口：批准 / 拒绝 / 暂不决定（超时观察，任务保持挂起），选项文案带 approvalId 摘要。',
+  '③ 禁止用纯文本转呈代替出卡、禁止代替用户批准；show_widget 或 AskUserQuestion 任一不可用 → 逐字降级 references/approval-card.md 文本模板。',
+  '④ 批准后调 a2a.approval.reply，再用 a2a.task.get 轮询至终态并汇报证据。',
+].join('\n');
 
 /**
  * 派生审批摘要（不得为空串或占位符）。
@@ -199,7 +227,7 @@ function extractUnderlying(raw: unknown): ExtractedUnderlying | undefined {
 
 /**
  * 合成 A2A 通道续跑提示（逐字模板）。
- * **绝不包含 `__approvalId`**（那是 MCP 直调通道的标记，两通道不得混用）。
+ * **绝不包含 MCP 直调通道的续跑标记**（双下划线 + approvalId 的那个串，两通道不得混用）。
  *
  * K5：带 `underlying`（真实意图）时在其后追加一行「真实目标：…」，提升审批卡片信息量；
  * 不带时输出**逐字不变**（保住 CL-016 既有逐字断言）。
@@ -230,6 +258,15 @@ function describeUnderlying(u?: ExtractedUnderlying): string {
 export function withA2aResumeHint(a: ExtractedApproval, taskId?: string): ExtractedApproval {
   if (a.resumeHint) return a;
   return { ...a, resumeHint: buildA2aResumeHint(a.approvalId, taskId, a.underlying) };
+}
+
+/**
+ * CL-026：幂等补挂呈现要求指令（与 `withA2aResumeHint` 同纪律——已有则原样返回，
+ * 不改动其它字段）。取值恒为权威串 `APPROVAL_PRESENTATION_DIRECTIVE`（零插值）。
+ */
+export function withPresentationDirective(a: ExtractedApproval): ExtractedApproval {
+  if (a.presentationDirective) return a;
+  return { ...a, presentationDirective: APPROVAL_PRESENTATION_DIRECTIVE };
 }
 
 /** artifact 摘要（不含大块 base64，避免 MCP 结果膨胀） */
@@ -396,7 +433,9 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
     title: 'A2A 委派给 VM 内 AI Agent',
     description:
       '把复杂/开放性任务目标经 A2A v1.0 委派给 Windows 虚拟机内的 AI Agent，流式接收执行进度与产物。' +
-      '返回 taskId；若任务挂起在审批闸（input-required），返回 approvalId，宿主确认后用 a2a.approval.reply 放行。',
+      '返回 taskId；若任务挂起在审批闸（input-required），返回 approvalId，宿主确认后用 a2a.approval.reply 放行。' +
+      // CL-026 L4：说明书面上同步呈现要求（宿主 tools/list 稳定读到的唯一说明面）
+      '挂起审批时返回体携带「呈现要求」：必须先 show_widget 出审批卡、再 AskUserQuestion 权威收口（禁止纯文本转呈、禁止代用户批准）。',
     inputSchema: goalSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     handler: async (params, ctx) => {
@@ -517,7 +556,10 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
                   // 宿主 Agent 依 SKILL.md 纪律渲染审批卡片时可直接展示内层目标。
                   (describeUnderlying(approval.underlying)
                     ? `\n真实目标：${describeUnderlying(approval.underlying)}`
-                    : '')
+                    : '') +
+                  // CL-026 L1：呈现要求**尾部换行追加**（前缀逐字不变 ⇒ 既有逐字断言零回归）。
+                  // 病灶：载荷数据齐全但没有任何一面指挥宿主 agent 出卡，是否出卡全凭自由发挥。
+                  `\n${APPROVAL_PRESENTATION_DIRECTIVE}`
                 : lastMsg || `任务状态：${state}`,
       );
 
@@ -525,7 +567,8 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
       for (const a of artifacts) contents.push(...artifactToContents(a));
 
       // CL-016：A2A 通道续跑提示 + 宿主侧审批留痕（仅当挂起审批时）
-      const approvalOut = approval ? withA2aResumeHint(approval, taskId) : undefined;
+      // CL-026 L2：再幂等补挂呈现要求指令（纯附加字段，既有字段零改动）
+      const approvalOut = approval ? withPresentationDirective(withA2aResumeHint(approval, taskId)) : undefined;
       const approvalAuditOut = approvalOut
         ? recordHostApprovalAudit({
             approvalId: approvalOut.approvalId,
@@ -598,7 +641,10 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
         const message = scrubText(extractText(task.status.message));
         const approval = extractApproval(task.status.message);
         // CL-016：A2A 通道续跑提示 + 宿主侧审批留痕（仅当挂起审批时）
-        const approvalOut = approval ? withA2aResumeHint(approval, task.id) : undefined;
+        // CL-026 L3：挂起审批经 task.get 观测到时**同样**携带呈现要求
+        //（超时后取结果 / 重连后复查都是"宿主手里正握着一次待裁决审批"的时刻，
+        //  不得因观测工具不同而降级为纯文本转呈）。
+        const approvalOut = approval ? withPresentationDirective(withA2aResumeHint(approval, task.id)) : undefined;
         const approvalAuditOut = approvalOut
           ? recordHostApprovalAudit({
               approvalId: approvalOut.approvalId,
@@ -629,7 +675,13 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
             ...(approvalAuditOut ? { approvalAudit: approvalAuditOut } : {}),
           },
           content: [
-            { type: 'text', text: `任务 ${task.id} 状态：${task.status.state}${message ? `\n${message}` : ''}` },
+            {
+              type: 'text',
+              // CL-026 L3（文案面）：挂起审批时同款追加呈现要求（与 delegate 的 L1 同一权威串）
+              text:
+                `任务 ${task.id} 状态：${task.status.state}${message ? `\n${message}` : ''}` +
+                (approvalOut ? `\n${APPROVAL_PRESENTATION_DIRECTIVE}` : ''),
+            },
             ...(task.artifacts ?? []).flatMap(artifactToContents),
           ],
         };
@@ -647,7 +699,9 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
     title: '应答 A2A 审批闸',
     description:
       '对挂起在审批闸（input-required）的 A2A 任务回复批准或拒绝。' +
-      '必须先向用户展示影响清单并取得确认，严禁代替用户放行（fail-closed）。',
+      '必须先向用户展示影响清单并取得确认，严禁代替用户放行（fail-closed）。' +
+      // CL-026 L5：从 reply 侧反向闭合，杜绝「未出卡直接 reply」
+      '批准/拒绝只能来自 AskUserQuestion 的权威收口，且必须先完成 show_widget 审批卡呈现（呈现要求见 a2a.delegate 返回体）。',
     inputSchema: {
       type: 'object',
       required: ['taskId', 'approvalId', 'approved'],

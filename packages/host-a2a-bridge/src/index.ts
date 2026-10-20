@@ -27,6 +27,8 @@ export {
   extractText,
   buildA2aResumeHint,
   withA2aResumeHint,
+  APPROVAL_PRESENTATION_DIRECTIVE,
+  withPresentationDirective,
   type A2aBridgeToolOptions,
   type ExtractedApproval,
 } from './tools.js';
