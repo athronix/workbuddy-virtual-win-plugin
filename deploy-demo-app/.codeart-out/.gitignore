@@ -9,3 +9,6 @@ node_modules/
 hvigorw
 hvigorw.bat
 .ohpm/
+# Agent 临时探针/harness 产物（do_lint.cjs / diaglog-*.json / _build-try 等），非源码
+_lint-try/
+_build-try/
