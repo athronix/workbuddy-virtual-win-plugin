@@ -1,6 +1,6 @@
 # 铠大师 App · WinVM 部署助手功能规格书（K1–K3）
 
-> 状态：**V1.2 实施规格**（2026-10-18；已纳入主理人对 §10 Q-1~Q-6 的全部裁决）· 交付对象：铠大师 App 开发团队
+> 状态：**V1.3 实施规格**（2026-10-20；已纳入主理人对 §10 Q-1~Q-6 的全部裁决。V1.3 订正 E5/D-5 歧义表述：「执行链已就绪」明确为**包内执行脚本已实现并真机验证**，真正执行者是新机 WorkBuddy agent 按粘贴 prompt 驱动，非 WB 内置功能、亦非铠大师实现范围）· 交付对象：铠大师 App 开发团队
 > 输入依据：`docs/deploy/通过铠大师app安装部署.md`（方案 V1，下称「方案」）、`docs/05-peripherals/DEPLOYMENT.md` §9（下称「DEPLOYMENT §9」）
 > 关联任务：REL-12；仓库侧并行依赖：REL-11（publish-release.mjs 一键上架 GitHub Release）、`tools/winvm-prepare.ps1`（单一真相源，工程侧落地中）
 > 语言：全中文规格；技术栈不限定（鸿蒙 ArkTS/由 App 团队自定），本规格只约束行为与契约。
@@ -19,7 +19,7 @@
 | E2 | 发布包以 zip 上架：`https://github.com/athronix/workbuddy-virtual-win-plugin/releases/download/V1.4.0/winvm-overall-V1.4.0.zip`（资产命名 `winvm-overall-<version>.zip`） | 下载 URL 可由 `版本` 单参数模板化生成；Q-2 裁决：同 Release **旁挂第二资产 `winvm-overall-<version>.zip.sha256`**（`sha256sum -c` 兼容单行格式） |
 | E3 | zip 内含 `MANIFEST.txt`（逐文件 sha256 + 总体指纹，见 DEPLOYMENT §9）；Release 旁挂 `.zip.sha256`（Q-2） | **两级校验（C-2）**：解包前整包 sha256 对旁挂文件 + 解包后 MANIFEST 逐文件复检 |
 | E4 | 铠大师 App 代码库尚未建立 | 本文 = 从零实施规格，非增量改造 |
-| E5 | WorkBuddy 侧执行链已就绪（bootstrap check/env、prepare-vm --apply、deploy-all.sh --wipe、验证矩阵 7 项、写 deploy-report.json） | 铠大师**不重复实现任何部署逻辑**，只做落包/前置/生成 prompt/读回四件事 |
+| E5 | **发布 zip 包内自带的执行脚本已实现并真机验证**（`delivery/bootstrap.mjs check/env/prepare-vm`、`setup.mjs` 七相位、`deploy-all.sh --wipe`、验证矩阵步骤；run1–run4 真机通过）。注意：脚本"就绪"≠部署"完成"——**真正执行它们的是新机 WorkBuddy agent 按粘贴 prompt 的驱动**（§3 阶段 B/C、方案 §5.2 模板）；写 `deploy-report.json` 同样是 prompt 第 7 步指示 WB 完成的动作，非 WB 内置功能 | 铠大师**不重复实现任何部署逻辑**（部署实现=包内脚本+prompt 驱动，均已存在）；App 只做落包/VM 前置/生成 prompt/读回 report 四件事。WB 侧唯一前置=该机已安装并登录 WorkBuddy（G11，一次性人工） |
 
 **成功度量**：
 
@@ -290,7 +290,7 @@ sequenceDiagram
 | D-2 | 网络可达 GitHub（匿名 HTTPS）+ hmdfs 写权限 | 环境项 | F-02 | F-01 自检①③覆盖；失败走本地选包兜底 |
 | D-3 | Release **双资产**上架：`winvm-overall-<version>.zip` + `.zip.sha256`（REL-11，工程师并行中；Q-2 已拍板） | 进行中 | F-02/F-08 | M1 联调前用仓库 `release/V1.4.0/overall` 目录人工打包+人工生成旁挂 sha256 冒烟 |
 | D-4 | `tools/winvm-prepare.ps1` 正式版（**含 Q-3/Q-6 定稿的八核心键恒定输出/SKIPPED 语义**，C-3） | 工程师落地中 | F-03 | 单一真相源；铠大师不得 fork 业务判据 |
-| D-5 | WorkBuddy 执行链（check/env/prepare-vm/deploy-all/report） | 已就绪 | F-05 | 无新增工作，纯契约消费 |
+| D-5 | 包内执行脚本链（check/env/prepare-vm/deploy-all + prompt 驱动的验证/report，见 E5） | 已就绪（脚本=仓库既有+真机验证；执行=WB 按 prompt 跑） | F-05 | 无新增工作，纯契约消费 |
 | D-6 | WB 公钥自动摆渡到 hmdfs（prompt 第 1 步子句，C-4/Q-1 已拍板） | **转仓库侧实施**（工程师写入方案 §5.2 模板） | 二机起零密码快路径 | 不阻塞 M1/M2；首机按 SKIPPED+一次密码兜底设计 |
 
 ---
