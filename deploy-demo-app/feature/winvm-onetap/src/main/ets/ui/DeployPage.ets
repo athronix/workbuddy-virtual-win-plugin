@@ -60,7 +60,7 @@ export struct DeployPage {
 
   build() {
     Scroll() {
-      Column() {
+      Column({ space: 12 }) {
         this.noticeSection()
         this.formSection()
         this.buttonSection()
@@ -71,7 +71,6 @@ export struct DeployPage {
       }
       .width('100%')
       .padding(16)
-      .space(12)
       .alignItems(HorizontalAlign.Start)
     }
     .width('100%')
@@ -171,7 +170,7 @@ export struct DeployPage {
         ])
           .selected(this.providerChoice)
           .value(PROVIDER_OPTIONS[this.providerChoice])
-          .fontSize(14)
+          .font({ size: 14 })
           .layoutWeight(1)
           .onSelect((index: number, value: string | undefined) => {
             this.providerChoice = index;
@@ -278,7 +277,7 @@ export struct DeployPage {
             .fontColor(COLOR_TEXT_MAIN)
             .layoutWeight(1)
             .maxLines(1)
-            .textOverflow(TextOverflow.Ellipsis)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .width('100%')
 
@@ -329,7 +328,7 @@ export struct DeployPage {
               .fontSize(11)
               .fontColor(logColor(item.level))
               .maxLines(2)
-              .textOverflow(TextOverflow.Ellipsis)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
               .padding({ top: 2, bottom: 2 })
           }, (item: WinvmLogEntry) => item.seq.toString())
         }
@@ -387,7 +386,7 @@ export struct DeployPage {
                 .fontColor(COLOR_TEXT_MAIN)
                 .layoutWeight(1)
                 .maxLines(2)
-                .textOverflow(TextOverflow.Ellipsis)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
             }
             .width('100%')
             .padding({ top: 3, bottom: 3 })

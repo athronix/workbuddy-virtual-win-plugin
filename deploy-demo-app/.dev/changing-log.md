@@ -6,6 +6,9 @@
 
 - **CL-005（构建管线脚手架）**：新增 `.codeart-tasks/`（README + TASK-001）、`tools/build.sh`、` .codeart-out/`（.gitignore + .gitkeep），
   建立 WB↔CodeArts Agent 文件交接管线；同步索引。TASK-001 执行待 bridge 在 CodeArts Agent 跑通。
+- **CL-006（编译器裁决 + A类修复）**：TASK-001 跑通，产出 12E/40W 三分类（5真实+7环境）；修复 DeployPage.ets 5 处真实 API 误用
+  （Column 间距构造参数 / Select.font→.font({size}) / TextOverflow 对象包裹×3）；新增 TEST-REPORT-compiler-20261020.md + TASK-002.md；
+  根因锁定：本机沙箱 Node JIT 损坏致 HAP 无法产出，须 Mac/Win DevEco。
 
 ## 说明
 

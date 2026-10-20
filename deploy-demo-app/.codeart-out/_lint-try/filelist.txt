@@ -1,0 +1,15 @@
+feature/winvm-onetap/Index.ets
+feature/winvm-onetap/hvigorfile.ts
+feature/winvm-onetap/src/main/ets/data/ClipboardService.ts
+feature/winvm-onetap/src/main/ets/data/DeployEngine.ts
+feature/winvm-onetap/src/main/ets/data/GitHubReleaseClient.ts
+feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts
+feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts
+feature/winvm-onetap/src/main/ets/data/ZipExtractor.ts
+feature/winvm-onetap/src/main/ets/domain/DeployModels.ts
+feature/winvm-onetap/src/main/ets/prompt/InstallPromptBuilder.ts
+feature/winvm-onetap/src/main/ets/ui/DeployPage.ets
+feature/winvm-onetap/src/main/ets/util/Logger.ts
+product/phone/hvigorfile.ts
+product/phone/src/main/ets/entryability/EntryAbility.ets
+product/phone/src/main/ets/pages/Index.ets

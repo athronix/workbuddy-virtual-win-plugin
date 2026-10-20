@@ -1,0 +1,218 @@
+[
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/GitHubReleaseClient.ts:31:30\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/GitHubReleaseClient.ts:31:42\n To use this API, you need to apply for the permissions: ohos.permission.INTERNET\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/GitHubReleaseClient.ts:64:22\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/GitHubReleaseClient.ts:113:38\n To use this API, you need to apply for the permissions: ohos.permission.INTERNET\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/GitHubReleaseClient.ts:125:5\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/GitHubReleaseClient.ts:137:5\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts:12:16\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts:13:21\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts:16:15\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts:19:15\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts:20:13\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts:23:7\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts:25:26\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/ZipExtractor.ts:9:10\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/ZipExtractor.ts:10:7\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:24:38\n This API is used only in Stage Mode, but the current Mode is FA.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:25:30\n This API is used only in Stage Mode, but the current Mode is FA.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:37:18\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:43:9\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:44:23\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:49:7\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:55:10\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:56:7\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:59:21\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:63:20\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:64:11\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:108:21\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:110:24\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:113:17\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:116:11\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:117:15\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:120:9\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:123:7\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:128:18\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:129:9\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:130:23\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:134:7\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts:136:7\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/DeployEngine.ts:45:38\n This API is used only in Stage Mode, but the current Mode is FA.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/DeployEngine.ts:83:5\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/DeployEngine.ts:91:21\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/DeployEngine.ts:95:21\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "warn",
+    "m": "\u001b[33mArkTS:WARN File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/data/DeployEngine.ts:106:10\n Function may throw exceptions. Special handling is required.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/ui/DeployPage.ets:74:8\n Property 'space' does not exist on type 'ColumnAttribute'.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/ui/DeployPage.ets:174:12\n Property 'fontSize' does not exist on type 'SelectAttribute'.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/ui/DeployPage.ets:281:27\n Argument of type 'TextOverflow' is not assignable to parameter of type 'TextOverflowOptions'.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/ui/DeployPage.ets:332:29\n Argument of type 'TextOverflow' is not assignable to parameter of type 'TextOverflowOptions'.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/ui/DeployPage.ets:390:31\n Argument of type 'TextOverflow' is not assignable to parameter of type 'TextOverflowOptions'.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/src/main/ets/ui/DeployPage.ets:550:45\n This API is used only in Stage Mode, but the current Mode is FA.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/feature/winvm-onetap/hvigorfile.ts:1:27\n Cannot find module '@ohos/hvigor' or its corresponding type declarations.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/product/phone/hvigorfile.ts:1:26\n Cannot find module '@ohos/hvigor' or its corresponding type declarations.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/product/phone/src/main/ets/entryability/EntryAbility.ets:8:43\n This API is used only in Stage Mode, but the current Mode is FA.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/product/phone/src/main/ets/entryability/EntryAbility.ets:15:17\n This API is used only in Stage Mode, but the current Mode is FA.\n"
+  },
+  {
+    "level": "error",
+    "m": "\u001b[31mArkTS:ERROR File: /storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/deploy-demo-app/product/phone/src/main/ets/pages/Index.ets:2:28\n Cannot find module 'winvm_onetap' or its corresponding type declarations.\n"
+  }
+]
