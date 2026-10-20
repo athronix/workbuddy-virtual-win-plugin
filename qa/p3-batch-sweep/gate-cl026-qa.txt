@@ -1,0 +1,296 @@
+# CL-026 QA 独立回归 —— 全量门禁（npm run gate）
+# run-at: 2026-10-20T12:22:31Z
+# runner: software-qa-engineer (Edward), independent of implementer
+
+> winvm-bridge@0.1.0 gate
+> node scripts/gate.mjs
+
+=== WinVM Bridge 门禁（FULL）· 2026-10-20T12:22:32.920Z ===
+[ST1 tsc] node_modules/typescript/bin/tsc -b tsconfig.build.json …
+[ST2 dep-lint] node scripts/dep-lint.mjs …
+[ST2b config-keys] node scripts/config-key-lint.mjs --json …
+[ST3 guards] 进门禁守卫件 12 件（逐文件）…
+GREEN tests/unit/phase2-snapshot-truth.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/phase2-dead-config.test.js rc=0 tests=14 pass=14 fail=0 skip=0
+GREEN tests/unit/phase3-skill-claims-guard.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/phase2-contract-schema.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/phase2-contract-code-fidelity.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+GREEN tests/unit/phase2-session-unknown.test.js rc=0 tests=48 pass=48 fail=0 skip=0
+GREEN tests/unit/assembly-guard.test.js rc=0 tests=24 pass=24 fail=0 skip=0
+GREEN tests/unit/psmod-contract.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/p4-b9-errcode-registration-pin.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/winvm-prepare-ps1.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/publish-release.test.js rc=0 tests=32 pass=32 fail=0 skip=0
+GREEN tests/unit/cl026-approval-presentation.test.js rc=0 tests=31 pass=31 fail=0 skip=0
+[ST4 sweep] 全仓逐文件 sweep 115 件（ST3 已跑 12 件不重复 ⇒ 合计 127 件）—— 恒逐文件 spawn，绝不 glob 整批（K-2 junction 0xC0000005）…
+GREEN tests/unit/_smoke.test.js rc=0 tests=1 pass=1 fail=0 skip=0
+GREEN tests/unit/account-resolve.test.mjs rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/approval-audit.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/audit.test.js rc=0 tests=25 pass=25 fail=0 skip=0
+GREEN tests/unit/cl-k3r-runpersistent-approval-routing.test.js rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/cl017-error-reason.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/cl017-param-guard.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/cl017-param-value.test.js rc=0 tests=34 pass=34 fail=0 skip=0
+GREEN tests/unit/cl017-psmod-sort.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/cl017-winget-parse.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/cl017.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/cl018-a2a-timeout.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/cl018-config.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/cl018-constants.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/cl018-file-logger.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/cl018-persistent-session.test.js rc=0 tests=19 pass=19 fail=0 skip=0
+GREEN tests/unit/cl018-psmod-c456.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/cl019-health-ageMs.test.js rc=0 tests=14 pass=14 fail=0 skip=0
+GREEN tests/unit/cl019-routes-routeMetric.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/cl020-f2-a2a-netcfg-capture.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/deploy-conn-side.test.js rc=0 tests=3 pass=3 fail=0 skip=0
+GREEN tests/unit/deploy-shared-skills.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/deploy-winvm-plugin.test.js rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/enabled-plugins.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/health-probe-timeout.test.js rc=0 tests=20 pass=20 fail=0 skip=0
+GREEN tests/unit/hermes-provider.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/host-a2a-bridge.test.js rc=0 tests=39 pass=39 fail=0 skip=0
+GREEN tests/unit/host-adapter.test.js rc=0 tests=35 pass=35 fail=0 skip=0
+GREEN tests/unit/install-vm-admin-endpoint.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/install-vm-task.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/k4-approval.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/k4-p3.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/k5-replay.test.js rc=0 tests=41 pass=41 fail=0 skip=0
+GREEN tests/unit/launcher-posix.test.mjs rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/link-workspace.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/llm-provider.test.js rc=0 tests=20 pass=20 fail=0 skip=0
+GREEN tests/unit/mcp-registrar.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/oh-tunnel.test.mjs rc=0 tests=19 pass=19 fail=0 skip=0
+GREEN tests/unit/p0-path-traversal.test.js rc=0 tests=87 pass=87 fail=0 skip=0
+GREEN tests/unit/p3-b1-goal-assembly.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/p3-b1-policy-gate.test.js rc=0 tests=29 pass=29 fail=0 skip=0
+GREEN tests/unit/p4-b10-ws-health-observe.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/p5-b14-policy-wiring-channel.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/p5-c0-k6-audit-fold.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/p5-c0-k6-fold-service.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/p5-c0-k6-verdict-fold.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/p5-r1-capability-list-pin.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/p6-d5-ready-timeout-align.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/p6-d6-degrade-suppress.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/p6-d7-matchedrule-drift.test.js rc=0 tests=2 pass=2 fail=0 skip=0
+GREEN tests/unit/path-util-posix.test.mjs rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/path-util.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/phase1-t3-cancel-bounded.test.js rc=0 tests=29 pass=29 fail=0 skip=0
+GREEN tests/unit/phase1-t4-assembly.test.js rc=0 tests=45 pass=45 fail=0 skip=0
+GREEN tests/unit/phase1-t4-http-guard.test.js rc=0 tests=40 pass=40 fail=0 skip=0
+GREEN tests/unit/phase1-t4-pending-approvals.test.js rc=0 tests=28 pass=28 fail=0 skip=0
+GREEN tests/unit/phase1-t5-cancel-consume.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/phase1-t5-llm-cancel.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase1-t5-provider-cancel.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase1-t5-token-env.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/phase2-approval-wait-fallback.test.js rc=0 tests=24 pass=24 fail=0 skip=0
+GREEN tests/unit/phase2-bearer-selfcheck.test.js rc=0 tests=45 pass=45 fail=0 skip=0
+GREEN tests/unit/phase2-dep-direction.test.js rc=0 tests=32 pass=32 fail=0 skip=0
+GREEN tests/unit/phase2-inner-credential.test.js rc=0 tests=38 pass=38 fail=0 skip=0
+GREEN tests/unit/phase2-mcp-signal.test.js rc=0 tests=54 pass=54 fail=0 skip=0
+GREEN tests/unit/phase2-progress-message.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase2-task-store-evict-observe.test.js rc=0 tests=44 pass=44 fail=0 skip=0
+GREEN tests/unit/phase2-truth-mcp-direct.test.js rc=0 tests=58 pass=58 fail=0 skip=0
+GREEN tests/unit/phase3-b2-deadlink-fix.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/phase3-b2-install-host.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/phase3-b2-prepare-vm.test.js rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/phase3-b2-psmod-drift.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/phase3-b2-tunnel-start.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/phase3-b2-winget-treekill.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/phase3-b3-cancel-notify.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/phase3-b3-receipt-ttl.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/phase3-b4-capabilities-profile.test.js rc=0 tests=6 pass=6 fail=0 skip=0
+GREEN tests/unit/phase3-b4-m3-production-guidance.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/phase3-b5-audit-retention.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/phase3-b5-cancel-storm-gate.test.js rc=0 tests=12 pass=12 fail=0 skip=0
+GREEN tests/unit/phase3-b5-chain-fork-guard.test.js rc=0 tests=3 pass=3 fail=0 skip=0
+GREEN tests/unit/phase3-b5-idle-recycle-budget.test.js rc=0 tests=5 pass=5 fail=0 skip=0
+GREEN tests/unit/phase3-b5-psbridge-spawn-error.test.js rc=0 tests=2 pass=2 fail=0 skip=0
+GREEN tests/unit/phase3-b6-bearer-precondition.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/phase3-b6-preview-hash-binding.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/phase3-b6-ws-probe.test.js rc=0 tests=13 pass=13 fail=0 skip=0
+GREEN tests/unit/policy.test.js rc=0 tests=25 pass=25 fail=0 skip=0
+GREEN tests/unit/preflight.test.mjs rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/protocols.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/r1-approval-card.test.js rc=0 tests=69 pass=69 fail=0 skip=0
+GREEN tests/unit/r19b-s1-registry-forms.test.js rc=0 tests=35 pass=35 fail=0 skip=0
+GREEN tests/unit/r19b-s5-write-allowlist-pairing.test.js rc=0 tests=39 pass=39 fail=0 skip=0
+GREEN tests/unit/r19c-a5-approval-coordinator.test.js rc=0 tests=22 pass=22 fail=0 skip=0
+GREEN tests/unit/r19c-a5-fix4-risk.test.js rc=0 tests=4 pass=4 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-approval-truth.test.js rc=0 tests=11 pass=11 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-approval-wait.test.js rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/r19c-k3r-bridge-integ.test.js rc=0 tests=2 pass=2 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-a-pure.test.js rc=0 tests=76 pass=76 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-b-bridge.test.js rc=0 tests=23 pass=23 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-c-session.test.js rc=0 tests=17 pass=17 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-d-provider.test.js rc=0 tests=28 pass=28 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-e-mutation.test.js rc=0 tests=54 pass=54 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-e-shape.test.js rc=0 tests=33 pass=33 fail=0 skip=0
+GREEN tests/unit/r19c-kn1-f-chain.test.js rc=0 tests=16 pass=16 fail=0 skip=0
+GREEN tests/unit/r19c-s4-policy-denied-audit.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN tests/unit/r3-uninstall-verify.test.js rc=0 tests=47 pass=47 fail=0 skip=0
+GREEN tests/unit/sandbox-allowwrite.test.mjs rc=0 tests=9 pass=9 fail=0 skip=0
+GREEN tests/unit/setup-devqa-manifest.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/setup-env.test.js rc=0 tests=25 pass=25 fail=0 skip=0
+GREEN tests/unit/setup-health-verdict.test.js rc=0 tests=8 pass=8 fail=0 skip=0
+GREEN tests/unit/ssh2-resolve.test.mjs rc=0 tests=10 pass=8 fail=0 skip=2
+GREEN tests/unit/tunnel-daemon.test.mjs rc=0 tests=10 pass=10 fail=0 skip=0
+GREEN tests/unit/tunnel-mode.test.js rc=0 tests=15 pass=15 fail=0 skip=0
+GREEN tests/unit/winvm-plugin.test.js rc=0 tests=7 pass=7 fail=0 skip=0
+GREEN delivery/__tests__/oh-tunnel-error-handling.test.mjs rc=0 tests=8 pass=8 fail=0 skip=0
+
+GREEN     tsc — 12 包编译通过（K-3 第一步；dep-lint 读 dist 的前置，PR9）
+GREEN     dep-lint — packages=12 语句边=46 包级边=24 审计符号=8 hard=0 warn=0 info=9
+GREEN     config-keys — 顶层段=9 白名单段=9 未知键=0
+GREEN     guards — files=12 failed=0 tests=250 pass=250 fail=0 skip=0
+GREEN     sweep — sweepFiles=115 failed=0 tests=2015 pass=2013 fail=0 skip=2（另有 ST3 12 件已在上一段计入，不重复累）
+
+FILES=127 FAILED_FILES=0 TOTAL_TESTS=2265 TOTAL_PASS=2263 TOTAL_FAIL=0 TOTAL_SKIP=2
+DISK_TEST_FILES=127 RUN=127 MATCH
+VERDICT: GREEN
+（GATE-POLICY.md：跳过门禁即视为未验收；本文件即该批次的门禁证据）
+# exit-code: 0
+
+════════════════════════════════════════════════════════════════════════════
+ CL-026 QA 独立回归 —— V1-V8 逐项判定（software-qa-engineer / Edward）
+ 判定时间: 2026-10-20T12:22–12:55Z（UTC）· 全部独立复算，不采信实现者自报
+════════════════════════════════════════════════════════════════════════════
+
+V1 全量门禁 —— PASS
+  上方实录：VERDICT: GREEN, exit-code: 0
+  FILES=127 / FAILED_FILES=0 / TOTAL_TESTS=2265 / TOTAL_FAIL=0 / TOTAL_SKIP=2
+  SKIP=2 全在 ssh2-resolve.test.mjs（既有环境性 skip，非本批引入）
+  ST3 段 guards files=12 failed=0 tests=250（含新件 cl026 31 例）
+  总数守恒复算：ST3 250 + sweep 2015 = 2265（新件 31 例从 sweep 位迁 ST3 位，
+    gate 自带 alreadyRun 去重 ⇒ 127 件与迁移前 FILES 恒等）✓
+  DISK=RUN=MATCH=127 ✓
+
+V2 五携带面实形复核 —— PASS
+  ① 引用链（src+dist 双处 grep）：
+     src: 常量定义 :110 → 消费 :562(L1 summary)/:571(L2 delegate)/
+          :647+(L3 task.get 字段)/:683(L3 文案)/index.ts:30-31 re-export
+     dist: :59/:206-209/:474/:481/:556/:591 全部对应在位；
+          L4 description dist:352 / L5 dist:611 含「呈现要求」口径
+     ⇒ 非常量孤儿，五面均有真实引用链
+  ② L2 幂等独立断言（QA 自有脚本，非照抄守卫）：
+     withPresentationDirective 三连调用 o1===o2===o3（同引用早退）、
+     键不叠加（Object.keys 单键）、入参零污染、已有自定义值不覆盖、
+     JSON 序列化后键数=原+1 —— 全过
+  ③ 行为级五面复核（qa/p3-batch-sweep/.cl026-qa-v2-behavior.mjs，dist handler）：
+     L1 summary 前缀「任务挂起等待审批：」逐字 + 尾部含权威串 + content[0].text 同步；
+     L2 approval.presentationDirective === 权威串；
+     L3 task.get 字段面+文案面双路携带、前缀「任务 t_qa 状态：input-required」逐字；
+     L4/L5 两 description 含呈现口径（show_widget/AskUserQuestion 点名）；
+     无审批载荷 ⇒ JSON.stringify 全量零 presentationDirective 键、零「呈现要求」文案；
+     工具数恒 6 —— 输出 "ALL 5 FACES INDEPENDENTLY CONFIRMED"
+  ④ 逐字钉防线独立复跑：phase2-progress-message=12/12、
+     r19c-k3r-approval-wait=10/10、phase3-b3-receipt-ttl=10/10 全绿（CL-016 前缀
+     逐字钉与工具数恒 6 钉无一失配）
+
+V3 红线扫描独立复算 —— PASS
+  搜索式构造：QA 侧按 approval-card.ts 头注拆段规则以
+    new RegExp(["__","appr","oval","Id"].join("")) 正则拼接（未照抄守卫的
+    '__appr'+'ovalId' 写法，且 QA 复算脚本自身同样零完整字面量）
+  实测计数：
+    packages/host-a2a-bridge/src/tools.ts   = 0 （整文件，含注释）
+    packages/host-a2a-bridge/dist/tools.js  = 0 （整文件）
+    tests/unit/cl026-approval-presentation.test.js = 0（拆段写法合规）
+    skills/winvm-orchestrator/SKILL.md      = 1，唯一命中 offset 11221 ∈
+      [### MCP 通道 10997, ### A2A 通道 11877) ⇒ 反向钉在位：合法保留区仍在位，
+      A2A 小节与标准执行路径块均零命中（节级复算，未依赖守卫切片代码）
+    references/approval-card.md             = 4（§9 既有合法内容，diff 零行未动）
+  §5.6 声明核验：HEAD src 计数=2 → 工作区=0（注释改写声明属实）；
+  R1-8 扫描集=adapter 两源文件+approval-card.md §9（本批 diff 零行）⇒ 命中集
+  缩小不触碰任何既有钉（r1-approval-card 69/69 独立复跑佐证，见 V6）
+
+V4 变异自证（反恒真）—— PASS（3/3 处变异→必红→还原逐字节→复绿）
+  ⚠ 关键经验确认：守卫经 dist 消费，每次变异/还原后必须 tsc -b 重建再跑，
+    否则测旧产物出假果（本轮全程遵守）
+  V4a tools.ts L1 追加行 → 空模板串：重建后 cl026 守卫 31 例中 2 红，
+      红例精确落在「C-2 L1 delegate 早退」+「C-4 凭据哨兵携带」⇒ 判据真实耦合
+      还原 sha256=153fc5c5…（=基线）→ tsc -b → 31/31 绿
+  V4b SKILL.md MUST 清单 show_widget 全量改散文：cl026 守卫 2 红，
+      精确落在「C-3 呈现要求节」+「C-3 门禁第 2 步」⇒ C-3/C-4 联动有效
+      （首轮仅改 MUST① 一词时 31 全绿——C-3 判据用节内正则 [\s\S] 搜索、
+        标准路径行仍有 show_widget ⇒ 不构成失配，属判据设计粒度而非缺陷；
+        全量变异证实 show_widget 绑定钉真实生效）
+      还原 sha256=b5a9285…（=基线）→ 31/31 绿
+  V4c gate.mjs 新表项 why 删短为「短」：phase2-dep-direction 32 例中 1 红，
+      精确落在「U-5 gate 进门禁表与磁盘一致（why.length>10 审计钉）」
+      还原 sha256=f0c6105…（=基线，原文从本会话 git diff 留档恢复，逐字节验证）
+      → dep-direction 32/32 绿
+  三件套最终哈希（V4 全部结束后复核）：
+      153fc5c5252add04f16bc4f62c722d27fc0af210b295522555c3a75cbbb23b2f tools.ts
+      b5a9285173075e82694a0826b8399711a3ff2fd43d5527b62cd46406a6b062f5 SKILL.md
+      f0c61052b3417780d41c11e7553cd89a82b62fd935ecec6f5a1e646d9054e9c2 gate.mjs
+      == .cl026-qa-v4-baseline.sha256 三行全等 ⇒ 工作区无污染
+
+V5 契约/文档对账 —— PASS
+  ① 设计文档 §1.1 fenced text 块 vs dist 运行时常量：逐字节 EXACT MATCH
+     （4 行 / 641 bytes）；src 数组字面量 join('\n') === dist 常量 true
+  ② HOST-A2A-BRIDGE.md §4.4.1：L1-L5 表与实码落点逐面对账一致
+     （前缀尾部追加 / 纯附加字段幂等 / task.get 两路 / 双 description）；
+     「MCP 直调两处不落地」口径与 vm-service/src/server.ts 实况一致
+     （该文件呈现字样 grep=0；DELEGATION_REQUIRED 收口不发审批载荷实码可查）
+  ③ 唯一正文纪律：卡片逐字串族（🔐/⛔ 标题、可逆性/影响清单固定串）仅
+     approval-card.md 在位；SKILL.md 中「操作：<未提供>（请勿确认）」经
+     git show HEAD 比对为既有引用性文字（§4 槽位填充指针），非本批复制；
+     四条 MUST 行首 40 字与 approval-card.md 零重合；
+     设计文档/HOST 文档零逐字串复制
+  ④ 注：cl026 设计文档含 1 行七槽位同列（§1.1 契约文案本体），属权威串入档
+     要求（文档即契约源），与 approval-card.md §4 对照表不冲突
+
+V6 R17 既有体系零回归 —— PASS（独立复跑，不采信自报）
+  r1-approval-card.test.js        = 69/69 绿（含 R1-8 全仓静态守卫 + R1-9 节切片）
+  phase3-skill-claims-guard.test.js = 11/11 绿（SKILL 点分 token/承诺口径）
+  r19b-s1-registry-forms.test.js  = 35/35 绿
+  phase2-mcp-signal.test.js       = 54/54 绿
+  （gate 全量 sweep 段中四件亦 GREEN，与逐文件复跑双证一致）
+
+V7 跟批前置事实核验 —— 如实记录（发布迭代5 门槛事实）
+  ~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/a2a-bridge/tools.js
+    mtime = 2026-10-18 03:33:56 +0800（早于本批源码 2026-10-20 19:53）
+    grep APPROVAL_PRESENTATION_DIRECTIVE = 0；grep 呈现要求 = 0
+  ~/.workbuddy/connectors/skills/ 下无 connector-winvm SKILL 缓存目录（实况）
+  ⇒ 结论：当前宿主运行态不含新呈现指令；真机 A7 验收必须在重部署
+    （插件缓存刷新/跟批）之后，先部署后验收，顺序不可颠倒
+
+V8 部署产物防呆 —— PASS
+  git ls-files 'C:'      = 0（C:/WinVMBridge/ 仓内副本未被跟踪）
+  git ls-files release   = 0（release/ 全部未跟踪）
+  git status --short 含 release/ 行数 = 0 ⇒ 旧文案副本不会随收口误提交
+  （git status 显示的改动集 = 7 个被验文件 + 2 个本批新文件 + memory 日志，
+    无部署产物混入）
+
+════════════════════════════════════════════════════════════════════════════
+ 最终判定：IS_PASS = YES
+ 源码 bug：0 · 需回报事项：0
+ 自修/说明事项：
+   S1 V4b 首轮单点变异（仅 MUST①）未触发红——经全量变异复证 C-3 钉真实生效；
+      单点未红属判据用节内正则搜索的既有设计粒度（SKILL.md 多处冗余携带
+      show_widget，任一在位即绿），不构成缺陷，无需整改
+   S2 变异实验中一次 QA 侧还原脚本笔误曾致 tools.ts 语法残破（tsc 当场拦截
+      TS1109，未流入任何测试判定）；已按行精确还原并经 sha256 逐字节验证
+      = 基线。过程中 429 中断一次，工程师按基线哈希协助复原现场后续跑
+   S3 ST3 双写对账：gate.mjs 12 项 vs GATE-POLICY.md ST3 节 12 行，
+      file+id 集合完全等价（新增项两表均在表末位）；表内历史行序与
+      gate.mjs 数组序存在既有差异（skill-claims 位置），非本批引入、
+      无判据依赖行序 ⇒ 仅记录，不整改
+ 遗留（非阻断）：A7 真机验收待重部署后执行（V7 事实）
+════════════════════════════════════════════════════════════════════════════
+
+── 尾注：429 中断-复原-续跑经过与最终一致性收口 ──
+ 12:22–12:29Z V1 全量 gate（后台，GREEN 127/2265/FAIL=0/SKIP=2）；V2/V3/V5/V7/V8 静态部分并行完成
+ 12:3xZ  V4a 变异进行中遭遇 429 配额中断；tools.ts 变异现场由工程师按
+   .cl026-qa-v4-baseline.sha256 基线逐字节复原（sha=153fc5c5… 三件套核对通过）
+ 12:4xZ  续跑：V4a 重做（变异→tsc -b→守卫红于正确例→还原→哈希=基线→复绿）
+   V4b/V4c 依同纪律完成；每轮变异-还原间均重建 dist（守卫经 dist 消费，
+   不重建=测旧产物，本轮全程遵守并在 V1 后再次 tsc -b 确认）
+ 12:5xZ  最终收口核验：git diff --stat 与工作区最初形状恒等（7 files, +128/-12）、
+   三件套 sha256 == 基线、dist 常量引用链 5 处复现、
+   gate:quick 全档 GREEN（tsc/dep-lint/config-keys/guards 12 件 250/250）、
+   cl026 守卫独立复跑 31/31、R17 体系四件 169 例全绿。
+ QA 临时件（qa/p3-batch-sweep/ 下，供追溯，不属于被验交付）：
+   gate-cl026-qa.txt（本文件）、.cl026-qa-v4-baseline.sha256、
+   .cl026-qa-v2-behavior.mjs（V2 独立行为复算脚本）
+ 未 commit、未 push、实现文件零改动（除变异自证临时改动，已完整还原并逐字节证明）。
