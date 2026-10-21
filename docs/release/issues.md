@@ -158,3 +158,13 @@
 | D5 | 可执行 | ✅ deploy-all.sh 执行位保留（0770） | stat 实测（bash 前缀 Q-4 另作纵深） |
 
 **结论：迭代 4 关闭。发布包已上 GitHub Release（public、双资产、匿名可达），新机分发信任链（下载→整包校验→解包纯净→执行位）全链实测闭合，K1-K3 规格书可交铠大师 App 团队实施。I-4.1~I-4.3 三缺陷全部复验关闭；issues.md 无未关闭问题。**
+
+### 发布迭代 5（2026-10-21，V1.4.2）——审批卡真机路径修复上架 + run5 清场插曲实录
+
+> 状态：**已关闭**。内容=CL-026b 修复（catch 掐流挂起收口）随 V1.4.2 打包→上架 GitHub Release（双资产回环三方一致）→ run5 清空重装。
+
+| ID | 阶段 | 现象 | 根因 | 处置 | 复验 | 状态 |
+|---|---|---|---|---|---|---|
+| I-5.1 | 部署·清场（run5） | `--wipe` 中 POST-CLEANUP `[FAIL] VM C:/WinVMBridge absent`、deploy-all EXIT=1（fail-loud 中止，正确） | 目录内文件已全删（0 文件），剩空目录骨架被 **VM 桌面 WorkBuddy 本尊**（node，PPID=WorkBuddy.exe daemon）与一闲置裸 PowerShell 的活 cwd 句柄顶住删不掉。**非 uninstall 缺陷**：Kill-Sig 按命令行签名匹配正确地未误杀 VM WorkBuddy（迭代3 设计反向验证） | 收掉闲置裸 shell（非用户前台窗口，如实报备）；确认剩余空骨架（packages/vm-service/dist）对 tar 解包无害后，跳过重复清场续跑七相位 | run5b EXIT=0 七相位全过（HOST 1.6/VM 43.0/VM-START 17.3/TUNNEL 13.7 黑洞场景又被捕获处置/TEST 0.4/QA-PROBE 67.1/HEALTH 0.5）；矩阵：54 能力(tr_mvi1yxo4_1)/gui healthy(tr_mvi1yxpk_2)/A2A steps ok 24.6s(tr_mvi1zfbc_9)/审计链 41 条+字段级回执/双侧部署态 | **已关闭**（观察：VM 桌面若有第三方进程 cwd 卡在 BridgeDir，清场会 fail-loud 停下——行为正确，处置人工介入即可） |
+
+**V1.4.2 Release 终态**：`releases/tag/V1.4.2`（zip a06e7520…/2,722,056B + 旁挂，匿名回环 SIDECAR/PACK 双匹配；包内 dist_tools 含 input-required 收口四判据全在位、SKILL show_widget×4）。本机会话桥进程启动早于跟批（常驻不热载），新会话委派即为出卡验收态。
