@@ -4,10 +4,29 @@
 export interface WinvmConfig {
   vmHost: string;      // VM IP，如 172.16.100.10
   vmUser: string;      // VM 用户名
-  sshPort: number;     // 固定 22
+  sshPort: number;     // SSH 端口（高级设置可配，默认 22）
   provider: string;    // workbuddy | workbuddy-deterministic
   version: string;     // 'latest' 或具体 tag（如 V1.4.0）
+  // —— 高级设置（弹窗可配；默认值权威源 = 父 delivery/env.example）——
+  tunnelLocalPort: number;  // 宿主侧本地监听端口 WINVM_TUNNEL_LOCAL_PORT
+  vmDeployDir: string;      // VM 内部部署根目录 VM_DEPLOY_DIR
+  tunnelBackend: string;    // ssh2 | ssh（WINVM_TUNNEL_BACKEND；鸿蒙宿主自动 ssh2）
+  dryRun: boolean;          // WINVM_DRY_RUN：true=干跑假成功（父文档 G12 坑）
+  hostDeploy: boolean;      // HOST_DEPLOY：是否部署宿主机侧插件
+  vmDeploy: boolean;        // VM_DEPLOY：是否部署 VM 侧
 }
+
+// 高级设置默认值（父 delivery/env.example 逐项对齐）
+export const DEFAULT_SSH_PORT = 22;
+export const DEFAULT_TUNNEL_LOCAL_PORT = 18443;
+export const DEFAULT_VM_DEPLOY_DIR = 'C:/WinVMBridge';
+// 隧道后端（父 env.example：鸿蒙宿主 process.platform=ohos/openharmony 自动 ssh2；ssh=系统子进程）
+export const TUNNEL_BACKEND_SSH2 = 'ssh2';
+export const TUNNEL_BACKEND_SSH = 'ssh';
+export const TUNNEL_BACKEND_OPTIONS: string[] = [TUNNEL_BACKEND_SSH2, TUNNEL_BACKEND_SSH];
+// WINVM_SERVICE_PORT / WINVM_TUNNEL_REMOTE_PORT 固定 18443：
+// 与 delivery/vm-service.config.json 安全基线（仅回环 + 端口一致）绑定，不在 UI 暴露，防双端不一致
+export const FIXED_SERVICE_PORT = 18443;
 
 // latest 解析结果 / 资产地址
 export interface ResolvedRelease {

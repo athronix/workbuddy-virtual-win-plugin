@@ -3,12 +3,18 @@ import { DeployEngine } from '../data/DeployEngine';
 import { Logger } from '../util/Logger';
 import {
   DeployReport,
+  DEFAULT_SSH_PORT,
+  DEFAULT_TUNNEL_LOCAL_PORT,
+  DEFAULT_VM_DEPLOY_DIR,
   FetchStage,
   PROVIDER_DETERMINISTIC,
   PROVIDER_OPTIONS,
   PROVIDER_WORKBUDDY,
   ReportCheck,
   ResolvedRelease,
+  TUNNEL_BACKEND_OPTIONS,
+  TUNNEL_BACKEND_SSH,
+  TUNNEL_BACKEND_SSH2,
   WinvmConfig,
   WinvmLogEntry
 } from '../domain/DeployModels';
@@ -45,6 +51,15 @@ export struct DeployPage {
   @State reportFinishedAt: string = '';
   @State reportChecks: ReportCheck[] = [];
   @State reportFailures: string[] = [];
+  // 高级设置（bindSheet 半模态；顶层标量保证 @State 第一层代理刷新）
+  @State showAdvancedSheet: boolean = false;
+  @State advancedSshPortText: string = '22';
+  @State advancedTunnelPortText: string = '18443';
+  @State advancedDeployDir: string = DEFAULT_VM_DEPLOY_DIR;
+  @State advancedBackendChoice: number = 0;
+  @State advancedDryRun: boolean = false;
+  @State advancedHostDeploy: boolean = true;
+  @State advancedVmDeploy: boolean = true;
 
   private engine: DeployEngine | undefined = undefined;
   private lastRelease: ResolvedRelease | undefined = undefined;
@@ -72,6 +87,11 @@ export struct DeployPage {
       .width('100%')
       .padding(16)
       .alignItems(HorizontalAlign.Start)
+      .bindSheet($$this.showAdvancedSheet, this.advancedSheet, {
+        height: SheetSize.MEDIUM,
+        dragBar: true,
+        showClose: true
+      })
     }
     .width('100%')
     .height('100%')
@@ -179,7 +199,24 @@ export struct DeployPage {
       .width('100%')
       .margin({ top: 8 })
 
-      Text('Provider 说明：workbuddy 需 VM 内 codebuddy CLI 登录态；首机可先用 workbuddy-deterministic 零登录跑通全链（父文档 G4）。SSH 端口固定 22。')
+      Row() {
+        Text('高级设置')
+          .fontSize(14)
+          .fontColor(COLOR_TEXT_MAIN)
+          .width(64)
+        Button('⚙ 端口 / 目录 / 部署模式')
+          .fontSize(12)
+          .layoutWeight(1)
+          .height(32)
+          .type(ButtonType.Normal)
+          .onClick(() => {
+            this.showAdvancedSheet = true;
+          })
+      }
+      .width('100%')
+      .margin({ top: 8 })
+
+      Text('Provider 说明：workbuddy 需 VM 内 codebuddy CLI 登录态；首机可先用 workbuddy-deterministic 零登录跑通全链（父文档 G4）。SSH 端口、隧道端口、VM 部署目录、部署模式等进阶项见「高级设置」。')
         .fontSize(11)
         .fontColor(COLOR_TEXT_SUB)
         .margin({ top: 8 })
@@ -190,6 +227,181 @@ export struct DeployPage {
     .backgroundColor(COLOR_CARD_BG)
     .borderRadius(12)
     .padding(16)
+  }
+
+  // ---------- 高级设置（bindSheet 半模态，API 12+ 现行形态；禁 CustomDialogController） ----------
+
+  @Builder
+  advancedSheet() {
+    Scroll() {
+      Column({ space: 10 }) {
+        Text('高级设置')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(COLOR_TEXT_MAIN)
+        Text('以下参数写入安装指令的 .env（契约权威源 = 父仓库 delivery/env.example）；Provider 在主页面表单选择。')
+          .fontSize(11)
+          .fontColor(COLOR_TEXT_SUB)
+          .lineHeight(16)
+
+        this.advSshPortRow()
+        this.advTunnelPortRow()
+        this.advDeployDirRow()
+        this.advBackendRow()
+        this.advDryRunRow()
+        this.advHostDeployRow()
+        this.advVmDeployRow()
+
+        Text('WINVM_SERVICE_PORT / WINVM_TUNNEL_REMOTE_PORT 固定 18443：与 VM 侧 vm-service.config.json 安全基线（仅回环 + 端口一致）绑定，不开放修改，防双端端口漂移。')
+          .fontSize(11)
+          .fontColor(COLOR_TEXT_SUB)
+          .lineHeight(16)
+
+        Row({ space: 12 }) {
+          Button('取消')
+            .layoutWeight(1)
+            .fontSize(14)
+            .height(36)
+            .backgroundColor(COLOR_DISABLED)
+            .fontColor('#FFFFFF')
+            .onClick(() => {
+              this.showAdvancedSheet = false;
+            })
+          Button('保存')
+            .layoutWeight(1)
+            .fontSize(14)
+            .height(36)
+            .backgroundColor(COLOR_PRIMARY)
+            .fontColor('#FFFFFF')
+            .onClick(() => {
+              this.onSaveAdvanced();
+            })
+        }
+        .width('100%')
+        .margin({ top: 8 })
+      }
+      .width('100%')
+      .padding(16)
+    }
+  }
+
+  @Builder
+  advSshPortRow() {
+    Row() {
+      Text('SSH 端口')
+        .fontSize(14)
+        .fontColor(COLOR_TEXT_MAIN)
+        .width(96)
+      TextInput({ placeholder: '22', text: $$this.advancedSshPortText })
+        .layoutWeight(1)
+        .fontSize(14)
+        .type(InputType.NUMBER)
+        .maxLength(5)
+    }
+    .width('100%')
+  }
+
+  @Builder
+  advTunnelPortRow() {
+    Row() {
+      Text('隧道本地端口')
+        .fontSize(14)
+        .fontColor(COLOR_TEXT_MAIN)
+        .width(96)
+      TextInput({ placeholder: '18443', text: $$this.advancedTunnelPortText })
+        .layoutWeight(1)
+        .fontSize(14)
+        .type(InputType.NUMBER)
+        .maxLength(5)
+    }
+    .width('100%')
+  }
+
+  @Builder
+  advDeployDirRow() {
+    Row() {
+      Text('VM 部署目录')
+        .fontSize(14)
+        .fontColor(COLOR_TEXT_MAIN)
+        .width(96)
+      TextInput({ placeholder: DEFAULT_VM_DEPLOY_DIR, text: $$this.advancedDeployDir })
+        .layoutWeight(1)
+        .fontSize(14)
+        .type(InputType.Normal)
+    }
+    .width('100%')
+  }
+
+  @Builder
+  advBackendRow() {
+    Row() {
+      Text('隧道后端')
+        .fontSize(14)
+        .fontColor(COLOR_TEXT_MAIN)
+        .width(96)
+      Select([
+        { value: TUNNEL_BACKEND_SSH2 },
+        { value: TUNNEL_BACKEND_SSH }
+      ])
+        .selected(this.advancedBackendChoice)
+        .value(TUNNEL_BACKEND_OPTIONS[this.advancedBackendChoice])
+        .font({ size: 14 })
+        .layoutWeight(1)
+        .onSelect((index: number, value: string | undefined) => {
+          this.advancedBackendChoice = index;
+        })
+    }
+    .width('100%')
+  }
+
+  @Builder
+  advDryRunRow() {
+    Column() {
+      Row() {
+        Text('干跑模式')
+          .fontSize(14)
+          .fontColor(COLOR_TEXT_MAIN)
+          .width(96)
+        Toggle({ type: ToggleType.Switch, isOn: $$this.advancedDryRun })
+          .onChange((isOn: boolean) => {
+            if (isOn) {
+              this.showToast('警告：干跑模式仅打印计划、不真实部署（父文档 G12 假成功坑）');
+            }
+          })
+      }
+      .width('100%')
+      Text('干跑 = WINVM_DRY_RUN=1：全程只打印计划不落地；正常部署请保持关闭（=0）。')
+        .fontSize(11)
+        .fontColor(COLOR_WARN)
+        .lineHeight(16)
+        .margin({ top: 2 })
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  advHostDeployRow() {
+    Row() {
+      Text('部署宿主机侧')
+        .fontSize(14)
+        .fontColor(COLOR_TEXT_MAIN)
+        .width(96)
+      Toggle({ type: ToggleType.Switch, isOn: $$this.advancedHostDeploy })
+    }
+    .width('100%')
+  }
+
+  @Builder
+  advVmDeployRow() {
+    Row() {
+      Text('部署 VM 侧')
+        .fontSize(14)
+        .fontColor(COLOR_TEXT_MAIN)
+        .width(96)
+      Toggle({ type: ToggleType.Switch, isOn: $$this.advancedVmDeploy })
+    }
+    .width('100%')
   }
 
   @Builder
@@ -671,18 +883,65 @@ export struct DeployPage {
     return true;
   }
 
+  // 高级设置保存：端口/目录校验通过才关闭面板（非法值当场 toast，不落脏状态）
+  private onSaveAdvanced(): void {
+    if (parsePortText(this.advancedSshPortText) === undefined) {
+      this.showToast('SSH 端口须为 1-65535 的整数');
+      return;
+    }
+    if (parsePortText(this.advancedTunnelPortText) === undefined) {
+      this.showToast('隧道本地端口须为 1-65535 的整数');
+      return;
+    }
+    if (this.advancedDeployDir.trim().length === 0) {
+      this.showToast('VM 部署目录不能为空');
+      return;
+    }
+    this.showAdvancedSheet = false;
+    this.appendLogEntry('info', '高级设置已保存: SSH ' + this.advancedSshPortText.trim() +
+      ' / 隧道 ' + this.advancedTunnelPortText.trim() +
+      ' / 目录 ' + this.advancedDeployDir.trim() +
+      ' / 后端 ' + TUNNEL_BACKEND_OPTIONS[this.advancedBackendChoice] +
+      ' / 干跑 ' + (this.advancedDryRun ? '开' : '关') +
+      ' / 宿主 ' + (this.advancedHostDeploy ? '开' : '关') +
+      ' / VM ' + (this.advancedVmDeploy ? '开' : '关'));
+  }
+
   private buildConfig(): WinvmConfig {
+    const sshPort = parsePortText(this.advancedSshPortText);
+    const tunnelPort = parsePortText(this.advancedTunnelPortText);
+    const deployDir = this.advancedDeployDir.trim();
     return {
       vmHost: this.vmHostInput.trim(),
       vmUser: this.vmUserInput.trim(),
-      sshPort: 22,
+      sshPort: sshPort === undefined ? DEFAULT_SSH_PORT : sshPort,
       provider: PROVIDER_OPTIONS[this.providerChoice],
-      version: this.versionInput.trim()
+      version: this.versionInput.trim(),
+      tunnelLocalPort: tunnelPort === undefined ? DEFAULT_TUNNEL_LOCAL_PORT : tunnelPort,
+      vmDeployDir: deployDir.length > 0 ? deployDir : DEFAULT_VM_DEPLOY_DIR,
+      tunnelBackend: TUNNEL_BACKEND_OPTIONS[this.advancedBackendChoice],
+      dryRun: this.advancedDryRun,
+      hostDeploy: this.advancedHostDeploy,
+      vmDeploy: this.advancedVmDeploy
     };
   }
 }
 
 // 模块级纯函数（避免 struct 内嵌套函数）
+
+// 端口文本解析：合法返回 1-65535 整数，否则 undefined（调用方回退默认值或拒绝保存）
+function parsePortText(text: string): number | undefined {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  const port = Number(trimmed);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return undefined;
+  }
+  return port;
+}
+
 function stageDot(level: string): string {
   if (level === 'ok') {
     return '[成功]';

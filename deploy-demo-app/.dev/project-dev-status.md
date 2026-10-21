@@ -44,10 +44,12 @@ SDK 版本、签名、module.json5、configuration.json、ohpm install、缺 pag
 | 12 | WB↔CodeArts Agent 文件交接管线（脚手架 + TASK-001） | ✅ 已跑；TASK-001 完成 |
 | 13 | TASK-002：复核 5 处真实修复 + 真机 HAP 路径 | ✅ 已由 TASK-001 重跑覆盖（HAP 产出） |
 | 14 | TASK-003：ohpm install + 重构建 + 验功能并入 → 功能完整 HAP | ✅ 已产（209,859 B，HAR 全量并入，D9 已落库）；真机安装验证移交用户 |
+| 15 | 高级设置可视化配置（bindSheet 7 项 + prompt 参数化） | ✅ 代码+文档完成；编译/真机未验证（CL-009） |
 
 ## 风险提示
 
-- **功能完整 HAP 已产但真机未验（当前焦点）**：modules.abc 符号命中证明 HAR 代码已进包（×29.7），但 ArkTS 运行时行为（下载/解压/权限/剪贴板/轮询）仅真机可证 → 必须执行 USER-GUIDE §4 S2（7 项）+ S3（6 项）。签名为 OpenHarmony 调试证书，正式分发需 AGC。
+- **功能完整 HAP 已产但真机未验（当前焦点）**：modules.abc 符号命中证明 HAR 代码已进包（×29.7），但 ArkTS 运行时行为（下载/解压/权限/剪贴板/轮询）仅真机可证 → 必须执行 USER-GUIDE §4 S2（8 项，含 S2-8 高级设置）+ S3（6 项）。签名为 OpenHarmony 调试证书，正式分发需 AGC。
+- **CL-009 高级设置改动未经编译器裁决**：静态自审（ArkTS 规则 + codelinter 教训）通过，但 bindSheet/$$/Toggle 等在真编译器的表现待 CodeArts Agent 或 DevEco 复核；下次构建时一并通过。
 - **SDK 版本基线订正**：本机 SDK 实证为 API 26 / platformVersion 26.0.0（非早先假设的 6.1.0/API 23）；build-profile compatibleSdkVersion 已订正为 "26.0.0"。
 - **D4 签名采空配置（可移植）**：仓库不内置 SDK 绝对路径/密钥；正式签名走 DevEco 自动签名或 CI 注入；沙箱用手工 hap-sign-tool。
 - **D9（缺 pages 字段）为本项目首轮交付遗漏**：宿主 module.json5 无 `"pages": "$profile:main_pages"` → pages/Index.ets 不成编译入口 → HAR 永不 rollup。已在 TASK-003 定位并落库（CL-008）。

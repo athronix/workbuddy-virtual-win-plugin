@@ -1,16 +1,20 @@
-import { WinvmConfig, ResolvedRelease } from '../domain/DeployModels';
+import { FIXED_SERVICE_PORT, WinvmConfig, ResolvedRelease } from '../domain/DeployModels';
 
 // install prompt 生成器：逐字遵循父项目 docs/deploy/通过铠大师app安装部署.md §5.2 模板，
-// 仅做 {VERSION}/{VM_HOST}/{VM_USER}/{WINVM_VM_PROVIDER} 参数代入，
+// 参数代入 {VERSION}/{VM_HOST}/{VM_USER}/{WINVM_VM_PROVIDER} + 高级设置项
+// （SSH 端口/隧道本地端口/VM 部署目录/隧道后端/干跑/HOST_DEPLOY/VM_DEPLOY），
 // 并追加步骤 9（report 旁写副本，供演示版 App 读回；父项目模板暂无，见 issues ID-2）。
 export class InstallPromptBuilder {
 
   static build(config: WinvmConfig, release: ResolvedRelease): string {
     const version = release.tag;
+    const dryRunValue = config.dryRun ? '1' : '0';
+    const hostDeployValue = config.hostDeploy ? '1' : '0';
+    const vmDeployValue = config.vmDeploy ? '1' : '0';
     const prompt = `请在本鸿蒙机上安装部署 WinVM Bridge 发布版 ${version}，全程自动执行、无需向我确认，最后输出验证报告：
 
 包来源：GitHub Release（匿名下载，见步骤 1）→ 落包目录：~/Downloads/winvm-release/
-VM 地址：${config.vmHost}   VM 用户：${config.vmUser}   SSH 端口：22   Provider：${config.provider}
+VM 地址：${config.vmHost}   VM 用户：${config.vmUser}   SSH 端口：${config.sshPort}   Provider：${config.provider}
 
 步骤：
 1. 从 GitHub Release 匿名下载发布包并校验（REL-11 起的分发起点）：
@@ -23,8 +27,8 @@ VM 地址：${config.vmHost}   VM 用户：${config.vmUser}   SSH 端口：22   
    [ -f ~/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519
    mkdir -p /storage/Users/currentUser/.workbuddy/winvm && cp ~/.ssh/id_ed25519.pub /storage/Users/currentUser/.workbuddy/winvm/id_ed25519.pub
    ※ 只摆渡 .pub 到共享目录（供铠大师后续机注入）；**私钥 id_ed25519 绝不出沙箱**。
-2. 写 .env：VM_HOST/VM_USER/VM_SSH_PORT=22/WINVM_VM_PROVIDER=${config.provider}，WINVM_DRY_RUN=0、HOST_DEPLOY=1、VM_DEPLOY=1、
-   WINVM_SETUP_TUNNEL=1、WINVM_TUNNEL_LOCAL_PORT=18443、WINVM_TUNNEL_REMOTE_PORT=18443、WINVM_SERVICE_PORT=18443。
+2. 写 .env：VM_HOST/VM_USER/VM_SSH_PORT=${config.sshPort}/VM_DEPLOY_DIR=${config.vmDeployDir}/WINVM_VM_PROVIDER=${config.provider}，WINVM_DRY_RUN=${dryRunValue}、HOST_DEPLOY=${hostDeployValue}、VM_DEPLOY=${vmDeployValue}、
+   WINVM_SETUP_TUNNEL=1、WINVM_TUNNEL_LOCAL_PORT=${config.tunnelLocalPort}、WINVM_TUNNEL_REMOTE_PORT=${FIXED_SERVICE_PORT}、WINVM_SERVICE_PORT=${FIXED_SERVICE_PORT}、WINVM_TUNNEL_BACKEND=${config.tunnelBackend}。
 3. 前置自检（只读）：node delivery/bootstrap.mjs check —— 有阻塞项先停下并把明细写进报告。
 4. SSH 免密验证：ssh -o BatchMode=yes ${config.vmUser}@${config.vmHost} whoami —— 成功=铠大师公钥注入生效；
    失败则跑 node delivery/bootstrap.mjs trust（可能需要我输一次 VM 密码）；再失败即中止并写报告。

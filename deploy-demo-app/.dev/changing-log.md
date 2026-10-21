@@ -2,6 +2,18 @@
 
 > 变更开始时登记；测试通过后迁移至 changed-log.md 并清空本文件。
 
+- **CL-009（高级设置可视化配置）**：用户裁定加「⚙ 高级设置」入口（P5 功能迭代）。
+  - 弹窗形态选型：专家包 quick-rules 明确 CustomDialogController 自 API 12 不推荐（本项目 API 26）→ 采
+    `bindSheet` 半模态（速查表有完整签名背书；openCustomDialog 无签名背书，按专家纪律不强行使用）。
+  - 7 项配置：SSH 端口(22)/隧道本地端口(18443)/VM 部署目录(C:\WinVMBridge)/隧道后端(ssh2)/
+    干跑模式(关, G12 警示)/部署宿主机侧(开)/部署 VM 侧(开)；Provider 留主表单防双真相源。
+  - WinvmConfig 扩 6 字段 + domain 默认常量（权威源 = 父 delivery/env.example）；
+    WINVM_SERVICE_PORT/TUNNEL_REMOTE_PORT 固定 18443 不暴露（vm-service.config.json 安全基线）。
+  - InstallPromptBuilder §5.2 第 2 步参数化（原硬编码 22/18443/1/1/0）；防呆断言保持。
+  - 静态自审：ArkTS 规则 + codelinter 5 处教训机检通过（textOverflow 对象包裹/Column 构造参数/
+    Select .font({size})/$$ 绑定×7/@State 命名避链式属性/无 any 解构/括号配平）；**未执行编译/设备验证**。
+  - 文档：USER-GUIDE §3 高级设置表 + S2-8 验证项；README 能力范围补一行；HAR Index.ets 出口补 7 常量。
+
 - **CL-008（D9 真根因修复 + 功能 HAP 验收）**：TASK-003 产出功能完整 HAP（209,859 B，modules.abc ×29.7，HAR 全量符号命中，验签通过）。
   WB 独立核验（sha256 一致 / pages 行已落盘未入库 / main_pages.json 正确）后：将 D9（宿主 module.json5 缺 `"pages": "$profile:main_pages"`）
   落入版本库；gitignore 加固（build/、BuildProfile.ets、oh-package-lock.json5 三类生成物）；新增 TEST-REPORT-functional-hap-20261021.md

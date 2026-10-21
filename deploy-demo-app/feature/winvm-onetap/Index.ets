@@ -20,5 +20,12 @@ export {
   ResolvedRelease,
   DeployReport,
   ReportCheck,
-  WinvmLogEntry
+  WinvmLogEntry,
+  DEFAULT_SSH_PORT,
+  DEFAULT_TUNNEL_LOCAL_PORT,
+  DEFAULT_VM_DEPLOY_DIR,
+  FIXED_SERVICE_PORT,
+  TUNNEL_BACKEND_SSH2,
+  TUNNEL_BACKEND_SSH,
+  TUNNEL_BACKEND_OPTIONS
 } from './src/main/ets/domain/DeployModels';

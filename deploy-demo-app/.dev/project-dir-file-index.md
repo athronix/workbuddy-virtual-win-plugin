@@ -34,16 +34,16 @@
 | `product/phone/src/main/module.json5` | HAP 模块配置（abilities + 权限 + pages 入口 D9） | v1.1.0 |
 | `product/phone/src/main/ets/pages/Index.ets` | 宿主挂载页 | v1.0.0 |
 | `product/phone/src/main/ets/entryability/EntryAbility.ets` | 入口 Ability | v1.0.0 |
-| `feature/winvm-onetap/Index.ets` | HAR 唯一出口 | v1.0.0 |
-| `feature/winvm-onetap/src/main/ets/ui/DeployPage.ets` | 部署助手页面 | v1.0.0 |
+| `feature/winvm-onetap/Index.ets` | HAR 唯一出口（含高级设置默认常量） | v1.1.0 |
+| `feature/winvm-onetap/src/main/ets/ui/DeployPage.ets` | 部署助手页面（含高级设置 bindSheet 面板） | v1.1.0 |
 | `feature/winvm-onetap/src/main/ets/data/DeployEngine.ts` | 编排引擎（FR-2/FR-4） | v1.0.0 |
 | `feature/winvm-onetap/src/main/ets/data/GitHubReleaseClient.ts` | latest 解析 + 流式下载 | v1.0.0 |
 | `feature/winvm-onetap/src/main/ets/data/Sha256Verifier.ts` | 分片 sha256 校验 | v1.0.0 |
 | `feature/winvm-onetap/src/main/ets/data/ZipExtractor.ts` | zlib 解压 | v1.0.0 |
 | `feature/winvm-onetap/src/main/ets/data/SharedDirStore.ts` | L3 复制 + report 读回 + 权限 | v1.0.0 |
 | `feature/winvm-onetap/src/main/ets/data/ClipboardService.ts` | prompt 复制 | v1.0.0 |
-| `feature/winvm-onetap/src/main/ets/prompt/InstallPromptBuilder.ts` | install prompt 模板 | v1.0.0 |
-| `feature/winvm-onetap/src/main/ets/domain/DeployModels.ts` | 契约类型 | v1.0.0 |
+| `feature/winvm-onetap/src/main/ets/prompt/InstallPromptBuilder.ts` | install prompt 模板（§5.2 + 高级设置参数化） | v1.1.0 |
+| `feature/winvm-onetap/src/main/ets/domain/DeployModels.ts` | 契约类型 + 高级设置默认常量（对齐父 env.example） | v1.1.0 |
 | `feature/winvm-onetap/src/main/ets/util/Logger.ts` | hilog 封装 | v1.0.0 |
 | `docs/pre-requirements/issues-and-suggestions.md` | 父项目问题上单（ID-1..5） | v1.0.0 |
 | `docs/guides/PORTING-GUIDE.md` | 铠大师移植指南 | v1.0.0 |

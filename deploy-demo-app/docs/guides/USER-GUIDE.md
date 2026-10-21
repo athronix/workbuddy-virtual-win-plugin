@@ -23,7 +23,7 @@
 
 ## 3. 界面与操作
 
-页面四区块：表单（版本/VM 地址/VM 用户/Provider）+ 四个操作按钮 + 进度/日志 + 部署状态。
+页面四区块：表单（版本/VM 地址/VM 用户/Provider/高级设置入口）+ 四个操作按钮 + 进度/日志 + 部署状态。
 
 | 按钮 | 作用 | 前置条件 |
 |---|---|---|
@@ -37,7 +37,20 @@
   点「获取 latest」可把解析出的真实 tag 回填。
 - **Provider**：`workbuddy`（需 VM 内 codebuddy CLI 登录态）或
   `workbuddy-deterministic`（首机零登录跑通全链，父文档 G4 建议）。
-- SSH 端口固定 22（prompt 内写死，与父文档一致）。
+- **⚙ 高级设置**（半模态面板，写入 prompt 的 `.env`；默认值对齐父仓库 `delivery/env.example`）：
+
+| 配置项 | 默认 | 对应 .env 键 | 说明 |
+|---|---|---|---|
+| SSH 端口 | 22 | `VM_SSH_PORT` | 1-65535，保存时校验 |
+| 隧道本地端口 | 18443 | `WINVM_TUNNEL_LOCAL_PORT` | 宿主侧本地监听（/health、MCP、A2A 均走它） |
+| VM 部署目录 | `C:/WinVMBridge` | `VM_DEPLOY_DIR` | VM 内部部署根目录 |
+| 隧道后端 | ssh2 | `WINVM_TUNNEL_BACKEND` | ssh2=进程内（鸿蒙宿主自动）；ssh=系统子进程 |
+| 干跑模式 | 关 | `WINVM_DRY_RUN` | 开=仅打印计划不真实部署（父文档 G12 假成功坑，面板有黄字警示） |
+| 部署宿主机侧 | 开 | `HOST_DEPLOY` | 是否部署 WorkBuddy 侧插件 |
+| 部署 VM 侧 | 开 | `VM_DEPLOY` | 是否部署 VM 侧服务 |
+
+> `WINVM_SERVICE_PORT` / `WINVM_TUNNEL_REMOTE_PORT` 固定 18443，不开放修改——与 VM 侧
+> `vm-service.config.json` 安全基线（仅回环 + 端口一致）绑定，防双端端口漂移。
 
 **一键部署后的完整链路**：本助手落包 + 复制 prompt → 用户打开 WorkBuddy
 **新建任务、粘贴 prompt**（prompt 内含全部部署指令，WorkBuddy 全程自动执行）→
@@ -59,6 +72,10 @@ WorkBuddy 按 prompt 步骤 9 把部署报告副本写入共享目录 → 助手
       无 `{VERSION}` 等占位符残留，VM 地址/用户/Provider 已代入
 - [ ] S2-6 手动点「刷新状态」：未部署时 toast「尚未读到部署报告」
 - [ ] S2-7 杀进程重进：日志/状态为空属正常（演示版无持久化）
+- [ ] S2-8 高级设置：点「⚙ 端口 / 目录 / 部署模式」弹出半模态面板；改 SSH 端口为非法值
+      （如 0 或 99999）保存被拒并 toast；改合法值（如 2222）保存后，③ 复制安装指令的 prompt
+      第 2 步应含 `VM_SSH_PORT=2222`；干跑模式开关打开时出现 G12 警示 toast，prompt 中
+      `WINVM_DRY_RUN=1`；关闭后面板可下滑关闭
 
 ### S3 端到端（需 VM + WorkBuddy）
 
