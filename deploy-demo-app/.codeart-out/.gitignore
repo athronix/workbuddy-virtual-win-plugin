@@ -1,14 +1,5 @@
-# 构建产物与日志 —— 不入库，仅在共享目录流转给 WB 分析
-*.log
-*.hap
-*.app
-*.map
-build/
-**/build/
-node_modules/
-hvigorw
-hvigorw.bat
-.ohpm/
-# Agent 临时探针/harness 产物（do_lint.cjs / diaglog-*.json / _build-try 等），非源码
-_lint-try/
-_build-try/
+# 本目录为 CodeArts Agent 输出区（日志 / HAP / 探针 harness / 提案 md 等），默认全部不入库
+# 仅保留目录占位与规则文件本身
+*
+!.gitkeep
+!.gitignore

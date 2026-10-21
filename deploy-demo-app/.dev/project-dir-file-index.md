@@ -51,11 +51,14 @@
 | `docs/03-impl/IMPLEMENTATION-LOGIC.md` | 实现逻辑说明 | v1.0.0 |
 | `docs/04-verification/TEST-REPORT-static-review.md` | 静态验证报告 | v1.0.0 |
 | `docs/04-verification/TEST-REPORT-compiler-20261020.md` | 编译器/API 层裁决（12E/40W 分类+node JIT 阻断分析） | v1.0.0 |
+| `docs/04-verification/TEST-REPORT-config-fixes-20261021.md` | 工程配置/构建链 8 缺陷修复（D1-D8 裁决 + D4 可移植决策） | v1.0.0 |
+| `hvigor/hvigor-config.json5` | hvigor 工程模型（modelVersion 5.0.0 + hvigor-ohos-plugin 6.26.8） | v1.0.0 |
 | `tools/make_icon.py` | 图标生成（zlib 手工编码 PNG） | v1.0.0 |
 | `tools/build.sh` | 一键 lint/build 封装（Agent 执行成本最低化） | v1.0.0 |
 | `.codeart-tasks/README.md` | 文件交接管线协议 | v1.0.0 |
 | `.codeart-tasks/TASK-001.md` | 任务①规则检查+HAP构建（编译器裁决） | v1.0.0 |
 | `.codeart-tasks/TASK-002.md` | 任务②复核5处修复+真机HAP路径 | v1.0.0 |
+| `.codeart-tasks/TASK-003.md` | 任务③ohpm install+重构建+验功能并入→功能完整HAP | v1.0.0 |
 | `.codeart-out/.gitignore` | 构建产物/日志不入库 | v1.0.0 |
 | `.dev/project-dev-status.md` | 任务树/阶段状态 | v1.1.0 |
 | `.dev/changing-log.md` / `.dev/changed-log.md` | 变更登记 / 已完成变更（CL-001..004） | v1.1.0 |

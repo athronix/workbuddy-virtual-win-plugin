@@ -3,3 +3,13 @@
 .workbuddy/
 
 # 注意：.codeart-out/ 的忽略规则在其目录内 .gitignore，保留 .gitkeep 入版本库
+
+# ohpm 生成的依赖目录（ohpm install / DevEco Sync 产物，不入库）
+oh_modules/
+**/oh_modules/
+
+# DevEco 本机 SDK 路径等机器相关信息（不入库）
+local.properties
+
+# hvigor 运行时缓存/工作目录（不入库）；注意与含 hvigor-config.json5 的 hvigor/ 不同
+.hvigor/

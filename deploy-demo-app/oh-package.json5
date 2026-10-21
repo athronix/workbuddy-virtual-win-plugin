@@ -1,4 +1,5 @@
 {
+  "modelVersion": "5.0.0",
   "name": "winvmonetapdemo",
   "version": "1.0.0",
   "description": "WinVM Bridge one-tap deploy demo (HarmonyOS native)",

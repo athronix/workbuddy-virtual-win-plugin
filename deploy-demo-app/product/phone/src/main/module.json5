@@ -5,9 +5,10 @@
     "description": "$string:module_desc",
     "mainElement": "EntryAbility",
     "deviceTypes": [
-      "PC",
       "2in1"
     ],
+    "deliveryWithInstall": true,
+    "installationFree": false,
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"

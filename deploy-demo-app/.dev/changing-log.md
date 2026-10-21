@@ -9,6 +9,9 @@
 - **CL-006（编译器裁决 + A类修复）**：TASK-001 跑通，产出 12E/40W 三分类（5真实+7环境）；修复 DeployPage.ets 5 处真实 API 误用
   （Column 间距构造参数 / Select.font→.font({size}) / TextOverflow 对象包裹×3）；新增 TEST-REPORT-compiler-20261020.md + TASK-002.md；
   根因锁定：本机沙箱 Node JIT 损坏致 HAP 无法产出，须 Mac/Win DevEco。
+- **CL-007（工程配置缺陷修复）**：TASK-001 重跑，官方 hvigor 编译成功 + HAP 验签；裁决 8 工程缺陷，应用 7 个到真实源码
+  （3×hvigorfile 包名+harTasks拼写 / modelVersion / SDK版本26.0.0 / module.json5 2in1+deliveryWithInstall / configuration.json 3.2 / 新建 hvigor-config.json5）；
+  D4 采可移植空签名（不入库密钥）；D8 ohpm install 留 TASK-003；gitignore 加 oh_modules/ local.properties；新增 TEST-REPORT-config-fixes-20261021.md + TASK-003.md。
 
 ## 说明
 

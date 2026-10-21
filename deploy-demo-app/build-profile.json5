@@ -1,13 +1,11 @@
 {
   "app": {
+    // 签名配置留空：正式签名由 DevEco「自动签名」或 CI 注入，仓库不内置 SDK 绝对路径/密钥（保持可移植、无密钥外泄）
     "signingConfigs": [],
     "products": [
       {
         "name": "default",
-        "signingConfig": "default",
-        "compileSdkVersion": "6.1.0(23)",
-        "compatibleSdkVersion": "6.0.0(20)",
-        "targetSdkVersion": "6.1.0(23)",
+        "compatibleSdkVersion": "26.0.0",
         "runtimeOS": "HarmonyOS"
       }
     ]

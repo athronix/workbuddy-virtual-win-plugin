@@ -4,7 +4,6 @@
     "type": "har",
     "description": "$string:har_desc",
     "deviceTypes": [
-      "PC",
       "2in1"
     ]
   }
