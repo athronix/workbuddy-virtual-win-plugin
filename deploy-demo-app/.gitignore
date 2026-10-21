@@ -7,6 +7,16 @@
 # ohpm 生成的依赖目录（ohpm install / DevEco Sync 产物，不入库）
 oh_modules/
 **/oh_modules/
+# ohpm 等效 install 生成的 lock（DevEco Sync 会重新生成，不入库）
+oh-package-lock.json5
+**/oh-package-lock.json5
+
+# hvigor 构建产物
+build/
+**/build/
+# hvigor 自动生成的 HAR 版本常量文件（BUILD_MODE_NAME/HAR_VERSION）
+BuildProfile.ets
+**/BuildProfile.ets
 
 # DevEco 本机 SDK 路径等机器相关信息（不入库）
 local.properties

@@ -2,7 +2,10 @@
 
 > 变更开始时登记；测试通过后迁移至 changed-log.md 并清空本文件。
 
-## 当前变更
+- **CL-008（D9 真根因修复 + 功能 HAP 验收）**：TASK-003 产出功能完整 HAP（209,859 B，modules.abc ×29.7，HAR 全量符号命中，验签通过）。
+  WB 独立核验（sha256 一致 / pages 行已落盘未入库 / main_pages.json 正确）后：将 D9（宿主 module.json5 缺 `"pages": "$profile:main_pages"`）
+  落入版本库；gitignore 加固（build/、BuildProfile.ets、oh-package-lock.json5 三类生成物）；新增 TEST-REPORT-functional-hap-20261021.md
+  （含误报风险声明：HAP 未真机运行，S2/S3 清单仍必须执行）。真根因 = D8（依赖解析）+ D9（编译入口）叠加。
 
 - **CL-005（构建管线脚手架）**：新增 `.codeart-tasks/`（README + TASK-001）、`tools/build.sh`、` .codeart-out/`（.gitignore + .gitkeep），
   建立 WB↔CodeArts Agent 文件交接管线；同步索引。TASK-001 执行待 bridge 在 CodeArts Agent 跑通。

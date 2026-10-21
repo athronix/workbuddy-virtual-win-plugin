@@ -31,7 +31,7 @@
 | `oh-package.json5` | 根包信息 | v1.0.0 |
 | `hvigorfile.ts` | 根构建脚本（appTasks） | v1.0.0 |
 | `code-linter.json5` | 代码检查配置 | v1.0.0 |
-| `product/phone/src/main/module.json5` | HAP 模块配置（abilities + 权限） | v1.0.0 |
+| `product/phone/src/main/module.json5` | HAP 模块配置（abilities + 权限 + pages 入口 D9） | v1.1.0 |
 | `product/phone/src/main/ets/pages/Index.ets` | 宿主挂载页 | v1.0.0 |
 | `product/phone/src/main/ets/entryability/EntryAbility.ets` | 入口 Ability | v1.0.0 |
 | `feature/winvm-onetap/Index.ets` | HAR 唯一出口 | v1.0.0 |
@@ -52,6 +52,7 @@
 | `docs/04-verification/TEST-REPORT-static-review.md` | 静态验证报告 | v1.0.0 |
 | `docs/04-verification/TEST-REPORT-compiler-20261020.md` | 编译器/API 层裁决（12E/40W 分类+node JIT 阻断分析） | v1.0.0 |
 | `docs/04-verification/TEST-REPORT-config-fixes-20261021.md` | 工程配置/构建链 8 缺陷修复（D1-D8 裁决 + D4 可移植决策） | v1.0.0 |
+| `docs/04-verification/TEST-REPORT-functional-hap-20261021.md` | 功能完整 HAP 验收（D9 落库 + HAR 并入证据 + 误报风险声明） | v1.0.0 |
 | `hvigor/hvigor-config.json5` | hvigor 工程模型（modelVersion 5.0.0 + hvigor-ohos-plugin 6.26.8） | v1.0.0 |
 | `tools/make_icon.py` | 图标生成（zlib 手工编码 PNG） | v1.0.0 |
 | `tools/build.sh` | 一键 lint/build 封装（Agent 执行成本最低化） | v1.0.0 |
