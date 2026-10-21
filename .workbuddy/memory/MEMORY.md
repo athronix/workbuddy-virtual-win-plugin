@@ -48,7 +48,8 @@ CL-015鸿蒙适配｜CL-016审批闸UX｜CL-017 5域×2通道E2E 18/18｜CL-018�
 
 ## 关键口径
 - **发布迭代铁律（用户 2026-10-18 裁定，强制执行）**：**每个迭代重新部署新版本前，必须清空历史部署**——`release/V<ver>/overall/deploy-all.sh --wipe`（双端 uninstall，宿主持久化与 VM C:/WinVMBridge 入回收站可恢复，VM 的 WinVMWorkspace 默认保留）。不清场的重装只是"补部署"，不构成迭代验收；验证矩阵必须在该迭代的清空重装态上取数。
-- **测试基线权威源 = `qa/` 最新 `gate-*.txt` 汇总行**（README/06-OVERVIEW 静态数字已废）。当前 **126 文件 / 2234 例 GREEN**（`qa/p3-batch-sweep/gate-rel-v1.4.0-it8.txt`；2 skip 恒 ssh2-resolve OFFLINE_SKIP）。Q3 起 sweep = `tests/unit/**` + `delivery/__tests__/**`。门禁=`npm run gate`/`gate:quick`/`lock-probe`。
+- **测试基线权威源 = `qa/` 最新 `gate-*.txt` 汇总行**（README/06-OVERVIEW 静态数字已废）。当前 **127 文件 / 2265 例 GREEN**（`qa/p3-batch-sweep/gate-cl026-qa.txt`，CL-026 后；2 skip 恒 ssh2-resolve OFFLINE_SKIP）。Q3 起 sweep = `tests/unit/**` + `delivery/__tests__/**`。门禁=`npm run gate`/`gate:quick`/`lock-probe`。守卫经 dist 消费：**变异/还原测试必先 `tsc -b`**（CL-026 QA 固化纪律）。
+- **CL-026（10-20/21）审批卡强制呈现闭环 + V1.4.1 上架**：真机实证病灶=委派挂起审批时出卡全凭 agent 自由发挥。修复（5c5f3e6，团队 software-winvm-approval-card）：`tools.ts` 权威串 `APPROVAL_PRESENTATION_DIRECTIVE`（数组 join 固定文本）五携带面（delegate 早退 summary/content 尾·前缀逐字不变防 CL-016 / approval.presentationDirective 纯附加幂等 / task.get 观测同款 / delegate+reply 双 description）；SKILL.md 审批协议升 MUST ①-④（show_widget 七槽位卡→AskUserQuestion 批准/拒绝/暂不→禁纯文本代批→reply+task.get 终态）；MCP 直调两处论证不落地（DELEGATION_REQUIRED 无载荷出卡=违规诱导）。守卫 31 例升格 ST3（12 件 250）。QA V1-V8 IS_PASS=YES（含 429 中断-基线逐字节复原实录）。**V1.4.1 已上架 GitHub Release**（zip 2,718,454B sha=ce3e7437 三方一致；发布包内含 directive×5/SKILL show_widget×4 实证）；本机跟批：install-host 刷缓存 tools.js×5+orchestrator SKILL×4（skill 缓存真实落点=`connectors/skills/connector-winvm/<skill名>/SKILL.md`，别 grep 浅层路径）。用户已验收该审批卡体验。deploy-demo-app/ 有他线活动（fcf7b4b 鸿蒙构建配置修复，与本线无关仅提示）。
 - 测试证据：每轮只留一份权威报告 `real-test-<date>-run<N>.md`；「未复现≠已修」须确定性注入回归；FAIL 给四元组(现象/根因/证据/路由)；证据目录删除必留痕。
 - 裁决必须落档再引用：权威层级=仓库文档>任务板>聊天；文档引用以锚点段标签为主、行号为辅（并行改动行号漂移）。
 - 证据文件「写完再读」：写入窗口内读会得 0B 假空→任何"为空/缺失"须二次确认(mtime+字节+进程存活)。
