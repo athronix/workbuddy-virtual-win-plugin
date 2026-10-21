@@ -16,6 +16,7 @@ import {
   hashApprovalPreview,
   recordHostApprovalAudit,
   redactCredentials,
+  type HostApprovalAudit,
 } from './approval-audit.js';
 
 const RISK_LEVELS: readonly RiskLevel[] = ['L0', 'L1', 'L2', 'L3'];
@@ -269,6 +270,64 @@ export function withPresentationDirective(a: ExtractedApproval): ExtractedApprov
   return { ...a, presentationDirective: APPROVAL_PRESENTATION_DIRECTIVE };
 }
 
+/**
+ * CL-026b：审批挂起 summary 的**唯一拼接源**（L1 正常早退面与流断 catch 收口面共用）。
+ *
+ * 病灶（真机 tr_mvhqpd53_5）：VM 侧进入挂起（input-required）时把 SSE 长流掐断 ⇒
+ * 桥 `for await` 抛 undici `TypeError: 'terminated'`（非 A2AClientError）落进 catch，
+ * 旧 catch 恒返回 `A2A_DELEGATE_FAILED`（无 approval、无呈现指令）⇒ CL-026 出卡契约
+ * 在**真实挂起路径**上形同虚设。catch 收口必须给出与正常路径**逐字同源**的挂起文案，
+ * 故把 L1 的拼接抽成本函数（复制两份文案 = 未来的分叉源）。
+ *
+ * 红线保持：CL-016 前缀「任务挂起等待审批：」逐字不变；呈现要求仍是指向
+ * `APPROVAL_PRESENTATION_DIRECTIVE` 权威串（零插值单源，本函数不新造任何固定文案）。
+ */
+function suspendSummaryText(approval: ExtractedApproval): string {
+  return (
+    `任务挂起等待审批：${approval.message}` +
+    // K5：卡片信息量 —— 有真实意图（underlying）时把「真实目标」并入呈现文本（既有语义原样搬入）
+    (describeUnderlying(approval.underlying)
+      ? `\n真实目标：${describeUnderlying(approval.underlying)}`
+      : '') +
+    // CL-026 L1：呈现要求**尾部换行追加**（前缀逐字不变 ⇒ 既有逐字断言零回归）
+    `\n${APPROVAL_PRESENTATION_DIRECTIVE}`
+  );
+}
+
+/**
+ * CL-026b：审批**携带面**（approval 载荷 + 宿主留痕）的单源构造器。
+ *
+ * 三个消费点共用同一函数 ⇒ 返回形态逐字同源，杜绝复制分叉：
+ *   1. delegate 正常早退面（既有 L590-606 逻辑收拢于此，形态零变化）；
+ *   2. delegate 流断 catch 收口面（CL-026b 新增——真机挂起即掐流，见 catch 注释）；
+ *   3. task.get 观测面（既有 L666-682 逻辑收拢，形态零变化）。
+ *
+ * 构造 = `withPresentationDirective(withA2aResumeHint(...))`（两幂等函数均为既有权威，
+ * 本器不新造任何文案）+ `recordHostApprovalAudit({result:'pending'})`（留痕口径不变）。
+ */
+function buildApprovalCarriers(
+  approval: ExtractedApproval,
+  taskId: string,
+  traceId: string,
+): { readonly approvalOut: ExtractedApproval; readonly approvalAuditOut: HostApprovalAudit } {
+  const approvalOut = withPresentationDirective(withA2aResumeHint(approval, taskId));
+  const approvalAuditOut = recordHostApprovalAudit({
+    approvalId: approvalOut.approvalId,
+    traceId,
+    channel: 'a2a',
+    ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
+    ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
+    previewHash: hashApprovalPreview({
+      ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
+      ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
+      ...(approvalOut.preview !== undefined ? { preview: approvalOut.preview } : {}),
+      ...(approvalOut.impact !== undefined ? { impact: approvalOut.impact } : {}),
+    }),
+    result: 'pending',
+  });
+  return { approvalOut, approvalAuditOut };
+}
+
 /** artifact 摘要（不含大块 base64，避免 MCP 结果膨胀） */
 function summarizeArtifact(a: A2A.Artifact) {
   return {
@@ -517,6 +576,49 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
           }
         }
       } catch (e) {
+        /* ---- CL-026b：挂起 ≠ 失败（catch 内识别挂起态，正常收口） ----
+         *
+         * 病灶（主理人真机实测复现，traceId tr_mvhqpd53_5，非 mock）：L2 委派进入
+         * 审批挂起（`input-required`）时，VM 侧把 SSE 长流掐断 ⇒ 本 `for await`
+         * 抛 undici 原生 `TypeError: 'terminated'`（非 A2AClientError）落进 catch ⇒
+         * 旧实现恒返回 `A2A_DELEGATE_FAILED`（无 approval、无 APPROVAL_PRESENTATION_DIRECTIVE）
+         * ⇒ CL-026 的出卡契约在**真实挂起路径**上形同虚设（正常路径的 approval 分支
+         * 根本走不到）。挂起事实已在流断裂前被循环体捕获（`state`/`approval` 局部变量），
+         * catch 只是「观测通道断了」，不是「委派失败了」。
+         *
+         * 判据（与 VM 侧 server.ts `input-required` 不落 errorCode 的口径对称——
+         * 「审批挂起不是执行错误」）：`state === 'input-required' && approval` 双条件
+         * 同时成立才短路成挂起收口；**真·网络异常**（approval 缺席，循环尚未见过
+         * 审批 DataPart）仍走原 A2A_DELEGATE_FAILED 错误收口——防误伤真网络错。
+         */
+        if (state === 'input-required' && approval) {
+          const suspendedSummary = scrubText(suspendSummaryText(approval));
+          const { approvalOut, approvalAuditOut } = buildApprovalCarriers(approval, taskId, ctx.traceId);
+          const suspendedContents: McpContent[] = [{ type: 'text', text: suspendedSummary }];
+          for (const a of artifacts) suspendedContents.push(...artifactToContents(a));
+          return {
+            // `isError:false` 且无 error 字段 ⇒ 业务事实是「挂起待审批」而非失败
+            //（「挂起≠失败」判据与 VM 侧 server.ts 对 input-required 不落 errorCode 对称）；
+            // `ok:false` 只陈述**本次调用**因流被掐断而未能正常收口（后续 artifact-update
+            // 可能随掐流丢失，不得谎称调用完整成功）——两口径并存不矛盾，宿主续跑语义
+            // 恒以 state==='input-required' + approval 载荷为准。
+            isError: false,
+            structuredContent: {
+              ok: false,
+              traceId: ctx.traceId,
+              ...(taskId ? { taskId } : {}),
+              ...(contextId ? { contextId } : {}),
+              state,
+              summary: suspendedSummary,
+              progress,
+              artifacts: artifacts.map(summarizeArtifact),
+              approval: approvalOut,
+              approvalAudit: approvalAuditOut,
+              // **无 error 字段**：挂起不是失败（宿主消费方不得见 A2A_DELEGATE_FAILED）
+            },
+            content: suspendedContents,
+          };
+        }
         return {
           isError: true,
           structuredContent: {
@@ -551,15 +653,9 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
             : state === 'canceled'
               ? canceledSummaryText(executedBeforeCancel)
               : approval
-                ? `任务挂起等待审批：${approval.message}` +
-                  // K5：卡片信息量 —— 有真实意图（underlying）时把「真实目标」并入呈现文本，
-                  // 宿主 Agent 依 SKILL.md 纪律渲染审批卡片时可直接展示内层目标。
-                  (describeUnderlying(approval.underlying)
-                    ? `\n真实目标：${describeUnderlying(approval.underlying)}`
-                    : '') +
-                  // CL-026 L1：呈现要求**尾部换行追加**（前缀逐字不变 ⇒ 既有逐字断言零回归）。
-                  // 病灶：载荷数据齐全但没有任何一面指挥宿主 agent 出卡，是否出卡全凭自由发挥。
-                  `\n${APPROVAL_PRESENTATION_DIRECTIVE}`
+                // CL-026b：文案拼接抽至 suspendSummaryText（与 catch 挂起收口**逐字同源**，
+                // 前缀/K5/呈现要求追加三段语义与 CL-016/CL-026 L1 完全一致）
+                ? suspendSummaryText(approval)
                 : lastMsg || `任务状态：${state}`,
       );
 
@@ -568,23 +664,11 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
 
       // CL-016：A2A 通道续跑提示 + 宿主侧审批留痕（仅当挂起审批时）
       // CL-026 L2：再幂等补挂呈现要求指令（纯附加字段，既有字段零改动）
-      const approvalOut = approval ? withPresentationDirective(withA2aResumeHint(approval, taskId)) : undefined;
-      const approvalAuditOut = approvalOut
-        ? recordHostApprovalAudit({
-            approvalId: approvalOut.approvalId,
-            traceId: ctx.traceId,
-            channel: 'a2a',
-            ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
-            ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
-            previewHash: hashApprovalPreview({
-              ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
-              ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
-              ...(approvalOut.preview !== undefined ? { preview: approvalOut.preview } : {}),
-              ...(approvalOut.impact !== undefined ? { impact: approvalOut.impact } : {}),
-            }),
-            result: 'pending',
-          })
-        : undefined;
+      // CL-026b：构造逻辑收拢至 buildApprovalCarriers（与 catch 挂起收口面、
+      // task.get 观测面**三携带面单源**）——输出形态逐字不变（既有字段零改动）。
+      const carriers = approval ? buildApprovalCarriers(approval, taskId, ctx.traceId) : undefined;
+      const approvalOut = carriers?.approvalOut;
+      const approvalAuditOut = carriers?.approvalAuditOut;
 
       return {
         isError: !ok,
@@ -644,23 +728,10 @@ export function createA2aBridgeTools(opts: A2aBridgeToolOptions): McpTool[] {
         // CL-026 L3：挂起审批经 task.get 观测到时**同样**携带呈现要求
         //（超时后取结果 / 重连后复查都是"宿主手里正握着一次待裁决审批"的时刻，
         //  不得因观测工具不同而降级为纯文本转呈）。
-        const approvalOut = approval ? withPresentationDirective(withA2aResumeHint(approval, task.id)) : undefined;
-        const approvalAuditOut = approvalOut
-          ? recordHostApprovalAudit({
-              approvalId: approvalOut.approvalId,
-              traceId: ctx.traceId,
-              channel: 'a2a',
-              ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
-              ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
-              previewHash: hashApprovalPreview({
-                ...(approvalOut.capabilityId ? { capabilityId: approvalOut.capabilityId } : {}),
-                ...(approvalOut.risk ? { risk: approvalOut.risk } : {}),
-                ...(approvalOut.preview !== undefined ? { preview: approvalOut.preview } : {}),
-                ...(approvalOut.impact !== undefined ? { impact: approvalOut.impact } : {}),
-              }),
-              result: 'pending',
-            })
-          : undefined;
+        // CL-026b：与 delegate 两收口面共用 buildApprovalCarriers（三携带面单源，形态逐字不变）。
+        const carriers = approval ? buildApprovalCarriers(approval, task.id, ctx.traceId) : undefined;
+        const approvalOut = carriers?.approvalOut;
+        const approvalAuditOut = carriers?.approvalAuditOut;
         return {
           isError: false,
           structuredContent: {

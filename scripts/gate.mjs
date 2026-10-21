@@ -127,6 +127,11 @@ export const GATE_GUARD_FILES = [
     id: 'cl026-approval-presentation',
     why: 'CL-026 审批卡**强制呈现**安全承诺钉：审批挂起时返回面（delegate 早退文案/approval 字段/task.get 观测面/两工具 description）必须内嵌「呈现要求」指令——缺它则出卡全凭宿主 agent 自由发挥（真机实证：卡片靠主理人手工渲染，非系统保证）。含四行契约与两工具名绑定、纯附加字段幂等、通道隔离红线（新改动面零 MCP 续跑标记 + MCP 小节不被误删的反向钉）、SKILL.md 不新增三级标题（否则 r1-approval-card R1-9 节切片静默截断）与变异自证。纯离线 0.9s，入选标准 (a)(b)(c) 全满足',
   },
+  {
+    file: 'cl026b-stream-break-suspension.test.js',
+    id: 'cl026b-stream-break-suspension',
+    why: 'CL-026b 挂起掐流**行为级**守卫（真机盲区 tr_mvhqpd53_5 补堵）：VM 侧挂起时掐断 SSE 长流 ⇒ 桥 for await 抛 undici TypeError(terminated) 落 delegate catch——旧 catch 恒 A2A_DELEGATE_FAILED（无 approval 无呈现指令）⇒ CL-026 出卡契约在真实挂起路径形同虚设。mock stream「吐事件后抛 terminated」驱动整条 delegate 链（经 dist），断言挂起收口携带呈现指令/无 error 字段/state=input-required/留痕齐备、掐流收口与正常早退**逐字同源**、防误伤真网络错（approval 缺席仍 A2A_DELEGATE_FAILED）、判据不依赖错误形态、红线零串台零凭据泄漏、旧形态变异必失配（K-10）。上轮纯函数拼接测试测不到该链路即本件入选理由；纯离线 <1s，(a)(b)(c) 全满足',
+  },
 ];
 
 /**

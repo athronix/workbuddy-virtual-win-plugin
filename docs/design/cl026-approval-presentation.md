@@ -180,3 +180,41 @@ R17 已裁定的机制（本件**不推翻、不改写**，只补"指挥"这一�
 
 A7 的判据细节：出卡前**不得**出现纯文本转呈即请求批准；批准前**不得**出现 `a2a.approval.reply`；
 选「暂不决定（超时观察）」时**必须**零 reply、任务恒挂起。
+
+---
+
+## 7. CL-026b 补丁 —— 挂起掐流路径的第六携带面（真机盲区补堵）
+
+| 项 | 值 |
+|---|---|
+| 真机病灶取证 | 2026-10-21，主理人实测复现，traceId `tr_mvhqpd53_5`（非 mock） |
+| 状态 | 已实现（行为级守卫升 ST3；本文 §2 落点表增补 L6） |
+
+**病灶**：VM 侧任务进入 `input-required` 挂起时把 SSE 长流掐断 ⇒ 桥 `streamMessage` 的
+`for await` 抛 undici 原生 `TypeError: 'terminated'`（非 `A2AClientError`）落进
+`delegate.handler` 的 **catch 分支** ⇒ 旧返回 `{ok:false, error:{code:'A2A_DELEGATE_FAILED'}}`，
+无 approval、无呈现指令 ⇒ §2 的 L1/L2 携带面在**真实挂起路径**上走不到（上轮 cl026 守卫件
+全部由「正常 final 事件」驱动，恰为该 mock 盲区）。
+
+**修复（方案 A：catch 内识别挂起态，正常收口）**：
+
+| # | 面 | 落点 | 形态 |
+|---|---|---|---|
+| **L6** | `a2a.delegate` 流断 catch 收口（`state==='input-required' && approval` 双条件） | `createA2aBridgeTools` → `delegate.handler` → catch 分支 | 与 L1/L2 **同款**挂起返回：`isError:false`、`ok:false`（如实标记本次调用未正常收口）、`state:'input-required'`、`summary`/`content[0].text` 携带呈现指令、`approval` 载荷带 `presentationDirective`、**无 error 字段**；真·网络异常（approval 缺席）仍走原 `A2A_DELEGATE_FAILED`——「挂起≠失败」判据与 VM 侧 `server.ts` 对 `input-required` 不落 errorCode 对称 |
+
+**单源纪律**（防两份文案未来分叉）：
+- 挂起 summary 拼接抽 `suspendSummaryText`（L1 正常早退面与 L6 掐流收口面共用）；
+- approval 载荷 + 留痕构造抽 `buildApprovalCarriers`（delegate 正常早退 / delegate 掐流收口 /
+  `a2a.task.get` 观测面**三携带面单源**），输出形态逐字节不变（既有断言零回归）。
+
+**守卫**：新增行为级件 `tests/unit/cl026b-stream-break-suspension.test.js`（15 例，B-1…B-6 族）——
+mock stream「吐事件后抛 `TypeError('terminated')`」驱动**整条 delegate 链**（经 dist），断言
+呈现指令在文案面/载荷面、无 error 字段、`state=input-required`、留痕齐备；掐流收口与正常早退
+summary **逐字全等**；防误伤真网络错；判据锚定挂起事实而非异常类型；红线零串台零凭据泄漏；
+旧形态变异必失配（K-10）。已挂 ST3 双写表（`gate.mjs` `GATE_GUARD_FILES` + `GATE-POLICY.md`）。
+
+**真机 stdio 回环验收**（2026-10-21）：缓存 cli.js 拉起 → `a2a.delegate` 发起 L2 建 junction
+委派（traceId `tr_mvhsmb2c_1`）→ 挂起掐流后返回 `state=input-required`、`isError:false`、
+**无 error 字段**、summary 携带【呈现要求·MUST】四行、`approval.presentationDirective` 在册、
+留痕 `result:'pending'` 齐备；探针挂起任务以 `a2a.approval.reply approved:false` 收口
+（`state:'rejected'`，fail-closed）。
