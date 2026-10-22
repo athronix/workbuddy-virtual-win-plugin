@@ -2,10 +2,16 @@
   "app": {
     // 签名配置留空：正式签名由 DevEco「自动签名」或 CI 注入，仓库不内置 SDK 绝对路径/密钥（保持可移植、无密钥外泄）
     "signingConfigs": [],
+    // 版本基线（spec 4.5.1 / tasks 1.5、9.3）：
+    //   · 沙箱实版（本机 SDK，落地构建用）= 26.0.0；显式声明 targetSdkVersion 以消除 hvigor
+    //     "未设置 targetSdkVersion" 告警，并消除 00303313 / 00303312。
+    //   · 正式机回写目标（具备标准 toolchains 的环境执行，见 tasks 9.3）= compileSdkVersion、
+    //     targetSdkVersion 均回写为 "6.1.0(23)"，compatibleSdkVersion 回写为 "6.0.0(20)"。
     "products": [
       {
         "name": "default",
         "compatibleSdkVersion": "26.0.0",
+        "targetSdkVersion": "26.0.0",
         "runtimeOS": "HarmonyOS"
       }
     ]

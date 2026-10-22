@@ -295,7 +295,7 @@ export struct DeployPage {
       TextInput({ placeholder: '22', text: $$this.advancedSshPortText })
         .layoutWeight(1)
         .fontSize(14)
-        .type(InputType.NUMBER)
+        .type(InputType.Number)
         .maxLength(5)
     }
     .width('100%')
@@ -311,7 +311,7 @@ export struct DeployPage {
       TextInput({ placeholder: '18443', text: $$this.advancedTunnelPortText })
         .layoutWeight(1)
         .fontSize(14)
-        .type(InputType.NUMBER)
+        .type(InputType.Number)
         .maxLength(5)
     }
     .width('100%')

@@ -4,6 +4,9 @@ import { FIXED_SERVICE_PORT, WinvmConfig, ResolvedRelease } from '../domain/Depl
 // 参数代入 {VERSION}/{VM_HOST}/{VM_USER}/{WINVM_VM_PROVIDER} + 高级设置项
 // （SSH 端口/隧道本地端口/VM 部署目录/隧道后端/干跑/HOST_DEPLOY/VM_DEPLOY），
 // 并追加步骤 9（report 旁写副本，供演示版 App 读回；父项目模板暂无，见 issues ID-2）。
+// 目录命名（ID-1，spec 4.5.3 / design 1.1.2）：父模板写作 `~/Downloads/winvm-release`（复数），
+// 与本机权威落包目录 `Download`（单数）不一致；此处统一为权威绝对路径，使步骤 1 的 curl 目标目录
+// 与步骤 9 / App 读回目录语义一致（父文档命名偏差登记为 issues ID-1，见 .codeart-out/ISSUES.md）。
 export class InstallPromptBuilder {
 
   static build(config: WinvmConfig, release: ResolvedRelease): string {
@@ -13,12 +16,12 @@ export class InstallPromptBuilder {
     const vmDeployValue = config.vmDeploy ? '1' : '0';
     const prompt = `请在本鸿蒙机上安装部署 WinVM Bridge 发布版 ${version}，全程自动执行、无需向我确认，最后输出验证报告：
 
-包来源：GitHub Release（匿名下载，见步骤 1）→ 落包目录：~/Downloads/winvm-release/
+包来源：GitHub Release（匿名下载，见步骤 1）→ 落包目录：/storage/Users/currentUser/Download/winvm-release/
 VM 地址：${config.vmHost}   VM 用户：${config.vmUser}   SSH 端口：${config.sshPort}   Provider：${config.provider}
 
 步骤：
 1. 从 GitHub Release 匿名下载发布包并校验（REL-11 起的分发起点）：
-   mkdir -p ~/Downloads/winvm-release && cd ~/Downloads/winvm-release
+   mkdir -p /storage/Users/currentUser/Download/winvm-release && cd /storage/Users/currentUser/Download/winvm-release
    curl -L ${release.zipUrl} -o ${release.zipName}
    curl -L ${release.shaUrl} -o ${release.zipName}.sha256
    sha256sum -c ${release.zipName}.sha256 —— 非 OK 即弃包重取（旁挂校验文件与 zip 同为 Release 资产，Q-2）；

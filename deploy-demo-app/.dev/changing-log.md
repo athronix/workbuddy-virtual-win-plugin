@@ -2,6 +2,13 @@
 
 > 变更开始时登记；测试通过后迁移至 changed-log.md 并清空本文件。
 
+- **CL-010（D10 硬错误修复 + 工作树落库 + 台账归档）**：10-22 轮编译器裁决出 D10（`InputType.NUMBER`→`InputType.Number`，ArkTS 规则码 10505001，阻断 CompileArkTS），Agent 已修于工作树；本次将三项未提交改进落库：
+  - `DeployPage.ets` D10 修复（×2，高级设置端口输入框枚举形态）；
+  - `build-profile.json5` 显式补 `targetSdkVersion: "26.0.0"`（消 hvigor 00303313/00303312 告警；正式机回写 6.1.0(23) 目标已在注释标注，D5 遗留）；
+  - `InstallPromptBuilder.ts` ID-1 路径修正（`~/Downloads/` 复数 → 权威 `/storage/Users/currentUser/Download/` 单数，步骤 1 curl 目标与步骤 9 读回目录语义一致）。
+  - 归档 Agent 台账 `.codeart-out/ISSUES.md` → `docs/04-verification/BUILD-DEFECTS-LEDGER-20261022.md`（ID-1/2 + D1-D10 处置链）。
+  - 状态：10-22 15:41 功能完整 HAP（256,598 B，SDK 原生签名）基于本工作树构建，源码与产物一致；移交用户真机安装测试。
+
 - **CL-009（高级设置可视化配置）**：用户裁定加「⚙ 高级设置」入口（P5 功能迭代）。
   - 弹窗形态选型：专家包 quick-rules 明确 CustomDialogController 自 API 12 不推荐（本项目 API 26）→ 采
     `bindSheet` 半模态（速查表有完整签名背书；openCustomDialog 无签名背书，按专家纪律不强行使用）。
