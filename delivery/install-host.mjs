@@ -5,7 +5,7 @@
  * 把中性 Skills 与连接器声明渲染并安装到 WorkBuddy：
  *   ~/.workbuddy/plugins/cache/winvm/winvm-bridge/<ver>/   （插件清单 + A2A 桥，含自带 node_modules）
  *   ~/.workbuddy/plugins/marketplaces/winvm/               （市场清单）
- *   ~/.workbuddy/connectors/skills/connector-winvm/<skill>/ （1+5 Skills）
+ *   ~/.workbuddy/connectors/skills/connector-winvm/<skill>/ （8 个 Skills：1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派）
  *   ~/.workbuddy/connectors/<account>/mcp.json              （增量合并，不覆盖：
  *                                                              connector:winvm     = MCP 直调通道
  *                                                              connector:winvm-a2a = A2A 委派桥）

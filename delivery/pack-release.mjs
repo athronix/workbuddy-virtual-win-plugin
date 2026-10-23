@@ -498,7 +498,7 @@ function main() {
     body: [
       '## 内容',
       '- `delivery/`：install-host.mjs 及其 import/spawn 闭包（含隧道三件套、hooks、env.example）',
-      '- `skills/`：7 个连接器 Skills（渲染进 ~/.workbuddy/connectors/skills/connector-winvm/）',
+      '- `skills/`：8 个连接器 Skills（渲染进 ~/.workbuddy/connectors/skills/connector-winvm/）',
       '- `packages/`：各包运行期资产（dist/psmod/schemas，排除 src 与构建中间物）',
       '- `node_modules/@winvm/*`：实体副本（ESM 裸包名解析；不依赖 symlink）',
       '- `node_modules/ssh2` 链：进程内 ssh2 隧道离线分发（纯 JS 传递依赖）',

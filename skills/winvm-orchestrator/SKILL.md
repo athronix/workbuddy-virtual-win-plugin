@@ -19,6 +19,7 @@ relatedSkills:
   - winvm-storage-manager
   - winvm-gui-automation
   - winvm-app-operation
+  - hos-win-skill
 ---
 
 # WinVM 总控编排
@@ -56,6 +57,8 @@ relatedSkills:
 1. 先跑只读诊断自检：`node delivery/tools/diagnose-connectors.mjs`（零写入 / 零 spawn / 零网络），确认注册面是否就位；
 2. 注册就位但工具仍缺失 → 指引用户去 WorkBuddy 连接器页「信任 + 启用」winvm / winvm-a2a，然后**重开一个新会话**（旧会话永不热注入，属预期）；仍异常按 `docs/INSTALL-GUIDE.md` troubleshooting 处置；
 3. 上述期间**严禁手写脚本绕行**不变——停下等待用户启用连接器，是本 Skill 唯一允许的等待态。
+
+> 宿主侧（鸿蒙）任务分派预判（本地做还是送 VM）见 `hos-win-skill`；本 Skill 是 VM 内唯一总控。
 
 ## 适用与不适用
 
