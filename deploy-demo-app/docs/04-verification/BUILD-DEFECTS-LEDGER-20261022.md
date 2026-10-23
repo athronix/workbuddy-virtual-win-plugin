@@ -36,7 +36,7 @@
 
 ## 四、遗留项（移交正式环境，tasks 9.3 / 11.4）
 
-1. **版本基线回写**（tasks 9.3）：在具备标准 toolchains 的环境将 `build-profile.json5` 回写为 `compileSdkVersion/targetSdkVersion="6.1.0(23)"`、`compatibleSdkVersion="6.0.0(20)"`（当前文件已标注目标值）。
+1. ~~**版本基线回写**（tasks 9.3）~~ → **已落地（2026-10-23）**：设备安装报「设备 sdk 版本较低」触发根因定位——`param get const.ohos.apiversion` = **24**（Release），而沙箱唯一 SDK `ohos-sdk_26.0.0.18` = API 26，产物 minAPI 26 > 24 必被拒装。已回写 `build-profile.json5`：`compatibleSdkVersion="6.0.0(20)"`、`targetSdkVersion="6.1.1(24)"`（DevEco Studio 6.1.1 Release / Ohos_sdk_public 6.1.1.125 基线；compileSdkVersion 省略走配套默认）。详见 `TEST-REPORT-sdk-version-fix-20261023.md`。
 2. **正式 `ohpm install`**（D8）：在标准环境执行以生成真实 `oh_modules`（替换沙箱软链）。
 3. **AGC 正式签名**（D4）：接入 AGC 发布证书与 profile，替换沙箱 OpenHarmony 调试材料。
 4. **ID-1 / ID-2 与父项目对齐**：建议正式版将"步骤 9 旁写副本"回并父项目模板、将路径命名统一，使"逐字模板"约束重新成立。

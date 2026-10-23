@@ -2,6 +2,14 @@
 
 > 变更开始时登记；测试通过后迁移至 changed-log.md 并清空本文件。
 
+- **CL-011（SDK 版本基线订正：设备 API 24 实证 + build-profile 回写）**：用户安装 10-22 HAP 报「设备 sdk 版本较低」。
+  根因实证链：`param get const.ohos.apiversion` = **24**（Release）vs HAP minAPIVersion **260000026**（API 26）——沙箱唯一 SDK
+  `/data/service/hnp/ohos-sdk.org/ohos-sdk_26.0.0.18`（API 26，WB 运行时自带）高于设备两个大版本，CL-007 跟随沙箱写 "26.0.0"
+  致产物结构上装不上本机（非代码缺陷）。已回写 `build-profile.json5`：compatibleSdkVersion `"6.0.0(20)"`（minAPI 20）、
+  targetSdkVersion `"6.1.1(24)"`（DevEco 6.1.1 Release / Ohos_sdk_public 6.1.1.125 = API 24）、compileSdkVersion 省略走配套默认。
+  运行期符号清单核验：demo 全部系统 API ≤ API 20（http/zlib/crypto/pasteboard/fileIo/AbilityKit/ArkUI 基础+ bindSheet API 12），无 21-26 符号。
+  新增 TEST-REPORT-sdk-version-fix-20261023.md + TASK-004.md（DevEco 6.1.1 标准环境重建 + 验收点）；台账 D5 遗留项关闭。
+
 - **CL-010（D10 硬错误修复 + 工作树落库 + 台账归档）**：10-22 轮编译器裁决出 D10（`InputType.NUMBER`→`InputType.Number`，ArkTS 规则码 10505001，阻断 CompileArkTS），Agent 已修于工作树；本次将三项未提交改进落库：
   - `DeployPage.ets` D10 修复（×2，高级设置端口输入框枚举形态）；
   - `build-profile.json5` 显式补 `targetSdkVersion: "26.0.0"`（消 hvigor 00303313/00303312 告警；正式机回写 6.1.0(23) 目标已在注释标注，D5 遗留）；

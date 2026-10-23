@@ -2,16 +2,19 @@
   "app": {
     // 签名配置留空：正式签名由 DevEco「自动签名」或 CI 注入，仓库不内置 SDK 绝对路径/密钥（保持可移植、无密钥外泄）
     "signingConfigs": [],
-    // 版本基线（spec 4.5.1 / tasks 1.5、9.3）：
-    //   · 沙箱实版（本机 SDK，落地构建用）= 26.0.0；显式声明 targetSdkVersion 以消除 hvigor
-    //     "未设置 targetSdkVersion" 告警，并消除 00303313 / 00303312。
-    //   · 正式机回写目标（具备标准 toolchains 的环境执行，见 tasks 9.3）= compileSdkVersion、
-    //     targetSdkVersion 均回写为 "6.1.0(23)"，compatibleSdkVersion 回写为 "6.0.0(20)"。
+    // 版本基线（2026-10-23 订正，根因：设备安装报「设备 sdk 版本较低」）：
+    //   · 设备实证：param get const.ohos.apiversion = 24（Release 型）→ 安装门槛 minAPIVersion ≤ 24。
+    //   · 沙箱唯一 SDK = /data/service/hnp/ohos-sdk.org/ohos-sdk_26.0.0.18（API 26），
+    //     高于设备两个大版本；沙箱产物 minAPI 26 在 API 24 设备上必然被安装器拒装
+    //     （003 类版本不匹配报错即此因）。故版本串必须按设备基线回写，不能跟随沙箱 SDK。
+    //   · 标准构建环境（必须）：DevEco Studio 6.1.1 Release，配套 SDK =
+    //     Ohos_sdk_public 6.1.1.125（API 24 Release）。Mac/Win 任一终端装该版本打开工程即可。
+    //   · compileSdkVersion 省略：编译时默认使用配套 SDK 版本（官方建议）。
     "products": [
       {
         "name": "default",
-        "compatibleSdkVersion": "26.0.0",
-        "targetSdkVersion": "26.0.0",
+        "compatibleSdkVersion": "6.0.0(20)",
+        "targetSdkVersion": "6.1.1(24)",
         "runtimeOS": "HarmonyOS"
       }
     ]
