@@ -305,7 +305,7 @@ node delivery/setup.mjs --apply    # 真正部署双端 + 建立隧道 + 自检
 ```bash
 node delivery/install-host.mjs --dry-run --host 192.168.1.77 --user vmadmin
 node delivery/install-host.mjs            --host 192.168.1.77 --user vmadmin
-# 渲染 6 个 Skill + plugin.json + marketplace.json + 增量合并 mcp.json + 静态禁用高危工具
+# 渲染 8 个 Skill + plugin.json + marketplace.json + 增量合并 mcp.json + 静态禁用高危工具
 node delivery/install-host.mjs --uninstall
 ```
 

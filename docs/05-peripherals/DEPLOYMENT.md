@@ -255,7 +255,7 @@ node delivery/install-host.mjs \
 ```
 
 安装器会：
-1. 把 6 个 Skill 渲染为 WorkBuddy `connector-skills/connector-winvm/*/SKILL.md`
+1. 把 8 个 Skill 渲染为 WorkBuddy `connector-skills/connector-winvm/*/SKILL.md`
 2. 生成插件清单 `plugin.json` + `marketplace.json`
 3. 以 **增量 JSON patch** 方式写入 `connectors/default/mcp.json`，产出 **两个连接器条目**，**绝不整体覆盖**用户已有连接器：
 

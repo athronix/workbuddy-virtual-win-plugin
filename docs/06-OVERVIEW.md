@@ -105,7 +105,7 @@ re-export（P2-T10 的 `reconcileApprovalWait` 不进 ⇒ 对外契约面零变�
 
 **代码（packages/ 12 包）**：contracts · core · mcp-framework · a2a-framework · host-sdk · adapter-host-workbuddy · **host-a2a-bridge（宿主 A2A 委派桥）** · vm-capabilities · adapter-agent-workbuddy · **adapter-agent-workbuddy-llm（LLM Agent）** · **adapter-agent-hermes（Hermes Agent）** · vm-service
 
-**Skills（skills/ 7 目录）**：winvm-orchestrator（总控）+ system/app/storage/gui + **app-operation（应用生产操作）** + winvm-mcp-reference（MCP 参考）
+**Skills（skills/ 8 目录）**：winvm-orchestrator（总控）+ system/app/storage/gui + **app-operation（应用生产操作）** + winvm-mcp-reference（MCP 参考）+ **hos-win-skill（宿主分派）**
 
 **交付（delivery/）**：`setup.mjs`（双端一键：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行，读 `.env`）· `install-host.mjs` / `install-vm.mjs`（幂等/增量/dry-run/--provider/--cli/--skills-root/--skip-skills/--skip-install/--skip-links/uninstall）· `link-workspace.mjs`（VM 侧 @winvm workspace junction 软链，免 npm ci/免联网，修复远程分发链路缺 node_modules 的根因）· `deploy-shared-skills.mjs`（共享 Skills 发布 + 各候选 Agent symlink 规划，可 `--apply`）· `vm-service.config.json`（含三 provider 定义：`workbuddy-deterministic` / `workbuddy` / `hermes-agent`）· `.env.example`
 

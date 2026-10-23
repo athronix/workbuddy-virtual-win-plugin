@@ -31,7 +31,7 @@
 │   ├── 02-development-history.md         14 轮 / 18 次提交脉络 + 6 个转折点
 │   ├── 03-current-status.md              当前基线、验证命令、真机未验证项
 │   ├── 04-known-issues-and-roadmap.md    已知问题、环境限制、完善方向与优先级
-│   ├── 05-environment-and-tools.md       环境依赖、工具脚本、7 个 Skills、环境怪癖
+│   ├── 05-environment-and-tools.md       环境依赖、工具脚本、8 个 Skills、环境怪癖
 │   ├── 06-lessons-learned.md             ★ 踩坑集（按领域归类，症状→根因→解法）
 │   └── 07-migration-checklist.md         ★ 新机落地 Check List（按顺序执行）
 ├── memory/                       ← WorkBuddy 工作记忆（不入库，跨机靠 cp）

@@ -9,7 +9,7 @@ workbuddy-virtual-win-plugin/
 ├── tsconfig.build.json       # 构建引用图（根无 tsconfig.json，构建须带此文件）
 ├── docs/                     # 调研 / 设计 / 交付文档（含 docs/changes/CL-* 与 docs/test/reports/）
 ├── packages/                 # 12 个可独立编译/发布的 npm 包
-├── skills/                   # 7 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 个 `winvm-mcp-reference` 部署参考）+ 各 Skill 内的 mcps-reference 参考
+├── skills/                   # 8 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 个 `winvm-mcp-reference` 部署参考 + 1 个 `hos-win-skill` 宿主分派）；`references/` 仅两家（winvm-orchestrator 的 approval-card.md、winvm-mcp-reference 的 mcps-reference.md）
 ├── tests/                    # unit/（59 个 *.test.js）+ e2e/ + fixtures/
 ├── qa/                       # 真机验证证据与驱动脚本（r18 / r19 / harness / probes / evidence / archive）
 ├── delivery/                 # 安装器 + 部署配置
@@ -36,8 +36,8 @@ workbuddy-virtual-win-plugin/
 | `vm-service` | 装配 | 同端口双协议服务端 + CLI 入口（agent.provider 总开关，3 选项：workbuddy-deterministic / workbuddy / hermes-agent） |
 
 ## skills/
-- `winvm-orchestrator` 总控 · `winvm-system-admin` · `winvm-app-manager` · `winvm-storage-manager` · `winvm-gui-automation` · `winvm-app-operation`（应用生产操作 appops）· `winvm-mcp-reference`（MCP server 部署/管理参考，独立 Skill）
-- 每个 Skill 内含 `mcps-reference.md`：各 MCP server 部署/管理参考（供 VM AI Agent 参考调用）
+- `winvm-orchestrator` 总控 · `winvm-system-admin` · `winvm-app-manager` · `winvm-storage-manager` · `winvm-gui-automation` · `winvm-app-operation`（应用生产操作 appops）· `winvm-mcp-reference`（MCP server 部署/管理参考，独立 Skill）· `hos-win-skill`（鸿蒙宿主侧任务分派，独立 Skill）
+- `references/` 仅两家：`winvm-mcp-reference` 的 `mcps-reference.md`（各 MCP server 部署/管理参考，供 VM AI Agent 参考调用）、`winvm-orchestrator` 的 `approval-card.md`
 - **单一真源 + symlink 部署**：各候选 VM Agent 仅通过 junction 引用 `C:/WinVMBridge/shared-skills` 下的 Skill，避免多份副本
 
 ## qa/（真机验证证据与驱动，2026-09-30 起主要落点）

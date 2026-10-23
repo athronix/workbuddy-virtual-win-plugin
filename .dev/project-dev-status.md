@@ -54,8 +54,8 @@
 - 端到端委派冒烟通过：宿主桥 → A2A → VM provider → ps-bridge → PowerShell，`completed` 并回传产物
 - 空闲自愈验证通过：常驻 55s 空闲后委派仍成功（修复前必失败）
 
-## Skills（7）
-- 7/7 已写 SKILL.md（1 总控 + 5 领域，含应用生产操作 appops + `winvm-mcp-reference` MCP 接入参考）。
+## Skills（8）
+- 8/8 已写 SKILL.md（1 总控 + 5 领域，含应用生产操作 appops + `winvm-mcp-reference` MCP 接入参考 + `hos-win-skill` 宿主分派）。
   ⚠ 2026-10-08 体检修正：本节旧写「Skills（6）」与 skills/ 实际 7 目录、README/docs-index 7 口径矛盾（QA §5⑥）。
 
 ## 交付物

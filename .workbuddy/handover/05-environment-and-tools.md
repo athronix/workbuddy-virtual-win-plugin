@@ -29,7 +29,7 @@
 | `link-workspace.mjs` | 为「仅 dist」产物建 `node_modules/@winvm/*` junction（免管理员/免联网） |
 | `path-util.mjs` | 用户级 PATH 增删（含写后 `WM_SETTINGCHANGE` 广播） |
 
-## Skills（7 个，单一真源 + junction 引用）
+## Skills（8 个，单一真源 + junction 引用）
 
 | Skill | 域 | 说明 |
 |---|---|---|
@@ -40,8 +40,9 @@
 | `winvm-gui-automation` | `gui` | 截图/UIA 定位/键鼠/窗口/剪贴板 |
 | `winvm-app-operation` | `appops` | **应用生产操作**（用软件完成生产任务） |
 | `winvm-mcp-reference` | — | 各 MCP server 部署/管理参考 |
+| `hos-win-skill` | — | 鸿蒙宿主侧任务分派预判（本地做还是送 VM），进入 VM 后以总控为唯一入口 |
 
-- 每个 Skill 内含 `mcps-reference.md`（供 VM 内 AI Agent 参考调用）
+- `references/` 仅两家：`winvm-mcp-reference` 的 `mcps-reference.md`（MCP server 部署/管理参考，供 VM 内 AI Agent 参考调用）、`winvm-orchestrator` 的 `approval-card.md`
 - **共享根**：`C:/WinVMBridge/shared-skills`（故意与仓库 `skills/` 分离，避免部署目录 == 仓库目录时 `cp` 自拷贝 `EINVAL`）
 - 各候选 VM Agent 仅经 **junction** 引用，单一真源，`skillsRoot` 默认值已统一
 

@@ -68,7 +68,7 @@ Windows VM 127.0.0.1:18443（同端口双协议）
 
 ## 共享 Skills 部署范式
 
-- **单一真源**：仓库 `skills/`（7 个 Skill，每个含 `mcps-reference.md`）
+- **单一真源**：仓库 `skills/`（8 个 Skill：1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派；`references/` 仅 winvm-orchestrator、winvm-mcp-reference 两家）
 - **共享根**：`C:/WinVMBridge/shared-skills`（故意与仓库 `skills/` 分离，避免 VM 部署目录 == 仓库目录时 `cp` 自拷贝 `EINVAL`）
 - 各候选 VM Agent 仅经 **junction**（Windows 免管理员）引用共享根
 - 部署器：`delivery/deploy-shared-skills.mjs`（两阶段 publish → link，幂等/可 dry-run）
@@ -87,7 +87,7 @@ Windows VM 127.0.0.1:18443（同端口双协议）
 ```
 workbuddy-virtual-win-plugin/
 ├── packages/       12 个 npm workspace 包（TS strict ESM）
-├── skills/         7 个 Skill（1 总控 + 5 领域 + mcp-reference）
+├── skills/         8 个 Skill（1 总控 + 5 领域 + mcp-reference + 宿主分派）
 ├── docs/           调研 / 设计 / 交付文档（01-investigation … 06-OVERVIEW）
 ├── delivery/       安装器与部署配置（setup / install-host / install-vm / winvm-plugin …）
 ├── tests/          unit/ + e2e/
