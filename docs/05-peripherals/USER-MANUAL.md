@@ -6,7 +6,7 @@
 
 ## 1. 你能做什么
 
-装好 `winvm-bridge` 后，你在宿主机 WorkBuddy 里直接说人话，它会通过 **5 个 Skill** 把指令送到虚拟机执行：
+装好 `winvm-bridge` 后，你在宿主机 WorkBuddy 里直接说人话，它会通过 **6 个 Skill** 把指令送到虚拟机执行：
 
 | Skill | 领域 | 典型能干的事 |
 |-------|------|--------------|
@@ -15,6 +15,9 @@
 | `winvm-app-manager` | 应用 | 列出/安装/卸载/升级/启动应用（Winget、MSStore、EXE/MSI）；结束进程走 `system.process.terminate` |
 | `winvm-storage-manager` | 存储 | 磁盘/分区/卷/文件/回收站（查看）的查询与整理 |
 | `winvm-gui-automation` | GUI | 截屏、找窗口/控件、键鼠自动操作（UIA/Accessibility） |
+| `winvm-app-operation` | 应用操作（appops） | 让 VM 里的软件干活：按给定步骤驱动 GUI 完成生产任务（如用 Photoshop 把照片背景换成海洋）、CLI 调用、COM 自动化 |
+
+> 插件另含 2 个非能力型 Skill：`winvm-mcp-reference`（MCP 服务部署/接入参考）、`hos-win-skill`（宿主机侧任务分派预判）——合计 8 个。
 
 > 高危动作（关机、删文件、改注册表、卸应用）默认**禁用 + 需审批**，不会悄悄执行。
 

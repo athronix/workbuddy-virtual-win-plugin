@@ -156,4 +156,6 @@ relatedSkills:
 | `winvm-system-admin` / `winvm-app-manager` / `winvm-storage-manager` / `winvm-gui-automation` / `winvm-app-operation` | 域内细则层 | 五域各自的领域知识、惯用法与陷阱 |
 | `winvm-mcp-reference` | 接入与排障参考 | WinVM MCP 服务部署与接入参考（端点/鉴权/注册验证/常见故障） |
 
+> **作用域**：本 skill 面向**宿主机 Agent**（鸿蒙）的任务分派预判。交付链对 `skills/` 整包分发（VM 侧 publish/junction 不排除本 skill），故 VM 内 Agent 也能看到它——**仅供参照**：VM 内的一切操作仍以 `winvm-orchestrator` 为唯一入口，不得据本 skill 递归发起新的 winvm 委派。
+
 依据文档：本仓 docs/reference/workbuddy-hos-vs-win-panorama.md（开发期参考）。插件内技能名 `winvm-orchestrator` 等以连接器技能面为准。
