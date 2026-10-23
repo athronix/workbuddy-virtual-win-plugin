@@ -25,7 +25,7 @@ Windows 虚拟机
 
 ## 1. 双端一键部署（setup.mjs，推荐）
 
-`delivery/setup.mjs` 读取项目根目录 `.env`，**一条命令完成「宿主机侧 + VM 侧」的安装、部署、隧道与自检**（卸载时加 `--uninstall` 即可对称地一键移除双端本项目部分），生成 BUILD → HOST → VM → VM-START（部署后 `schtasks /run` 拉起服务，**并轮询 VM 本机 18443 端口监听 ≤60s 才认为启动完成**）→ TUNNEL → TEST → HEALTH（端口已通前提下取 /health JSON，短重试 3 次）七阶段计划。
+`delivery/setup.mjs` 读取项目根目录 `.env`，**一条命令完成「宿主机侧 + VM 侧」的安装、部署、隧道与自检**（卸载时加 `--uninstall` 即可对称地一键移除双端本项目部分），生成 BUILD → HOST → VM → VM-START（部署后 `schtasks /run` 拉起服务，**并轮询 VM 本机 18443 端口监听 ≤420s 才认为启动完成**）→ TUNNEL → TEST → HEALTH（端口已通前提下取 /health JSON，传输级短重试 3 次 + 载荷级退避复探）七阶段计划。
 
 > ⚠️ **安全默认**：
 > - 不加 `--apply` 即 `--dry-run`，只打印计划、**不改动任何系统**；真执行的**唯一**入口是显式 `--apply`
@@ -91,7 +91,7 @@ node delivery/setup.mjs --apply --env=/path/to/.env
 
   `session.state` 若为 `degraded`（如远端锁屏 / Explorer 未运行 / **服务落在非交互式会话**），表示 **GUI 能力不可用**，属预期环境限制而非部署故障 —— ps-bridge 设计要求 GUI 必须跑在交互式用户会话（WinSta0）内。
 
-> **VM-START 已默认轮询端口监听（≤60s）**：一键部署在 VM 部署后默认经 `schtasks /run /tn WinVMBridge.Service` 拉起服务，并轮询 VM 本机 `127.0.0.1:18443` 直到进入监听态（最长 60s）才进入 TUNNEL/HEALTH。这消除了「服务冷启动 + 探针窗口太短」的竞态，绝大多数情况下 HEALTH 一次即通过；若 60s 仍未监听，会在日志中提示手动 `schtasks /run /tn WinVMBridge.Service` 后重跑。
+> **VM-START 已默认轮询端口监听（≤420s）**：一键部署在 VM 部署后默认经 `schtasks /run /tn WinVMBridge.Service` 拉起服务，并轮询 VM 本机 `127.0.0.1:18443` 直到进入监听态（最长 420s）才进入 TUNNEL/HEALTH。这消除了「服务冷启动 + 探针窗口太短」的竞态，绝大多数情况下 HEALTH 一次即通过；若 420s 仍未监听，会在日志中提示手动 `schtasks /run /tn WinVMBridge.Service` 后重跑。
 
 > ⚠️ **GUI 可用性的关键约束**：经 **SSH 远程** `schtasks /run` **不保证**服务落在交互式（RDP）会话——它仅在「当前 VM 上已有 RDP 交互式登录」时才会落入该会话；若触发时只有 SSH/网络登录、无活跃 RDP 会话，服务会落到非交互会话（`windowStation` 非 `WinSta0`），`/health` 报 `session.interactive=false`、GUI 被门禁（MCP/A2A 与 54 项能力不受影响）。**要让 GUI 可用，服务必须在交互式会话内启动**：
 > - 推荐：RDP 登录 VM，登录触发器（`AtLogOn`，任务 XML 已内置）会在你的交互式会话里**随 VM 登录自动拉起**服务；
@@ -675,7 +675,7 @@ bash deploy-all.sh            # 不清场直接重装（仅限同版本热修，
 | 6 | 审计链 | 委派 traceId 在链、字段级回执；`a2a.health` Agent Card 可达 |
 | 7 | 双侧部署态 | 宿主缓存版本路径在册；VM `C:/WinVMBridge` + 计划任务 + dev-and-qa MANIFEST 在册 |
 
-设计依据：`docs/release/DESIGN-V1.4.0.md`；发布说明：`docs/release/RELEASE-V1.4.0.md`；问题台账：`docs/release/issues.md`。
+设计依据：`docs/release/DESIGN-V1.4.0.md`；发布说明：`docs/release/RELEASE-V1.4.0.md`；问题台账：`docs/release/issues.md`；**总览手册**（部署/运行机制系统性综述 + 全部配置逐键穷举 + 坑索引速查）：`docs/部署与运行机制及配置总览.md`。
 
 ### 9.5 新鸿蒙机 + 铠大师 App 部署方案
 

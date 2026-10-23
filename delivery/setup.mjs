@@ -3,7 +3,7 @@
  *
  * 读取项目根 .env（不存在则回退 .env.example），按配置完成：
  *   BUILD → HOST（install-host.mjs）→ VM（scp + install-vm.mjs）→ VM-START（schtasks /run 拉起服务，
- *         并轮询 VM 本机 18443 端口监听 ≤60s 才认为启动完成）
+ *         并轮询 VM 本机 18443 端口监听 ≤420s 才认为启动完成）
  *         → TUNNEL（daemon-aware 幂等：优先复用常驻 tunnel-daemon、不建新隧道；未在线则经
  *           `winvm-plugin tunnel ensure` 由 daemon 拉起；仅 ensure 失败才回落自建 ssh 并告警）
  *         → TEST（宿主机自检）→ HEALTH（经隧道探测 /health：传输级短重试 3 次 + D15 载荷级
