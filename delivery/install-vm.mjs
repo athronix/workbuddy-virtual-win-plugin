@@ -510,13 +510,15 @@ async function deploySkillsStep(args, cfg, provider) {
   });
   if (publish?.plan) {
     console.log(
-      `      发布：新增 ${publish.plan.summary.add} / 刷新 ${publish.plan.summary.refresh} / 共享根独有保留 ${publish.plan.summary.keepExtra}`,
+      `      发布：新增 ${publish.plan.summary.add} / 刷新 ${publish.plan.summary.refresh} / 清理 ${publish.plan.summary.remove} / ` +
+        `共享根独有保留 ${publish.plan.summary.keepExtra} / host-only 跳过 ${publish.plan.summary.skipHostOnly}`,
     );
   } else {
     console.log(`      发布：仓库 skills 源为空或不存在（${repoSkillsDir}），跳过`);
   }
   console.log(
-    `      链接：技能 ${skills.length} 个 → 新建 ${plan?.summary.create ?? 0} / 已就位 ${plan?.summary.skipOk ?? 0} / 冲突跳过 ${plan?.summary.conflict ?? 0} / Agent 缺失 ${plan?.summary.skipAgent ?? 0}`,
+    `      链接：技能 ${skills.length} 个 → 新建 ${plan?.summary.create ?? 0} / 已就位 ${plan?.summary.skipOk ?? 0} / ` +
+      `冲突跳过 ${plan?.summary.conflict ?? 0} / Agent 缺失 ${plan?.summary.skipAgent ?? 0} / host-only 摘除 ${plan?.summary.removeLink ?? 0}`,
   );
   void results;
 }

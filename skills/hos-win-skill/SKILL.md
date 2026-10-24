@@ -4,7 +4,7 @@ name: 鸿蒙↔Windows 任务分派
 description: >
   鸿蒙 WorkBuddy 处理用户任务的分派指引——判定哪些步骤在鸿蒙本地完成、哪些经 winvm 通道交给 Windows VM；
   涉及 Windows 系统/应用/存储/GUI 管理、跨 App 数据或目标文件在 VM 时触发；进入 VM 后以 winvm-orchestrator 为唯一总控。
-version: 0.1.0
+version: 0.1.1
 domains: [meta]
 triggers:
   - Windows 操作
@@ -156,6 +156,6 @@ relatedSkills:
 | `winvm-system-admin` / `winvm-app-manager` / `winvm-storage-manager` / `winvm-gui-automation` / `winvm-app-operation` | 域内细则层 | 五域各自的领域知识、惯用法与陷阱 |
 | `winvm-mcp-reference` | 接入与排障参考 | WinVM MCP 服务部署与接入参考（端点/鉴权/注册验证/常见故障） |
 
-> **作用域**：本 skill 面向**宿主机 Agent**（鸿蒙）的任务分派预判。交付链对 `skills/` 整包分发（VM 侧 publish/junction 不排除本 skill），故 VM 内 Agent 也能看到它——**仅供参照**：VM 内的一切操作仍以 `winvm-orchestrator` 为唯一入口，不得据本 skill 递归发起新的 winvm 委派。
+> **作用域**：本 skill 为**宿主侧技能**，面向**宿主机 Agent**（鸿蒙）的任务分派预判。交付链已把它列入 VM 分发排除名单（`HOST_ONLY_SKILLS`，见 `delivery/deploy-shared-skills.mjs`）：VM 共享根与各 VM Agent 技能目录均不会出现它（仓库侧不发布、共享根历史误分发残留清理、目标目录历史 junction 摘除）。VM 内 Agent 的一切操作以 `winvm-orchestrator` 为唯一入口。
 
 依据文档：本仓 docs/reference/workbuddy-hos-vs-win-panorama.md（开发期参考）。插件内技能名 `winvm-orchestrator` 等以连接器技能面为准。

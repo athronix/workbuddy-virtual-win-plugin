@@ -71,7 +71,7 @@
 | 安装器 dry-run | ✅ 8 Skill / 13 文件 / 2 增量补丁 / 静态禁用 8 高危工具 |
 | VM 服务配置校验 | ✅ 0 错误 0 警告，强制回环绑定 |
 | self-test（含 provider 目录） | ✅ 默认 + `workbuddy` + `hermes-agent` LLM 均打印并校验 provider 能力目录，`/health` 报告 `provider.id` 正确 |
-| 共享 Skills 部署 dry-run | ✅ 发布 8 技能 + 为 workbuddy/hermes-agent 建 symlink 规划（不写盘、不触碰只读 hermes 目录） |
+| 共享 Skills 部署 dry-run | ✅ 发布 7 技能（`hos-win-skill` 列入 `HOST_ONLY_SKILLS` 交付链排除：仓库侧跳过 + 共享根历史误分发残留清理）+ 为 workbuddy/hermes-agent 建 symlink 规划（不写盘、不触碰只读 hermes 目录） |
 
 ### 4b. 测试范式：「直连 dist」而非「为测试扩公共面」
 

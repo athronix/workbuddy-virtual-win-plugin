@@ -14,7 +14,10 @@
  * 1. 全局 `~/.workbuddy/mcp.json`：`winvm`（streamableHttp → 127.0.0.1:18443/mcp）与
  *    `winvm-a2a`（stdio）两条 server 的存在性与 transports 摘要；
  * 2. `~/.workbuddy/connectors/<account>/mcp.json`：枚举账户目录，报各账户的 winvm 条目就位情况；
- * 3. `~/.workbuddy/connector-states.v3.json`：存在性 / 大小 / 修改时间；可解析则报 enabled/trust 摘要；
+ * 3. `~/.workbuddy/connectors/<account>/connector-states.v3.json`：枚举账户目录（排除 `skills` /
+ *    `marketplace-meta` 等非账户目录），逐账户报存在性 / 大小 / 修改时间；可解析则报 enabled/trust 摘要；
+ *    旧根路径 `~/.workbuddy/connector-states.v3.json` 仅作 legacy 兼容（存在则并入 pseudo-account
+ *    `(legacy-root)`，不存在则静默不报——平台早已迁移到账户目录口径）；
  * 4. `winvm-a2a` 的 stdio `command` 可执行性：从全局 mcp.json 读路径 → stat + mode 位。
  *
  * ## 退出码语义
@@ -44,6 +47,11 @@ const SERVER_A2A = 'winvm-a2a';
 const EXPECTED_URL_PATTERN = '127.0.0.1:18443/mcp';
 /** 账户级 mcp.json 中本项目的条目名（renderConnectorEntry 产出带 `connector:` 前缀）。 */
 const ACCOUNT_KEY_PREFIXES = ['connector:winvm', 'winvm'];
+/**
+ * `~/.workbuddy/connectors/` 下的**非账户目录**（技能缓存 / 平台元数据），枚举账户时必须排除，
+ * 否则会把平台内部目录误当账户上报（states / mcp 双探测同此口径）。
+ */
+const NON_ACCOUNT_DIRS = new Set(['skills', 'marketplace-meta']);
 
 /* ------------------------------ CLI ------------------------------ */
 
@@ -272,53 +280,45 @@ export function probeAccountMcp(home) {
   return result;
 }
 
-/* ------------------------------ 探测 3：connector-states.v3.json ------------------------------ */
+/* ------------------------------ 探测 3：connector-states.v3.json（账户目录口径） ------------------------------ */
 
 /**
- * 探测 `~/.workbuddy/connector-states.v3.json`。可解析则报本插件相关的 enabled/trust 摘要；
- * 解析失败（多为平台加密态）如实标注，**绝不尝试解密**。
+ * 探测各账户的 `~/.workbuddy/connectors/<account>/connector-states.v3.json`。
+ *
+ * 平台事实口径（2026-10 实测）：states 文件位于**账户目录**下
+ * （`~/.workbuddy/connectors/<account>/connector-states.v3.json`），旧根路径
+ * `~/.workbuddy/connector-states.v3.json` 属历史形态（本机已不存在）。故本函数：
+ *  - 枚举 `~/.workbuddy/connectors/` 下账户目录（排除 `skills` / `marketplace-meta` 非账户目录）；
+ *  - 逐账户探测存在性 / 大小 / mtime / 可解析性（可解析则摘 enabled/trust 摘要）；
+ *  - 旧根路径若仍存在则并入 pseudo-account `(legacy-root)`，不存在则静默（不报 failure）；
+ *  - **绝不解密**：解析失败（多为平台加密态）如实标注 `encrypted-or-unparsable`。
+ *
+ * states 相关一律 **WARN** 级（多账户部分缺失 / 加密态均为平台侧 trust/会话行为），不进 failures。
+ *
  * @param {string} home
- * @returns {{ path: string, file: object, state: string, winvm: object, failures: string[], warnings: string[] }}
+ * @returns {{ path: string, dir: string, accounts: Array<{accountId: string, path: string, file: object, state: string, winvm: object}>, state: string, winvm: object, failures: string[], warnings: string[] }}
  */
 export function probeConnectorStates(home) {
-  const path = join(home, '.workbuddy', 'connector-states.v3.json');
-  const meta = fileMeta(path);
-  /** @type {{ path: string, file: object, state: string, winvm: object, failures: string[], warnings: string[] }} */
+  const dir = join(home, '.workbuddy', 'connectors');
+  const legacyPath = join(home, '.workbuddy', 'connector-states.v3.json');
+  /** @type {{ path: string, dir: string, accounts: Array<{accountId: string, path: string, file: object, state: string, winvm: object}>, state: string, winvm: object, failures: string[], warnings: string[] }} */
   const result = {
-    path,
-    file: meta,
-    state: meta.exists ? 'unknown' : 'missing',
+    path: dir,
+    dir,
+    accounts: [],
+    state: 'missing',
     winvm: {},
     failures: [],
     warnings: [],
   };
-  if (!meta.exists) {
-    result.state = 'missing';
-    result.warnings.push(
-      'connector-states.v3.json 不存在——trust/enabled 由平台在连接器页首次操作时创建；' +
-        '若新会话工具缺失，请先去连接器页确认已「信任 + 启用」winvm / winvm-a2a',
-    );
-    return result;
-  }
-  const parsed = readJsonSafe(path);
-  if (!parsed.ok) {
-    // 只标注，不解密。
-    result.state = parsed.reason === 'unreadable' ? 'unreadable' : 'encrypted-or-unparsable';
-    result.warnings.push(
-      `connector-states.v3.json 为「${result.state}」（平台侧加密/非明文属预期），本工具不解密、` +
-        'trust 与 enabled 态请以连接器页为准人工确认',
-    );
-    return result;
-  }
-  result.state = 'parsed';
-  const data = parsed.data;
-  /** 从任意结构里尽力摘取含 winvm 的键，只读摘要，不做深度耦合假设。 */
-  const collect = (obj, prefix) => {
+
+  /** 从任意结构里尽力摘取含 winvm 的键，只读摘要，不做深度耦合假设（沿用原有递归逻辑）。 */
+  const collect = (obj, prefix, sink) => {
     if (!obj || typeof obj !== 'object') return;
     for (const k of Object.keys(obj)) {
       const v = obj[k];
       if (/winvm/i.test(k) && v && typeof v === 'object') {
-        result.winvm[prefix + k] = {
+        sink[prefix + k] = {
           enabled: typeof v.enabled === 'boolean' ? v.enabled : null,
           trusted: typeof v.trusted === 'boolean' ? v.trusted : (typeof v.trust === 'boolean' ? v.trust : null),
           disabled: typeof v.disabled === 'boolean' ? v.disabled : null,
@@ -326,15 +326,118 @@ export function probeConnectorStates(home) {
       }
     }
   };
-  collect(data, '');
-  if (data && typeof data === 'object') {
-    for (const k of Object.keys(data)) {
-      const v = data[k];
-      if (v && typeof v === 'object' && !Array.isArray(v)) collect(v, `${k}.`);
+
+  /** 探测单个 states 文件（账户目录内或 legacy 根），返回账户槽位。 */
+  const probeOne = (accountId, filePath) => {
+    const meta = fileMeta(filePath);
+    /** @type {{ accountId: string, path: string, file: object, state: string, winvm: object }} */
+    const slot = { accountId, path: filePath, file: meta, state: meta.exists ? 'unknown' : 'missing', winvm: {} };
+    if (!meta.exists) return slot;
+    const parsed = readJsonSafe(filePath);
+    if (!parsed.ok) {
+      // 只标注，不解密。
+      slot.state = parsed.reason === 'unreadable' ? 'unreadable' : 'encrypted-or-unparsable';
+      return slot;
+    }
+    slot.state = 'parsed';
+    const data = parsed.data;
+    collect(data, '', slot.winvm);
+    if (data && typeof data === 'object') {
+      for (const k of Object.keys(data)) {
+        const v = data[k];
+        if (v && typeof v === 'object' && !Array.isArray(v)) collect(v, `${k}.`, slot.winvm);
+      }
+    }
+    return slot;
+  };
+
+  // 1) 枚举账户目录（排除 skills / marketplace-meta 等非账户目录；无 states 文件的目录标注 missing）
+  /** @type {string[]} */
+  let accountDirs = [];
+  if (existsSync(dir)) {
+    try {
+      accountDirs = readdirSync(dir, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && !NON_ACCOUNT_DIRS.has(d.name))
+        .map((d) => d.name)
+        .sort();
+    } catch (e) {
+      result.warnings.push(`无法枚举账户连接器目录 ${dir}：${String(e && e.code ? e.code : e.message)}`);
+    }
+  } else {
+    result.warnings.push(
+      `账户连接器目录不存在：${dir}（宿主尚未登录/未生成账户配置，states 由平台在连接器页首次操作时创建）`,
+    );
+  }
+
+  // 2) 逐账户探测
+  for (const acct of accountDirs) {
+    result.accounts.push(probeOne(acct, join(dir, acct, 'connector-states.v3.json')));
+  }
+
+  // 3) legacy 根路径兼容：存在则并入 pseudo-account，不存在则静默（平台已迁移账户目录口径）
+  if (existsSync(legacyPath)) {
+    result.accounts.push(probeOne('(legacy-root)', legacyPath));
+  }
+
+  // 4) 聚合 state：任一 parsed → parsed；全 missing → missing；否则取最严重态
+  /** 严重度排序（越严重越靠后）：parsed < missing < encrypted-or-unparsable < unreadable。 */
+  const STATE_SEVERITY = { parsed: 0, missing: 1, 'encrypted-or-unparsable': 2, unreadable: 3 };
+  if (result.accounts.length === 0) {
+    result.state = 'missing';
+    if (existsSync(dir)) {
+      result.warnings.push(
+        '未发现任何 connector-states.v3.json（账户目录与 legacy 根路径均无）——trust/enabled 由平台在连接器页首次操作时创建；' +
+          '若新会话工具缺失，请先去连接器页确认已「信任 + 启用」winvm / winvm-a2a',
+      );
+    }
+    // 目录本身不存在的告警已在枚举段给出，此处不重复报噪音
+  } else {
+    const states = result.accounts.map((a) => a.state);
+    if (states.includes('parsed')) {
+      result.state = 'parsed';
+    } else if (states.every((s) => s === 'missing')) {
+      result.state = 'missing';
+      result.warnings.push(
+        '所有账户目录均无 connector-states.v3.json——trust/enabled 由平台在连接器页首次操作时创建；' +
+          '若新会话工具缺失，请先去连接器页确认已「信任 + 启用」winvm / winvm-a2a',
+      );
+    } else {
+      result.state = states.reduce(
+        (worst, s) => ((STATE_SEVERITY[s] ?? 2) > (STATE_SEVERITY[worst] ?? 2) ? s : worst),
+        'missing',
+      );
     }
   }
-  if (Object.keys(result.winvm).length === 0) {
-    result.warnings.push('connector-states.v3.json 可解析但未发现 winvm 相关条目（可能尚未在连接器页信任启用）');
+
+  // 5) 跨账户合并 winvm 摘要（键名加账户前缀隔离，防不同账户同键互相覆盖）
+  for (const a of result.accounts) {
+    for (const k of Object.keys(a.winvm)) {
+      result.winvm[`${a.accountId}.${k}`] = a.winvm[k];
+    }
+  }
+
+  // 6) 账户级 WARN（多账户部分缺失 / 加密态属平台侧行为，不影响退出码）
+  const unparsable = result.accounts.filter((a) => a.state === 'encrypted-or-unparsable' || a.state === 'unreadable');
+  const missingAccts = result.accounts.filter((a) => a.state === 'missing').map((a) => a.accountId);
+  const parsedAccts = result.accounts.filter((a) => a.state === 'parsed');
+  for (const a of unparsable) {
+    result.warnings.push(
+      `账户「${a.accountId}」的 connector-states.v3.json 为「${a.state}」（平台侧加密/非明文属预期），本工具不解密、` +
+        'trust 与 enabled 态请以连接器页为准人工确认',
+    );
+  }
+  if (parsedAccts.length > 0 && missingAccts.length > 0) {
+    result.warnings.push(
+      `账户「${missingAccts.join(', ')}」无 connector-states.v3.json（多账户场景部分账户缺 states 属平台侧行为；` +
+        `已就绪账户：${parsedAccts.map((a) => a.accountId).join(', ')}）`,
+    );
+  }
+  for (const a of parsedAccts) {
+    if (Object.keys(a.winvm).length === 0) {
+      result.warnings.push(
+        `账户「${a.accountId}」的 connector-states.v3.json 可解析但未发现 winvm 相关条目（可能尚未在连接器页信任启用）`,
+      );
+    }
   }
   return result;
 }
@@ -457,13 +560,21 @@ export function renderHuman(r) {
   }
 
   lines.push('');
-  lines.push(`[3] connector-states.v3.json  ${r.states.path}`);
-  lines.push(
-    `    ${r.states.file.exists ? `存在（${r.states.file.size ?? '?'} B，${r.states.file.mtime ?? '?'}）` : '不存在'} → state=${r.states.state}`,
-  );
+  lines.push(`[3] connector-states.v3.json（账户目录口径）  ${r.states.dir}`);
+  if (r.states.accounts.length === 0) {
+    lines.push('    （未发现账户 states 文件）');
+  }
+  for (const a of r.states.accounts) {
+    lines.push(
+      `    ${a.accountId} : ${a.file.exists ? `存在（${a.file.size ?? '?'} B，${a.file.mtime ?? '?'}）` : '不存在'} → state=${a.state}`,
+    );
+    for (const k of Object.keys(a.winvm)) lines.push(`      ${k} : ${JSON.stringify(a.winvm[k])}`);
+  }
+  lines.push(`    聚合 state=${r.states.state}`);
   const winvmStateKeys = Object.keys(r.states.winvm);
   if (winvmStateKeys.length > 0) {
-    for (const k of winvmStateKeys) lines.push(`    ${k} : ${JSON.stringify(r.states.winvm[k])}`);
+    lines.push('    跨账户 winvm 摘要：');
+    for (const k of winvmStateKeys) lines.push(`      ${k} : ${JSON.stringify(r.states.winvm[k])}`);
   }
 
   lines.push('');

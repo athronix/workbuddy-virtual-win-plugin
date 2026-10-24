@@ -102,3 +102,56 @@ describe('norm（路径归一化）', () => {
     assert.equal(norm('C:\\WinVMBridge\\shared-skills\\x\\'), norm('c:/winvmbRidge/shared-skills/X'));
   });
 });
+
+describe('host-only 排除（HOST_ONLY_SKILLS：根治 hos-win 语义倒挂）', () => {
+  test('planSkillPublish 双向：repoSkills 含 host-only → skip-host-only（不 add/refresh）；sharedSkills 含 host-only → remove', () => {
+    const { actions, summary } = planSkillPublish({
+      repoSkills: ['hos-win-skill', 'winvm-orchestrator'],
+      sharedSkills: ['hos-win-skill', 'winvm-orchestrator'],
+    });
+    // 仓库侧：host-only 只许 skip-host-only，绝不 add/refresh
+    assert.equal(summary.skipHostOnly, 1);
+    assert.ok(actions.some((a) => a.skill === 'hos-win-skill' && a.action === 'skip-host-only'));
+    assert.ok(!actions.some((a) => a.skill === 'hos-win-skill' && (a.action === 'add' || a.action === 'refresh')));
+    // 共享根侧：host-only 历史残留 → remove
+    assert.equal(summary.remove, 1);
+    assert.ok(actions.some((a) => a.skill === 'hos-win-skill' && a.action === 'remove'));
+    // 其余语义不变：orchestrator 两侧都有 → refresh，无 add
+    assert.equal(summary.refresh, 1);
+    assert.equal(summary.add, 0);
+  });
+
+  test('planSharedSkillLinks：混合 skills + 目标含 host-only 历史 junction → create 仅 1、removeLink=1', () => {
+    const { actions, summary } = planSharedSkillLinks({
+      sourceDir: SRC,
+      skills: ['hos-win-skill', 'winvm-orchestrator'],
+      targets: [
+        {
+          id: 'workbuddy',
+          dir: 'C:/Users/me/.workbuddy/skills',
+          entries: [{ name: 'hos-win-skill', isSymlink: true, linkTarget: `${SRC}/hos-win-skill` }],
+        },
+      ],
+    });
+    // host-only 绝不建 junction；仅 orchestrator 新建
+    assert.equal(summary.create, 1);
+    const orch = actions.find((a) => a.skill === 'winvm-orchestrator');
+    assert.equal(orch.action, 'create');
+    // 指向共享源的历史 junction → remove-link
+    assert.equal(summary.removeLink, 1);
+    const host = actions.find((a) => a.skill === 'hos-win-skill');
+    assert.equal(host.action, 'remove-link');
+  });
+
+  test('planSharedSkillLinks：全新空 target + 同一混合 skills → create=1、removeLink=0', () => {
+    const { actions, summary } = planSharedSkillLinks({
+      sourceDir: SRC,
+      skills: ['hos-win-skill', 'winvm-orchestrator'],
+      targets: [{ id: 'workbuddy', dir: 'C:/Users/me/.workbuddy/skills', entries: [] }],
+    });
+    assert.equal(summary.create, 1);
+    assert.equal(summary.removeLink, 0);
+    // host-only 无残留时不产生任何动作
+    assert.ok(!actions.some((a) => a.skill === 'hos-win-skill'));
+  });
+});
