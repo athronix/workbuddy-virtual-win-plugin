@@ -36,6 +36,7 @@ CL-015~021 早期演进；Phase 2 收官(T1-T12+守卫+GATE-POLICY)；Phase 3~5 
 - **CL-026（10-20/21）审批卡强制呈现闭环 + V1.4.1 上架**：`APPROVAL_PRESENTATION_DIRECTIVE` 五携带面；SKILL.md 审批协议升 MUST（show_widget 七槽位卡→AskUserQuestion→禁纯文本代批→reply+task.get 终态）；MCP 直调无载荷出卡=违规诱导。守卫 31 例 ST3。V1.4.1 已上架并跟批缓存。
 - **发布迭代铁律（用户 2026-10-18 三条裁定，强制）**：① 每迭代重部署前必须清空历史部署（`deploy-all.sh --wipe`，验证矩阵在清空重装态取数）；② uninstall 必须先查杀 VM 端本项目看门狗与 services 再清场（已内建）；③ 迭代完成后 commit 必须 push origin（github.com:athronix/workbuddy-virtual-win-plugin）。
 - **hos-win-skill 入插件（10-23/24，983dfc5/2e664a8/25aad43）**：用户级 skill 评审修订 v1.1.0（11 项：工具名点分化/meta 域补全/L2L3 双闸事实/数值核源/与 orchestrator 分层互补表）→ 入插件为第 8 个 Skill（项目级 `skills/hos-win-skill/SKILL.md`，与用户级 body 逐字节一致；orchestrator relatedSkills 回指）→ 计数 7→8 全仓联动 + 已证伪 claims 订正（「每 Skill 含 mcps-reference.md」证伪：仅 winvm-mcp-reference 与 winvm-orchestrator 两家有 references/）+ 手册缺口与验证表实跑取数 + 作用域声明。**新核事实**：宿主 mcp.json `disabledTools` 静态禁用 8 个 L2/L3（install-host highRiskTools）+ 服务端 `WINVM_DELEGATION_REQUIRED_POLICY` 缺省 on 双闸；L2 全集 7（service.configure/process.terminate/registry.write/winget.uninstall/file.delete/link.manage/appops.gui.produce）+ L3 唯一 power.control；supportsDryRun 5 条；timeoutMs 10–600s；idle TTL 300s/深度空闲冷启动 49.3s/CLI 地板 75–107s/就绪预算 180s。**01:55 缓存消失事件**：平台侧崩溃（daemon 子进程 SIGKILL）中断技能枚举致 8 技能缓存整体消失（非工具缺陷，trash/DB 无痕）→ install-host 重跑完整恢复。
+- **P2 两项根治（10-24，027cf0d，engineer-p2 施工+主理人独立核验）**：A=diagnose-connectors states 账户目录口径（详见 backlog 销账项）；B=VM 技能分发 host-only 排除（`HOST_ONLY_SKILLS` 两段式：skip-host-only/remove/remove-link）。核验证据：诊断工具真实 home+合成 home 双路、dry-run 7 发布+清理 1+零写盘、单测 11/11+相关 6 文件 75 例、两副本 body diff 空+缓存 SAME。
 - 基线演进 1889→**2280** 例 GREEN（快照=`qa/p3-batch-sweep/gate-docs-overview.txt`：128 文件/2280 例/0 fail/2 skip；判据仍以最新 gate-*.txt 汇总行为准）。
 
 ## 关键口径
@@ -52,6 +53,6 @@ CL-015~021 早期演进；Phase 2 收官(T1-T12+守卫+GATE-POLICY)；Phase 3~5 
 - 深度空闲冷启动 ~49.3s：批20 用户裁定 idle TTL 保持 5min（codebuddy CLI 进程级冷启动，外部特性）；D-5 180s 判死保证不误杀；保活机制列 P2 观察。
 - teams 非 winvm 残骸 45 个：Phase2 用户终裁**永久不动**（phase2-arch-design.md §7-③），非待裁项。
 - GUI E2E preflight 早失败钩子（P2 观察）。
-- **diagnose-connectors 查错 states 路径**（10-24 登记，根治施工中）：误查 `~/.workbuddy/connector-states.v3.json`（不存在），真实位置 `~/.workbuddy/connectors/<account>/connector-states.v3.json`；修法=枚举账户目录+排除 skills/marketplace-meta 非账户目录+legacy 根路径兼容。
-- **VM 分发 hos-win 语义倒挂**（10-24 登记，根治施工中）：宿主侧技能随 skills/ 整包进 VM 共享根并 junction 给 VM Agent；缓解=25aad43 作用域声明；根治=deploy-shared-skills `HOST_ONLY_SKILLS` 排除+陈旧副本/链接清理。
+- ~~**diagnose-connectors 查错 states 路径**~~ → **10-24 销账（027cf0d）**：`probeConnectorStates` 重写为账户目录口径（枚举 connectors/ 排除 skills/marketplace-meta、legacy 根并入 pseudo-account、聚合 state+账户前缀 winvm 摘要）；根治本机活跃账户 525B states 被误报"不存在"。
+- ~~**VM 分发 hos-win 语义倒挂**~~ → **10-24 销账（027cf0d）**：`deploy-shared-skills.mjs` 新增 `HOST_ONLY_SKILLS=['hos-win-skill']`，两段式均排除（repo 侧 skip-host-only/共享根残留 remove/Agent 目录历史 junction remove-link，lstat→rm/rmdir 绝不递归进目标）；宿主侧 install-host 仍 8 skill 不变；docs 验证表 VM 侧改 7；已知边界=无 SKILL.md 的残目录不扫（listSharedSkills 合法技能定义，现实陈旧副本必含 SKILL.md）。
 - **install-host 把 connectors/skills/ 当 account 合并 mcp.json**（10-24 登记，未处理）：`account-resolve.mjs resolveAccountIds` 遍历 connectors/ 全部子目录，产出 `connectors/skills/mcp.json`、`connectors/marketplace-meta/mcp.json`（956B 仅 winvm 两条+每跑备份）；09-20 起既存怪癖，判定无害（平台不读这两处）；修法=排除已知非账户目录。
