@@ -39,6 +39,21 @@ import {
 
 export const HOST_ID = 'workbuddy';
 
+/**
+ * `connectors/` 下的**非账户目录**（平台内部目录，非账户）——枚举账户必须排除。
+ *
+ * 语义与 `delivery/account-resolve.mjs` 的 NON_ACCOUNT_DIRS **逐字节一致**（同名单同值）：
+ *  - `skills`：连接器技能缓存（如 connector-winvm），非账户；
+ *  - `marketplace-meta`：平台市场元数据，非账户。
+ *
+ * 背景（09-20 起既存怪癖，P2 系列根治）：枚举 connectors/ 时若把它们当账户，install-host 会
+ * 往里写 mcp.json+每跑备份、uninstall 会备份改写它们。交付链单一事实源在 **delivery 侧**
+ * （install-host / uninstallConnectors / diagnose-connectors 三路径已根治）；本包 deps 仅
+ * @winvm/contracts + @winvm/host-sdk，**不依赖 core、也不该反向依赖 delivery**，故按项目惯例
+ * 保留同语义拷贝——两侧改动必须同步，由 tests/unit/host-adapter.test.js 的恒等守卫钉死。
+ */
+export const NON_ACCOUNT_DIRS = new Set(['skills', 'marketplace-meta']);
+
 /* R17-T03：审批卡原生渲染（L2 产物层）——模板常量与填充函数由本包对外提供 */
 export * from './approval-card.js';
 
@@ -467,11 +482,13 @@ export class WorkBuddyRenderer implements HostRenderer {
     // 移除连接器条目（保留用户其它连接器）。
     // 宿主机=鸿蒙场景下连接器按「账户 uuid 目录」组织，活跃账户未必是 'default'，
     // 故遍历 connectors/ 下所有子目录，对每个存在的 <acct>/mcp.json 删除本项目条目后写回。
+    // 非账户目录（NON_ACCOUNT_DIRS：skills / marketplace-meta，平台内部目录）显式排除——
+    // 与 delivery/account-resolve.mjs 同语义（见上方常量注释），uninstall 不碰它们。
     const connectorsRoot = join(ctx.hostRoot, 'connectors');
     let accountIds: string[];
     try {
       const entries = await readdir(connectorsRoot, { withFileTypes: true });
-      accountIds = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+      accountIds = entries.filter((e) => e.isDirectory() && !NON_ACCOUNT_DIRS.has(e.name)).map((e) => e.name);
     } catch {
       // connectors 目录不存在：回退到 ctx.accountId（或环境变量）指定的单一账户，尽力清理。
       accountIds = [ctx.accountId ?? (process.env['WINVM_ACCOUNT'] || 'default')];

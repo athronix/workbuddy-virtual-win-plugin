@@ -1437,8 +1437,10 @@ export function runConnectorSelfCheck(home, dryRun) {
       console.log(`连接器自检 : ⚠ 诊断工具缺失（${toolPath}），跳过（不影响安装结果）`);
       return { ran: false, error: 'tool-missing' };
     }
-    // 只读子进程：node + 诊断脚本 --json。脚本自身保证不写盘、不发网络请求。
-    const r = spawnSync(process.execPath, [toolPath, '--json'], { encoding: 'utf8', timeout: 30000, env: process.env });
+    // 只读子进程：node + 诊断脚本 --json --home。脚本自身保证不写盘、不发网络请求。
+    // --home 必须透传：否则合成 home（--home 隔离安装/测试）时自检恒读真实 home，口径错位
+    // （虽只读无害，但"安装到哪就验哪"才是自检的本义；diagnose 的 --home 语义=用户主目录）。
+    const r = spawnSync(process.execPath, [toolPath, '--json', '--home', home], { encoding: 'utf8', timeout: 30000, env: process.env });
     if (r.error) {
       console.log(`连接器自检 : ⚠ 诊断子进程异常（${r.error.message}），跳过（不影响安装结果）`);
       return { ran: false, error: r.error.message };

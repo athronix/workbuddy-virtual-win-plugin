@@ -27,7 +27,8 @@ import {
   buildPointer,
   escapeToken,
 } from '@winvm/host-sdk';
-import { WorkBuddyRenderer, renderConnectorEntry, resolveWorkBuddyPaths } from '@winvm/adapter-host-workbuddy';
+import { WorkBuddyRenderer, renderConnectorEntry, resolveWorkBuddyPaths, NON_ACCOUNT_DIRS } from '@winvm/adapter-host-workbuddy';
+import { NON_ACCOUNT_DIRS as DELIVERY_NON_ACCOUNT_DIRS } from '../../delivery/account-resolve.mjs';
 import { CapabilityRegistry } from '@winvm/core';
 import { defineCapability } from '@winvm/contracts';
 
@@ -310,6 +311,56 @@ describe('WorkBuddy 渲染器 · 安装（增量合并语义）', () => {
     assert.equal(result.ok, true);
     assert.ok(result.warnings.some((w) => /dry-run/.test(w)));
     assert.equal(existsSync(join(root, 'plugins')), false);
+  });
+});
+
+/* ================================ uninstall · 非账户目录排除 ================================ */
+
+describe('WorkBuddy 渲染器 · uninstall（P2-4：排除非账户目录）', () => {
+  const mcpWithWinvm = () =>
+    JSON.stringify(
+      {
+        mcpServers: {
+          'connector:winvm-bridge': { url: 'http://127.0.0.1:18443/mcp' },
+          'connector:winvm-bridge-a2a': { command: 'node', args: ['bridge.js'] },
+          'connector:github': { url: 'https://api.githubcopilot.com/mcp/' },
+        },
+      },
+      null,
+      2,
+    );
+
+  test('uninstall 清真实账户的本插件条目，但非账户目录逐字节不变', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'winvm-host-'));
+    const ctx = { homeDir: root, hostRoot: root, dryRun: false, accountId: 'default' };
+    const conn = join(root, 'connectors');
+    for (const acct of ['fake-acct', 'skills', 'marketplace-meta']) {
+      mkdirSync(join(conn, acct), { recursive: true });
+      writeFileSync(join(conn, acct, 'mcp.json'), mcpWithWinvm(), 'utf8');
+    }
+    // 快照非账户目录原始字节（修复前 uninstall 会改写它们——09-20 起既存怪癖）
+    const skillsBefore = readFileSync(join(conn, 'skills', 'mcp.json'), 'utf8');
+    const metaBefore = readFileSync(join(conn, 'marketplace-meta', 'mcp.json'), 'utf8');
+
+    await new WorkBuddyRenderer().uninstall('winvm-bridge', ctx);
+
+    // 真实账户：两个本插件 key 被移除，用户其它连接器保留
+    const after = JSON.parse(readFileSync(join(conn, 'fake-acct', 'mcp.json'), 'utf8'));
+    assert.ok(!after.mcpServers['connector:winvm-bridge'], 'connector:winvm-bridge 必须被移除');
+    assert.ok(!after.mcpServers['connector:winvm-bridge-a2a'], 'connector:winvm-bridge-a2a 必须被移除');
+    assert.ok(after.mcpServers['connector:github'], '用户其它连接器必须保留');
+
+    // 非账户目录：逐字节不变（uninstall 不碰它们）
+    assert.equal(readFileSync(join(conn, 'skills', 'mcp.json'), 'utf8'), skillsBefore);
+    assert.equal(readFileSync(join(conn, 'marketplace-meta', 'mcp.json'), 'utf8'), metaBefore);
+  });
+
+  test('NON_ACCOUNT_DIRS 恒等守卫：adapter 与 delivery 两侧同语义', () => {
+    // 交付链单一事实源在 delivery/account-resolve.mjs；本包按惯例保留同语义拷贝，
+    // 两侧改动必须同步——本守卫钉死（任一侧漂移即红）。
+    assert.ok(NON_ACCOUNT_DIRS instanceof Set);
+    assert.deepEqual(NON_ACCOUNT_DIRS, DELIVERY_NON_ACCOUNT_DIRS);
+    assert.deepEqual([...NON_ACCOUNT_DIRS].sort(), ['marketplace-meta', 'skills']);
   });
 });
 
