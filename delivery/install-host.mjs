@@ -43,7 +43,7 @@ import {
 } from '@winvm/adapter-host-workbuddy';
 import { WINDOWS_CAPABILITIES } from '@winvm/vm-capabilities';
 import { addToUserPath, removeFromUserPath } from './path-util.mjs';
-import { resolveAccountIds } from './account-resolve.mjs';
+import { resolveAccountIds, NON_ACCOUNT_DIRS } from './account-resolve.mjs';
 import { checkHostDeps, printChecks, assertDeps } from './preflight.mjs';
 
 /* ------------------------------ 版本单一事实源（Q3/R-4 批2 防呆 b） ------------------------------
@@ -820,13 +820,17 @@ function uninstallRegistry(home, dryRun) {
   if (bak) { console.log(`  diff（备份 ${bak}）：`); console.log(lineDiff(readFileSync(bak, 'utf8'), readFileSync(p, 'utf8'))); }
 }
 
-/** 移除所有 account 的 mcp.json 中本项目的连接器条目（connector:winvm / connector:winvm-a2a）。 */
+/** 移除所有 account 的 mcp.json 中本项目的连接器条目（connector:winvm / connector:winvm-a2a）。
+ * 非账户目录（NON_ACCOUNT_DIRS：skills / marketplace-meta，平台内部目录）显式排除——
+ * 与安装路径（resolveAccountIds）同一名单，卸载不碰它们（不会备份改写其 mcp.json）。 */
 function uninstallConnectors(home, dryRun) {
   const root = join(home, '.workbuddy', 'connectors');
   if (!existsSync(root)) { console.log('连接器注册 : 目录不存在（无需改动）'); return; }
   const ourKeys = ['connector:winvm', 'connector:winvm-a2a'];
   let any = false;
-  for (const acct of readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
+  for (const acct of readdirSync(root, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !NON_ACCOUNT_DIRS.has(d.name))
+    .map((d) => d.name)) {
     const p = join(root, acct, 'mcp.json');
     if (!existsSync(p)) continue;
     let json;

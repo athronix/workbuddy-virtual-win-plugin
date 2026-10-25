@@ -69,7 +69,7 @@
   }
   ```
   > `connector:winvm-a2a` 的 stdio schema **直接镜像 VM 现有 stdio 连接器**（`connector:weisheng-scrm` 等：`command:"node"` + `runtime:{type:"node",version:">=18"}` + `env` + `disabled:false`），详见 `workbuddy-hmos-vs-windows.md` §4.1。VM 侧 PATH 极简，故 `command` 用绝对 `node` 路径更稳（P1-R10）。
-- **accountId 解析**：**写入 `8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8`（活跃企业账户 uuid）**；同时**保留遍历 `connectors/` 下所有账户目录的兜底**（避免未来出现 `default` 为主、uuid 为辅的情形），对每个目录都做增量合并（先备份 `*.winvm-bak.<ts>`，绝不整体覆盖）。
+- **accountId 解析**：**写入 `8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8`（活跃企业账户 uuid）**；同时**保留遍历 `connectors/` 下所有账户目录的兜底**（P2-3 起排除 `skills` / `marketplace-meta` 等非账户目录，单一事实源 `NON_ACCOUNT_DIRS`）（避免未来出现 `default` 为主、uuid 为辅的情形），对每个目录都做增量合并（先备份 `*.winvm-bak.<ts>`，绝不整体覆盖）。
 - 验收：两连接器在 OH 注册且 **A5（同时生效）**：`winvm-plugin status` 在 `8dd0df6a-…` 账户目录下检出 `connector:winvm` + `connector:winvm-a2a`；WorkBuddy 连接器页可 Trust 并激活。
 
 **P0-R4 沙箱白名单**
@@ -141,7 +141,7 @@
 - **关键改动点**：
   1. 新增 `resolveAccountIds(home, override?)`：
      - 若 `override`（`--account`/`WINVM_ACCOUNT`）→ `[override]`；
-     - 否则**优先活跃企业账户 `8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8`**（VM 实测印证该 uuid 目录即真实账户，与 HMOS 同构），并**遍历 `connectors/` 下所有账户目录**做兜底写入（与现有 `uninstallConnectors`/`winvm-plugin.mjs` 遍历所有账户的逻辑一致，消除「写进 default 但活跃的是 uuid」的歧义）；
+     - 否则**优先活跃企业账户 `8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8`**（VM 实测印证该 uuid 目录即真实账户，与 HMOS 同构），并**遍历 `connectors/` 下所有账户目录**做兜底写入（P2-3 起排除 `skills` / `marketplace-meta` 等非账户目录，单一事实源 `NON_ACCOUNT_DIRS`；与 `uninstallConnectors` 同名单，消除「写进 default 但活跃的是 uuid」的歧义）；
      - 若 `connectors/` 仅 `default` → 仅 `default`。
   2. `resolveWorkBuddyPaths` 与 `uninstall` 不再硬编码 `'default'`，改为接收解析后的账户列表，分别渲染/写入/清理每个 `mcp.json`（增量合并，绝不整体覆盖，先备份 `*.winvm-bak.<ts>`）。
   3. `renderConnectorEntry` 对 `stdio`（`connector:winvm-a2a`）输出**精确模板**：`command:"node"` + `args:[<cli.js 绝对路径>]` + `runtime:{type:'node',version:">=18"}` + `env` 注入 VM 连接 + `disabled:false`（直接镜像 VM 现有 stdio 条目，见 P1-R6 / T09 / `workbuddy-hmos-vs-windows.md` §4.1）。

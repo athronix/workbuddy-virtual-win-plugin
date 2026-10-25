@@ -29,7 +29,7 @@
 
 | 文件 | 任务 | 改动要点 | 平台守卫 |
 |---|---|---|---|
-| `delivery/account-resolve.mjs`（新增） | T06 | `KNOWN_ACTIVE_ACCOUNT='8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8'` + `resolveAccountIds(hostRoot, override)`：override 优先；否则活跃 uuid 在首位 + 遍历 `connectors/` 全部子目录去重 | 数据落点问题，无平台分支 |
+| `delivery/account-resolve.mjs`（新增） | T06 | `KNOWN_ACTIVE_ACCOUNT='8dd0df6a-47ce-4a02-82fd-51cd84a8f0f8'` + `resolveAccountIds(hostRoot, override)`：override 优先；否则活跃 uuid 在首位 + 遍历 `connectors/` 子目录去重（P2-3 起排除 `skills` / `marketplace-meta` 非账户目录，`NON_ACCOUNT_DIRS` 单一事实源） | 数据落点问题，无平台分支 |
 | `delivery/install-host.mjs` | T06 | 引入 `resolveAccountIds`；安装分支**按账户循环** `renderer.plan/install`，各自**增量合并**该账户 `mcp.json`；汇总去重后统一打印；`registerInstalledPlugin`/`deployWinvmPlugin`/`addToUserPath`/`writeVmConnConfig` 仍在循环外**只跑一次** | 账户解析无平台分支 |
 | `delivery/install-host.mjs` | T07 | 新增并 **export** `injectSandboxAllowWrite`/`removeSandboxAllowWrite`：写 `~/.workbuddy/settings.json` 的 `sandbox.extraAllowWrite`，幂等 + 写前备份 `*.winvm-bak.<ts>` | **win32 且无有效 `sandbox` 对象 → `return []`（不新建/不改写）** |
 | `delivery/install-host.mjs` | T08 | `trashItem` 在非 win32 且未指定 `--trash-dir` 时，默认回收目录 `~/.workbuddy/winvm-trash` | `!opts.trashDir && process.platform !== 'win32'` |

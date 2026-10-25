@@ -38,7 +38,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { KNOWN_ACTIVE_ACCOUNT } from '../account-resolve.mjs';
+import { KNOWN_ACTIVE_ACCOUNT, NON_ACCOUNT_DIRS } from '../account-resolve.mjs';
 
 /** 全局 mcp.json 中本项目注册的两条 server 名（与 install-host 全局注册块同源）。 */
 const SERVER_DIRECT = 'winvm';
@@ -47,11 +47,6 @@ const SERVER_A2A = 'winvm-a2a';
 const EXPECTED_URL_PATTERN = '127.0.0.1:18443/mcp';
 /** 账户级 mcp.json 中本项目的条目名（renderConnectorEntry 产出带 `connector:` 前缀）。 */
 const ACCOUNT_KEY_PREFIXES = ['connector:winvm', 'winvm'];
-/**
- * `~/.workbuddy/connectors/` 下的**非账户目录**（技能缓存 / 平台元数据），枚举账户时必须排除，
- * 否则会把平台内部目录误当账户上报（states / mcp 双探测同此口径）。
- */
-const NON_ACCOUNT_DIRS = new Set(['skills', 'marketplace-meta']);
 
 /* ------------------------------ CLI ------------------------------ */
 
@@ -207,7 +202,8 @@ export function probeGlobalMcp(home) {
 
 /**
  * 枚举 `~/.workbuddy/connectors/<account>/mcp.json`，报各账户 winvm 条目就位情况。
- * 仅目录/文件读取；`skills`、`connector-winvm` 等非账户目录自动跳过（不含 mcp.json 即跳过）。
+ * 仅目录/文件读取；非账户目录（NON_ACCOUNT_DIRS：skills / marketplace-meta，平台内部目录）
+ * 显式排除——它们不是账户，不该出现在账户槽位里（与 install-host 安装/卸载同一名单）。
  * @param {string} home
  * @returns {{ dir: string, accounts: object[], failures: string[], warnings: string[] }}
  */
@@ -223,7 +219,7 @@ export function probeAccountMcp(home) {
   let entries = [];
   try {
     entries = readdirSync(dir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
+      .filter((d) => d.isDirectory() && !NON_ACCOUNT_DIRS.has(d.name))
       .map((d) => d.name);
   } catch (e) {
     result.warnings.push(`无法枚举 ${dir}：${String(e && e.code ? e.code : e.message)}`);

@@ -8,7 +8,9 @@
  *    宿主机=鸿蒙场景该目录由安装自动创建）；
  *  - override（--account / WINVM_ACCOUNT）优先级最高：只返回 [override]；
  *  - 遍历 connectors/ 下所有子目录做兜底、去重，且已知活跃 uuid 恒在首位；
- *  - 非目录（普通文件）被忽略。
+ *  - 非目录（普通文件）被忽略；
+ *  - P2-3：非账户目录（NON_ACCOUNT_DIRS：skills / marketplace-meta）被排除，
+ *    但显式 override（用户意图）优先于排除名单。
  *
  * 约定：本文件用 `node --test tests/unit/account-resolve.test.mjs` 单独跑。
  */
@@ -19,7 +21,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { resolveAccountIds, KNOWN_ACTIVE_ACCOUNT } from '../../delivery/account-resolve.mjs';
+import { resolveAccountIds, KNOWN_ACTIVE_ACCOUNT, NON_ACCOUNT_DIRS } from '../../delivery/account-resolve.mjs';
 
 /** 建临时「宿主根」，返回其路径；调用方负责 rmSync。 */
 function mkHostRoot() {
@@ -71,6 +73,44 @@ test('遍历 connectors 下所有目录、已知活跃 uuid 在首位且去重',
     assert.ok(ids.includes('extra-acc'));
     assert.ok(!ids.includes('README.md'), '非目录被忽略');
     assert.equal(new Set(ids).size, ids.length, '无重复');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('非账户目录（skills / marketplace-meta）被排除，不当成账户', () => {
+  const root = mkHostRoot();
+  try {
+    const conn = join(root, 'connectors');
+    // 平台内部目录（含嵌套内容，模拟真实 skills/connector-winvm 技能缓存）
+    mkdirSync(join(conn, 'skills', 'connector-winvm'), { recursive: true });
+    mkdirSync(join(conn, 'marketplace-meta'), { recursive: true });
+    // 真实账户目录
+    mkdirSync(join(conn, KNOWN_ACTIVE_ACCOUNT), { recursive: true });
+    mkdirSync(join(conn, 'default'), { recursive: true });
+
+    const ids = resolveAccountIds(root);
+    assert.ok(!ids.includes('skills'), 'skills（连接器技能缓存）不是账户，必须排除');
+    assert.ok(!ids.includes('marketplace-meta'), 'marketplace-meta（平台元数据）不是账户，必须排除');
+    assert.ok(ids.includes('default'), 'default 是账户目录，保留');
+    assert.equal(ids[0], KNOWN_ACTIVE_ACCOUNT, '已知活跃 uuid 恒在首位');
+    assert.equal(new Set(ids).size, ids.length, '无重复');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('NON_ACCOUNT_DIRS 导出形态：Set 且恰含 skills + marketplace-meta', () => {
+  assert.ok(NON_ACCOUNT_DIRS instanceof Set, '必须是 Set（O(1) 查找）');
+  assert.deepEqual([...NON_ACCOUNT_DIRS].sort(), ['marketplace-meta', 'skills']);
+});
+
+test('override 优先于排除名单：显式指定 skills 也放行（用户意图）', () => {
+  const root = mkHostRoot();
+  try {
+    mkdirSync(join(root, 'connectors', 'skills'), { recursive: true });
+    // 显式 --account/WINVM_ACCOUNT 是用户意图：即便名字在排除名单里也放行
+    assert.deepEqual(resolveAccountIds(root, 'skills'), ['skills']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
