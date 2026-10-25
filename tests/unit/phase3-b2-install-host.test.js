@@ -83,6 +83,9 @@ test('buildIntegrityFilePairs：夹具三组面齐备（桥 dist/依赖 dist/@wi
     mkdirSync(join(repo, 'delivery', 'hooks'), { recursive: true });
     writeFileSync(join(repo, 'delivery', 'tunnel-daemon.mjs'), 'z');
     writeFileSync(join(repo, 'delivery', 'hooks', 'hooks.json'), '{}');
+    // P2-4 怪癖 B：winvm-plugin 的相对运行时依赖 account-resolve.mjs 也必须在对账面里
+    // （与宿主缓存部署的 extraFiles 同名同源，否则 --check-fresh 对不上）
+    writeFileSync(join(repo, 'delivery', 'account-resolve.mjs'), 'export const NON_ACCOUNT_DIRS = new Set(["skills"]);\n');
 
     const pairs = buildIntegrityFilePairs(cache, repo);
     const rels = pairs.map((p) => p.rel);
@@ -90,6 +93,7 @@ test('buildIntegrityFilePairs：夹具三组面齐备（桥 dist/依赖 dist/@wi
     assert.ok(rels.some((r) => r.startsWith('@winvm/contracts/dist/') && r.endsWith('bridge.js')), '依赖 dist 面');
     assert.ok(rels.some((r) => r === '@winvm/contracts/package.json'), '依赖 package.json 面');
     assert.ok(rels.includes('tunnel-daemon.mjs') && rels.includes('hooks/hooks.json'), 'runtime 单文件面');
+    assert.ok(rels.includes('account-resolve.mjs'), 'winvm-plugin 运行时依赖面（P2-4）');
     // dst 落点正确性（依赖 dist 落 node_modules/@winvm/<name>/dist）
     const dep = pairs.find((p) => p.rel === '@winvm/contracts/dist/bridge.js');
     assert.ok(dep.dst.includes(join('a2a-bridge', 'node_modules', '@winvm', 'contracts', 'dist')), dep.dst);

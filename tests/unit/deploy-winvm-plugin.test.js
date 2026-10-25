@@ -108,6 +108,33 @@ describe('deployWinvmPlugin', () => {
     }
   });
 
+  test('extraFiles 承载 winvm-plugin 的相对运行时依赖（account-resolve.mjs 随本文件投放）', async () => {
+    // P2-4 怪癖 B 的部署通道守卫：宿主缓存侧只有 winvm-plugin.mjs 单文件，其相对导入的
+    // account-resolve.mjs 必须能经 extraFiles 一起投放，否则缓存侧执行报 ERR_MODULE_NOT_FOUND。
+    const repoRoot = await makeFakeRepo();
+    const targetDir = await mkdtemp(join(tmpdir(), 'winvm-deploy-extra-'));
+    const { logs, log } = recorder();
+    const DEP_BODY = 'export const NON_ACCOUNT_DIRS = new Set(["skills", "marketplace-meta"]);\n';
+    try {
+      await writeFile(join(repoRoot, 'delivery', 'account-resolve.mjs'), DEP_BODY, 'utf8');
+      deployWinvmPlugin({
+        targetDir,
+        side: 'host',
+        dryRun: false,
+        log,
+        repoRoot,
+        extraFiles: ['account-resolve.mjs'],
+      });
+
+      assert.equal(existsSync(join(targetDir, 'account-resolve.mjs')), true, '依赖文件应随启动器一起落地');
+      assert.equal(readFileSync(join(targetDir, 'account-resolve.mjs'), 'utf8'), DEP_BODY, '内容应逐字一致');
+      assert.ok(logs.some((m) => m.includes('account-resolve.mjs')), 'log 应记录该附带文件');
+    } finally {
+      await rm(repoRoot, { recursive: true, force: true });
+      await rm(targetDir, { recursive: true, force: true });
+    }
+  });
+
   test('dry-run：不写任何文件，仅记录预览', async () => {
     const repoRoot = await makeFakeRepo();
     const targetDir = await mkdtemp(join(tmpdir(), 'winvm-deploy-dry-'));

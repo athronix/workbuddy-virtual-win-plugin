@@ -170,7 +170,8 @@ export function verifyCopyIntegrity(pairs, hasher = sha256File) {
  *   - A2A 桥：packages/host-a2a-bridge/dist/** → <cache>/a2a-bridge/**
  *   - 桥自包含依赖：packages/<name>/dist/** → <cache>/a2a-bridge/node_modules/@winvm/<name>/dist/**
  *     （package.json 单文件同理）
- *   - 隧道运行时 + hooks：delivery/<rel> → <cache>/<rel>（deployWinvmPlugin extraFiles 面）
+ *   - 隧道运行时 + hooks + winvm-plugin 的相对运行时依赖（account-resolve.mjs）：
+ *     delivery/<rel> → <cache>/<rel>（deployWinvmPlugin extraFiles 面）
  * 不在面内：ssh2 vendor/node_modules（上游 best-effort）、运行态生成物（.in_use /
  * .winvm-context.json / winvm-plugin 启动器 / plugin.json——它们由 Renderer/启动器生成，
  * 非"仓库构建物逐字节复制"，对其做哈希对比语义错误）。
@@ -208,8 +209,10 @@ export function buildIntegrityFilePairs(cacheRoot, repoRoot) {
     pushFile(join(pkgDir, 'package.json'), join(cacheRoot, 'a2a-bridge', 'node_modules', '@winvm', name, 'package.json'), `@winvm/${name}/package.json`);
   }
 
-  // 3) 隧道运行时 + hooks 单文件面（与 deployWinvmPlugin extraFiles 名单一致）
-  for (const rel of ['winvm-plugin.mjs', 'oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh']) {
+  // 3) 隧道运行时 + hooks + winvm-plugin 的相对运行时依赖（account-resolve.mjs）单文件面
+  //    （与 deployWinvmPlugin 宿主缓存调用的 extraFiles 名单**同名同源**，否则 freshness 会
+  //     对不上：多算=缓存缺文件 MISSING，少算=多投放的文件无人对账）
+  for (const rel of ['winvm-plugin.mjs', 'oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs']) {
     pushFile(join(repoRoot, 'delivery', rel), join(cacheRoot, rel), rel);
   }
 
@@ -1295,7 +1298,10 @@ async function main() {
   if (!args.dryRun) {
     // 附带文件：把隧道运行时（oh-tunnel / ssh2-resolve / tunnel-daemon）一并落到插件缓存根，
     // 否则缓存侧启动器执行隧道路径会 ERR_MODULE_NOT_FOUND（CL-015 T13 / G3）。
-    deployWinvmPlugin({ targetDir: paths.pluginRoot, side: 'host', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh'] });
+    // account-resolve.mjs 同属「winvm-plugin 的同目录运行时依赖」（P2-4 怪癖 B 根治）：缓存侧
+    // 只有 winvm-plugin.mjs 单文件，缺它会 ERR_MODULE_NOT_FOUND；名单随本文件一起投放，
+    // 使排除名单的单一事实源（delivery/account-resolve.mjs）在宿主缓存侧同样在场。
+    deployWinvmPlugin({ targetDir: paths.pluginRoot, side: 'host', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs'] });
     // 仓库 delivery 部署：不写 .winvm-context.json（避免 side:host 随 tar 发到 VM；VM 侧由 install-vm 写 side:vm）
     deployWinvmPlugin({ targetDir: join(repoRoot, 'delivery'), side: 'host', dryRun: false, writeContext: false, log: (m) => console.log(`管理命令(仓库): ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs'] });
     /* ---- 沙箱白名单注入（T07 / P0-R4）：把本插件运行期写路径加入 settings.json 的

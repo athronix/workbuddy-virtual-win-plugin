@@ -52,6 +52,17 @@ import { homedir } from 'node:os';
 import http from 'node:http';
 import net from 'node:net';
 
+/**
+ * 排除名单单一事实源（P2-4 怪癖 B）：`connectors/` 下的非账户目录（平台内部目录，非账户）。
+ * 本文件侧（host 类子命令的账户罗列）用它过滤，避免把 skills / marketplace-meta 当成账户。
+ *
+ * 投放面（两侧均在场，故相对导入安全）：
+ *   - 宿主缓存：随 winvm-plugin.mjs 经 extraFiles 一起投放（install-host.mjs 宿主缓存部署调用）；
+ *   - VM 侧：setup.mjs tar 整包 delivery/ 下发；仓库 delivery/ 目录本身亦有。
+ * 单一事实源在 delivery/account-resolve.mjs（install-host / diagnose-connectors / adapter 同语义）。
+ */
+import { NON_ACCOUNT_DIRS } from './account-resolve.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -579,7 +590,9 @@ async function cmdCheck(side, vm) {
     let a2aOk = false;
     let accounts = [];
     if (isDir(p.connectorsDir)) {
-      for (const acct of readdirSync(p.connectorsDir)) {
+      // 非账户目录（skills / marketplace-meta，平台内部目录）排除：否则其 mcp.json 含
+      // connector:winvm 时会被误判为「已注册」——修复前会导致 check 假绿（P2-4 怪癖 B）。
+      for (const acct of readdirSync(p.connectorsDir).filter((d) => !NON_ACCOUNT_DIRS.has(d))) {
         const mp = join(p.connectorsDir, acct, 'mcp.json');
         const m = readJsonSafe(mp);
         if (m?.mcpServers) {
@@ -719,7 +732,8 @@ async function cmdList(side, vm, sub, json) {
       const p = hostPaths();
       const rows = [];
       if (isDir(p.connectorsDir)) {
-        for (const acct of readdirSync(p.connectorsDir)) {
+        // 与 check 同口径：非账户目录（skills / marketplace-meta）不作为「账户」列出（P2-4 怪癖 B）
+        for (const acct of readdirSync(p.connectorsDir).filter((d) => !NON_ACCOUNT_DIRS.has(d))) {
           const m = readJsonSafe(join(p.connectorsDir, acct, 'mcp.json'));
           if (m?.mcpServers) {
             for (const key of Object.keys(m.mcpServers)) {
