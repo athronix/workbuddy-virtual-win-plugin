@@ -541,8 +541,8 @@ record_n.prevHash = hash_(n-1)
 
 给 `delivery/winvm-plugin.mjs` **新增相对 import** 时，同一个文件必须同时进三处，缺一即交付面破口：
 
-1. `delivery/install-host.mjs:1304` 宿主缓存 `extraFiles` 名单（投放面）；
-2. `delivery/install-host.mjs:215` `buildIntegrityFilePairs` 单文件面（integrity 对账面，与 ① **同名同源**）；
+1. `delivery/install-host.mjs` 宿主缓存 `extraFiles` 名单（投放面，`install-internal()` 内 `deployWinvmPlugin({… extraFiles})` 调用点）；
+2. `delivery/install-host.mjs` `buildIntegrityFilePairs()` 单文件面（integrity 对账面，与 ① **同名同源**）；
 3. 跑 `node delivery/install-host.mjs --check-fresh` 验证对账面一致（当前账面 187 对；缓存根实存 9 文件 =
    7 源文件 + 2 生成启动器）。
 
