@@ -83,3 +83,17 @@
 ### 测试口径（硬约束复述）
 - 必须**逐文件**跑：`for f in tests/unit/*.test.js tests/unit/*.test.mjs; do node --test "$f"; done`（`.js`/`.mjs` 两类都覆盖才等于 §测试 节 70 文件权威口径）。整批 `node --test tests/unit/*.test.js` 会因 `link-workspace.test.js` 的 `symlink(...,'junction')` 在本沙箱触发 node 进程访问违例（`0xC0000005`），共享 runner 被打崩，同进程所有文件被连带判死呈**假全红**。
 - 第十七轮（2026-10-07）当时实测即按逐文件方式聚合，得 **1054 / 1054 / 0 fail / 0 skipped**（仅 `.test.js` 口径）；当前权威口径见本文 §测试 首行（70 文件 / 1162 例 / 1159 pass / 3 skip，2026-10-08）。
+
+## 部署策略 v2 + 结构整理批（2026-10-26）
+
+| 变更 | 状态 | 关键结论 |
+|---|---|---|
+| **部署策略 v2 六步全流程（run1）** | ✅ 25/25 PASS | `qa/real-test-2026-10-26-run1.md`；deterministic 与 workbuddy（用户裁定默认）双 provider 各全绿；`docs/deploy/deploy-strategy.md` v2.5 + `deploy-prompts.md` v1.4 定型（Step 3.0 运行时前置 / §2.1-B 空密码双层 / §5.0 遇困决策协议 / Step 6 交付引导） |
+| **Step 3.0 VM 运行时前置自检** | ✅ 三例真机验证 | `qa/deploy-probes/vm-env-check.ps1`（正例 PASS / `-SimulateMissing` 负例 FAIL+hint / `-Fix` 幂等）；preflight `vm-agent-cli` blocking 行为经直调 `checkLocalVmDeps` 实证 |
+| **仓库结构归位第一批** | ✅ | 4 件 git mv（OPS-OVERVIEW / INSTALL-VERIFY→archive/test/reports / 根 overview、V1.0.0 notes→archive/legacy-*）；引用同步 + .gitignore 收编 demo build；`%LOCALAPPDATA%` 隔离回收站 |
+| **文档一致性盘点（doc-auditor）** | 🔄 进行中 | 报告 `qa/evidence/tidy-20261026/doc-consistency-audit.md`（6 维度分级 P1/P2/P3）；修复按 TOP 清单执行 |
+| **发布链缺口 G-1/G-2/G-3** | ⬜ 待 V1.4.3（待用户批准发版） | 详见 `docs/deploy/deploy-strategy.md` §9.1 台账 |
+| **VM 不可达（10-26 18:05 起）** | ⬜ 阻塞观察 | 根因在 VM 自身（网关 OK/出网 OK）；恢复后跑三探针回归 + example 补测（待办在 `~/winvm-deploy/deploy-session.md`） |
+| **CL-WBNATIVE（workbuddy-native ACP）** | ⏸ DEFERRED | 用户裁定维持 workbuddy+codebuddy 现状；取证归档 `docs/archive/changes/CL-WBNATIVE/` |
+
+> 测试基线权威口径不变：`qa/p3-batch-sweep/` 最新 `gate-*.txt` 汇总行（2280 GREEN 快照）；本表不重复记数字。

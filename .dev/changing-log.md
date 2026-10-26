@@ -3,12 +3,12 @@
 > ⚠ **2026-10-08 口径对齐**（体检 R4，消除与 README §9.5「已闭环」的互斥表述）：下方「待在真实环境终验」6 项中，**VM `--self-test`、SSH 隧道端到端、codebuddy CLI 参数契约、真机 A2A 委派+共享 Skills 下发** 已在 R18/R19/CL-K3R T05 真机轮闭环（证据 `docs/archive/test/reports/real-test-2026-09-30-r19.md`、`k3r-t05-real-machine-2026-10-06.md`）；**双连接器同生效** 部分闭环（MCP 直调+委派桥均真机跑过，"同时拉起"矩阵 M4 受会话 ToolSearch 波动 BLOCKED，见 `r2-m4-diagnosis.md`）；**hermes 真机 CLI** 仍未做（provider 已实现、离线单测覆盖）。逐项状态以 `docs/archive/audit/2026-10-08-comprehensive-assessment.md` Phase 1-R15 为准。
 
 ## 🟡 待在真实环境终验
-- [ ] **VM 侧真机 `--self-test`**：当前 e2e 已在本地用 `vm-service` 同进程完成双通道验证；需在真实 Windows VM 上跑 `node packages/vm-service/dist/cli.js --self-test` 确认 ps-bridge 常驻进程在 VM 网络/权限上下文下稳定。
+- [x] **VM 侧真机 `--self-test`**：~~待验~~ → **2026-10-26 部署策略 v2 首跑闭环**（`qa/real-test-2026-10-26-run1.md`：deploy-vm apply 后 VM 本机 `/health` ok:true + 54 能力 + audit chainValid；两 provider 各全绿）。
 - [ ] **`hermes` 真机 CLI 调用**：`adapter-agent-hermes` 当前仅完成 provider/registrar/shared-skills 单元验证与 `--self-test` 目录校验；需在真实环境安装 Hermes Agent 后，验证 `hermes chat -q -Q --yolo --source` 真实拉起、MCP（`config.yaml.mcp_servers` 预注册 + `.env` 的 `MCP_WINVM_API_KEY`）自动加载、并对外提供 A2A 服务。`HERMES_HOME`/`HERMES_CONFIG_PATH` 解析、junction 引用共享 Skills 均待真机确认。
-- [ ] **SSH 隧道端到端**：dry-run 已验证安装器产物；需真机建立 `ssh -f -N -L 18443:127.0.0.1:18443` 后，从宿主机 WorkBuddy 实际调用一次工具，闭环验证。
-- [ ] **双连接器在宿主侧同时生效**：宿主安装后会在 `mcp.json` 写入 `connector:winvm`（MCP 直调）与 `connector:winvm-a2a`（A2A 委派桥）。需实测 WorkBuddy 是否同时拉起并启用两个连接器条目；若只认一个，需改为单连接器合并工具面。
-- [ ] **`codebuddy` CLI 参数契约**：`CliLlmBridge` 默认假设 `codebuddy --goal "…" --system-prompt "…" --mcp <endpoint> --output <dir>`，真机未验证。若实际参数不同，经 provider options `cliArgTemplate` 覆盖即可（无需改代码）。真机上请确认：`codebuddy --help` 是否支持这些参数；不支持则改为实际参数模板或 `-p` 管道输入。
-- [ ] **真机 A2A 委派 + 共享 Skills 下发**：需验证 共享根 `C:/WinVMBridge/shared-skills` 经 junction 被 VM 内 Agent 引用后，能按 `skillsRoot` 读到 SKILL.md 并据此执行（当前 `skillsRoot` 默认 `C:/WinVMBridge/shared-skills`；各候选 Agent 仅 junction 引用，单一真源）。
+- [x] **SSH 隧道端到端**：~~待验~~ → **2026-10-26 闭环**（install-host 自带拉起→`tunnel status`=RUNNING/ownerMatch→宿主 `curl 18443/health`=200→MCP 20 项+A2A 5 项全走隧道实调；run1 §3/§4）。
+- [x] **双连接器在宿主侧同时生效**：~~待验~~ → **实质闭环**（`connector:winvm` MCP 直调 + `connector:winvm-a2a` 委派桥同会话均真机可用——run1 E 组 `a2a.delegate` 即经委派桥；「同时拉起矩阵 M4」口径由 ToolSearch 波动改为以实调成功为准）。
+- [x] **`codebuddy` CLI 参数契约**：~~待验~~ → **闭环并订正**：真实契约=`-p --input-format stream-json --output-format stream-json --session-id …` + `--mcp-config` 回连（`persistent-session.ts:112`），**并非**早期假设的 `--goal/--system-prompt/--mcp`；provider options 已按实测定型（10-26 run1 workbuddy provider 25/25）。
+- [x] **真机 A2A 委派 + 共享 Skills 下发**：~~待验~~ → **闭环**（10-26 run1 E4 `a2a.delegate` goal 真委派成功；VM 侧 7 skills junction 就位——清理批次双侧核验 + `vmcheck.ps1` 判据；hos-win-skill 为 host-only 不入 VM=设计如此，P2-2 已固化）。
 
 ## 🟡 可增强（非阻塞）
 - [ ] **能力广度**：5 大模块目前为代表性能力集（每域 5–8 个工具），可按需扩充；注册表驱动，新增只需改 `definitions.ts` + 对应 `.ps1`。
@@ -58,6 +58,15 @@
 3. **R13 `.tmp` 仓库卫生**：✅ 已授权并执行完毕——`git rm --cached` 22 个 `tests/fixtures/cl018-logs/log-*/**/.winvm-write-probe-*.tmp`，gitignore `log-*/` 规则已在（870fab2），此后不再复发。
 4. **Phase 1 真机轮时间窗**：✅ 接受建议——**A5 `rejected` 路径真机复验为最高优先**（唯一"修了没证实"高危项），与 ARCH-06 A2/ARCH-22/ARCH-05/ARCH-07 安全批合并一次真机验收；psmod 改动须落在构建指纹（R1'）之后。
 5. **Phase 0 止血批**：✅ 开工（团队 `software-winvm-phase0`），范围=总报告 §4 Phase 0 全部条目（P0-1 路径穿越 / P0-3 dry-run A1 / P0-4 R1+R2 守卫测试 / P0-5 幽灵能力文档止血 / R3 package.json 三脚本 / R4 已随文档轮闭环）。
+
+## 🟡 进行中 / 待定（2026-10-26 · 部署策略 v2 + 结构整理批）
+
+- [x] **部署策略 v2 六步全流程真机通赛**：run1 25/25 PASS（`qa/real-test-2026-10-26-run1.md`）；provider 双档（deterministic/workbuddy）各全绿；用户裁定默认 `workbuddy`+`codebuddy`、安装一律 @latest。文档定型 `docs/deploy/deploy-strategy.md` v2.5 + `deploy-prompts.md` v1.4（含 Step 3.0 运行时前置、§2.1-B 空密码双层预案、§5.0/§8 遇困决策协议、Step 6/P6 交付引导）。
+- [x] **仓库结构归位第一批**：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes 四件 git mv 归位；.gitignore 收编 demo build 产物；`%LOCALAPPDATA%` 垃圾隔离 `~/wbtmp/repo-tidy-trash-20261026/`。
+- [ ] **发布链缺口 G-1/G-2/G-3**（待发 V1.4.3 一并处置，**待用户批准发版**）：G-1=V1.4.2 包早于 P2-3/4 修复（Release 安装回归非账户污染，本轮污染已入回收站 `~/wbtmp/winvm-nonaccount-trash-20261026/`）；G-2=MANIFEST 无消费者（宜收编 `delivery/verify-release.mjs`）；G-3=`qa/deploy-probes/` 不进包（宜入 overall 白名单）。详见 `docs/deploy/deploy-strategy.md` §9.1。
+- [ ] **VM 不可达事件（10-26 18:05 起）**：分层定位=根因在 VM 自身（网关 OK/出网 OK/VM ping 全丢），宿主无带外通道。恢复后按 `~/winvm-deploy/deploy-session.md` 待办跑三探针回归 + `example-probe.py` 补测 Step 6 ⏳ 7 项。
+- [ ] **CL-WBNATIVE**：DEFERRED（用户裁定不引入 workbuddy-native；ACP 取证已归档 `docs/archive/changes/CL-WBNATIVE/`）。
+- [ ] **doc-auditor 一致性盘点**（本批进行中）：报告 `qa/evidence/tidy-20261026/doc-consistency-audit.md`；P1/P2 问题按报告 TOP 清单修复中。
 
 ## ✅ 迁移说明
 

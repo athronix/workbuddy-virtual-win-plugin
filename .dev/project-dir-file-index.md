@@ -7,15 +7,13 @@ workbuddy-virtual-win-plugin/
 ├── package.json              # workspace 根（npm workspaces，12 包）
 ├── tsconfig.base.json        # 共享 TS 配置（strict, ESM）
 ├── tsconfig.build.json       # 构建引用图（根无 tsconfig.json，构建须带此文件）
-├── docs/                     # 调研 / 设计 / 交付文档（含 docs/archive/changes/CL-* 与 docs/archive/test/reports/）
+├── docs/                     # 调研 / 设计 / 交付文档（含 docs/archive/{changes,test,audit}/、legacy-*、deploy/ 部署策略、design/ 逐缺陷设计稿）
 ├── packages/                 # 12 个可独立编译/发布的 npm 包
 ├── skills/                   # 8 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 个 `winvm-mcp-reference` 部署参考 + 1 个 `hos-win-skill` 宿主分派）；`references/` 仅两家（winvm-orchestrator 的 approval-card.md、winvm-mcp-reference 的 mcps-reference.md）
 ├── tests/                    # unit/（59 个 *.test.js）+ e2e/ + fixtures/
-├── qa/                       # 真机验证证据与驱动脚本（r18 / r19 / harness / probes / evidence / archive）
+├── qa/                       # 真机验证证据与驱动脚本（r18 / r19 / p3-batch-sweep / harness / probes / deploy-probes / evidence / archive；导航=qa/INDEX.md）
 ├── delivery/                 # 安装器 + 部署配置
-├── v3-kn2.meta.json          # K-N2 复现元数据（2026-10-02）
-├── v3-kn2.req.json           # K-N2 复现请求体
-├── v3-kn2.resp.json          # K-N2 复现响应体
+├── deploy-demo-app/          # 鸿蒙 ArkTS 一键部署演示 App（独立子项目，build/ 与 .codeart-out 产物已 gitignore）
 └── .dev/                     # DDD 六大索引
 ```
 
@@ -43,10 +41,12 @@ workbuddy-virtual-win-plugin/
 ## qa/（真机验证证据与驱动，2026-09-30 起主要落点）
 - `qa/r19/` —— **R19 真机轮证据根**：`a2a-extra.mjs`（A2A 补齐驱动 + `k3r` 子命令，含 **harness 收紧**：强制直调 `app.winget.uninstall`、禁 `appops.workflow.run`，新增 `capabilityIdsOf` 与 `sidestepDetected`）、`e4*-audit-full.jsonl`（VM 审计链快照，181 条，已固化可离线复核）、`a2a-x1..x5-*`（A1~A5 证据）、`r3-a4a5-overlap.*`（A4+A5 交叠复现）、`r19-offline-checks.mjs`
 - `qa/r18/`、`qa/harness/`、`qa/probes/`、`qa/evidence/`、`qa/archive/` —— 历史轮次与探针/证据归档
+- `qa/deploy-probes/` —— **部署策略 v2 六步验收探针（2026-10-26）**：`verify-manifest.py`（包三重校验）/ `vm-env-check.ps1`（Step 3.0 node/npm/CLI/登录态，`-Fix`/`-SimulateMissing`）/ `vmcheck.ps1`（VM 判据）/ `mcp-probe.py`（20 项）/ `a2a-probe.py`（5 项）/ `example-probe.py`（Step 6 示例能力）；引用方=`docs/deploy/deploy-strategy.md` 与 `deploy-prompts.md`；⚠ 暂不进发布包（backlog G-3）
+- `qa/real-test-2026-10-26-run1.md` —— 部署策略 v2 首跑报告（25/25 PASS；含 §7.1 Step 3.0 三例与 G-3）
 - ⚠️ 驱动脚本硬约束：证据落盘一律用**绝对路径前缀**（`--prefix=`），参数一律 `--k=v` 等号形式（空格形式会 NaN → `ERR_OUT_OF_RANGE`）；写入后**二次确认 mtime + 字节数**，避免读到未 flush 的 0B 假空文件
 
-## 根级新增（K-N2 复现工件）
-- `v3-kn2.meta.json` / `v3-kn2.req.json` / `v3-kn2.resp.json`（2026-10-02）—— K-N2（dryRun 通道内层 `success=false` / `exitCode=-1978335230`）复现工件
+## 根级工件（K-N2 复现，已被 .gitignore 规则忽略）
+- `v3-kn2.meta.json` / `v3-kn2.req.json` / `v3-kn2.resp.json` —— K-N2（dryRun 通道内层 `success=false` / `exitCode=-1978335230`）复现工件；**2026-10-14 批6 P2 族清扫起不入 git**，磁盘副本随会话清理，需要时按 `docs/archive/test/reports/` K-N2 报告复现
 
 ## delivery/
 - `setup.mjs` 双端一键部署总入口（读 `.env`：构建/宿主/VM/隧道/自检，默认 dry-run、`--apply` 真执行；VM-START 阶段轮询 VM 本机 18443 端口 ≤60s 才认定启动完成、HEALTH 阶段解析 `/health` 的 `session.interactive` 并在非交互式会话时打印 GUI 启用命令块；**第十轮修复 `reachable()`/`waitForRemotePort()` 误带 `-o BatchMode=yes` 致 `VM-START`/`VM-UNINSTALL` 偶发误判「VM 不可达」而跳过，已去除并加 1 次重试与真实 ssh 行为对齐**）
