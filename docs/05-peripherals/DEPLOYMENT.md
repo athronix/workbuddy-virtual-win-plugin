@@ -675,7 +675,7 @@ bash deploy-all.sh            # 不清场直接重装（仅限同版本热修，
 | 6 | 审计链 | 委派 traceId 在链、字段级回执；`a2a.health` Agent Card 可达 |
 | 7 | 双侧部署态 | 宿主缓存版本路径在册；VM `C:/WinVMBridge` + 计划任务 + dev-and-qa MANIFEST 在册 |
 
-设计依据：`docs/release/DESIGN-V1.4.0.md`；发布说明：`docs/release/RELEASE-V1.4.0.md`；问题台账：`docs/release/ISSUES.md`；**总览手册**（部署/运行机制系统性综述 + 全部配置逐键穷举 + 坑索引速查）：`docs/部署与运行机制及配置总览.md`。
+设计依据：`docs/release/DESIGN-V1.4.0.md`；发布说明：`docs/release/RELEASE-V1.4.0.md`；问题台账：`docs/release/ISSUES.md`；**总览手册**（部署/运行机制系统性综述 + 全部配置逐键穷举 + 坑索引速查）：`docs/04-ops/OPS-OVERVIEW.md`。
 
 ### 9.5 新鸿蒙机 + 铠大师 App 部署方案
 

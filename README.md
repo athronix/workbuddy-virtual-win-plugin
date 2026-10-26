@@ -353,7 +353,7 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 | `docs/02-design/SECURITY-GOVERNANCE.md` | 安全治理（策略/审批/审计） |
 | `docs/02-design/LLM-PROVIDER.md` | LLM provider（workbuddy / hermes）设计 |
 | `docs/02-design/HOST-A2A-BRIDGE.md` | 宿主 A2A 委派桥设计 |
-| `docs/RELEASE-NOTES.md` | **Release Notes（演进链/能力面/已知限制，权威）**；旧 `V1.0.0-release-notes.md` 已冻结 |
+| `docs/RELEASE-NOTES.md` | **Release Notes（演进链/能力面/已知限制，权威）**；旧 `V1.0.0-release-notes.md` 已冻结并移至 `docs/archive/legacy-release-notes-V1.0.0.md` |
 | `docs/05-peripherals/DEPLOYMENT.md` | 部署指南（含 §1.7 分发跟批闭环、策略闸执法切换） |
 | `docs/archive/audit/2026-10-12-full-audit.md` | Phase 3 终版台账（P0×4 收敛全程） |
 | `docs/archive/audit/2026-10-14-full-audit.md` | Phase 4 终版台账（P1×3+P2×6 销账全程） |

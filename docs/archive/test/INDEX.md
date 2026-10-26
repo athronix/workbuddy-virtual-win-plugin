@@ -33,3 +33,5 @@
 | 2026-10-05 | `k3r-t05-runbook-2026-10-05.md` | CL-K3R · T05 真机验证 Runbook（A~F 阶段与门禁 G0~G4） |
 | 2026-10-05 | `k3r-t05-phase-d-blocker-2026-10-05.md` | CL-K3R · T05 Phase D 阻塞根因诊断报告 |
 | 2026-10-06 | `k3r-t05-real-machine-2026-10-06.md` | CL-K3R · T05 真机验证完成报告（A~F 全阶段，K3 假成功根治） |
+
+- `reports/INSTALL-VERIFY-2026-09-20.md` —— 全新安装后全功能验收报告（原 `docs/INSTALL-VERIFY-REPORT.md`，2026-10-26 归位本区；run6 产物，uninstall 16/16 → setup 七相位 7/7）

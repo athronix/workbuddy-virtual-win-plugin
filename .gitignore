@@ -33,6 +33,11 @@ qa/archive/
 
 # Windows 变量展开失败产生的垃圾目录（字面量 %LOCALAPPDATA%）
 %LOCALAPPDATA%/
+
+# deploy-demo-app（鸿蒙 ArkTS demo）构建产物：hvigor/DevEco 生成，可再生不入库
+deploy-demo-app/**/build/
+deploy-demo-app/.hvigor/
+deploy-demo-app/.idea/
 # 同上同类缺陷：VM 侧安装器在鸿蒙宿主裸跑时盘符路径被按相对路径物化（R18-A §3，证据目录保留不删）
 C:/
 

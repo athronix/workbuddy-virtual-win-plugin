@@ -7,6 +7,7 @@
 | 子目录 / 文件 | 用途（一句话） |
 |---------------|----------------|
 | `probes/` | **脚本活路径**（被 setup.mjs / pack-release.mjs 引用），勿动 |
+| `deploy-probes/` | **部署策略 v2 六步验收探针**（2026-10-26 起）：`verify-manifest.py` 包完整性 / `vm-env-check.ps1` Step 3.0 运行时前置 / `vmcheck.ps1` VM 判据 / `mcp-probe.py` 20 项 / `a2a-probe.py` 5 项 / `example-probe.py` Step 6 示例能力补测；引用方 `docs/deploy/deploy-strategy.md` §4 与 `deploy-prompts.md`。⚠ 暂不在发布包内（缺口 G-3） |
 | `release/` | 发布证据：逐版本 `V*-pack.txt`（三包指纹）+ `V*-deploy-run*.log` 部署实录（pack-release.mjs 的 evidenceDir 落点） |
 | `p3-batch-sweep/` | Phase 3 批扫证据与**测试基线权威**：`gate-*.txt`（README §8 指向「qa 最新 gate-*.txt」；`gate-docs-overview.txt` 等在册） |
 | `p3b02-regression/` | Phase 3 批0-2 回归证据（gate 运行输出、check-fresh、report.md） |

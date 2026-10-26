@@ -10,7 +10,8 @@
 |----|------|------|--------|
 | 变更集 | [`changes/`](changes/INDEX.md) | CL-* 变更三件套 + Phase 0~6 施工 notes | [changes/INDEX.md](changes/INDEX.md) |
 | 审计报告 | [`audit/`](audit/INDEX.md) | 全维度体检 / 再审计 / 全景综述台账 | [audit/INDEX.md](audit/INDEX.md) |
-| 测试报告 | [`test/`](test/INDEX.md) | 真环境测试方案 + 真机/QA 报告 | [test/INDEX.md](test/INDEX.md) |
+| 测试报告 | [`test/`](test/INDEX.md) | 真环境测试方案 + 真机/QA 报告（含 `test/reports/INSTALL-VERIFY-2026-09-20.md`） | [test/INDEX.md](test/INDEX.md) |
+| 根级遗留件 | `legacy-*.md`（本区顶层） | 原仓库根 `overview.md`（→`legacy-root-overview.md`）与 `V1.0.0-release-notes.md`（→`legacy-release-notes-V1.0.0.md`），均带冻结头注，2026-10-26 归位 | — |
 
 ---
 

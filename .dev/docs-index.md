@@ -53,7 +53,7 @@
 - 发布问题台账：`docs/release/issues.md` 已更名 `docs/release/ISSUES.md`（2026-10-26）。
 
 ## 运维总览手册
-- `docs/部署与运行机制及配置总览.md` —— 部署/运行机制系统性综述 + 全部配置逐键穷举 + 坑索引速查（总览手册）
+- `docs/04-ops/OPS-OVERVIEW.md` —— 部署/运行机制系统性综述 + 全部配置逐键穷举 + 坑索引速查（总览手册）
 
 ## 外部输入
 - `docs/design/winvm_connector_plan.html` —— 用户之前提供的评估建议（只读参考）
