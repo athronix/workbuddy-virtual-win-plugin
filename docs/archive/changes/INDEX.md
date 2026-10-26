@@ -31,6 +31,7 @@
 | `CL-021/` | QA-REPORT / REQUIREMENT / TECHNICAL-SOLUTION | CL-021 R17 三项需求（宿主审批卡原生渲染 / 会话工具面注入保障 / K6 卸载核验） |
 | `CL-022/` | QA-REPORT / REQUIREMENT / TECHNICAL-SOLUTION | CL-022 Phase 1 安全边界兑现批（真取消 / 信任边界 / 策略收紧 / 链范围 / 凭据通路 / 文档兑现） |
 | `CL-K3R/` | QA-REPORT / REQUIREMENT / TECHNICAL-SOLUTION | CL-K3R K3「静默假成功」根治（审批真值判据结构化） |
+| `CL-WBNATIVE/` | REQUIREMENT | **DEFERRED（2026-10-26 搁置）** WORKBUDDY-NATIVE ACP provider 提案：含 WorkBuddy 桌面版 ACP 服务端（`127.0.0.1:24622`）与 `codebuddy --serve --acp` 的全链路实测证据；维持 `workbuddy`+`codebuddy` 现状，未实施 |
 
 ## Phase notes 清单
 | 文件 | 主题（标题行） |

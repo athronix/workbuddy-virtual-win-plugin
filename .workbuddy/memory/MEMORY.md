@@ -20,6 +20,7 @@
 - **注释文本也是静态守卫输入面**（守卫扫全仓 src 含注释）：引用被守卫字段名/字样前先 grep 同名静态断言。
 - **慢执行假死→熔断误判**：判活看双 timeline+git status 差异而非只看 mtime；**同任务严禁双进程并发**。
 - **Grep 工具对大文件/多词 `|` 搜索假阴性**→目录级 grep/Read/Glob；仓库清点用 `git ls-files`/`git grep`。
+- **大文档多轮 Edit 会静默缩水（10-26 血泪）**：`deploy-strategy.md` 十余次 Edit 后 785→575 行、整章 `## 6` 消失，但每次 Edit 都返回成功、`git diff` 只显 415 行变动（混杂表格 padding 变化）。**铁律**：① 改前先 `git show HEAD:<file>` 留基线；② 一批改动用**一次性脚本 + 每处断言 count==1、不匹配整体拒写**；③ 写完立即 `wc -l` + 关键 heading/锚点 grep 核验（不信任 Edit 返回值）。
 - **版本指纹 > uptime**：证明版本须用行为/字段指纹（`/health` 开关字段、`steps[0].risk`）。
 - **VM 侧运行态开关**：走 provider options（`.generated/vm-service.runtime.json`，provider 级浅合并、未知键保留；adapter 内 `opts.X ?? resolveX(env)`）；重启只用 `kill-restart.ps1`；顺序铁律：先部署→后打补丁→再 kill-restart。
 - **GUI 可用性**：LogonTrigger(已登录会话)→GUI 可用；BootTrigger→不可用。锁屏态不可代码解锁（Windows 安全边界），E2E 前置人工配方（powercfg 禁休眠+session healthy 门）。
@@ -55,6 +56,7 @@ CL-015~021 早期演进；Phase 2 收官(T1-T12+守卫+GATE-POLICY)；Phase 3~5 
 后台 worker「completed 通知」与「SendMessage 回报」异步分离→fresh Agent+极窄任务书+每逻辑单元即 commit+主理人按 HEAD 独立核验；只读任务也须指定增量落盘文件+每节结论即 commit。
 
 ## backlog（未修·P2）
+- **G-3 `qa/deploy-probes/` 不进发布包（10-26 发现）**：`pack-release.mjs` 的 VM_PROBES 只含 `qa/probes/qa-probe.ps1`+`lead-md5-3.ps1`；V1.4.2 包 `MANIFEST` 搜 `deploy-probes` = **0**。→ 纯 Release 安装拿不到 `verify-manifest.py`/`vm-env-check.ps1`/`vmcheck/mcp-probe/a2a-probe`。当前兜底：Step 3.0 内联 `node -v; npm -v; codebuddy --version`。处置：加入 overall 白名单（随 V1.4.3）。
 - **G-1 发布包陈旧（10-26 发现，待发 V1.4.3）**：`winvm-overall-V1.4.2.zip` 构建于 `eba187e`(10-21)，**早于 10-24~10-25 的 P2 修复**。证据：包内 `delivery/install-host.mjs` 无 `NON_ACCOUNT_DIRS`（0 次 vs 仓库 3）；实测安装后 `~/.workbuddy/connectors/skills/mcp.json` 与 `connectors/marketplace-meta/mcp.json` **各被写入 `connector:winvm`**（=P2-3/856a0f4 回归）；包内缺 `delivery/tools/diagnose-connectors.mjs`（连接器自检被跳过）。处置：`tsc -b`→`pack-release`→`publish-release` 发 V1.4.3 并把 `delivery/tools/` 纳入包 + `pack-release` 加「包内 install-host.mjs 必须含 NON_ACCOUNT_DIRS」硬断言。本轮污染已移入 `~/wbtmp/winvm-nonaccount-trash-20261026/`（各 956B，两真账户完好，复测 20/20 绿）。**用户裁决待定**。
 - **G-2 `MANIFEST.txt` 无消费者（10-26 发现）**：全仓仅 `pack-release.mjs:312 writeManifest` 生成，`delivery/` 无 verifier → 包内损坏安装前不可知。已用 `qa/deploy-probes/verify-manifest.py` 补第 2 步第三层（口径：`sha256(rows.join('\n'))`，行格式 `"<relpath>  <sha256>"` 双空格、按路径排序、不含 MANIFEST 自身；解析须先定位 `# ---- per-file` 分隔行否则头 `version:` 行被误当文件）。建议收编为 `delivery/verify-release.mjs`。
 - 深度空闲冷启动 ~49.3s：批20 用户裁定 idle TTL 保持 5min（codebuddy CLI 进程级冷启动，外部特性）；D-5 180s 判死保证不误杀；保活机制列 P2 观察。

@@ -35,7 +35,8 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 |---|---|---|---|---|
 | `VM_HOST` | `172.16.100.2` | 同左 | Windows VM IP | ☐ |
 | `VM_USER` | `User` | 同左 | VM 账户（**Administrators 组成员**） | ☐ |
-| `VM_PASSWORD` | `<运行时注入>` | `WINVM_SSH_PASSWORD` | **必须非空**（空密码被 Windows LSA 禁网登） | ☐ |
+| `VM_PASSWORD` | `<运行时注入>` | `WINVM_SSH_PASSWORD` | **必须非空**（空密码被 Windows 两层串联拦截，见 `VM_PW_MODE`） | ☐ |
+| `VM_PW_MODE` | `normal` | `normal` | `normal` 设非空密码（推荐）／`blank-allow` 两层放行空密码（`PermitEmptyPasswords yes`+`LimitBlankPasswordUse=0`，**建好免密后必须回滚**） | ☐ |
 | `VM_SSH_PORT` | `22` | 同左 | sshd 端口 | ☐ |
 | `VM_DEPLOY_DIR` | `C:/WinVMBridge` | 同左 | VM 侧程序目录 | ☐ |
 | `VM_WORKSPACE` | `C:/WinVMWorkspace` | 同左 | VM 侧工作区 | ☐ |
@@ -87,7 +88,19 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 | `WINVM_DELEGATION_REQUIRED_POLICY` | `on` | `true` | 服务端审批闸 | ☐ |
 | `READY_BUDGET` / `IDLE_TTL` | `180s` / `300s` | — | 就绪预算 / 空闲回收 | ☐ |
 
-### 2.6 宿主工具路径（鸿蒙沙箱必须绝对路径）
+### 2.6 VM 侧运行时前提（Step 3.0 自检项）
+
+| 变量 | 默认值 | 本轮实测 | 说明 | 确认 |
+|---|---|---|---|---|
+| `VM_MIN_NODE` | `18.0.0` | `v24.21.0` | Node 版本下限（`preflight.vm-node` 判据） | ☐ |
+| `VM_NPM_REQUIRED` | `true` | `11.19.0` | npm 必须可用（`preflight.vm-npm`） | ☐ |
+| `VM_AGENT_CLI` | `codebuddy` | `2.167.0` | `provider=workbuddy` 时探测的 CLI 名（`preflight.vm-agent-cli`） | ☐ |
+| `VM_AGENT_CLI_PKG` | `@tencent-ai/codebuddy-code` | `latest=2.176.0` | 缺失时 `npm i -g` 的包名 | ☐ |
+| `VM_NODE_PM` | `nvm-windows 2.0.0` | `* 24.21.0 (default)` | Node 版本管理器（**切版本会使全局 CLI 失效**） | ☐ |
+| `VM_AUTH_DIR` | `~/.codebuddy` | `settings.json,user-state.json` | 登录态探测标记（`evaluateAgentLogin` 同源） | ☐ |
+| `VM_CLI_CHECK` | `qa/deploy-probes/vm-env-check.ps1` | 三例 PASS | 三合一探针（`-Fix` 只补 CLI，`-SimulateMissing` 自测） | ☐ |
+
+### 2.7 宿主工具路径（鸿蒙沙箱必须绝对路径）
 
 | 用途 | 路径 |
 |---|---|
@@ -167,6 +180,19 @@ Step 2 · 获取 Release 并三重校验
 
 ────────────────────────────────────────
 Step 3 · 部署 VM-service（用免密通道）
+  3.0 运行时前置自检（**硬门禁：缺一即中止，安装器不会代装**）：
+      scp qa/deploy-probes/vm-env-check.ps1 User@$VM_HOST:C:/Users/User/vm-env-check.ps1
+      ssh User@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/User/vm-env-check.ps1'
+      判据：ENV_PRECHECK=PASS 且 BLOCKERS=none（NODE_OK / NPM_FOUND / CLI_OK 全 true）。
+      缺失按序补齐（前一项是后一项前提）：
+        - node<18 或无 node：有 nvm → `nvm install 24.21.0 && nvm use 24.21.0`；
+          无 nvm → 官方 MSI 静默装（需管理员 + 桌面会话）。
+          ⚠ 不要用 winget：经 ssh 非交互会话是 MSIX alias 空壳（--version 输出空且 exit 0）。
+        - 无 npm：随 Node 一起装，不要单独补。
+        - 无 codebuddy：`npm i -g @tencent-ai/codebuddy-code`（写用户目录，无需提权）。
+          ⚠ nvm 切版本会使全局 CLI 失效 → 换版本后必须重装。
+        - AUTH_VERDICT=installed-unverified → VM 内交互式跑一次 `codebuddy` 完成登录。
+      自动化（只补 CLI，已装则短路）：探针加 `-Fix`。
   3.1 准备 .env：
       cd $PKG_ROOT && cp -n .env.example .env
       确认 VM_HOST/VM_USER/VM_SSH_PORT/VM_DEPLOY_DIR/WINVM_SERVICE_PORT
@@ -210,7 +236,10 @@ Step 5 · 全维度测试并出报告
 
 ────────────────────────────────────────
 【排错速查】
-- 密码拒绝 → 账户空密码（LSA 禁网登）→ 请用户设非空密码。
+- 密码拒绝 → 先区分密码错 / 空密码。空密码是两层串联拦截（OpenSSH PermitEmptyPasswords=no
+  默认 + LSA LimitBlankPasswordUse=1）→ 首选设非空密码；用户同意降级时两层同时放行
+  （PermitEmptyPasswords yes + Restart-Service sshd + LimitBlankPasswordUse=0），判据 BLANK_PW_OK，
+  建好免密通道后立即回滚两层。
 - 公钥无效 → 写错了落点：Administrators 组成员必须写
   C:/ProgramData/ssh/administrators_authorized_keys；icacls 用 SID 不用名称。
 - 远端 ParserError / 中文乱码 → 改 .ps1 文件 + powershell -File；载荷保持 ASCII。
@@ -236,6 +265,15 @@ Step 5 · 全维度测试并出报告
 1) 建 ~/wbtmp/askpass.sh（只从 $WINVM_SSH_PASSWORD 取值，chmod 700）。
 2) 用 SSH_ASKPASS + SSH_ASKPASS_REQUIRE=force + DISPLAY=:0，禁用公钥、只走 password，
    执行 echo PASSWORD_AUTH_OK。判据：输出 PASSWORD_AUTH_OK。
+   若 Permission denied：先区分「密码错」与「空密码」。空密码是两层串联拦截
+   （OpenSSH PermitEmptyPasswords 默认 no + LSA LimitBlankPasswordUse=1）：
+     a. 首选：请用户设一个非空密码，然后从 2) 重跑（不改任何系统策略）。
+     b. 仅当用户明确同意降级时，**两层同时**放行：
+        sshd_config(C:\ProgramData\ssh\sshd_config) 置 PermitEmptyPasswords yes → Restart-Service sshd；
+        注册表 HKLM\SYSTEM\CurrentControlSet\Control\Lsa 的 LimitBlankPasswordUse(DWORD) 置 0。
+        判据：空密码 askpass 登录输出 BLANK_PW_OK。
+        ⚠ 风险须用户确认：等于所有空密码本地账户可被网络登录（SSH/RDP/SMB）。
+        ⚠ 免密通道建成后**立即回滚**两层（改回 no / 1 并 Restart-Service sshd）——后续全程只用公钥。
 3) 无则 ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519。
 4) 公钥写入 VM 两处（~/.ssh/authorized_keys 与 C:/ProgramData/ssh/administrators_authorized_keys），
    后者 icacls /inheritance:r 并只授 Administrators(F)+SYSTEM(F)（用 SID）。
@@ -243,7 +281,8 @@ Step 5 · 全维度测试并出报告
    已存在则去重跳过，绝不覆盖他人 key。
 5) 判据：ssh -o BatchMode=yes -o PreferredAuthentications=publickey
         -o NumberOfPasswordPrompts=0 User@172.16.100.2 whoami 成功。
-停止条件：任一判据不过即停并报告四元组，不要尝试改 LimitBlankPasswordUse。
+停止条件：任一判据不过即停并报告四元组；空密码分支必须先取得用户对"降级"的明确同意，
+且回滚未完成不得进入下一步。
 ```
 
 ### P2 · 获取并校验 Release
@@ -264,6 +303,12 @@ Step 5 · 全维度测试并出报告
 
 ```text
 在包根内用免密通道部署 VM 侧服务。
+0) 先做运行时前置自检（硬门禁，缺一即中止）：
+   scp qa/deploy-probes/vm-env-check.ps1 User@172.16.100.2:C:/Users/User/vm-env-check.ps1
+   ssh User@172.16.100.2 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/User/vm-env-check.ps1'
+   判据：ENV_PRECHECK=PASS 且 BLOCKERS=none（NODE_OK / NPM_FOUND / CLI_OK 全 true）。
+   缺失按序补齐：node<18 → nvm install/use（无 nvm 用 MSI，勿用 winget）；
+                 npm 缺 → 随 Node 装；codebuddy 缺 → npm i -g @tencent-ai/codebuddy-code。
 1) cp -n .env.example .env；确认 VM_HOST=172.16.100.2 / VM_USER=User / VM_SSH_PORT=22 /
    VM_DEPLOY_DIR=C:/WinVMBridge / WINVM_SERVICE_PORT=18443 /
    WINVM_VM_PROVIDER=workbuddy / WINVM_WORKBUDDY_CLI=codebuddy；并把 WINVM_DRY_RUN 改为 0。
@@ -320,6 +365,14 @@ PKG=~/winvm-deploy/overall-root/overall
 # 包完整性（867 文件 / 7,313,511 B / total-sha256）
 $PY qa/deploy-probes/verify-manifest.py "$PKG"
 
+# VM 运行时前置（node / npm / codebuddy CLI / 登录态）——部署前必过
+scp qa/deploy-probes/vm-env-check.ps1 User@172.16.100.2:C:/Users/User/vm-env-check.ps1
+ssh User@172.16.100.2 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/User/vm-env-check.ps1'
+#   → ENV_PRECHECK=PASS / BLOCKERS=none / CLI_VERSION=2.167.0 / AUTH_VERDICT=config-dir-present
+#   自测：加 -SimulateMissing 应得 FAIL+三条 hint；已装时加 -Fix 应短路不重装
+#   兜底（探针不在发布包时，实测可原样跑）：三项都出版本号即 PASS
+ssh User@172.16.100.2 'powershell -NoProfile -Command "node -v; npm -v; codebuddy --version"'
+
 # VM 侧判据（任务 / 端口 / side.json / health 一次取全）
 scp qa/deploy-probes/vmcheck.ps1 User@172.16.100.2:C:/Users/User/vmcheck.ps1
 ssh User@172.16.100.2 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/User/vmcheck.ps1'
@@ -343,11 +396,16 @@ $PY qa/deploy-probes/a2a-probe.py
 
 | 现象 | 根因 | 处置 |
 |---|---|---|
-| 密码登录 `Permission denied` | 账户空密码（`LimitBlankPasswordUse=1`）或密码错 | 设非空密码；**不要**把该注册表改 0 |
+| 密码登录 `Permission denied` | 密码错 / 账户禁用 / **空密码**（两层串联拦截） | 先 `Get-LocalUser User` 看 `Enabled`/`PasswordRequired`。空密码 → **首选设非空密码**；次选两层同时放行（`PermitEmptyPasswords yes`+`Restart-Service sshd`，`LimitBlankPasswordUse=0`），判据 `BLANK_PW_OK`，**建好免密后立即回滚**。**不要**只改其中一层（一定失败） |
 | key 登录仍要密码 | 管理员组成员写了 `~/.ssh/authorized_keys`（被忽略） | 写 `C:\ProgramData\ssh\administrators_authorized_keys` + `icacls /inheritance:r`（用 SID） |
 | `ssh` 卡在密码提示 | 无 TTY 且未设 askpass | `SSH_ASKPASS` + `SSH_ASKPASS_REQUIRE=force` + `DISPLAY=:0` |
 | 下载 `curl (28)` connect timeout | 链路抖动（非封禁） | `--retry 5 --retry-all-errors -C -`；用 `releases/download/<TAG>/` 绝对 URL |
 | 部署打「✅ 完成」但服务没起 | `.env` 的 `WINVM_DRY_RUN=1` | 改 `0` 重跑 |
+| 部署前 preflight 报 `vm-node` 失败 | VM 无 Node 或 <18（`blocking`，直接中止） | Step 3.0：有 nvm → `nvm install 24.21.0 && nvm use 24.21.0`；无 nvm → MSI 静默装（需桌面会话） |
+| preflight 报 `vm-npm` 失败 | 有 node 无 npm（安装残缺） | 重装完整 Node 发行版，不要单独补 npm |
+| preflight 报 `vm-agent-cli` 失败 | VM 内 `codebuddy --version` 非 0 | `npm i -g @tencent-ai/codebuddy-code`；或临时切 `workbuddy-deterministic` 先通链路 |
+| 装完 codebuddy 又「找不到命令」 | `nvm use` 切了 Node 版本，全局包在旧 prefix | 当前版本重装 CLI；核对 `npm config get prefix` |
+| 想用 `winget` 装 Node | ssh 非交互会话 MSIX alias 空壳（`--version` 空、exit 0） | 改 nvm 或 MSI；winget 仅桌面会话可用 |
 | 远端 `ParserError` / 乱码 | 内联 `-Command` 被本地 bash 展开 `$_` | 写 `.ps1` → `scp` → `powershell -File`；ASCII 载荷 |
 | `--check-fresh` 报 MISSING/多余 | 缓存白名单与 integrity 面不同源 | 两处名单同名同源（SECURITY-GOVERNANCE §9.2） |
 | 会话里看不到 `winvm__*` 工具 | 连接器配置在**新会话**才注入 | 重跑 `install-host` 后新开会话 |
@@ -370,7 +428,8 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2 | **`MANIFEST.txt` 无消费者校验（G-2）** | 已用 `qa/deploy-probes/verify-manifest.py` 临时补齐第 2 步能力 | 用户：是否收编为 `delivery/verify-release.mjs` 正式入口 |
 | 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / `V1.4.2`） | 用户：逐项确认或改写 |
 | 4 | **VM 密码管理方式** | 当前经 `WINVM_SSH_PASSWORD` 运行期注入，未落任何文件 | 用户：确认是否维持该方式 |
-| 5 | **`qa/deploy-probes/` 是否进发布包** | 目前随仓库发布（`pack-release` 会带上），第 5 步依赖它 | 用户：确认保留 |
+| 5 | **`qa/deploy-probes/` 是否进发布包（G-3）** | **实测：不进包**。`pack-release.mjs` 只带 `qa/probes/` 两件；V1.4.2 包内 `MANIFEST` 搜 `deploy-probes` = **0 命中**。故 Step 3.0/2/5 的探针目前须**从仓库取**（P0~P5 隐含有仓库前提） | 用户：是否把 `qa/deploy-probes/` 纳入 `pack-release` 的 overall 白名单（否则纯 Release 安装无探针可用） |
+| 6 | **VM 侧 codebuddy CLI 版本策略** | VM 现装 `2.167.0`，npm `latest=2.176.0`（落后 9 个补丁版本）；探针只查"可用"不查版本 | 用户：是否固定版本（`npm i -g @tencent-ai/codebuddy-code@2.167.0`）还是跟 latest |
 
 ---
 
@@ -379,3 +438,5 @@ $PY qa/deploy-probes/a2a-probe.py
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-10-26 | v1.0 | 首版：变量表（待确认）+ 总 Prompt + 分步 Prompt P1~P5 + 验收速查 + 排错 + 待确认清单；依据 `qa/real-test-2026-10-26-run1.md`（25/25 PASS） |
+| 2026-10-26 | v1.1 | P3 新增 **3.0 运行时前置自检**（node≥18 / npm / codebuddy CLI / 登录态）+ §2.6 VM 运行时前提变量表（原 2.6 → 2.7）+ 验收速查与排错各补条目 + §7-6 CLI 版本策略待确认。三例真机验证：正例 PASS / `-SimulateMissing` FAIL+hint / `-Fix` 幂等短路 |
+| 2026-10-26 | v1.2 | P1 新增 **空密码分支**（首选设密码／次选两层同时放行 + 建好即回滚，判据 `BLANK_PW_OK`）+ `VM_PW_MODE` 变量 + 排错拆「有密码/空密码」两条 + 总 Prompt 与排错速查同步。双层实测取证：`LimitBlankPasswordUse=1`、`PermitEmptyPasswords` 默认 `no`（两行均注释） |

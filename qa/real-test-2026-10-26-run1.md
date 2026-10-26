@@ -140,6 +140,27 @@ PATH 与 `side.json` 移除；免密 ssh 通道清除（仅删本项目 key，�
 | `qa/deploy-probes/vmcheck.ps1` | 第 3 步 VM 侧判据（任务/端口/side.json/health 一次取全） |
 | `qa/deploy-probes/mcp-probe.py` | 第 5 步 MCP 面 20 项验收 |
 | `qa/deploy-probes/a2a-probe.py` | 第 5 步 A2A 面 5 项验收 |
+| `qa/deploy-probes/vm-env-check.ps1` | 第 3.0 步 VM 运行时前置（node/npm/CLI/登录态，含 `-Fix`） |
+
+### 7.1 补充验证 · Step 3.0 运行时前置（同日 17:3x）
+
+> 用户裁定：维持 `WINVM_VM_PROVIDER=workbuddy` + `WINVM_WORKBUDDY_CLI=codebuddy`（不引入
+> `workbuddy-native`），但 Step 3 前必须先自检并补齐 VM 运行时（node / npm / codebuddy CLI）。
+
+| 例 | 命令 | 关键输出 | 判定 |
+|---|---|---|---|
+| 正例 | `vm-env-check.ps1` | `NODE v24.21.0` / `NPM 11.19.0` / `CLI 2.167.0` / `GLOBAL_PKG=@tencent-ai/codebuddy-code@2.167.0` / `AUTH_VERDICT=config-dir-present` / `ENV_PRECHECK=PASS` | ✅ |
+| 负例 | `vm-env-check.ps1 -SimulateMissing` | `BLOCKERS=node,npm,cli` / `ENV_PRECHECK=FAIL` / `NEEDS_RUNTIME=true` / `CLI_INSTALL_CMD=npm i -g @tencent-ai/codebuddy-code` + 3 条 `RUNTIME_HINT_*` | ✅ 双向正确 |
+| 幂等 | `vm-env-check.ps1 -Fix` | 无 `installing`、无 `AFTER_FIX_*`，直接 `PASS` | ✅ 不重复安装 |
+| 安装可行性 | `npm i -g … --dry-run` | `DRYRUN_EXIT=0` / `changed 102 packages in 16s`；`npm view … version` → `2.176.0` | ✅ 用户目录写入，无需提权 |
+| preflight 阻断 | `checkLocalVmDeps({provider:'workbuddy', cli:'no-such-cli-xyz'})` | `vm-agent-cli FAIL(blocking)` → `ok=false`；对照 `deterministic` 同项 `FAIL` 但 `blocking=false` → `ok=true` | ✅ 缺 CLI 确实中止 |
+| 内联兜底 | `powershell -Command "node -v; npm -v; codebuddy --version"` | `v24.21.0` / `11.19.0` / `2.167.0` | ✅ 无探针时可用 |
+
+补充事实：**`winget` 在 ssh 非交互会话不可用**（`--version` 输出为空且 `exit 0`，MSIX alias 空壳）；
+VM 的 Node 由 **nvm-windows 2.0.0** 管理，故 `nvm use` 切版本会使全局 `codebuddy` **失效**。
+
+新增缺口 **G-3**：`qa/deploy-probes/` **不在发布包内**（`pack-release` 只带 `qa/probes/` 两件；
+V1.4.2 包 `MANIFEST` 搜 `deploy-probes` = 0 命中）→ 纯 Release 安装拿不到探针，已给内联兜底。
 
 ## 8. 结论
 
