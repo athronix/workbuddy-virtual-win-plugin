@@ -353,8 +353,15 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 | `docs/02-design/SECURITY-GOVERNANCE.md` | 安全治理（策略/审批/审计） |
 | `docs/02-design/LLM-PROVIDER.md` | LLM provider（workbuddy / hermes）设计 |
 | `docs/02-design/HOST-A2A-BRIDGE.md` | 宿主 A2A 委派桥设计 |
+| `docs/06-OVERVIEW.md` | 交付概览（能力面/测试基线权威指针） |
+| `docs/INSTALL-GUIDE.md` | 安装指南（开发者本机/仓库通道 `setup.mjs` 一条龙；从零/灾备见下行策略文档） |
+| `docs/deploy/deploy-strategy.md` | **部署策略 v2（从零安装，权威）**：六步可行性+变量表+Step 3.0 运行时前置+§2.1-B 空密码预案+§5.0 遇困决策协议+Step 6 交付引导+缺口台账（§9.1）与实测记录 |
+| `docs/deploy/deploy-prompts.md` | **部署 Prompt 总集**：变量确认表+总 Prompt（一键粘贴）+分步 P1~P6+验收速查+§8 异常处置协议 |
+| `docs/04-ops/OPS-OVERVIEW.md` | 运维权威手册：部署/运行机制综述+配置逐键穷举+坑速查 |
 | `docs/RELEASE-NOTES.md` | **Release Notes（演进链/能力面/已知限制，权威）**；旧 `V1.0.0-release-notes.md` 已冻结并移至 `docs/archive/legacy-release-notes-V1.0.0.md` |
 | `docs/05-peripherals/DEPLOYMENT.md` | 部署指南（含 §1.7 分发跟批闭环、策略闸执法切换） |
+| `qa/real-test-2026-10-26-run1.md` | 部署策略 v2 首跑全维验收报告（25/25 PASS + Step 3.0 三例） |
+| `qa/INDEX.md` | QA 区导航（探针/证据/基线权威 gate 件落点） |
 | `docs/archive/audit/2026-10-12-full-audit.md` | Phase 3 终版台账（P0×4 收敛全程） |
 | `docs/archive/audit/2026-10-14-full-audit.md` | Phase 4 终版台账（P1×3+P2×6 销账全程） |
 | `docs/archive/audit/2026-10-15-panorama-phase5.md` | Phase 5 全景综述与完善路径 |
