@@ -358,6 +358,7 @@ $PY qa/deploy-probes/a2a-probe.py
 | `/a2a/health` 404 | 路由不存在 | 发现用 `agent-card.json`，健康用 MCP `a2a.health` |
 | `app.inventory.list` 不支持 `limit` | 无形参 | 传 `{}` |
 | 安装后 `connectors/skills/mcp.json` 被写 winvm | 用了早于 P2-3 修复的旧包 | 移入可恢复备份；从 HEAD 重打并发布新版本 |
+| 清理后 `git push` 报 `Permission denied (publickey)` | 删掉的 `~/.ssh/id_ed25519` 同时是 GitHub 推送凭据（一号多用） | 从清理备份恢复为独立文件 `~/.ssh/id_ed25519_github`（600），推送时 `GIT_SSH_COMMAND="ssh -i … -o IdentitiesOnly=yes"`；**长期正解是 GitHub 与 VM 各用一把密钥** |
 
 ---
 

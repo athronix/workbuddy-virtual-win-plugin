@@ -464,6 +464,16 @@ node delivery/uninstall.mjs --apply --purge-workspace   # 连工作区一起清�
 ```
 本次实测记录：`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17/17 PASS）。
 
+> ⚠️ **血泪坑（本轮踩到）：`~/.ssh/id_ed25519` 往往是「一号多用」** —— 同一个默认密钥既做
+> VM 免密，也做 GitHub 推送凭据。第 1 步「清理旧通道 → 删 id_ed25519 → 重新 ssh-keygen」
+> 会**连带废掉 `git push`**（现象：`git@github.com: Permission denied (publickey)`）。
+> **处置顺序**：
+> 1) 清理前把旧密钥备份（本项目实际做法：`~/wbtmp/winvm-cleanup-<ts>/id_ed25519{,.pub}`）；
+> 2) 恢复时**不要直接覆盖**新密钥（否则 VM 免密又断），而是落成独立文件
+>    `~/.ssh/id_ed25519_github`（`chmod 600`），推送时按需指定：
+>    `GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_ed25519_github -o IdentitiesOnly=yes" git push origin HEAD`
+> 3) 长期正解：**GitHub 与 VM 用两把不同的密钥**，清理 VM 通道时永不触碰推送密钥。
+
 ---
 
 ## 7. 指导 WorkBuddy 全流程安装的 Prompt
