@@ -39,7 +39,7 @@ tar -xzf workbuddy-virtual-win-plugin.tgz -C ~/Documents/projects/
 
 - **双通道**：
   - **MCP 直调**：宿主连接器 `connector:winvm` 经隧道直调 VM `/mcp`——简单任务的首选 〔出处：MEMORY「双通道架构」〕。
-  - **A2A 委派**：宿主连接器 `connector:winvm-a2a` 经同一隧道调 VM `/a2a`——复杂任务（streaming 审批流）〔出处：同上〕。工具名渲染规则：`system.info.get` → `winvm__system_info.get`。
+  - **A2A 委派**：宿主连接器 `connector:winvm-a2a` 经同一隧道调 VM `/a2a`——复杂任务（streaming 审批流）〔出处：同上〕。工具名渲染规则：契约点分名**保留点号**，仅加 `winvm__` 前缀，即 `system.info.get` → `winvm__system.info.get`（tools/list 实测，出处 `delivery/install-host.mjs:1466`）。
 - **provider 三选一**（VM 内 AI Agent 执行器，`.env` 键 `WINVM_VM_PROVIDER`）〔出处：MEMORY「VM 内 AI Agent」〕：
 
 | provider | 机制 | 依赖 | 何时选 |
@@ -326,13 +326,15 @@ node delivery/winvm-plugin.mjs tunnel stop     # 向 daemon 发 SIGTERM，清理
 > node delivery/install-host.mjs            # 经 install-host 管道把 connector:winvm / connector:winvm-a2a 写进活跃账户（已含 KNOWN_ACTIVE_ACCOUNT）
 > ```
 > **重跑后务必校验"注入"而非只看页状态**：在 WorkBuddy **新开一个会话**，工具面 / ToolSearch 应命中
-> `winvm__*`（`winvm__system_info.get` 等）与 `a2a.*`（`a2a.delegate` 等）；仍搜不到再走下方三步路径与只读诊断
+> `winvm__*`（`winvm__system.info.get` 等，点分名保留点号）与 `a2a.*`（`a2a.delegate` 等）；仍搜不到再走下方三步路径与只读诊断
 > （旧会话永不热注入属预期，必须用**新**会话核验）。
 
 **自助三步路径**：
 
 1. **连接器页确认「信任 + 启用」**：WorkBuddy → 连接器 / 自定义 MCP，逐项确认 `winvm` 与 `winvm-a2a`
-   处于已信任、已启用状态（`connector-states.v3.json` 由平台首启时创建，可能为加密态，以页面为准）；
+   处于已信任、已启用状态（connector states 实际路径 = `~/.workbuddy/connectors/<account>/connector-states.v3.json`，
+   按账户目录存放，由平台首启时创建，可能为加密态，以页面为准；旧根路径 `~/.workbuddy/connector-states.v3.json`
+   仅 legacy 兼容，出处 `delivery/tools/diagnose-connectors.mjs` 头注 :16-19）；
 2. **重开一个新会话**再查工具面（判定口径：新会话 ToolSearch `winvm` 应命中 `winvm__*` / `a2a.*`）；
 3. **仍异常 → 跑只读诊断**并按其 FAIL/WARN 处置：
 
@@ -351,6 +353,16 @@ node delivery/tools/diagnose-connectors.mjs --json   # 供程序消费
 **若诊断为「注册全就位但新会话仍不注入」**：属 WB 平台侧疑点，证据（诊断 JSON + 会话新旧 + 账户 id）
 按 `docs/design/r17-connector-injection-diagnosis.md` 的「WB 平台缺陷上报」模板整理上报；
 期间宿主 agent 仍须遵守 orchestrator 门禁（工具不可用 → 停止并请求启用连接器，**严禁手写脚本绕行**）。
+
+### §8.2 非账户目录排除（安装/卸载/诊断共用口径）
+
+`~/.workbuddy/connectors/` 下的 `skills/`、`marketplace-meta/` **不是账户目录**——install-host 账户枚举
+若把它们当账户槽位，会往里写 `mcp.json` 并每跑备份、uninstall 会备份改写它们、diagnose 会把它们误报为账户。
+单一事实源 = `delivery/account-resolve.mjs:34` 的 `NON_ACCOUNT_DIRS = {skills, marketplace-meta}`（install-host
+安装+卸载与 diagnose-connectors 三路径共用）；宿主适配器包 `packages/adapter-host-workbuddy/src/index.ts`（约 :55）
+因 deps 边界保留同语义拷贝，由 `tests/unit/host-adapter.test.js` 恒等守卫钉死（两侧改动必须同步）；
+`winvm-plugin.mjs` check/list 直接 import 单一事实源过滤。另注意 VM 侧技能分发排除 `hos-win-skill`
+（`HOST_ONLY_SKILLS`，出处 `delivery/deploy-shared-skills.mjs:40`：宿主 8 Skill、VM 侧分发 7）。
 
 ---
 

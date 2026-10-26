@@ -515,3 +515,36 @@ record_n.prevHash = hash_(n-1)
 | GUI 黑屏/失效 | 会话探针 + 降级语义（§5，**在位**）；tscon/自动登录恢复=**人工配方（自动恢复未实现）** | `core/session`、`vm-capabilities` |
 | 委派"黑盒" | 强制 artifact（steps/screenshots/change-list）+ traceId（§IF-2.6） | `a2a-framework`、`vm-service` |
 | 资源占用 | V1 用确定性执行器（无 LLM 开销）；并发上限；任务可取消 | `adapter-agent-workbuddy`、`core` |
+
+---
+
+## 9. 交付面治理红线（治理约束，2026-10-26 补）
+
+> 本节约束的不是运行期策略引擎，而是**交付链自身**的写面收敛与构建一致性——
+> 交付脚本对宿主配置面的每一次误写、每一份缓存漂移，都等价于一次未审批的配置变更。
+
+### 9.1 账户枚举面收敛（防误写 mcp.json）
+
+`~/.workbuddy/connectors/` 下的 `skills/`、`marketplace-meta/` **不是账户目录**。若安装/卸载/诊断把它们
+当账户槽位枚举，会向非账户目录写 `mcp.json` 并每跑生成备份、uninstall 备份改写它们——这是对宿主配置面
+的越权写。治理约束：
+
+- **单一事实源**：`NON_ACCOUNT_DIRS = {skills, marketplace-meta}` 只许定义在 `delivery/account-resolve.mjs:34`；
+  install-host（安装+卸载）与 diagnose-connectors 三路径共用，**不得在别处硬编码名单**。
+- **同语义拷贝须有恒等守卫**：宿主适配器包 `packages/adapter-host-workbuddy/src/index.ts`（约 :55）因
+  deps 边界（不依赖 core、不反向依赖 delivery）保留同语义拷贝，两侧一致性由
+  `tests/unit/host-adapter.test.js` 恒等守卫钉死——改一侧必同步另一侧，否则 CI 红。
+- **VM 侧技能分发排除**：`HOST_ONLY_SKILLS = ['hos-win-skill']`（`delivery/deploy-shared-skills.mjs:40`，
+  两侧交付脚本与测试同源引用）——宿主侧 8 Skill、VM 侧分发 7，防宿主专用编排技能流入 VM 执行体。
+
+### 9.2 宿主缓存文件白名单三处同步（防 ERR_MODULE_NOT_FOUND）
+
+给 `delivery/winvm-plugin.mjs` **新增相对 import** 时，同一个文件必须同时进三处，缺一即交付面破口：
+
+1. `delivery/install-host.mjs:1304` 宿主缓存 `extraFiles` 名单（投放面）；
+2. `delivery/install-host.mjs:215` `buildIntegrityFilePairs` 单文件面（integrity 对账面，与 ① **同名同源**）；
+3. 跑 `node delivery/install-host.mjs --check-fresh` 验证对账面一致（当前账面 187 对；缓存根实存 9 文件 =
+   7 源文件 + 2 生成启动器）。
+
+漏 ① ⇒ PATH 上的 winvm-plugin 启动器在宿主缓存侧直接 `ERR_MODULE_NOT_FOUND`（P2-4 怪癖 B，b9f1086 案例：
+`account-resolve.mjs` 曾缺席名单）；漏 ② ⇒ freshness 对账失真（多算=MISSING，少算=无人对账的孤儿文件）。

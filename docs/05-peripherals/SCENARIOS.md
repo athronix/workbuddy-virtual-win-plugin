@@ -54,12 +54,12 @@ vm-service → adapter(deterministic) → vm-capabilities → ps-bridge → ffmp
 **Demo（MCP 工具调用）**：
 ```jsonc
 // 工具名即能力 ID（宿主侧前缀 winvm__）
-winvm__appops_cli.invoke({
+winvm__appops.cli.invoke({
   "app": "ffmpeg",
   "command": "ffmpeg -i in/demo.mov -vf scale=1280:720 -c:v libx264 -crf 23 out/demo_720p.mp4",
   "outputDirectory": "C:\\WinVMWorkspace\\out"
 })
-winvm__appops_cli.invoke({
+winvm__appops.cli.invoke({
   "app": "ffmpeg",
   "command": "ffmpeg -i in/demo.mov -vf \"fps=10,scale=480:-1\" out/demo.gif",
   "outputDirectory": "C:\\WinVMWorkspace\\out"
@@ -93,7 +93,7 @@ PowerShell 端在 `finally` 中强制 `Quit()` + `ReleaseComObject` + `[GC]::Col
 
 **Demo（MCP 工具调用）**：
 ```jsonc
-winvm__appops_com.automate({
+winvm__appops.com.automate({
   "progId": "Excel.Application",
   "script": "打开 数据.xlsx → 选中区域 → 插入透视表(按 部门) → 导出 PDF",
   "documentPath": "C:\\WinVMWorkspace\\in\\数据.xlsx",

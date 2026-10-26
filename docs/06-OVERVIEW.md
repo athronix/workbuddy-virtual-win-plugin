@@ -68,7 +68,7 @@
 | 单元测试 + 端到端 | ✅ 全绿（**逐文件**方式跑，`FILES` / `TOTAL_TESTS` / `TOTAL_FAIL=0` / `TOTAL_SKIP=2` 的当前数值以 `qa/` 最新 `*-sweep-result.txt` 汇总行为权威源，本表不静态维护数字；skip 恒为 `ssh2-resolve` 离线用例 OFFLINE_SKIP；覆盖契约/策略/审计/双协议/审批链 K3/K4/K5/K-N1/K-N2/S-4/A5/CL-K3R、Phase 0 安全守卫 U-P0-1/U-P0-3/psmod 契约/装配点、Phase 1 安全兑现批 T1–T5（含 ARCH-22 真取消），以及 Phase 2 守卫基建批 P2-T11，无回归） |
 | 本地门禁 `npm run gate` | ✅ 五段流水线 GREEN：`tsc -b` → `dep-lint`（分层方向/反向边/框架审计边）→ `config-key-lint`（配置全键白名单）→ 契约/schema 守卫件 → 全仓逐文件 sweep；判据清单与"不进门禁项"见 `scripts/GATE-POLICY.md`（跳过门禁即视为未验收） |
 | ps-bridge 真实链路 | ✅ 真实 PowerShell 5.1，五大模块加载，返回真实系统数据 |
-| 安装器 dry-run | ✅ 8 Skill / 13 文件 / 2 增量补丁 / 静态禁用 8 高危工具 |
+| 安装器 dry-run | ✅ 8 Skill / 宿主缓存白名单 9 文件（7 源文件 + 2 生成启动器；integrity 面 `install-host.mjs:215` 与 extraFiles 面 `:1304` 同名同源，`--check-fresh` 对账） / 2 增量补丁 / 静态禁用 8 高危工具 |
 | VM 服务配置校验 | ✅ 0 错误 0 警告，强制回环绑定 |
 | self-test（含 provider 目录） | ✅ 默认 + `workbuddy` + `hermes-agent` LLM 均打印并校验 provider 能力目录，`/health` 报告 `provider.id` 正确 |
 | 共享 Skills 部署 dry-run | ✅ 发布 7 技能（`hos-win-skill` 列入 `HOST_ONLY_SKILLS` 交付链排除：仓库侧跳过 + 共享根历史误分发残留清理）+ 为 workbuddy/hermes-agent 建 symlink 规划（不写盘、不触碰只读 hermes 目录） |
@@ -96,7 +96,7 @@ re-export（P2-T10 的 `reconcileApprovalWait` 不进 ⇒ 对外契约面零变�
 
 **文档（docs/）**
 - `01-investigation/CONTEXT-ANALYSIS.md` 调研基线
-- `02-design/` 需求/架构/能力模型/3 份解耦规范/接口/安全监管（9 篇）
+- `02-design/` 需求/架构/能力模型/解耦规范/接口/安全监管/A2A 桥/Server 重放/LLM provider 等（12 篇）
 - `05-peripherals/` 部署指南 + 用户手册
 - `06-OVERVIEW.md` 本文件
 
