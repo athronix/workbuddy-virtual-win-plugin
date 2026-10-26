@@ -19,7 +19,7 @@
 ## 口径与纪律
 - 测试基线权威=`qa/p3-batch-sweep/` 最新 gate-*.txt 汇总行（现 2280 GREEN；文档禁硬编码）。门禁 `npm run gate`。
 - 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（hmdfs 大小写不敏感以 git 索引为准）；每迭代 --wipe 重验；完成必 push origin。V1.4.2=当前线上。
-- 文档：导航权威 `.dev/docs-index.md`；归档 `docs/archive/{changes,audit,test}`+legacy-*（10-26 两次归位：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes；铠大师中文名保留——活引用+契约锚点）；**qa/ 保原位**（setup/pack-release 活引用）；改路径前先查活引用。证据每轮一份 real-test-<date>-runN.md；FAIL 四元组；裁决落档再引用。
+- 文档：导航权威 `.dev/docs-index.md`；归档 `docs/archive/{changes,audit,test}`+legacy-*（10-26 两次归位：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes；铠大师中文名保留——活引用+契约锚点）；**qa/ 保原位**（setup/pack-release 活引用）；改路径前先查活引用。证据每轮一份 real-test-<date>-runN.md；FAIL 四元组；裁决落档再引用。⚠ hmdfs `core.ignorecase=true`：git mv 改大小写**磁盘名可能不变**（ISSUES.md 案，10-26 两步 rename 实修），大小写敏感 glob/脚本会踩空。
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
 ## backlog（P2）
