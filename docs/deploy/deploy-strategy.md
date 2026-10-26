@@ -15,7 +15,8 @@
 ② Windows LSA `LimitBlankPasswordUse=1` 禁止空密码账户**网络登录**。只改任一层都必然失败。
 → 首选让用户设非空密码；确实要保持空密码时按 §2.1-B 同时放行两层，并在建好免密通道后
 **立即回滚**。其余五步（免密通道、Release 获取与校验、VM-service 远程部署、宿主插件+隧道、
-全维度测试）均已实测通过。
+全维度测试）均已实测通过。部署跑通后进入 **Step 6 交付引导**（加载 `hos-win-skill` 并示范
+如何正确下发 VM 任务），它不参与部署判据，但决定后续任务的**通道路由是否正确**。
 
 | 步骤 | 结论 | 关键前置 | 实测 |
 |---|---|---|---|
@@ -100,7 +101,7 @@
 | `VM_MIN_NODE` | `18.0.0` | `v24.21.0` | VM 内 Node 版本下限（`preflight.vm-node` 的同一个判据） | ☐ |
 | `VM_NPM_REQUIRED` | `true` | `11.19.0` | VM 内 npm 必须可用（`preflight.vm-npm`） | ☐ |
 | `VM_AGENT_CLI` | `codebuddy` | `2.167.0` | `provider=workbuddy` 时 `preflight.vm-agent-cli` 探测的命令名 | ☐ |
-| `VM_AGENT_CLI_PKG` | `@tencent-ai/codebuddy-code` | `latest=2.176.0` | 缺失时用于 `npm i -g` 的包名（`registry.npmjs.org` 可达） | ☐ |
+| `VM_AGENT_CLI_PKG` | `@tencent-ai/codebuddy-code@latest` | `latest=2.176.0`（VM 现装 2.167.0） | 缺失时用于 `npm i -g` 的包名；**默认取 latest，不锁定版本号**（用户裁定） | ☐ |
 | `VM_NODE_PM` | `nvm-windows 2.0.0` | `* 24.21.0 (default)` | Node 版本管理器（**已装**）；切版本会使全局 CLI 失效，见 §4 Step 3.0 | ☐ |
 | `VM_AUTH_DIR` | `~/.codebuddy` | `settings.json,user-state.json` | 登录态探测标记目录（`evaluateAgentLogin` 同源） | ☐ |
 
@@ -301,6 +302,8 @@ GUI 类能力需已登录的交互式会话（锁屏态不可测）。
 [4] install-host.mjs --yes ──► tunnel ensure ──► 宿主 health + check-fresh
      │
 [5] 连通性/健康/功能测试 ──► qa/real-test-<date>-run<N>.md
+     │
+[6] 交付引导（不参与判据）：加载 hos-win-skill ──► 通道速判 ──► 任务下发示范
 ```
 
 > Step 3.0 是**硬前置**：`deploy-vm` 的 `preflight` 对 node/npm/agent-CLI 均为 `blocking`，
@@ -420,7 +423,7 @@ ssh User@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/
 |---|---|---|---|
 | **node <18 或无 node** | `NODE_OK=false` / `NODE_FOUND=false` | ① 有 nvm：`nvm install 24.21.0 && nvm use 24.21.0`<br>② 无 nvm：官方 MSI `msiexec /i node-v24.21.0-x64.msi /qn /norestart`（需管理员 + **桌面会话**） | **`winget` 在本链路不可依赖**（见下） |
 | **无 npm** | `NPM_FOUND=false` | 随 Node 一并装（npm 自带），不要单独装 | npm 缺失 99% 是 node 没装对 |
-| **无 codebuddy CLI** | `CLI_OK=false` + `CLI_INSTALL_CMD` | `npm i -g @tencent-ai/codebuddy-code` | 写用户目录，**无需提权**；实测 16s / 102 包 |
+| **无 codebuddy CLI** | `CLI_OK=false` + `CLI_INSTALL_CMD` | `npm i -g @tencent-ai/codebuddy-code@latest` | 写用户目录，**无需提权**；实测 16s / 102 包。**默认 latest，不锁版本**（探针等价于 `@latest`） |
 | **登录态未确认** | `AUTH_VERDICT=installed-unverified` | VM 内**交互式**跑一次 `codebuddy` 完成登录 | 结构性不可脚本化（无 `whoami`/`auth status`） |
 
 自动化一条命令（只自动补 CLI，运行时不缺就短路）：
@@ -440,7 +443,7 @@ ssh User@$VM_HOST 'powershell -NoProfile -Command "node -v; npm -v; codebuddy --
 # 三行都出版本号即 PASS（实测 v24.21.0 / 11.19.0 / 2.167.0）；
 # 缺哪个会打印 CommandNotFoundException 而非版本号。
 # 补装 CLI（与探针 -Fix 等价）：
-ssh User@$VM_HOST 'powershell -NoProfile -Command "npm i -g @tencent-ai/codebuddy-code"'
+ssh User@$VM_HOST 'powershell -NoProfile -Command "npm i -g @tencent-ai/codebuddy-code@latest"'
 ```
 
 > ⚠ 这条内联式**只可用于「读版本号」这类无 `$_` 的简单载荷**；任何含 `$_`/`$?`/引号的逻辑
@@ -586,9 +589,108 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 >   `GET /.well-known/agent-card.json`；执行端点 = `POST /a2a`；健康探测走 MCP 工具 `a2a.health`。
 > - **reporting**：汇总写入 `qa/real-test-2026-10-26-run<N>.md`（三张表 + 失败四元组）。
 
+### Step 6 · 交付引导（加载 hos-win-skill 并示范任务下发）
+
+> **这一步不参与部署成功判据**（Step 0~5 全绿即部署完成），它解决的是**"交付之后怎么用"**。
+> 跳过不会立刻报错，但后续任务极可能**走错通道**（例如让 WB 裸 ssh 跑 PowerShell，绕过能力层
+> 与审批闸）——那等于把你刚建好的安全边界从使用面拆掉。
+
+#### 6.1 先加载两个 Skill（顺序不能反）
+
+| Skill | 落点 | 作用 | 加载方式 |
+|---|---|---|---|
+| **`hos-win-skill`**（鸿蒙↔Windows 任务分派） | 宿主用户级 `~/.workbuddy/skills/hos-win-skill/`（**host-only，不分发到 VM**） | 判定「哪一步在鸿蒙做、哪一步经 winvm 通道交给 VM」，并给通道路由三条铁律 | `@skill:hos-win-skill`，或由 triggers 自动触发（`Windows 操作`/`虚拟机任务`/`C 盘清理`/`装软件`/`VM 文件`/`跨 App 数据`） |
+| **`winvm-orchestrator`**（VM 总控编排） | 连接器 `~/.workbuddy/connectors/skills/connector-winvm/winvm-orchestrator/` | 进入 VM 后的**唯一总控入口**，负责能力选择与调用 | 由 hos-win-skill 带入，或 `@skill:winvm-orchestrator` |
+
+判据：`ls ~/.workbuddy/skills/hos-win-skill/SKILL.md` 存在（宿主侧），且
+`~/.workbuddy/connectors/skills/connector-winvm/` 下有 **7** 个 `winvm-*` skill（VM 执行面）。
+
+**为什么必须先加载**：不加载时模型倾向"直接用 ssh 跑 powershell"，这会绕过宿主 `mcp.json` 的
+`disabledTools` 静态禁用与 `DELEGATION_REQUIRED` 审批闸——**审批卡不会出现、操作不留审计回执**。
+
+#### 6.2 通道路由三条铁律（摘自 hos-win-skill，优先级从高到低）
+
+1. **风险优先**：目标是 **L2/L3** 能力（`service.configure`/`process.terminate`/`registry.write`/
+   `winget.uninstall`/`file.delete`/`link.manage`/`appops.gui.produce`/`power.control`，共 8 项）
+   ⇒ **一律 `a2a.delegate`**，直调面本就看不到它们；即便绕过直调，服务端策略也会收口。
+2. **步骤定界**：能预先穷举成 1–2 步、无中间判断 ⇒ **MCP 直调**；步骤依赖上一步结果、
+   需看屏决策、或只给目标态 ⇒ **`a2a.delegate`**。
+3. **先探后定**：不确定就先直调一条 L0 读能力（`system.info.get` / `meta.health.check`）取事实
+   再定通道；直调途中收到 `DELEGATION_REQUIRED` ⇒ **立即转委派，不要重试**。
+
+#### 6.3 典型任务 Prompt 示例（可直接粘贴给 WorkBuddy）
+
+写法模板：**【在哪】VM + 【要什么】目标态 + 【约束】只读/可改/先方案后执行 + 【验收】怎么算成功**
+
+| # | 场景 | 建议 Prompt（照抄） | 通道 | 命中能力 | 能力实测 |
+|---|---|---|---|---|---|
+| 1 | 只读盘点 | 「在 Windows 虚拟机里列出所有已安装的软件，按名称排序，**只查不改**，结果给我表格」 | MCP 直调 | `app.inventory.list` | ✅ 已实跑 |
+| 2 | 空间分析 | 「分析 VM 的 C 盘空间占用，给我占空间最大的前 10 个目录，**只读**」 | MCP 直调 | `storage.disk.list` + `storage.space.analyze` | ✅ disk.list / ⏳ space.analyze |
+| 3 | 看屏幕 | 「截一张 VM 当前桌面的图，告诉我屏幕上开着哪些窗口」 | MCP 直调 | `gui.screen.capture` + `gui.window.list` | ✅ gui.session.status / ⏳ 另两项 |
+| 4 | 装软件（含验证） | 「在 VM 上安装 7-Zip，装完启动一次确认能用，失败就告诉我卡在哪一步」 | A2A（多步+验证） | `app.winget.install` | ⏳ 需 L1 写操作，未实跑 |
+| 5 | 服务排障 | 「VM 上 `WinVMBridge.Service` 停了，查明原因并恢复，最后确认 `/health` 正常」 | A2A（多步+决策） | `system.service.list/control` + `system.eventlog.query` | ⏳ 未实跑 |
+| 6 | C 盘清理 | 「把 VM 的 C 盘腾出 20GB：**先给清理方案和预计回收量**，我确认后再执行」 | A2A（L2 删除） | `storage.cleanup.analyze` → `storage.file.delete` | ⏳ L2 不可在验收中实删 |
+| 7 | GUI 操作 | 「打开 VM 里的记事本，输入一行 `hello from host`，保存到 `C:\WinVMWorkspace\hi.txt`」 | A2A（看屏循环） | `gui.input.keyboard` + `gui.uia.invoke` | ⏳ 需交互式会话 |
+| 8 | 应用生产 | 「用 VM 里的 Photoshop 把 `C:\WinVMWorkspace\in.jpg` 裁成 1920×1080，导出 PNG 到同目录」 | A2A（L2） | `appops.gui.produce` | ⏳ L2，未实跑 |
+| 9 | 跨端取文件 | 「把 VM 桌面上的 `report.xlsx` 拷到鸿蒙 `~/Downloads`，再读前几行内容给我」 | MCP 直调 | `storage.file.copy` + `storage.file.read` | ⏳ 未实跑 |
+
+> **实测口径**：✅ = 已在 `qa/deploy-probes/mcp-probe.py` 的 20 项验收里实跑通过；
+> ⏳ = 能力名与语义已按 `meta.capability.list` 核对，但**本轮未实跑**（原因见 §9.2）。
+> 补测脚本：`qa/deploy-probes/example-probe.py`（只读，VM 恢复后一条命令跑完）。
+
+#### 6.4 三种常见「错误下发」及其后果
+
+| 错误说法 | 实际会发生什么 | 正确说法 |
+|---|---|---|
+| 「你 ssh 进 VM 跑一下 `Get-Service`」 | 绕过能力层与审批闸：**审批卡不出现**、操作**不留审计回执**、能力层校验全跳 | 「查一下 VM 里的服务状态」（走 `system.service.list`） |
+| 「顺手把 C 盘清一下」 | L2 删除没有方案对照，**不可逆**风险 | 「先分析 C 盘给清理方案，我确认后再删」 |
+| 「帮我在 VM 里把环境配好」 | 目标态过开放，VM Agent 可能自行选错路径/装错版本 | 「在 VM 装 Node LTS + codebuddy latest，装完输出 `node -v`/`codebuddy --version`」 |
+
+#### 6.5 交付自检（3 条全过才算「真能用」）
+
+```sh
+# ① skill 就位
+ls ~/.workbuddy/skills/hos-win-skill/SKILL.md
+ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l        # 期望 7
+# ② 通道可用（宿主经隧道）
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18443/health   # 期望 200
+# ③ 实跑一个只读任务：在 WB 会话里说「查一下 VM 的系统信息」
+#    → 应命中 winvm__system.info.get 并返回真实字段（不是"没找到工具"）
+```
+
 ---
 
 ## 5. 排错速查
+
+### 5.0 遇到困难时的处置协议（先读这节）
+
+**原则：不停机、不硬推、不静默降级。** 任何一步失败都走同一条三段式：
+
+1. **定位根因**（给证据，不给猜测）——取证最小集：退出码 + stderr 首行 + 该步判据字段的实际值
+   （`ENV_PRECHECK` / `task_state` / `health_body.ok` / `tunnel.state`）+ 一条对照证据。
+   禁止用「可能是网络问题」结案。
+2. **给方案**（2~3 个，每个标注**可逆性 / 风险 / 耗时 / 影响面**）。
+3. **要决策**（带推荐项，等用户选；用户不表态就默认选**可逆**那个，并在报告里写明"默认选择"）。
+
+**必须停下来问用户的 5 类动作**（不得自行决定）：
+
+| 类别 | 例子 | 为什么必须问 |
+|---|---|---|
+| 降低安全基线 | `LimitBlankPasswordUse=0`、`PermitEmptyPasswords yes`、关防火墙、删 `disabledTools` 条目 | 影响面超出本项目 |
+| 不可逆数据操作 | 批量 `storage.file.delete`、`--purge-workspace`、清回收站 | 删了不可恢复 |
+| 破坏性系统动作 | `power.control`（L3）、终止系统进程、改服务启动类型 | 可能打断用户工作 |
+| 换版本 / 换 provider | `nvm use` 切 Node、`WINVM_VM_PROVIDER` 改档、升级到 `@latest` | 会改变已验证的基线 |
+| 放宽验收判据 | 「这步先跳过」「警告也算过」 | 等于降低交付质量 |
+
+**重试纪律**：同一判据连续失败 **2 次**必须停下来问（不许第 3 次盲试）；重试前必须改变一个变量
+（端口/超时/顺序/凭据/版本），否则就是"同样的实验期待不同结果"。
+
+**多轮交互要求**：一次问不动就换角度再问（补数据、给对比、给可选项），直到拿到明确决策；
+**每次交互都要给可选项与推荐项**，不许开放式"你说怎么办"。每轮结论落
+`~/winvm-deploy/deploy-session.md`（决策台账：步骤 / 现象 / 根因 / 决策 / 结果），
+防止上下文丢失后重复问同一件事。
+
+### 5.1 速查表
 
 | 现象 | 根因 | 处置 |
 |---|---|---|
@@ -737,6 +839,20 @@ Step 5 全维度测试并出报告
   报告写 qa/real-test-<今天>-run<N>.md：健康/连接/功能/A2A 四张表 + 失败四元组，
   并给出「可交付 / 有阻塞」的明确结论。
 
+Step 6 交付引导（不参与部署判据，但决定后续任务通道路由）
+  6.1 加载 skill：@skill:hos-win-skill（宿主用户级 ~/.workbuddy/skills/hos-win-skill/）
+      由它带入 winvm-orchestrator（连接器 7 个 winvm-* skill 之一）。
+      判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；
+            ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l == 7
+  6.2 通道路由三条铁律：风险优先（L2/L3 一律 a2a.delegate）> 步骤定界（1~2 步可穷举→MCP 直调）
+      > 先探后定（先 L0 读能力取事实；收到 DELEGATION_REQUIRED 立即转委派，勿重试）。
+  6.3 给用户 3 个可直接粘贴的示范（按通道各一）：
+      - 直调读：「在 Windows 虚拟机里列出所有已安装软件，只查不改，给表格」→ app.inventory.list
+      - 直调诊断：「分析 VM 的 C 盘空间占用，给前 10 大目录，只读」→ storage.space.analyze
+      - 委派多步：「VM 上 WinVMBridge.Service 停了，查明原因并恢复，最后确认 /health 正常」
+        → a2a.delegate（goal 传自然语言）
+  6.4 明确告知用户：**不要**让助手 ssh 进 VM 裸跑 PowerShell（会绕过审批卡与审计回执）。
+
 【排错速查】
 - 密码拒绝：先区分密码错 / 空密码。空密码是**两层串联拦截**（OpenSSH PermitEmptyPasswords=no
   默认 + LSA LimitBlankPasswordUse=1）→ 首选请用户设非空密码；坚持空密码则两层同时放行，
@@ -775,6 +891,7 @@ Step 5 全维度测试并出报告
 | 2026-10-26 | v2.0 | 首版：六步策略、可行性论证、实测基线与排错表、WorkBuddy 指导 Prompt |
 | 2026-10-26 | v2.1 | 六步**全流程真机实测通过**（25/25）：补 §0.5 部署参数变量表、各步「实测记录」、`qa/deploy-probes/` 四探针；`AGENT_PROVIDER` 默认改 `workbuddy` |
 | 2026-10-26 | v2.2 | 新增 **Step 3.0 VM 运行时前置自检**（node≥18 / npm / codebuddy CLI / 登录态）：`qa/deploy-probes/vm-env-check.ps1`（含 `-Fix` 与 `-SimulateMissing` 自测）+ §0.5-F 前提变量表 + §2.3 安装面实测 + 排错 6 条。**provider 维持 `workbuddy` + `WINVM_WORKBUDDY_CLI=codebuddy`（用户裁定不引入 `workbuddy-native`）** |
+| 2026-10-26 | v2.4 | **安装默认取 latest 不锁版本**（`@latest`，用户裁定）+ 新增 **§5.0 遇到困难时的处置协议**（三段式：定位根因→给方案→要决策；5 类必须问的动作；2 次重试熔断；决策台账）+ 新增 **Step 6 交付引导**（加载 `hos-win-skill`/`winvm-orchestrator`、通道三铁律、9 个典型任务 Prompt 示例、3 种错误下发对照、交付自检 3 条） |
 | 2026-10-26 | v2.3 | 新增 **§2.1-B 空密码分支预案**（首选设密码／次选两层同时放行 + 建好即回滚）+ `VM_PW_MODE` 变量 + §0/§1 口径订正（原「与 PermitEmptyPasswords 无关」被实测证伪：**两层都在拒**）+ 排错拆成「有密码/空密码」两条 |
 
 ### 9.1 本次实测发现的三处发布链缺口（须在下次发版前处置）
@@ -787,4 +904,35 @@ Step 5 全维度测试并出报告
 
 > 三处缺口**不影响本策略可行**（六步均已实测通过），但影响「从 Release 安装」的**交付质量**。
 > 处置顺序建议：先修 G-2 / G-3（低成本、纯增量）→ 再随 V1.4.3 一起关 G-1。
+
+### 9.2 待补测项（本轮环境中断导致，需 VM 恢复后补齐）
+
+**现象**：2026-10-26 18:05 起 VM `172.16.100.2` 从宿主**完全不可达**（`ping` 3/3 丢包、
+`ssh: Host is unreachable`、宿主 `18443` 隧道随之 `Connection refused`）。
+
+**分层定位（已做，排除宿主侧）**：
+
+| 层 | 探针 | 结果 | 结论 |
+|---|---|---|---|
+| 宿主出网 | `curl -m10 https://github.com` | **200** | 宿主网络正常 |
+| VM 网段网关 | `ping 172.16.100.1` | **OK** | 宿主到该网段路由正常 |
+| 目标 VM | `ping 172.16.100.2` ×3 | **全丢** | 故障点在 **VM 本身** |
+| VM sshd | `ssh -o ConnectTimeout=8` | `Host is unreachable` | 非 sshd/防火墙"拒绝"，是**主机不响应** |
+| 宿主隧道 | `curl 127.0.0.1:18443/health` | `Connection refused` | 隧道因上游断连而退出（**结果，非原因**） |
+
+**最可能原因**（需用户在 VM 控制台确认）：VM 休眠/关机、虚拟网卡断开、或宿主侧虚拟化
+服务暂停。这类问题**无法从宿主侧远程修复**（没有带外管理通道）。
+
+**处置建议**：① 在 VM 控制台/RDP 确认电源与网络状态；② 若为休眠，唤醒后隧道需
+`winvm-plugin tunnel ensure` 重起；③ 恢复后跑：
+
+```sh
+python3 qa/deploy-probes/mcp-probe.py     # 20 项回归
+python3 qa/deploy-probes/a2a-probe.py     # 5 项回归
+python3 qa/deploy-probes/example-probe.py # Step 6 示例能力补测（本次新增，只读）
+```
+
+**收窄的结论（诚实口径）**：部署本身已在 17:2x 前完成 25/25 验收；本次中断发生在**文档
+与补测阶段**，不影响已交付的部署结果。Step 6.3 中标记 ⏳ 的 7 项属"语义已核、未实跑"，
+**不得对外宣称已验证**。
 

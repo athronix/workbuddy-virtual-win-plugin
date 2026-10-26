@@ -95,10 +95,13 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 | `VM_MIN_NODE` | `18.0.0` | `v24.21.0` | Node 版本下限（`preflight.vm-node` 判据） | ☐ |
 | `VM_NPM_REQUIRED` | `true` | `11.19.0` | npm 必须可用（`preflight.vm-npm`） | ☐ |
 | `VM_AGENT_CLI` | `codebuddy` | `2.167.0` | `provider=workbuddy` 时探测的 CLI 名（`preflight.vm-agent-cli`） | ☐ |
-| `VM_AGENT_CLI_PKG` | `@tencent-ai/codebuddy-code` | `latest=2.176.0` | 缺失时 `npm i -g` 的包名 | ☐ |
+| `VM_AGENT_CLI_PKG` | `@tencent-ai/codebuddy-code@latest` | `latest=2.176.0`（VM 现装 2.167.0） | 缺失时 `npm i -g` 的包名；**默认 latest，不锁版本** | ☐ |
 | `VM_NODE_PM` | `nvm-windows 2.0.0` | `* 24.21.0 (default)` | Node 版本管理器（**切版本会使全局 CLI 失效**） | ☐ |
 | `VM_AUTH_DIR` | `~/.codebuddy` | `settings.json,user-state.json` | 登录态探测标记（`evaluateAgentLogin` 同源） | ☐ |
 | `VM_CLI_CHECK` | `qa/deploy-probes/vm-env-check.ps1` | 三例 PASS | 三合一探针（`-Fix` 只补 CLI，`-SimulateMissing` 自测） | ☐ |
+
+> **版本策略已定（用户裁定 2026-10-26）**：所有安装一律取 **`@latest`**，**不锁定版本号**。
+> 文档中出现的 `2.167.0` / `2.176.0` 只是**当轮实测快照**，不是要钉住的版本。
 
 ### 2.7 宿主工具路径（鸿蒙沙箱必须绝对路径）
 
@@ -189,7 +192,7 @@ Step 3 · 部署 VM-service（用免密通道）
           无 nvm → 官方 MSI 静默装（需管理员 + 桌面会话）。
           ⚠ 不要用 winget：经 ssh 非交互会话是 MSIX alias 空壳（--version 输出空且 exit 0）。
         - 无 npm：随 Node 一起装，不要单独补。
-        - 无 codebuddy：`npm i -g @tencent-ai/codebuddy-code`（写用户目录，无需提权）。
+        - 无 codebuddy：`npm i -g @tencent-ai/codebuddy-code@latest`（写用户目录，无需提权；默认 latest 不锁版本）。
           ⚠ nvm 切版本会使全局 CLI 失效 → 换版本后必须重装。
         - AUTH_VERDICT=installed-unverified → VM 内交互式跑一次 `codebuddy` 完成登录。
       自动化（只补 CLI，已装则短路）：探针加 `-Fix`。
@@ -235,6 +238,28 @@ Step 5 · 全维度测试并出报告
       并给「可交付 / 有阻塞」明确结论。
 
 ────────────────────────────────────────
+Step 6 交付引导（不参与部署判据，但决定后续任务通道路由是否正确）
+  6.1 加载 skill（顺序不能反）：
+      @skill:hos-win-skill         # 宿主用户级 ~/.workbuddy/skills/hos-win-skill/
+      由它带入 winvm-orchestrator    # 连接器 7 个 winvm-* skill 之一
+      判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；
+            ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l == 7
+  6.2 通道路由三条铁律（优先级从高到低）：
+      ① 风险优先：L2/L3（service.configure/process.terminate/registry.write/winget.uninstall/
+         file.delete/link.manage/appops.gui.produce/power.control）一律 a2a.delegate；
+      ② 步骤定界：1~2 步可穷举、无中间判断 → MCP 直调；依赖上一步结果/需看屏/只给目标态 → 委派；
+      ③ 先探后定：先直调 L0 读能力取事实；收到 DELEGATION_REQUIRED 立即转委派，不要重试。
+  6.3 给用户 3 个可直接粘贴的示范（每条注明通道）：
+      - 直调读：「在 Windows 虚拟机里列出所有已安装软件，按名称排序，只查不改，给表格」
+        → app.inventory.list
+      - 直调诊断：「分析 VM 的 C 盘空间占用，给我前 10 大目录，只读」
+        → storage.disk.list + storage.space.analyze
+      - 委派多步：「VM 上 WinVMBridge.Service 停了，查明原因并恢复，最后确认 /health 正常」
+        → a2a.delegate（goal 传自然语言目标，不是 capability）
+  6.4 明确告知用户：**不要**让助手 ssh 进 VM 裸跑 PowerShell —— 会绕过审批卡与审计回执，
+      等于把安全边界从使用面拆掉。
+  6.5 交付自检 3 条：skill 就位 / curl 宿主 18443/health=200 / 实跑「查一下 VM 的系统信息」有真实返回。
+
 【排错速查】
 - 密码拒绝 → 先区分密码错 / 空密码。空密码是两层串联拦截（OpenSSH PermitEmptyPasswords=no
   默认 + LSA LimitBlankPasswordUse=1）→ 首选设非空密码；用户同意降级时两层同时放行
@@ -254,7 +279,7 @@ Step 5 · 全维度测试并出报告
 
 ---
 
-## 4. 分步 Prompt（P1~P5）
+## 4. 分步 Prompt（P1~P6）
 
 需要人工逐步确认时，逐段粘贴；每段自带判据。
 
@@ -308,7 +333,8 @@ Step 5 · 全维度测试并出报告
    ssh User@172.16.100.2 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/User/vm-env-check.ps1'
    判据：ENV_PRECHECK=PASS 且 BLOCKERS=none（NODE_OK / NPM_FOUND / CLI_OK 全 true）。
    缺失按序补齐：node<18 → nvm install/use（无 nvm 用 MSI，勿用 winget）；
-                 npm 缺 → 随 Node 装；codebuddy 缺 → npm i -g @tencent-ai/codebuddy-code。
+                 npm 缺 → 随 Node 装；codebuddy 缺 → npm i -g @tencent-ai/codebuddy-code@latest
+                 （默认 latest，不锁版本）。
 1) cp -n .env.example .env；确认 VM_HOST=172.16.100.2 / VM_USER=User / VM_SSH_PORT=22 /
    VM_DEPLOY_DIR=C:/WinVMBridge / WINVM_SERVICE_PORT=18443 /
    WINVM_VM_PROVIDER=workbuddy / WINVM_WORKBUDDY_CLI=codebuddy；并把 WINVM_DRY_RUN 改为 0。
@@ -351,6 +377,26 @@ Step 5 · 全维度测试并出报告
  - app.inventory.list 不接受 limit，传 {}。
  - a2a.delegate 必填 goal（自然语言），不是 capability/input。
  - 没有 /a2a/health 路由；发现用 GET /.well-known/agent-card.json，健康用 MCP 工具 a2a.health。
+```
+
+---
+
+### P6 · 交付引导（加载 hos-win-skill 并示范任务下发）
+
+```text
+部署已通过，现在进入交付引导：让用户能正确下发 Windows 任务。
+1) 加载 @skill:hos-win-skill（宿主用户级；host-only，不在 VM 侧），由它带入 winvm-orchestrator。
+   判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md；connector-winvm 下 7 个 winvm-* skill。
+2) 向用户复述通道三铁律：风险优先（L2/L3 必走 a2a.delegate）／步骤定界（1~2 步可穷举走 MCP 直调）
+   ／先探后定（先 L0 读能力取事实，遇 DELEGATION_REQUIRED 立即转委派）。
+3) 给 3 个可直接粘贴的示范（覆盖两条通道）：
+   - 「在 Windows 虚拟机里列出所有已安装软件，只查不改，给表格」（MCP 直调）
+   - 「分析 VM 的 C 盘空间占用，给前 10 大目录，只读」（MCP 直调）
+   - 「VM 上 WinVMBridge.Service 停了，查明原因并恢复，最后确认 /health 正常」（A2A 委派）
+4) 反例提醒：不要让助手「ssh 进 VM 跑 Get-Service」——会绕过审批闸，且不留审计回执；
+   L2 动作（删除/卸载/写注册表）必须走委派以取得审批卡。
+5) 能力实测状态见 `deploy-strategy.md` §9.2：标 ⏳ 的场景**语义已核但未实跑**，不要对用户
+   宣称"已验证"。VM 恢复后跑 `python3 qa/deploy-probes/example-probe.py` 补测（只读）。
 ```
 
 ---
@@ -403,7 +449,7 @@ $PY qa/deploy-probes/a2a-probe.py
 | 部署打「✅ 完成」但服务没起 | `.env` 的 `WINVM_DRY_RUN=1` | 改 `0` 重跑 |
 | 部署前 preflight 报 `vm-node` 失败 | VM 无 Node 或 <18（`blocking`，直接中止） | Step 3.0：有 nvm → `nvm install 24.21.0 && nvm use 24.21.0`；无 nvm → MSI 静默装（需桌面会话） |
 | preflight 报 `vm-npm` 失败 | 有 node 无 npm（安装残缺） | 重装完整 Node 发行版，不要单独补 npm |
-| preflight 报 `vm-agent-cli` 失败 | VM 内 `codebuddy --version` 非 0 | `npm i -g @tencent-ai/codebuddy-code`；或临时切 `workbuddy-deterministic` 先通链路 |
+| preflight 报 `vm-agent-cli` 失败 | VM 内 `codebuddy --version` 非 0 | `npm i -g @tencent-ai/codebuddy-code@latest`；或临时切 `workbuddy-deterministic` 先通链路（**须用户同意**） |
 | 装完 codebuddy 又「找不到命令」 | `nvm use` 切了 Node 版本，全局包在旧 prefix | 当前版本重装 CLI；核对 `npm config get prefix` |
 | 想用 `winget` 装 Node | ssh 非交互会话 MSIX alias 空壳（`--version` 空、exit 0） | 改 nvm 或 MSI；winget 仅桌面会话可用 |
 | 远端 `ParserError` / 乱码 | 内联 `-Command` 被本地 bash 展开 `$_` | 写 `.ps1` → `scp` → `powershell -File`；ASCII 载荷 |
@@ -429,14 +475,83 @@ $PY qa/deploy-probes/a2a-probe.py
 | 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / `V1.4.2`） | 用户：逐项确认或改写 |
 | 4 | **VM 密码管理方式** | 当前经 `WINVM_SSH_PASSWORD` 运行期注入，未落任何文件 | 用户：确认是否维持该方式 |
 | 5 | **`qa/deploy-probes/` 是否进发布包（G-3）** | **实测：不进包**。`pack-release.mjs` 只带 `qa/probes/` 两件；V1.4.2 包内 `MANIFEST` 搜 `deploy-probes` = **0 命中**。故 Step 3.0/2/5 的探针目前须**从仓库取**（P0~P5 隐含有仓库前提） | 用户：是否把 `qa/deploy-probes/` 纳入 `pack-release` 的 overall 白名单（否则纯 Release 安装无探针可用） |
-| 6 | **VM 侧 codebuddy CLI 版本策略** | VM 现装 `2.167.0`，npm `latest=2.176.0`（落后 9 个补丁版本）；探针只查"可用"不查版本 | 用户：是否固定版本（`npm i -g @tencent-ai/codebuddy-code@2.167.0`）还是跟 latest |
 
 ---
 
-## 8. 变更记录
+## 8. 异常处置与决策交互协议（执行中遇到困难时）
+
+> 这一节是**给执行者的行为约束**：部署的目标不是"一次就过"，而是**遇到问题能挖到根因、
+> 把选择权交回用户、并最终跑通**。**禁止**静默降级、禁止把警告当通过、禁止同一动作反复盲试。
+
+### 8.1 三段式（每次失败都必须走完，缺一不可）
+
+**① 定位根因 → ② 给方案 → ③ 要决策。** 只报"失败了"属不合格。
+
+取证最小集（缺任一项都算没定位）：
+
+| 要素 | 具体要抓什么 |
+|---|---|
+| 原始退出码 | `$?` / `$LASTEXITCODE` / 命令自身的 exit code |
+| stderr **首行** | 不要贴整段日志（首行通常就是根因） |
+| 该步**判据字段**实际值 | `ENV_PRECHECK` / `BLOCKERS` / `task_state` / `health_body.ok` / `tunnel.state` / `tunnel.ownerMatch` |
+| 一条**对照证据** | 同命令换 provider/端口/路径的结果，或"已知可用基线值"（如 `latest=2.176.0`） |
+
+### 8.2 问题分类 → 根因定位 → 候选方案
+
+| 类别 | 典型现象 | 根因定位（具体做法） | 方案（推荐在前） |
+|---|---|---|---|
+| **版本问题** | `vm-agent-cli` 失败；`codebuddy --version` 非 0；切 Node 版本后命令消失 | `npm ls -g --depth=0`；`npm config get prefix`；`Get-Command codebuddy` | ① `npm i -g @tencent-ai/codebuddy-code@latest`（默认策略）② 切回原 Node 版本 ③ 临时改 `workbuddy-deterministic`（**须用户同意**） |
+| **依赖缺失** | `NODE_OK=false` / `NPM_FOUND=false` | `node -v`；`npm -v`；`nvm list` | ① 有 nvm：`nvm install <LTS> && nvm use …` ② 无 nvm：MSI 静默装（需桌面会话）③ 改 deterministic（**须用户同意**） |
+| **变量默认值错误** | 端口占用 / IP 不通 / 路径不存在 / 开关不生效 | 逐项核 §2 变量表 vs 实际：`Get-NetTCPConnection -State Listen`、`ping`、`Test-Path` | ① 改 `.env` 单键重跑（**唯一正确做法**）② 改能力入参 ③ 换端口/目录（须说明原因） |
+| **网络 / 链路** | `curl (28)`、`npm ERR! network`、`Host is unreachable` | `ping -c3`；`curl -I` 连试 3 次；`npm view` | ① `--retry-all-errors -C -` 重试 ② 换绝对 URL ③ 断点续传重下（瞬时抖动 ≠ 封禁） |
+| **权限 / ACL** | `Permission denied (publickey)`；sshd 拒绝 key 文件 | `icacls <file>`；`Get-Acl`；`Get-LocalUser` | ① 写 `administrators_authorized_keys` + `icacls /inheritance:r`（用 SID）② 核对账户是否在 Administrators |
+| **状态冲突** | 端口被占 / 旧隧道黑洞 / 计划任务卡住 / 服务起不来 | `Get-NetTCPConnection`；`tunnel status --json`；`schtasks /query`；`kill-restart.ps1` | ① kill 旧 PID 后 `ensure` ② `kill-restart.ps1` ③ 清场重装（`--wipe`，**须用户同意**） |
+| **断言写错（非缺陷）** | 「`tools/list` 里不该有高危工具」这类失败 | 对照 §5 踩坑：原始 MCP 面恒列 54，闸门在宿主 `mcp.json` | ① 改断言（读 `disabledTools.length===8`）② 报告里注明"验收口径问题，非产品缺陷" |
+
+### 8.3 必须先问用户的 5 类动作（不得自行决定）
+
+1. **降低安全基线**：`LimitBlankPasswordUse=0`、`PermitEmptyPasswords yes`、关防火墙、删 `disabledTools`。
+2. **不可逆数据操作**：批量 `file.delete`、`--purge-workspace`、清回收站。
+3. **破坏性系统动作**：`power.control`（L3）、终止系统进程、改服务启动类型。
+4. **换版本 / 换 provider**：`nvm use` 切 Node、`WINVM_VM_PROVIDER` 改档、升到 `@latest` 改变已验证基线。
+5. **放宽验收判据**：「这步先跳过」「警告也算过」。
+
+### 8.4 交互模板（照抄填写即可）
+
+```text
+【卡在哪】Step 3.0 / 判据 ENV_PRECHECK
+【现象】CLI_OK=false，`codebuddy --version` 退出码 1
+【证据】Get-Command codebuddy → %LOCALAPPDATA%\Author Software\nvm\installs\v24.21.0\codebuddy.ps1
+        npm ls -g --depth=0 → 无 @tencent-ai/codebuddy-code
+        npm config get prefix → %LOCALAPPDATA%\Author Software\nvm\installs\v24.21.0
+        对照：npm view @tencent-ai/codebuddy-code version → 2.176.0（registry 可达）
+【根因】当前 nvm 版本 prefix 下未安装该包（此前的安装在别的 Node 版本下，切版本后失效）
+【方案】A. npm i -g @tencent-ai/codebuddy-code@latest（约 16s，可逆，只影响 VM 用户目录）★推荐
+        B. nvm use <旧版本> 回退（可逆，但 Node 可能低于 18 要求）
+        C. 临时改 workbuddy-deterministic 先通链路（能力降级，需你同意）
+【影响】A 不改服务与数据；B 会导致 requirements 不满足；C 失去 LLM 编排能力
+【请选】A / B / C ？
+```
+
+### 8.5 重试与收敛纪律
+
+- **同一判据连续失败 2 次 ⇒ 停下来问**（不许第 3 次盲试）；重试前必须改动至少一个变量
+  （端口/超时/顺序/凭据/版本），否则是"同样的实验期待不同结果"。
+- **多轮交互**：一次问不动就换角度再问（补数据、给对比、给可选项）；每次必须带**可选项 + 推荐项**，
+  不许开放式"你说怎么办"。用户不表态时默认选**可逆**方案，并在报告里写明"默认选择"。
+- **决策台账**：每轮结论追加到 `~/winvm-deploy/deploy-session.md`
+  （步骤 / 现象 / 根因 / 决策 / 结果）。上下文丢失后**先读它**，不要重复问同一件事。
+- **成功定义**：Step 0~5 判据全过 + 25 项验收全绿。有阻塞必须给
+  「可交付 / 有阻塞（阻塞点 + 影响 + 建议）」明确结论，**不许把警告当通过**。
+
+---
+
+## 9. 变更记录
 
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-10-26 | v1.0 | 首版：变量表（待确认）+ 总 Prompt + 分步 Prompt P1~P5 + 验收速查 + 排错 + 待确认清单；依据 `qa/real-test-2026-10-26-run1.md`（25/25 PASS） |
 | 2026-10-26 | v1.1 | P3 新增 **3.0 运行时前置自检**（node≥18 / npm / codebuddy CLI / 登录态）+ §2.6 VM 运行时前提变量表（原 2.6 → 2.7）+ 验收速查与排错各补条目 + §7-6 CLI 版本策略待确认。三例真机验证：正例 PASS / `-SimulateMissing` FAIL+hint / `-Fix` 幂等短路 |
 | 2026-10-26 | v1.2 | P1 新增 **空密码分支**（首选设密码／次选两层同时放行 + 建好即回滚，判据 `BLANK_PW_OK`）+ `VM_PW_MODE` 变量 + 排错拆「有密码/空密码」两条 + 总 Prompt 与排错速查同步。双层实测取证：`LimitBlankPasswordUse=1`、`PermitEmptyPasswords` 默认 `no`（两行均注释） |
+| 2026-10-26 | v1.3 | ① 安装统一 **`@latest` 不锁版本**（§2.6 注明，全文命令改 `@latest`，原待确认第 6 项已裁定并移除）② 新增 **§8 异常处置与决策交互协议**（三段式取证/7 类问题定位与方案/5 类必问动作/交互模板/2 次重试熔断/决策台账）③ 新增 **P6 交付引导**（加载 `hos-win-skill`+`winvm-orchestrator`、通道三铁律、示范 prompt、反例提醒）；原 §8 变更记录顺延为 §9 |
+| 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
