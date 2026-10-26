@@ -126,8 +126,8 @@
 - **归档迁移（git mv 全程保历史）**：`docs/changes` → `docs/archive/changes/`、`docs/audit` → `docs/archive/audit/`、`docs/test` → `docs/archive/test/`；live 文档/代码注释中对三目录的引用路径已统一改为 `docs/archive/...`（只改路径字符串，不改正文；`.workbuddy/memory/` 历史日志按"记录不改"原则保留旧路径）。归档内新建 `INDEX.md` ×4（archive 总导航 + changes/audit/test 子导航）。
 - **归位移动**：docs/ 根级 `oh-*` 五篇 → `docs/01-investigation/`；`gui-health-fix-2026-09-14.md`、`class-diagram.mermaid`、`sequence-diagram.mermaid` → `docs/design/`；相关引用路径已同步（tunnel-runbook、INSTALL-GUIDE、reference、V1.0.0-release-notes、bootstrap.mjs、部署总览等）。
 - **qa/ 与 docs/design/ 保留原位**：qa/ 存在脚本活路径依赖（`delivery/setup.mjs` 读 `qa/probes/`、`delivery/pack-release.mjs` evidenceDir=`qa/release`），仅新建 `qa/INDEX.md` 导航，不动任何现有文件；docs/design/ 现行设计引用保留，仅归入上述三件。
-- **更名**：`docs/release/issues.md` → `docs/release/ISSUES.md`（git mv）；`docs/release/` 目录内与 live 引用已同步。**例外**：`docs/RELEASE-NOTES.md` 内对 `issues.md` 的引用（:14/:27/:28/:30 等行）本批按分工跳过未改，待并行线合并处理。
+- **更名**：`docs/release/issues.md` → `docs/release/ISSUES.md`（git mv）；`docs/release/` 目录内与 live 引用已同步（`docs/RELEASE-NOTES.md` 内引用亦已为大写，原「例外待并行线」备注过时，2026-10-26 一致性盘点 P2 销项）。⚠ **hmdfs 大小写不敏感曾掩盖磁盘名未改实**（git 索引=ISSUES.md / 磁盘=issues.md）——2026-10-26 P1 修复：两步 rename 统一磁盘名，自题同步大写；`core.ignorecase=true` 下 git status 不再报差异即为成功判据。
 - **`.dev/kn2-s4-a5-verify.md`** 顶部加一次性核验记录注，不移动。
 - **layout 旧注修正**：上文（Phase 0 止血轮记录）「`layout` 脚本键已删除（指向不存在的 `scripts/dep-lint.mjs`）」系 2026-10-08 时点实况，**现已过时**：Phase 2 后 `npm run layout` 已恢复为 `node scripts/dep-lint.mjs`（见根 `package.json` scripts，`scripts/dep-lint.mjs` 实际存在）。历史记录按"当时为真"原则保留原文，本条为现状订正。
-- **补挂索引**：`docs/部署与运行机制及配置总览.md`（运维总览手册，此前未挂）已入「运维总览手册」节；`cl026-approval-presentation.md` 与 design/ 全部图件已补入逐缺陷设计稿索引。
+- **补挂索引**：`docs/部署与运行机制及配置总览.md`（运维总览手册，此前未挂；**现名 `docs/04-ops/OPS-OVERVIEW.md`**，2026-10-26 归位）已入「运维总览手册」节；`cl026-approval-presentation.md` 与 design/ 全部图件已补入逐缺陷设计稿索引。
 - 本批为纯结构 + 引用路径同步，无正文内容编辑。
