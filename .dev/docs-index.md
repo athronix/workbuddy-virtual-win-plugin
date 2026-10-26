@@ -14,6 +14,8 @@
 8. `docs/02-design/INTERFACES.md` —— MCP tools / A2A skills / 内部 API 契约
 9. `docs/02-design/SECURITY-GOVERNANCE.md` —— 风险分级/策略引擎/审批闸/防篡改审计/会话保活
 10. `docs/05-peripherals/DEPLOYMENT.md` —— 部署指南（双端一键 `setup.mjs` + `agent.provider` 选型 + §7 插件管理命令 `winvm-plugin`（host/VM 统一查验与管理）+ §8 远程 Windows 部署与 SSH 密钥认证）
+10.1 `docs/deploy/deploy-strategy.md` —— **部署策略 v2（从零安装）**：六步可行性论证 + 环境事实基线 + 部署参数变量表（§0.5）+ 各步实测记录 + 排错速查 + 回滚 + WorkBuddy 指导 Prompt + 发布链缺口台账（§9.1）
+10.2 `docs/deploy/deploy-prompts.md` —— **部署 Prompt 总集**：待确认变量表 + 总 Prompt（一键粘贴）+ 分步 Prompt P1~P5 + 验收命令速查 + 排错 + 待确认清单
 11. `docs/05-peripherals/SCENARIOS.md` —— 应用场景故事/流程/机制/demo（含 Photoshop 大山→海洋 LLM 端到端）
 12. `docs/05-peripherals/USER-MANUAL.md` —— 用户手册
 13. `docs/06-OVERVIEW.md` —— 交付概览
