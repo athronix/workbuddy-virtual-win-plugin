@@ -1,4 +1,5 @@
 # 用户手册 · 让宿主机 WorkBuddy 完全操作你的 Windows 虚拟机
+> 文档 ID：USER-MANUAL ｜ 状态：现行权威 ｜ 更新：2026-10-26（本轮文档整理）
 
 > 目标读者：使用宿主机 WorkBuddy、需要远程"使唤"Windows 虚拟机干活的你。
 

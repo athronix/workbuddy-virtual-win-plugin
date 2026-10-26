@@ -19,6 +19,8 @@
 | `docs-index.md` | 文档清单与阅读顺序 |
 | `project-dev-status.md` | 各包/模块开发状态 |
 | `changed-log.md` | 本次交付变更记录 |
+
+> 附：`kn2-s4-a5-verify.md` —— K-N2/S-4/A5 一次性核验记录（非六大索引成员，保留原位备查，2026-10-08 审计 R11 建议登记）。
 | `changing-log.md` | 进行中/待定项 |
 
 ## 关键约束（来自用户）

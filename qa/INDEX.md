@@ -13,6 +13,7 @@
 | `p3b02-regression/` | Phase 3 批0-2 回归证据（gate 运行输出、check-fresh、report.md） |
 | `p5-batch/` | Phase 5 批次证据（b12 wiring、b13、b16 VERDICT、v19 VERDICT、c0、residual 真窗等） |
 | `p4-b9-qa-regression.md` / `p4-b10-qa-regression.md` / `p5-c0-qa-regression.md` | Phase 4 批9/批10、Phase 5 C0 的 QA 回归记录 |
+| `real-test-2026-10-26-run1.md` | **部署策略 v2 六步首跑全维验收报告（25/25 PASS）**：连通性/健康/功能/A2A 四表 + Step 3.0 三例 + G-1/G-2/G-3 缺口发现 |
 | `r18/` | R18 真机轮历史证据（VM 部署日志、diagnose-connectors 输出） |
 | `r19/` | R19 真机轮历史证据与驱动脚本（`a2a-extra.mjs` 等）+ t9/t11 设计件 |
 | `harness/` | 验证驱动脚本（e2e-p3-5x2.mjs、tidy-vm-devqa.ps1） |

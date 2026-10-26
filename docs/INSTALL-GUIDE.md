@@ -1,4 +1,5 @@
 # WinVM Bridge 完整安装指引
+> 文档 ID：INSTALL-GUIDE ｜ 状态：现行权威 ｜ 更新：2026-10-26（本轮文档整理）
 
 > 面向零基础使用者：在「全新鸿蒙 HarmonyOS NEXT PC（运行 WorkBuddy 桌面版）+ 同机 Windows 虚拟机」拓扑上，从零完成 WorkBuddy 虚拟 Windows 插件（WinVM Bridge，五域 54 能力）的一键安装、部署验证与日常运维。
 >

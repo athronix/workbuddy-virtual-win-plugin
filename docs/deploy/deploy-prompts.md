@@ -74,7 +74,7 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 | `HOST_GLOBAL_MCP` | `~/.workbuddy/mcp.json` | `winvm.disabledTools=8` | **`disabledTools` 的真实落点** | ☐ |
 | `HOST_STATE_DIR` | `~/.workbuddy/winvm` | `vm-conn.json`/`tunnel.*` | 运行态 | ☐ |
 | `HOST_PLUGIN_CACHE` | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0` | 9 文件 | 插件缓存（单文件白名单） | ☐ |
-| `HOST_SKILL_DIR` | `~/.workbuddy/connectors/skills/connector-winvm` | 8 个 Skill | Skill 缓存 | ☐ |
+| `HOST_SKILL_DIR` | `~/.workbuddy/connectors/skills/connector-winvm` | 实测 7（V1.4.2 包） | Skill 缓存落点：**HEAD=8；包=7**（hos-win 10-23 并入，随 V1.4.3 收敛） | ☐ |
 | `SSH_KEY` | `~/.ssh/id_ed25519` | 同左 | 宿主身份密钥 | ☐ |
 | `ASKPASS` | `~/wbtmp/askpass.sh` | 同左 | 密码非交互化（`chmod 700`） | ☐ |
 
@@ -240,7 +240,7 @@ Step 5 · 全维度测试并出报告
 ────────────────────────────────────────
 Step 6 交付引导（不参与部署判据，但决定后续任务通道路由是否正确）
   6.1 加载 skill（顺序不能反）：
-      @skill:hos-win-skill         # 宿主用户级 ~/.workbuddy/skills/hos-win-skill/
+      @skill:hos-win-skill         # 仓库第 8 Skill（host-only，VM 不分发）；宿主可用户级或连接器目录供入
       由它带入 winvm-orchestrator    # 连接器 7 个 winvm-* skill 之一
       判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；
             ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l == 7
@@ -385,8 +385,9 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 
 ```text
 部署已通过，现在进入交付引导：让用户能正确下发 Windows 任务。
-1) 加载 @skill:hos-win-skill（宿主用户级；host-only，不在 VM 侧），由它带入 winvm-orchestrator。
-   判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md；connector-winvm 下 7 个 winvm-* skill。
+1) 加载 @skill:hos-win-skill（host-only：VM 侧不分发；宿主侧用户级 ~/.workbuddy/skills/ 或连接器目录
+   任一供入即可——HEAD 安装连接器=8 含之，V1.4.2 包安装连接器=7 则靠用户级副本），由它带入 winvm-orchestrator。
+   判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；connector-winvm 目录数按安装源=包 7 / HEAD 8。
 2) 向用户复述通道三铁律：风险优先（L2/L3 必走 a2a.delegate）／步骤定界（1~2 步可穷举走 MCP 直调）
    ／先探后定（先 L0 读能力取事实，遇 DELEGATION_REQUIRED 立即转委派）。
 3) 给 3 个可直接粘贴的示范（覆盖两条通道）：

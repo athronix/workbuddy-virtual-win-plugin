@@ -35,7 +35,7 @@
 | vm-service | ✅ | ✅ e2e 双通道 | 装配 + CLI（agent.provider 总开关，3 选项：workbuddy-deterministic / workbuddy / hermes-agent） |
 
 ## 测试
-- **【当前权威口径 · 2026-10-08 Phase 0 收官全量实跑】：71 个测试文件 ／ 1247 tests ／ 1245 pass ／ 0 fail ／ 2 skipped**
+- **【历史快照 · 2026-10-08 Phase 0 收官实跑】：71 个测试文件 ／ 1247 tests ／ 1245 pass ／ 0 fail ／ 2 skipped**
   = `tests/unit/*.test.js` **63 文件 / 1177 例** ＋ `tests/unit/*.test.mjs` **8 文件 / 70 例**（逐文件方式）。
   增量来源：QA Phase 0 R1/R2 新守卫（`psmod-contract` + `assembly-guard`，commit `c10a400`）＋工程师 U-P0 安全守卫 `p0-path-traversal.test.js` 84 例（commit `ba02fbb`）。skip 3→2：`assembly-guard` 的 dry-run 软探针随 `ba02fbb` 落地转硬断言并通过。
   同日 20:xx QA 口径曾为 70/1162（`ba02fbb` 合入前），已被本行取代，历史快照备查于下行。

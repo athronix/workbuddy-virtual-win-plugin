@@ -3,10 +3,10 @@
 | 项 | 值 |
 |---|---|
 | 文档 ID | SPEC-SKILLS-v1 |
-| 版本 | v1.1 |
+| 版本 | v1.2（2026-10-26：§2 清单 1+5→1+5+2=8，补 `winvm-mcp-reference` 与 `hos-win-skill`〔host-only〕） |
 | 层 | L0 规范（契约） |
 | 对应用户要求 | **RQ-6**：skills 框架规范独立成层；**RQ-7**：1+5 多 skills 支持 |
-| 日期 | 2026-08-28（v1.1 增补 appops 于 2026-08-28） |
+| 日期 | 2026-08-28（v1.1 增补 appops；v1.2 订正于 2026-10-26） |
 
 ---
 
@@ -22,7 +22,7 @@ Skills 是**知识层与治理层**，不是执行层。它回答三个问题：
 
 ---
 
-## 2. Skill 清单（1 + 5）
+## 2. Skill 清单（1 + 5 + 2 = 8）
 
 | # | Skill ID | 角色 | 领域 | 主要职责 |
 |---|---|---|---|---|
@@ -32,6 +32,8 @@ Skills 是**知识层与治理层**，不是执行层。它回答三个问题：
 | 4 | `winvm-storage-manager` | 领域 | `storage` | 磁盘分区卷/空间分析/文件目录/搜索/压缩（创建 zip）/链接/回收站（查看）/清理建议 |
 | 5 | `winvm-gui-automation` | 领域 | `gui` | 会话保活/截图/键鼠/窗口/UIA/剪贴板（只读）/等待策略；网页操作经 UIA+键鼠（CDP 直驱 V2·当前不可用） |
 | 6 | `winvm-app-operation` | 领域 | `appops` | **操作 Windows 软件应用进行生产活动**：Photoshop/Office/浏览器/ffmpeg/IDE 等生产型工作流、CLI 调用、COM 自动化、GUI 多步生产 |
+| 7 | `winvm-mcp-reference` | 参考 | meta | MCP server 部署/管理参考（`references/mcps-reference.md`，供 VM 内 Agent 查调用式样） |
+| 8 | `hos-win-skill` | 分派 | meta | 鸿蒙宿主侧任务分派（本地完成 vs 经 winvm 通道去 VM）。**host-only：VM 侧不分发**（`HOST_ONLY_SKILLS`，`deploy-shared-skills.mjs:40`）；宿主安装随 HEAD 入连接器目录（V1.4.2 包不含，10-23 并入随 V1.4.3 收敛） |
 
 ---
 

@@ -655,3 +655,12 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 - **QA 独立复跑（严过关）**：HEAD 2b2f241 逐文件 79 文件 = **1457/1455/0 fail/2 skip**（`$HOME/wbtmp/qa-t5-full-run.txt`，逐行四重交叉校验）；与工程侧 1456 对账差 1 例可归因 2b2f241。三项证伪式抽查 D-1/D-2/D-3 全过（D-2 精准红→md5 等值复原→39/39 绿）。终判 **NoOne/PASS**。
 - **基线统一写数**：README §8、06-OVERVIEW 首行+§四 改 79/1457 口径（演进链 1247→1253→1283→1400→1456→1457）；phase0-delivery-summary 保留历史+文末演进注记。
 - **L6 三处措辞残留清账**（QA D-3 发现，路由=主理人）：DEPLOYMENT:518 回指句、delivery/vm-service.config.json security.comment、CL-022/REQUIREMENT B-3 行——均订为两段式（宿主段当场 401 / VM 内回连段零副作用虚假完成）。**L5**：phase1-arch-design R4 表后加订正指针（设计快照原文不改写）。config 改后 JSON 合法性+消费方核查（tests 仅注释引用、install-vm 不读 comment）+ 85/85 绿。
+
+## 2026-10-11 ~ 10-21 · Phase 3~6 批扫 + V1.4.0/V1.4.1/V1.4.2 发布链（里程碑级补账）
+- Phase 3~5 批 0-14（审批闭环 DELEGATION_REQUIRED/双闸/C0 转呈面/执法通道化）与 Phase 6 批 15-20（398d5ba 完赛 + 技术债销账 E-2/GUI 锁屏/K3 缺省 on/R4 bearer 自检）——细目散见 `docs/archive/changes/phase*-notes.md` 与 `qa/p3-batch-sweep/`；测试基线 1457→1889→**2280 GREEN**（`gate-docs-overview.txt`）。
+- **REL-V1.4.0（10-18，tag@381d2d8）**：`pack-release.mjs` 三包（闭包推导+MANIFEST+V1-V4 包内验证）+ `publish-release.mjs` 幂等上架 + `tools/winvm-prepare.ps1` 单一真相源 + 仓库 public；迭代 2-4（隧道复用判据/uninstall 内建查杀/zip+sha256 旁挂）。**V1.4.1（10-20/21）**= CL-026 审批卡强制呈现（APPROVAL_PRESENTATION_DIRECTIVE 五携带面 + SKILL 审批协议升 MUST）。全程细节=`docs/release/ISSUES.md` + `docs/archive/changes/CL-026/`（如在册）。
+
+## 2026-10-26 · 文档大 review（Tier1-4）+ 部署策略 v2 全流程真机通赛 + 四类目录大整理
+- **文档 Tier1-4**（614c869/90224ec/2edc445）：工具名点分订正/06-OVERVIEW 计数/RELEASE-NOTES 补 V1.4.x/`docs/archive/` 迁移+5 INDEX/issues.md→ISSUES.md；守卫 11/11 GREEN。
+- **部署策略 v2**（34fe5aa→bcb636d，run1 25/25）：`docs/deploy/deploy-strategy.md` v2.5（六步+Step 3.0 运行时前置+§2.1-B 空密码双层预案+§5.0 遇困决策协议+Step 6 交付引导+§9.1 缺口 G-1/2/3 台账）+ `deploy-prompts.md` v1.4（变量表/总 Prompt/P1~P6/§8 协议）+ `qa/deploy-probes/` 六探针 + `qa/real-test-2026-10-26-run1.md`；用户裁定 provider 默认 workbuddy+codebuddy、安装一律 @latest、CL-WBNATIVE DEFERRED。
+- **四类目录大整理**（本批，a2f01ff→）：仓库归位 git mv 4 件（OPS-OVERVIEW/INSTALL-VERIFY→archive/legacy-*）+ P1 磁盘大小写统一（issues.md→ISSUES.md 实改）+ 断链修复 17 处（oh-* 互引/DEPLOYMENT 目录/测试实名/demo 后缀）+ doc-auditor 六维盘点 TOP20 逐项落地（SPEC-SKILLS v1.2 清单 8、README 版本双线与 gate 查法、基线快照降级注记、头注八篇、run1/铠大师挂载、五域/6 口径句）+ `.dev` 六索引同步 + `~/wbtmp` 72→16 主题目录 + `~/winvm-deploy/deploy-session.md` 台账建立 + MEMORY.md 精简。证据=`qa/evidence/tidy-20261026/doc-consistency-audit.md`（112 行，P1×6/P2×13/P3×10 全闭环或豁免注记）。

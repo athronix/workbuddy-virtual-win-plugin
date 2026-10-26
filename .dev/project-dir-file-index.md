@@ -10,7 +10,7 @@ workbuddy-virtual-win-plugin/
 ├── docs/                     # 调研 / 设计 / 交付文档（含 docs/archive/{changes,test,audit}/、legacy-*、deploy/ 部署策略、design/ 逐缺陷设计稿）
 ├── packages/                 # 12 个可独立编译/发布的 npm 包
 ├── skills/                   # 8 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 个 `winvm-mcp-reference` 部署参考 + 1 个 `hos-win-skill` 宿主分派）；`references/` 仅两家（winvm-orchestrator 的 approval-card.md、winvm-mcp-reference 的 mcps-reference.md）
-├── tests/                    # unit/（59 个 *.test.js）+ e2e/ + fixtures/
+├── tests/                    # unit/（.test.js 119 + .test.mjs 8，数量以实盘与 gate 件为准）+ e2e/ + fixtures/
 ├── qa/                       # 真机验证证据与驱动脚本（r18 / r19 / p3-batch-sweep / harness / probes / deploy-probes / evidence / archive；导航=qa/INDEX.md）
 ├── delivery/                 # 安装器 + 部署配置
 ├── deploy-demo-app/          # 鸿蒙 ArkTS 一键部署演示 App（独立子项目，build/ 与 .codeart-out 产物已 gitignore）

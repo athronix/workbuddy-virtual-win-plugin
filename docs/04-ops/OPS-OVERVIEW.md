@@ -1,4 +1,5 @@
 # 部署与运行机制及配置总览 · WinVM Bridge 运维权威手册
+> 文档 ID：OPS-OVERVIEW ｜ 状态：现行权威 ｜ 更新：2026-10-26（本轮文档整理）
 
 > 读者：接手本项目部署与运维的人。本文=**总览手册**：系统性讲清部署机制、运行机制，并逐项穷举每一项配置。
 > 实证纪律：所有配置键/端点/命令均以**仓库源码与既有文档**为准（每节标注所在文件）；权威层级 = 仓库文档 > 代码事实 > 任何口头任务书。细节专项文档见 §6.3 权威指针分工，本文不重复其内容只做汇总引用。
@@ -344,7 +345,7 @@ flowchart LR
 
 ### 3.7 54 能力五域与 risk 分级概览
 
-单一事实源 `packages/vm-capabilities/src/registry/definitions.ts`（`WINDOWS_CAPABILITIES`，实测计数：meta 3 / system 14 / app 8 / storage 13 / gui 11 / appops 5 = **54**，与 README §9.4 口径一致）。
+单一事实源 `packages/vm-capabilities/src/registry/definitions.ts`（`WINDOWS_CAPABILITIES`，实测计数：meta 3 / system 14 / app 8 / storage 13 / gui 11 / appops 5 = **54**，与 README §9.4 口径一致）。计数口径说明：「**五域**」= 五个业务域（system/app/storage/gui/appops，不含 meta）；真机探针/`meta.capability.list` 返回 `domains=6` = 注册表按 module 计数**含 meta 域**——两者都对，读者遇 5/6 并存不必疑异。
 
 | risk | 数量（实测） | 默认策略 | 代表能力（实测 id） |
 |---|---|---|---|

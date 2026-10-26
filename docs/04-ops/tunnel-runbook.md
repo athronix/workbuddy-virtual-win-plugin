@@ -1,4 +1,5 @@
 # WinVM 隧道运维速查（tunnel-runbook）
+> 文档 ID：TUNNEL-RUNBOOK ｜ 状态：现行权威 ｜ 更新：2026-10-26（本轮文档整理）
 
 > Phase 3 批2 · Q1 成文（源自 audit-qa.md ⑥ 三次"死"复盘 + 项目 memory 实操沉淀）。
 > 本页只讲**宿主侧常驻隧道 daemon**（`delivery/tunnel-daemon.mjs` / `oh-tunnel.mjs`）。

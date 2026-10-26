@@ -2,7 +2,7 @@
 
 > 一套**分层解耦、标准协议驱动、强监管**的宿主 AI Agent 插件体系，使宿主机 AI Agent（V1 = WorkBuddy）能够安全、可控、可审计地**完全操作一台 Windows 虚拟机**——覆盖系统管理、应用管理、存储管理、GUI 自动化与图形化生产操作。
 
-- **版本**：`0.1.0`（V1 基线）
+- **版本**：`0.1.0`（插件内部版本，对应宿主缓存路径 `winvm-bridge/0.1.0`；**发布版本以 GitHub Release `V1.4.2` 为准**，演进链见 `docs/RELEASE-NOTES.md`）
 - **形态**：npm workspaces 单仓，12 个可独立编译/发布的包 + 8 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派）+ 双端一键部署器
 - **状态**：核心链路与审批链已真机验收（详见 §10 文档导航与 `.dev/` 索引）
 - **License**：私有（当前为单一项目仓库）
@@ -289,7 +289,7 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 **测试基线的权威口径**：本文件**不静态维护**测试文件数/例数——任何"当前基线 = N 文件 / M 例"的
 叙述都会随批次漂移并造成文档与实跑不一致。唯一权威源是 `qa/` 下**最新一轮** `*-sweep-result.txt`
 的汇总行（`FILES=` / `TOTAL_TESTS=` / `TOTAL_FAIL=` / `TOTAL_SKIP=`，逐文件 TAP 计数可复核）。
-查当前基线：`ls -1 qa/*/sweep-result.txt qa/*/*-sweep-result.txt | sort -V | tail -1` 后读其汇总行。
+查当前基线：`ls -1 qa/*/sweep-result.txt qa/*/*-sweep-result.txt qa/p3-batch-sweep/gate-*.txt | sort -V | tail -1` 后读其汇总行。
 > **查法订正（2026-10-13 批0，J-7/Q3 基线倒挂实验）**：旧句式 `sort | tail -1` 按**字典序**排，
 > `t9` 排在 `t11`/`t12` **之后**（`9 > 1` 逐字符比较）⇒ 返回过期件；`ls -1t`（mtime 序）同样不可靠，
 > 因 mtime 会被 checkout 重置。`sort -V`（版本序）对 `t<数字>` 命名正确排序。取到最新文件后仍需**核对

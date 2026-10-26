@@ -80,7 +80,7 @@
 |---|---|---|---|
 | `HOST_STATE_DIR` | `~/.workbuddy/winvm` | `vm-conn.json` / `tunnel.pid` / `tunnel.state.json` / `tunnel.log` | ☐ |
 | `HOST_PLUGIN_CACHE` | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0` | 插件缓存（单文件白名单，9 文件） | ☐ |
-| `HOST_SKILL_DIR` | `~/.workbuddy/connectors/skills/connector-winvm` | 8 个 Skill 缓存落点 | ☐ |
+| `HOST_SKILL_DIR` | `~/.workbuddy/connectors/skills/connector-winvm` | Skill 缓存落点（**HEAD=8；V1.4.2 包=7**，hos-win 10-23 并入随 V1.4.3 收敛） | ☐ |
 | `SSH_KEY` | `~/.ssh/id_ed25519` | 宿主身份密钥 | ☐ |
 | `ASKPASS` | `~/wbtmp/askpass.sh` | 密码非交互化脚本（`chmod 700`） | ☐ |
 
@@ -599,11 +599,11 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 | Skill | 落点 | 作用 | 加载方式 |
 |---|---|---|---|
-| **`hos-win-skill`**（鸿蒙↔Windows 任务分派） | 宿主用户级 `~/.workbuddy/skills/hos-win-skill/`（**host-only，不分发到 VM**） | 判定「哪一步在鸿蒙做、哪一步经 winvm 通道交给 VM」，并给通道路由三条铁律 | `@skill:hos-win-skill`，或由 triggers 自动触发（`Windows 操作`/`虚拟机任务`/`C 盘清理`/`装软件`/`VM 文件`/`跨 App 数据`） |
+| **`hos-win-skill`**（鸿蒙↔Windows 任务分派） | 仓库第 8 Skill；**VM 侧不分发**（`HOST_ONLY_SKILLS`）。宿主侧落点随安装源：**HEAD 仓库安装=连接器目录 8 个（含本 skill）**；**V1.4.2 包安装=连接器 7 个**（包早于 10-23 并入，属 G-1）。用户级 `~/.workbuddy/skills/hos-win-skill/` 为**独立手工副本**，两条线互不依赖 | 判定「哪一步在鸿蒙做、哪一步经 winvm 通道交给 VM」，并给通道路由三条铁律 | `@skill:hos-win-skill`，或由 triggers 自动触发（`Windows 操作`/`虚拟机任务`/`C 盘清理`/`装软件`/`VM 文件`/`跨 App 数据`） |
 | **`winvm-orchestrator`**（VM 总控编排） | 连接器 `~/.workbuddy/connectors/skills/connector-winvm/winvm-orchestrator/` | 进入 VM 后的**唯一总控入口**，负责能力选择与调用 | 由 hos-win-skill 带入，或 `@skill:winvm-orchestrator` |
 
-判据：`ls ~/.workbuddy/skills/hos-win-skill/SKILL.md` 存在（宿主侧），且
-`~/.workbuddy/connectors/skills/connector-winvm/` 下有 **7** 个 `winvm-*` skill（VM 执行面）。
+判据：`ls ~/.workbuddy/skills/hos-win-skill/SKILL.md` 存在；且 `ls ~/.workbuddy/connectors/skills/connector-winvm/`
+按安装源核对——V1.4.2 包=**7**（无 hos-win）/ HEAD=**8**（含）。连接器仅 7 而预期 8 ⇒ hos-win 未随包，属 G-1 已知，不阻塞交付。
 
 **为什么必须先加载**：不加载时模型倾向"直接用 ssh 跑 powershell"，这会绕过宿主 `mcp.json` 的
 `disabledTools` 静态禁用与 `DELEGATION_REQUIRED` 审批闸——**审批卡不会出现、操作不留审计回执**。
@@ -842,8 +842,7 @@ Step 5 全维度测试并出报告
 Step 6 交付引导（不参与部署判据，但决定后续任务通道路由）
   6.1 加载 skill：@skill:hos-win-skill（宿主用户级 ~/.workbuddy/skills/hos-win-skill/）
       由它带入 winvm-orchestrator（连接器 7 个 winvm-* skill 之一）。
-      判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；
-            ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l == 7
+      判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；连接器目录 wc -l：V1.4.2 包=7 / HEAD=8（按安装源核对）
   6.2 通道路由三条铁律：风险优先（L2/L3 一律 a2a.delegate）> 步骤定界（1~2 步可穷举→MCP 直调）
       > 先探后定（先 L0 读能力取事实；收到 DELEGATION_REQUIRED 立即转委派，勿重试）。
   6.3 给用户 3 个可直接粘贴的示范（按通道各一）：
@@ -891,8 +890,10 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-26 | v2.0 | 首版：六步策略、可行性论证、实测基线与排错表、WorkBuddy 指导 Prompt |
 | 2026-10-26 | v2.1 | 六步**全流程真机实测通过**（25/25）：补 §0.5 部署参数变量表、各步「实测记录」、`qa/deploy-probes/` 四探针；`AGENT_PROVIDER` 默认改 `workbuddy` |
 | 2026-10-26 | v2.2 | 新增 **Step 3.0 VM 运行时前置自检**（node≥18 / npm / codebuddy CLI / 登录态）：`qa/deploy-probes/vm-env-check.ps1`（含 `-Fix` 与 `-SimulateMissing` 自测）+ §0.5-F 前提变量表 + §2.3 安装面实测 + 排错 6 条。**provider 维持 `workbuddy` + `WINVM_WORKBUDDY_CLI=codebuddy`（用户裁定不引入 `workbuddy-native`）** |
-| 2026-10-26 | v2.4 | **安装默认取 latest 不锁版本**（`@latest`，用户裁定）+ 新增 **§5.0 遇到困难时的处置协议**（三段式：定位根因→给方案→要决策；5 类必须问的动作；2 次重试熔断；决策台账）+ 新增 **Step 6 交付引导**（加载 `hos-win-skill`/`winvm-orchestrator`、通道三铁律、9 个典型任务 Prompt 示例、3 种错误下发对照、交付自检 3 条） |
 | 2026-10-26 | v2.3 | 新增 **§2.1-B 空密码分支预案**（首选设密码／次选两层同时放行 + 建好即回滚）+ `VM_PW_MODE` 变量 + §0/§1 口径订正（原「与 PermitEmptyPasswords 无关」被实测证伪：**两层都在拒**）+ 排错拆成「有密码/空密码」两条 |
+| 2026-10-26 | v2.4 | **安装默认取 latest 不锁版本**（`@latest`，用户裁定）+ 新增 **§5.0 遇到困难时的处置协议**（三段式：定位根因→给方案→要决策；5 类必须问的动作；2 次重试熔断；决策台账）+ 新增 **Step 6 交付引导**（加载 `hos-win-skill`/`winvm-orchestrator`、通道三铁律、9 个典型任务 Prompt 示例、3 种错误下发对照、交付自检 3 条） |
+| 2026-10-26 | v2.5 | Step 6.3 示例表增「能力实测」列（✅5 实跑／⏳7 语义核未跑）+ **§9.2 VM 断连事件与待补测台账**（18:05 起不可达，分层定位=根因在 VM）+ 补测脚本 `example-probe.py` 入库 |
+| 2026-10-26 | v2.6 | 文档一致性盘点修复：Step 6.1 hos-win 落点口径改「HEAD=连接器 8／V1.4.2 包=连接器 7／用户级=独立手工副本」（原「宿主用户级 host-only」与渲染器实态不符）+ §0.5-D HOST_SKILL_DIR 括注双口径 + 头注标准化 |
 
 ### 9.1 本次实测发现的三处发布链缺口（须在下次发版前处置）
 

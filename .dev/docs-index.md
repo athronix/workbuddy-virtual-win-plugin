@@ -15,6 +15,8 @@
 9. `docs/02-design/SECURITY-GOVERNANCE.md` —— 风险分级/策略引擎/审批闸/防篡改审计/会话保活
 10. `docs/05-peripherals/DEPLOYMENT.md` —— 部署指南（双端一键 `setup.mjs` + `agent.provider` 选型 + §7 插件管理命令 `winvm-plugin`（host/VM 统一查验与管理）+ §8 远程 Windows 部署与 SSH 密钥认证）
 10.1 `docs/deploy/deploy-strategy.md` —— **部署策略 v2（从零安装，现 v2.5）**：六步可行性论证 + 环境事实基线 + §0.5 部署参数变量表（A–F 六组，含 VM 运行时前提）+ **§2.1-B 空密码双层预案** + Step 3.0 运行时前置自检 + §5.0 遇困处置协议（根因→方案→决策）+ 各步实测记录 + 排错速查 + 回滚 + §7 WorkBuddy 指导 Prompt + §9.1 发布链缺口台账（G-1/2/3）+ **Step 6 交付引导**（hos-win-skill+通道三铁律+9 示例）+ §9.2 VM 断连待补测
+10.1a `docs/deploy/通过铠大师app安装部署.md` —— 铠大师 App 新机部署**方案**（V1/R2，Release 匿名下载起点；§5.2 install prompt 模板 / deploy-report.json 契约 / G1–G12 坑清单）
+10.1b `docs/deploy/铠大师app功能规格书.md` —— 铠大师 K1–K3 **功能规格**（V1.3，C-1~C-5 契约 / F-01~F-10 / Q-1~Q-6 裁决；winvm-prepare.ps1 单一真相源）
 10.2 `docs/deploy/deploy-prompts.md` —— **部署 Prompt 总集（现 v1.4）**：待确认变量表（§2 七组）+ 总 Prompt（一键粘贴，Step 1~6）+ 分步 Prompt P1~P6 + 验收命令速查 + §8 异常处置与决策交互协议 + 排错 + 待确认清单
 11. `docs/05-peripherals/SCENARIOS.md` —— 应用场景故事/流程/机制/demo（含 Photoshop 大山→海洋 LLM 端到端）
 12. `docs/05-peripherals/USER-MANUAL.md` —— 用户手册
@@ -45,7 +47,7 @@
 
 ## 归档区（docs/archive/）
 > 历史交付件统一归档地（2026-10-26 结构重定位，全程 `git mv` 保历史）。**总导航见 `docs/archive/INDEX.md`**。
-- `docs/archive/changes/` —— 原 `docs/changes`：CL-015~022 + CL-K3R 变更集、phase0~6 施工 notes（子导航 `docs/archive/changes/INDEX.md`）
+- `docs/archive/changes/` —— 原 `docs/changes`：CL-015~022 + CL-K3R + CL-WBNATIVE（DEFERRED）变更集、phase0~6 施工 notes（子导航 `docs/archive/changes/INDEX.md`）
 - `docs/archive/audit/` —— 原 `docs/audit`：全维度体检/再审计/全景综述台账（子导航 `docs/archive/audit/INDEX.md`）
 - `docs/archive/test/` —— 原 `docs/test`：real-test 测试方案 + reports/ 逐轮真机与 QA 报告（子导航 `docs/archive/test/INDEX.md`）
 - 归档内部不做重命名（保护 git 历史与内部互链）。
@@ -81,6 +83,7 @@
 - `docs/archive/test/reports/a2a-coverage-2026-10-03.md` —— A2A「真机未覆盖 5 项」补齐验证（A1~A4 **PASS**；**A5 FAIL**：`rejected` 路径真机不可达）
 - `docs/archive/test/reports/k3r-t05-runbook-2026-10-05.md` —— CL-K3R T05 执行序列（A~F 阶段与门禁 G0~G4）
 - `docs/archive/test/reports/k3r-t05-phase-d-blocker-2026-10-05.md` —— Phase D 阻塞根因（`reconcileApprovalTruth` 门0 `if (!base.ok) return base` 短路）+ 修复
+- `qa/real-test-2026-10-26-run1.md` —— **部署策略 v2 六步首跑全维验收（25/25 PASS，含 Step 3.0 三例与 G-1/G-2/G-3 发现）**
 - `docs/archive/test/reports/k3r-t05-real-machine-2026-10-06.md` —— **CL-K3R T05 真机 A~F 全阶段完成报告**（`on`×3 全 `input-required`，K3 假成功根治）
 
 ## 变更文档（docs/archive/changes/）
