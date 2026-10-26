@@ -2,17 +2,20 @@
 """Validate the Step-6 example prompts: do the referenced capabilities actually work?
 
 One case per example in docs/deploy/deploy-strategy.md Step 6.3.
-Read-only: L2/L3 examples are asserted to be ABSENT from the direct-call surface
-(that is exactly why they must go through a2a.delegate).
+Read-only capability calls; the L2/L3 gate check asserts the HOST-SIDE disabledTools
+surface in ~/.workbuddy/mcp.json (the raw /mcp tools/list always lists all 54 —
+asserting absence there is a known false-claim trap, see deploy-strategy Step 5 pitfall 1).
 
-Usage: python3 example-probe.py [--endpoint http://127.0.0.1:18443]
+Usage: python3 example-probe.py [--endpoint http://127.0.0.1:18443] [--home <dir>]
 Exit: 0 all PASS / 1 any FAIL / 2 endpoint unreachable
 """
 import argparse
 import importlib.util
+import json
+import os
 import sys
 
-PROBE = "/storage/Users/currentUser/Documents/projects/workbuddy-virtual-win-plugin/qa/deploy-probes/mcp-probe.py"
+PROBE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mcp-probe.py")
 _spec = importlib.util.spec_from_file_location("mcp_probe", PROBE)
 _m = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_m)
@@ -20,12 +23,13 @@ Mcp = _m.Mcp
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--endpoint", default="http://127.0.0.1:18443")
+ap.add_argument("--home", default=os.path.expanduser("~"))
 args = ap.parse_args()
 
 cli = Mcp(args.endpoint)
 try:
     cli.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
-                           "clientInfo": {"name": "example-probe", "version": "1.0"}})
+                           "clientInfo": {"name": "example-probe", "version": "1.1"}})
 except Exception as e:
     print("ENDPOINT_UNREACHABLE:", e)
     sys.exit(2)
@@ -39,9 +43,8 @@ def rec(name, ok, detail=""):
 
 
 def call(tool, arguments, label):
-    """MCP tools/call with the bare dotted capability id (host prefixes winvm__)."""
     try:
-        r = cli.rpc("tools/call", {"name": tool, "arguments": arguments}, timeout=240)
+        r = cli.rpc("tools/call", {"name": tool, "arguments": arguments})
         if r.get("error"):
             rec(label, False, "ERR " + str(r["error"])[:120])
             return
@@ -56,7 +59,7 @@ def call(tool, arguments, label):
 call("app.inventory.list", {}, "E1 app.inventory.list")
 # E2 空间分析：「C 盘占用，前 10 大目录，只读」
 call("storage.disk.list", {}, "E2a storage.disk.list")
-call("storage.space.analyze", {"target": r"C:\"}, "E2b storage.space.analyze")
+call("storage.space.analyze", {"path": "C:\\Users\\User", "depth": 1, "top": 10}, "E2b storage.space.analyze")
 # E3 看屏幕：「截一张桌面图，告诉我开着哪些窗口」
 call("gui.session.status", {}, "E3a gui.session.status")
 call("gui.window.list", {}, "E3b gui.window.list")
@@ -64,20 +67,30 @@ call("gui.screen.capture", {}, "E3c gui.screen.capture")
 # E5 排障第一步：服务清单
 call("system.service.list", {}, "E5 system.service.list")
 
-# --- L2/L3 必须不在直调面（证明只能走 a2a.delegate）---
-names = set()
+# E6 高危闸门：读宿主全局 mcp.json 的 disabledTools（正确断言面，非 /mcp tools/list）
+HIGH = {"system.service.configure", "system.process.terminate", "system.registry.write",
+        "app.winget.uninstall", "storage.file.delete", "storage.link.manage",
+        "appops.gui.produce", "system.power.control"}
+path = os.path.join(args.home, ".workbuddy", "mcp.json")
 try:
-    tl = cli.rpc("tools/list", {})
-    for t in (tl.get("result") or {}).get("tools", []):
-        names.add(t["name"].replace("winvm__", ""))
+    with open(path, encoding="utf-8") as f:
+        mcpjson = json.load(f)
 except Exception as e:
-    print("tools/list failed:", e)
-
-high = ["storage.file.delete", "app.winget.uninstall", "appops.gui.produce",
-        "system.power.control", "system.registry.write", "system.process.terminate",
-        "system.service.configure", "storage.link.manage"]
-exposed = [n for n in high if n in names]
-rec("E6 L2/L3 共 8 项均不在直调面", not exposed, "仍在直调面=" + (",".join(exposed) or "无"))
+    rec("E6 disabledTools 闸门", False, "READ-FAIL " + str(e)[:100])
+else:
+    entry = None
+    for key, val in (mcpjson.get("mcpServers") or {}).items():
+        if "winvm" in key and isinstance(val, dict) and val.get("disabledTools") is not None:
+            entry = (key, val["disabledTools"])
+            break
+    if not entry:
+        rec("E6 disabledTools 闸门", False, "connector:winvm 条目缺 disabledTools")
+    else:
+        key, dis = entry
+        norm = {str(t).split("__", 1)[-1] for t in dis}  # winvm__x.y.z -> x.y.z
+        missing = sorted(HIGH - norm)
+        rec("E6 disabledTools 覆盖全部 L2/L3（8 项）", len(missing) == 0 and len(dis) == 8,
+            "entry=%s count=%d missing=%s" % (key, len(dis), missing or "none"))
 
 print("\nRESULT: %s (%d/%d)" % ("PASS" if all(results) else "FAIL", sum(results), len(results)))
 sys.exit(0 if all(results) else 1)

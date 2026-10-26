@@ -142,11 +142,18 @@ const VM_DELIVERY = [
   // install-vm.mjs 的**非 import 硬依赖**（读文件生成 runtime.json；迭代1 教训：dry-run 抓不到这类缺失）
   'delivery/vm-service.config.json',
 ];
-const OVERALL_EXTRA_DELIVERY = ['delivery/bootstrap.mjs', 'delivery/prepare-vm.mjs', 'delivery/uninstall.mjs'];
+const OVERALL_EXTRA_DELIVERY = ['delivery/bootstrap.mjs', 'delivery/prepare-vm.mjs', 'delivery/uninstall.mjs',
+  // V1.4.3 收编（G-1/G-2）：install-host 连接器自检的硬依赖（:1434 spawn 路径，缺=自检静默跳过）+ 包校验器本体
+  'delivery/tools/diagnose-connectors.mjs', 'delivery/verify-release.mjs'];
 // REL-11/Q-3（规格书 F-03·D-4）：winvm-prepare.ps1 随 overall 包分发——
 // 铠大师「VM 环境准备」推送的脚本 = 包内这一份（单一真相源入包），App 不自持副本。
 const OVERALL_TOOLS = ['tools/winvm-prepare.ps1'];
 const VM_PROBES = ['qa/probes/qa-probe.ps1', 'qa/probes/lead-md5-3.ps1'];
+// V1.4.3 收编（G-3）：部署策略 v2 六步验收探针随 overall 分发——纯 Release 安装链
+// （Step 2 包校验 / Step 3.0 运行时前置 / Step 3/5 判据）不再依赖仓库工作区。
+const DEPLOY_PROBES = ['qa/deploy-probes/verify-manifest.py', 'qa/deploy-probes/vm-env-check.ps1',
+  'qa/deploy-probes/vmcheck.ps1', 'qa/deploy-probes/mcp-probe.py', 'qa/deploy-probes/a2a-probe.py',
+  'qa/deploy-probes/example-probe.py'];
 /**
  * 包内必存文件（V1 结构断言）——防"闭包清单漏文件"（迭代1 即漏 vm-service.config.json，
  * install-vm 读文件而非 import，dry-run 抓不到）。新增入口/数据文件时同步维护本表。
@@ -168,6 +175,9 @@ const PACKAGE_REQUIRED = {
     'delivery/uninstall.mjs', 'delivery/env.example', 'package.json', '.env.example',
     'docs/DEPLOYMENT.md', 'docs/RELEASE-V1.4.0.md', 'docs/issues.md',
     'tools/winvm-prepare.ps1',
+    // V1.4.3 收编项的包内存在性（漏收=打包 fail-loud）
+    'delivery/tools/diagnose-connectors.mjs', 'delivery/verify-release.mjs',
+    'qa/deploy-probes/vm-env-check.ps1', 'qa/deploy-probes/mcp-probe.py',
   ],
 };
 const OVERALL_DOCS = [
@@ -457,6 +467,14 @@ function verifyPackages(dest, version) {
   ], join(dest, 'host'));
   // V3 vm 闭包：deploy-vm dry-run（无 --apply 即预览）
   run('V3 vm 闭包 dry-run', NODE, ['delivery/deploy-vm.mjs'], join(dest, 'vm'));
+  // V5（V1.4.3 起，G-1 防回归硬断言）：包内 install-host.mjs 必须携带 NON_ACCOUNT_DIRS
+  //（P2-3/856a0f4 修复；V1.4.2 事故=包早于修复致 Release 安装回归非账户污染）。
+  for (const kind of ['host', 'overall']) {
+    const ihp = join(dest, kind, 'delivery', 'install-host.mjs');
+    const hit = existsSync(ihp) && (readFileSync(ihp, 'utf8').match(/NON_ACCOUNT_DIRS/g) || []).length >= 3;
+    results.push({ label: `V5 ${kind} install-host 含 NON_ACCOUNT_DIRS`, ok: hit, status: hit ? 0 : 1, tail: '' });
+    console.log(`  ${hit ? '✓' : '✗'} V5 ${kind} install-host 含 NON_ACCOUNT_DIRS`);
+  }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
   if (existsSync(capPkg)) {
@@ -565,6 +583,7 @@ function main() {
   copyList([...new Set([...HOST_DELIVERY, ...VM_DELIVERY, ...OVERALL_EXTRA_DELIVERY])], join(dest, 'overall'));
   copyList(OVERALL_TOOLS, join(dest, 'overall'));
   copyList(VM_PROBES, join(dest, 'overall'));
+  copyList(DEPLOY_PROBES, join(dest, 'overall'));
   assembleHostNodeModules(join(dest, 'overall'));
   genOverallScript(join(dest, 'overall'), version);
   ensureDir(join(dest, 'overall', 'docs'));
