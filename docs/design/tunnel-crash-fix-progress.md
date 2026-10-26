@@ -1,7 +1,7 @@
 # WinVM 隧道守护进程崩溃缺陷 —— 修复进度
 
 > 责任人：software-engineer（寇豆码） · 独占范围 `delivery/**`（含新建 `delivery/__tests__/`）
-> 禁区：`packages/**`、`tests/**`、`docs/test/**`、`qa/**` —— 全程零触碰。
+> 禁区：`packages/**`、`tests/**`、`docs/archive/test/**`、`qa/**` —— 全程零触碰。
 > 纪律：ockets-peer DM 一律经主理人中转；每完成一个逻辑单元单独 commit。
 
 ## 0. 缺陷画像（主理人取证）
@@ -101,7 +101,7 @@ AFTER   forward-out-error-no-listener → exit 0 / 退避重连 / 恢复 RUNNING
 | `ccab0b3` | delivery/tunnel-daemon.mjs | 守护进程注册 error/giveup 监听 + uncaughtException 兜底 + writeStateAtom(extra) |
 | `（末单元）` | delivery/__tests__/oh-tunnel-error-handling.test.mjs + docs | 单测 + 进度收口 |
 
-全部 commit 均**零触碰** `packages/**`、`tests/**`、`docs/test/**`、`qa/**`。
+全部 commit 均**零触碰** `packages/**`、`tests/**`、`docs/archive/test/**`、`qa/**`。
 
 ## 5. 验证记录
 

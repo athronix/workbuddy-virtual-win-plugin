@@ -4,7 +4,7 @@
 > 结论：**V20 目标面未命中，但采样过程暴露一个真实 P2 缺陷（N-5）** ⇒ V20 由「待自然样本」转「结构性不可达（依附 N-5）」，不再作为独立观察项挂账。
 >
 > **【2026-10-17 09:1x 更新 · 批18 D-6 修复后】** N-5 已修复并经真机复验，
-> **V20 目标正式达成** —— 见本文 §六 与 `docs/changes/phase6-b18-notes.md` §9.4。
+> **V20 目标正式达成** —— 见本文 §六 与 `docs/archive/changes/phase6-b18-notes.md` §9.4。
 
 ---
 
@@ -104,7 +104,7 @@ V20 **不再单列**为观察项：其目标面的不可达已由 N-5 解释清�
 
 **结论**：N-5（委派呈报失真）已根治；V20 目标（委派完成步携带折叠回执）**正式达成**；
 "已卸载却报未匹配"的 destructive 静默窗口消除。修复实现与判据见
-`docs/changes/phase6-b18-notes.md` §一，回归钉 `tests/unit/p6-d6-degrade-suppress.test.js`（10 例）。
+`docs/archive/changes/phase6-b18-notes.md` §一，回归钉 `tests/unit/p6-d6-degrade-suppress.test.js`（10 例）。
 
 **附带（D-5）**：同轮 `/health` 显示 `llmSession={state:"ready", restarts:0}`、
 `firstCallLatencyMs=12858`（修复前 49278）—— 就绪超时与预热预算对齐后常驻会话零重建。

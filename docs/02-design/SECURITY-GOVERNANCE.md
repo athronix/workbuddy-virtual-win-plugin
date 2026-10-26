@@ -64,7 +64,7 @@
 
 > **本系统的信任边界 = 「回环绑定 + SSH 隧道 + 审批闸」，服务端不承担身份鉴权。**
 
-这不是实现缺口，而是 Phase 1 的**明确设计选择**（裁决全文见 `docs/changes/phase1-arch-design.md` §2.2）。四点含义（第 4 点由 Phase 2 · P2-T5 增补）：
+这不是实现缺口，而是 Phase 1 的**明确设计选择**（裁决全文见 `docs/archive/changes/phase1-arch-design.md` §2.2）。四点含义（第 4 点由 Phase 2 · P2-T5 增补）：
 
 1. **谁能连上 `vm-service`，等价于谁能在那台 Windows 上发起本地回环连接。** VM 内任意本地进程（含被诱导的桌面应用、低权限账户）都能裸调 MCP/A2A 端点 —— 此时**唯一的拦阻是策略引擎与审批闸（第 4/5 层）**，不存在"凭据不对就连不上"这第三道。所以第 2/4/5 层的任何放宽都必须按"暴露给本机所有进程"来评估。
 2. **回环约束不可关**：非回环绑定（如 `0.0.0.0`）一律判 **error** 且启动被拒，`security.requireLoopbackBind=false` **自 Phase 1 起不再能放宽该约束**（只额外产生一条 warning）。理由：一旦允许配置漂移成"对外裸 HTTP"，第 0 层（网络隔离）整体消失，其风险远大于"少一层 bearer 校验"的收益。运维若确需跨机访问，唯一受支持形态是在宿主侧用 `ssh -L` 把远端端口映射到本机回环（见 §6.1、`DEPLOYMENT.md §7`）。
@@ -172,7 +172,7 @@
 | 注册表可读根键白名单 | 与写表**同四条**（两表必须成对存在，见下方第 4 条） |
 | 默认 `maxRisk`（委派） | `L1` |
 | 删除默认行为 | 进回收站（除非显式 `--permanent` + 已审批） |
-| L2/L3 是否强制快照 | **信息性声明，运行期不产快照**（Phase 2 · P2-T3，用户裁决 Q2 2026-10-10：降级为信息性，**不实现** before/after）。声明位**在场且必填**，参与**交付面**形状校验 —— `capability.schema.json` 的 allOf 条件约束「risk ∈ {L2,L3} ⇒ `audit.snapshot ≠ 'none'`」由 `schema-check.ts` 的 `validateCapabilityShape` 消费（P2-T1 裁决 Q1=(b)：只在测试/门禁面，运行期不校验能力定义）。**运行面零消费**（core / vm-service / adapter-* / delivery / psmod 无读取点），**承载面亦无字段**（`contracts/src/audit.ts` 的 `AuditRecord`/`AuditExt` 没有落快照的位置）⇒ 高危操作的事后证据仍只有哈希链 + `artifacts` 哈希，**本行不再构成快照防线承诺**；事实三元组由 `tests/unit/phase2-snapshot-truth.test.js` 钉死，出处见 `docs/audit/2026-10-08-architecture-audit.md` ARCH-04 勘误指针 |
+| L2/L3 是否强制快照 | **信息性声明，运行期不产快照**（Phase 2 · P2-T3，用户裁决 Q2 2026-10-10：降级为信息性，**不实现** before/after）。声明位**在场且必填**，参与**交付面**形状校验 —— `capability.schema.json` 的 allOf 条件约束「risk ∈ {L2,L3} ⇒ `audit.snapshot ≠ 'none'`」由 `schema-check.ts` 的 `validateCapabilityShape` 消费（P2-T1 裁决 Q1=(b)：只在测试/门禁面，运行期不校验能力定义）。**运行面零消费**（core / vm-service / adapter-* / delivery / psmod 无读取点），**承载面亦无字段**（`contracts/src/audit.ts` 的 `AuditRecord`/`AuditExt` 没有落快照的位置）⇒ 高危操作的事后证据仍只有哈希链 + `artifacts` 哈希，**本行不再构成快照防线承诺**；事实三元组由 `tests/unit/phase2-snapshot-truth.test.js` 钉死，出处见 `docs/archive/audit/2026-10-08-architecture-audit.md` ARCH-04 勘误指针 |
 
 **五条必须知道的口径**：
 
@@ -436,18 +436,18 @@ record_n.prevHash = hash_(n-1)
 
 1. **"Bearer 层免校验"是信任边界声明的一部分，不是待补的漏洞**：本系统对"谁在调用"的答案是**回环 + SSH 隧道 + 审批闸**，不是凭据。不要因为"bearer 更保险"就顺手打开 `security.enforceBearer`。
 2. **`enforceBearer` 是"配置即生效"的可选加固，双条件成立才挂载**（`enforceBearer===true` **且** `tokenEnv` 有值，O-9），生效与否由 `/health.security.authMode` 三态显式透出。宿主侧客户端通路已就绪：`--token-env`（`host-a2a-bridge/src/cli.ts`）→ `buildTransport` → `applyBearerHeader`（`core/src/transport`，两条远程传输分支**共用同一实现**，避免两份漂移），三态语义为「无 tokenEnv ⇒ 不加头／有值 ⇒ `authorization: Bearer <token>`／有名无值 ⇒ **fail-loud 抛 `TransportError`**，绝不静默降级成无凭据请求；ssh-tunnel 分支的校验还**前置到建隧道之前**」。
-3. ⚠ **VM 内回连凭据通路已由 P2-T6 落地（默认未接线）⇒ 未接线就开 enforce 仍会 VM 内回连全 401、委派退化为零副作用的虚假完成**（2026-10-10 B3 真机演练实测订正，原"当场失败"表述与实况不符）：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目（回连 `/mcp?dtid=…`）在**未接线**（provider `options.bearerEnvName` 缺席）时**不含凭据**；接线后承载 `headers.Authorization = Bearer ${<envName>}` 引用（值不落盘，见 §2.1 警告块与 `DEPLOYMENT.md`「VM 内回连凭据分发」）。开 `enforceBearer`（双条件齐）后：宿主不带凭据 ⇒ HTTP 层当场 401（可见）；但 VM 内回连段 401 只打在**工具面** ⇒ LLM"无工具可用仍口头收尾"⇒ 终态 `completed` + 零能力产物 + 链上 `zeroInnerCalls:true`，由 CL-K3R 真值层「完成声称不予采信」兜住（详见 §2.1 警告块）。**该静默退化已由 P2-T5「bearer 生效自检 + fail-closed」兜住启动面**（§2.1 判据第 4 点：`/health.security.bearerSelfCheck` / `innerReconnect` 两键透出，「守卫生效 ∧ 回连确证 broken」默认拒绝启动，`enforceBearerFailClosed:false` 一键回滚）——但"误开（未接线）"仍不是可用形态：拒启只是止损，P2-T6 已交付通路三件（`buildMcpConfig` headers 引用形态 / provider `options.bearerEnvName` 同源键 / `install-vm.mjs --bearer-env-name` 的 start-hidden 显式赋值通道），接线动作本身归运维（三步见 `DEPLOYMENT.md`；真机端到端实证 `qa/r19/t6-*`），残留风险登记见 §2.1 与 `docs/changes/phase1-arch-design.md` §5 第 3 条 / §10 R4。
+3. ⚠ **VM 内回连凭据通路已由 P2-T6 落地（默认未接线）⇒ 未接线就开 enforce 仍会 VM 内回连全 401、委派退化为零副作用的虚假完成**（2026-10-10 B3 真机演练实测订正，原"当场失败"表述与实况不符）：`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目（回连 `/mcp?dtid=…`）在**未接线**（provider `options.bearerEnvName` 缺席）时**不含凭据**；接线后承载 `headers.Authorization = Bearer ${<envName>}` 引用（值不落盘，见 §2.1 警告块与 `DEPLOYMENT.md`「VM 内回连凭据分发」）。开 `enforceBearer`（双条件齐）后：宿主不带凭据 ⇒ HTTP 层当场 401（可见）；但 VM 内回连段 401 只打在**工具面** ⇒ LLM"无工具可用仍口头收尾"⇒ 终态 `completed` + 零能力产物 + 链上 `zeroInnerCalls:true`，由 CL-K3R 真值层「完成声称不予采信」兜住（详见 §2.1 警告块）。**该静默退化已由 P2-T5「bearer 生效自检 + fail-closed」兜住启动面**（§2.1 判据第 4 点：`/health.security.bearerSelfCheck` / `innerReconnect` 两键透出，「守卫生效 ∧ 回连确证 broken」默认拒绝启动，`enforceBearerFailClosed:false` 一键回滚）——但"误开（未接线）"仍不是可用形态：拒启只是止损，P2-T6 已交付通路三件（`buildMcpConfig` headers 引用形态 / provider `options.bearerEnvName` 同源键 / `install-vm.mjs --bearer-env-name` 的 start-hidden 显式赋值通道），接线动作本身归运维（三步见 `DEPLOYMENT.md`；真机端到端实证 `qa/r19/t6-*`），残留风险登记见 §2.1 与 `docs/archive/changes/phase1-arch-design.md` §5 第 3 条 / §10 R4。
 
 #### 6.1.1 两项已登记的权衡（Phase 1 裁决结果，**非缺陷**，别"顺手修掉"）
 
-本节是"认证/凭据"讨论的落点，因此把与 §6.1 直接相关的两条权衡在此**登记在册**（详细四件套——风险 / 为什么不根治 / 现有缓解 / 运维动作 / 根治归属——在 §6.4，权威表在 `docs/changes/CL-022/TECHNICAL-SOLUTION.md` 风险与回滚）：
+本节是"认证/凭据"讨论的落点，因此把与 §6.1 直接相关的两条权衡在此**登记在册**（详细四件套——风险 / 为什么不根治 / 现有缓解 / 运维动作 / 根治归属——在 §6.4，权威表在 `docs/archive/changes/CL-022/TECHNICAL-SOLUTION.md` 风险与回滚）：
 
 | # | 权衡 | 与 §6.1 的关系 | 裁定 |
 |---|---|---|---|
 | **W-1** | `freshChainOnStart: true`（每次服务启动起新分片 + 新 genesis）⇒ `verifyChain()` 只证明「本轮连续」（`scope='session'`），跨轮完整性退出判定面 | 与"bearer 可选加固"同构的取舍：**默认形态不追求全覆盖，但必须把覆盖范围显式说清楚**（凭据面靠 `authMode` 三态、审计面靠 `scope`/`shardsArchived`，都拒绝静默降级） | 保持真值、**不列为可关项**（§8 锚点纪律）；跨轮证据 = §4.3.1 的启动 `verifyArchive()` + `chain-archive-verify` 条目。根治（启动即全量校验并阻断就绪）另立 P0，不在本批夹带 |
 | **W-2** | 审计**保留期不设上限**（无到期删除、无容量水位清理，仅按天 / ≥64MB 轮转切分） | 凭据"不落明文"与审计"永不删除"是同一条纪律的两面：都拒绝给攻击者留可配置的消证开关 | 默认保留、**不由本服务自动删除**；收缩由运维在 VM 外做（**先导出归档再收缩**，不要靠删文件腾空间——那会同时销毁 W-1 仅剩的历史证据） |
 
-> 登记来源：`docs/changes/phase1-arch-design.md` §2.2 裁决 + §10 风险表；实施记录 `docs/changes/phase1-t5-notes.md`、变更集 `docs/changes/CL-022/`。
+> 登记来源：`docs/archive/changes/phase1-arch-design.md` §2.2 裁决 + §10 风险表；实施记录 `docs/archive/changes/phase1-t5-notes.md`、变更集 `docs/archive/changes/CL-022/`。
 
 ### 6.2 SSH 认证：只用密钥，不用密码
 

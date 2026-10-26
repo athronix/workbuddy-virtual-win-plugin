@@ -496,7 +496,7 @@ New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH SSH Server' `
 >
 > - **回环约束不可关**：`bind` 非回环（如 `0.0.0.0`）⇒ 校验恒 **error** 且**启动被拒**；`security.requireLoopbackBind=false` 自 Phase 1 起**不再能放宽**该约束，只会额外产生一条 warning。因此"非回环直连"这种部署形态在本系统里**不存在**，跨机访问的唯一受支持形态就是本节讲的 `ssh -L` 隧道。
 > - **bearer 是可选加固，默认不校验**：`security.enforceBearer` 默认 `false`；要生效需**双条件**（`enforceBearer===true` **且** `tokenEnv` 指向的 env 有值，缺一即逐字旧行为），是否真挂载由 `/health.security.authMode` 三态显形（`loopback-only` / `bearer-enforced` / `bearer-configured-missing`）。走回环隧道时默认**不需要**任何 bearer 配置。
-> - ⚠ **`enforceBearer` 开启前置条件：VM 内回连凭据通路（P2-T6 已落地，默认未接线；三步见下）**。未接线就误开（双条件齐）——`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目零凭据——危害分两段（2026-10-10 B3 真机演练实测订正）：宿主不带凭据 ⇒ **HTTP 层当场 401**（可见，`--token-env` 覆盖此段）；VM 内回连段 401 打在**工具面** ⇒ 委派不报错、退化为**零副作用的虚假完成**（终态 `completed` + 链上 `zeroInnerCalls:true`「完成声称不予采信」，由 CL-K3R 真值层兜住）。⇒ 演练/排障时**不得**以"任务显示成功"推断守卫未生效；运维自查看 `/health.security.authMode`、`/health.security.innerReconnect`（P2-T6 起运行期自环探针会把实证结论 `ok/broken` 回填该观测面；fail-closed 拒启判据仍只看配置面）与服务日志 `bearer 守卫拒绝请求` warn（拒绝不入审计链）。残留登记见 `docs/changes/phase1-arch-design.md` §10 R4 与 `SECURITY-GOVERNANCE.md` §2.1（启用前置条件）/ §6.4（两项权衡）。
+> - ⚠ **`enforceBearer` 开启前置条件：VM 内回连凭据通路（P2-T6 已落地，默认未接线；三步见下）**。未接线就误开（双条件齐）——`buildMcpConfig()` 下发给 VM 内 agent CLI 的 `mcpServers` 条目零凭据——危害分两段（2026-10-10 B3 真机演练实测订正）：宿主不带凭据 ⇒ **HTTP 层当场 401**（可见，`--token-env` 覆盖此段）；VM 内回连段 401 打在**工具面** ⇒ 委派不报错、退化为**零副作用的虚假完成**（终态 `completed` + 链上 `zeroInnerCalls:true`「完成声称不予采信」，由 CL-K3R 真值层兜住）。⇒ 演练/排障时**不得**以"任务显示成功"推断守卫未生效；运维自查看 `/health.security.authMode`、`/health.security.innerReconnect`（P2-T6 起运行期自环探针会把实证结论 `ok/broken` 回填该观测面；fail-closed 拒启判据仍只看配置面）与服务日志 `bearer 守卫拒绝请求` warn（拒绝不入审计链）。残留登记见 `docs/archive/changes/phase1-arch-design.md` §10 R4 与 `SECURITY-GOVERNANCE.md` §2.1（启用前置条件）/ §6.4（两项权衡）。
 >
 > **VM 内回连凭据分发三步（enforceBearer 开启的上线前置操作，P2-T6 交付）**——凭据纪律 = 变量名进配置、真值只进 VM 进程环境（NFR-511/K-17 不落任何明文盘）：
 >
@@ -659,7 +659,7 @@ bash deploy-all.sh            # 不清场直接重装（仅限同版本热修，
 
 ### 9.3 发布迭代纪律（用户 2026-10-18 裁定）
 
-> **① 清空重装**：每个迭代重新部署新版本前，必须清空历史部署（`deploy-all.sh --wipe`）。不清场的重装只是"补部署"，不构成迭代验收；功能验证矩阵必须在该迭代的清空重装态上取数。迭代问题按「版本→迭代」记 `docs/release/issues.md`，关闭条件=复验通过。
+> **① 清空重装**：每个迭代重新部署新版本前，必须清空历史部署（`deploy-all.sh --wipe`）。不清场的重装只是"补部署"，不构成迭代验收；功能验证矩阵必须在该迭代的清空重装态上取数。迭代问题按「版本→迭代」记 `docs/release/ISSUES.md`，关闭条件=复验通过。
 > **② 清场先杀看门狗**：uninstall 必须先查杀 VM 端本项目的看门狗与 services，再执行卸载清场（已内建于 `uninstall.mjs` VM 段，见 §9.2）。
 > **③ 迭代即推送**：每个迭代完成后 git commit 必须 push 到 origin（GitHub `athronix/workbuddy-virtual-win-plugin`，public；tag+Release zip 资产上架见 §9.1a）。
 
@@ -675,7 +675,7 @@ bash deploy-all.sh            # 不清场直接重装（仅限同版本热修，
 | 6 | 审计链 | 委派 traceId 在链、字段级回执；`a2a.health` Agent Card 可达 |
 | 7 | 双侧部署态 | 宿主缓存版本路径在册；VM `C:/WinVMBridge` + 计划任务 + dev-and-qa MANIFEST 在册 |
 
-设计依据：`docs/release/DESIGN-V1.4.0.md`；发布说明：`docs/release/RELEASE-V1.4.0.md`；问题台账：`docs/release/issues.md`；**总览手册**（部署/运行机制系统性综述 + 全部配置逐键穷举 + 坑索引速查）：`docs/部署与运行机制及配置总览.md`。
+设计依据：`docs/release/DESIGN-V1.4.0.md`；发布说明：`docs/release/RELEASE-V1.4.0.md`；问题台账：`docs/release/ISSUES.md`；**总览手册**（部署/运行机制系统性综述 + 全部配置逐键穷举 + 坑索引速查）：`docs/部署与运行机制及配置总览.md`。
 
 ### 9.5 新鸿蒙机 + 铠大师 App 部署方案
 

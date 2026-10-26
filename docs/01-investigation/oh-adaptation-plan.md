@@ -117,7 +117,7 @@
 **P2-R10 常驻隧道进程** ⬆️ **已升级为 CL015-P0-02（P0）**（2026-09-14 · CL-015）
 - 描述：若 `connector:winvm` 的 `ssh-tunnel` 不由 `@winvm/core` 的 `establishTransport` 处理、而由宿主运行时自起隧道，则需常驻隧道进程入口（`node delivery/oh-tunnel.mjs --daemon`），由 `install-host.mjs` 注册为 OH 后台服务。
 - 验收：宿主运行时重启后 `127.0.0.1:18443` 仍常驻可达。
-- **升级说明**：该「常驻隧道」被 CL-015 确认为「**装完不可用**」的**直接成因**（部署进程一退即拆、单命令用完即拆 → 装完端口就是空的），故优先级由 **P2 → P0**，收口为 **CL015-P0-02**（验收 B1–B9，见 `docs/changes/CL-015/REQUIREMENT.md` 与 `docs/changes/CL-015/TECHNICAL-SOLUTION.md` §10 结论 2）。落地形态调整为：**安装器 detach 拉起 + pidfile 幂等守护 + 显式 `winvm-plugin tunnel stop`**（鸿蒙无 systemd/launchd，本轮**不做**系统级后台服务注册），并提供 `--no-tunnel` 跳过开关。
+- **升级说明**：该「常驻隧道」被 CL-015 确认为「**装完不可用**」的**直接成因**（部署进程一退即拆、单命令用完即拆 → 装完端口就是空的），故优先级由 **P2 → P0**，收口为 **CL015-P0-02**（验收 B1–B9，见 `docs/archive/changes/CL-015/REQUIREMENT.md` 与 `docs/archive/changes/CL-015/TECHNICAL-SOLUTION.md` §10 结论 2）。落地形态调整为：**安装器 detach 拉起 + pidfile 幂等守护 + 显式 `winvm-plugin tunnel stop`**（鸿蒙无 systemd/launchd，本轮**不做**系统级后台服务注册），并提供 `--no-tunnel` 跳过开关。
 
 ---
 
@@ -156,7 +156,7 @@
      - 视情况 `~/.workbuddy/connectors`（连接器合并写）
   2. 卸载期对称移除上述条目（仅本插件追加的）。
   3. **ssh2 在 HMOS 运行时落地（原生依赖）**：T01 已在 `packages/core/package.json` 加 `ssh2`，但 **HMOS 沙箱/离线环境可能无网**，`npm i ssh2` 会失败 → **安装器须把 `ssh2` 随插件 vendor 分发**（预置 `node_modules/ssh2` 或打包进插件缓存，纯 JS 与架构无关），确保离线可跑 `delivery/oh-tunnel.mjs`。验证：`install-host.mjs` 自检 `require('ssh2')` 可解析。
-     > ⚠️ **订正（2026-09-14 · CL-015）**：上述「须分发 ssh2」**至今尚未落地**——`delivery/install-host.mjs:119` 的 `collectWinvmDeps()` **显式跳过所有非 `@winvm/*` 依赖**，且 :108 注释仍称「本仓库 @winvm 包运行时零第三方依赖」（**该断言已过时且错误**：`@winvm/core` 运行时依赖 `ssh2` 及其传递依赖 asn1/bcrypt-pbkdf/tweetnacl）。后果：安装后插件缓存无 ssh2 → 鸿蒙上 `import('ssh2')` 必失败 → ssh2 隧道起不来。该缺口由本轮 **CL-015 T11（CL015-P0-01）** 收口：安装期从安装机 `node_modules/`（或可选离线预置 `<repoRoot>/vendor/ssh2`）把 ssh2 及其传递依赖离线复制到 `<pluginRoot>/node_modules/ssh2`（顶层落点，覆盖 `oh-tunnel.mjs` 与 `a2a-bridge/node_modules/@winvm/core/dist/*` 两条 ESM 向上查找路径），optional 原生依赖（cpu-features/nan）缺失即降级，方案见 `docs/changes/CL-015/TECHNICAL-SOLUTION.md` §10 结论 1。
+     > ⚠️ **订正（2026-09-14 · CL-015）**：上述「须分发 ssh2」**至今尚未落地**——`delivery/install-host.mjs:119` 的 `collectWinvmDeps()` **显式跳过所有非 `@winvm/*` 依赖**，且 :108 注释仍称「本仓库 @winvm 包运行时零第三方依赖」（**该断言已过时且错误**：`@winvm/core` 运行时依赖 `ssh2` 及其传递依赖 asn1/bcrypt-pbkdf/tweetnacl）。后果：安装后插件缓存无 ssh2 → 鸿蒙上 `import('ssh2')` 必失败 → ssh2 隧道起不来。该缺口由本轮 **CL-015 T11（CL015-P0-01）** 收口：安装期从安装机 `node_modules/`（或可选离线预置 `<repoRoot>/vendor/ssh2`）把 ssh2 及其传递依赖离线复制到 `<pluginRoot>/node_modules/ssh2`（顶层落点，覆盖 `oh-tunnel.mjs` 与 `a2a-bridge/node_modules/@winvm/core/dist/*` 两条 ESM 向上查找路径），optional 原生依赖（cpu-features/nan）缺失即降级，方案见 `docs/archive/changes/CL-015/TECHNICAL-SOLUTION.md` §10 结论 1。
   4. **核实沙箱限制（对策，非代码）**：随安装器输出 `oh-host-selfcheck.md` §5 的三条验证命令（本地监听 / 长驻子进程 / 出站 TCP）。若真机 FAIL：
      - 出站/监听被拦 → 文档化：需在 OH OS 层授予 WorkBuddy `INTERNET`/socket 权限或关闭相关沙箱限制（**OS 层解决，非改插件**）；
      - 进程 spawn 被拦 → 阻塞项，回 `oh-host-selfcheck.md` 检查 5，升级为环境 blocker。
@@ -319,7 +319,7 @@ graph TD
 
 > **变更标识**：`CL-015` ｜ **场景**：宿主 = 本机鸿蒙（HMOS），VM = 本机 Windows（`ssh User@172.16.100.2`）
 > **性质**：不新增产品能力，只补「鸿蒙宿主装完即可用」链上的三处断点（**依赖 / 常驻 / shell**）+ 文档债。
-> **上游**：`docs/changes/CL-015/REQUIREMENT.md`（PM）｜ **技术方案**：`docs/changes/CL-015/TECHNICAL-SOLUTION.md`
+> **上游**：`docs/archive/changes/CL-015/REQUIREMENT.md`（PM）｜ **技术方案**：`docs/archive/changes/CL-015/TECHNICAL-SOLUTION.md`
 > **不变量**：VM 侧（Windows）零改动；Windows/macOS 宿主零行为变化；不改 MCP/A2A 契约。
 
 | 任务 | 状态 | 关键文件 | 对应需求 ID |

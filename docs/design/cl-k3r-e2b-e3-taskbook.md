@@ -90,4 +90,4 @@
    `APPROVAL_WAIT_PATTERN|parseApprovalBlock|return base|function reconcileApprovalWait` 无任何 +/- 行
 3. 四道闸 + K-N1 242 独立重跑
 4. E-3 三态 stdout 留档
-5. 之后进入 T05 真机序列（见 `docs/test/reports/k3r-t05-runbook-2026-10-05.md`，主理人专属）
+5. 之后进入 T05 真机序列（见 `docs/archive/test/reports/k3r-t05-runbook-2026-10-05.md`，主理人专属）

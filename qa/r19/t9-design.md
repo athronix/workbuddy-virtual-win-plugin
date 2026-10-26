@@ -109,8 +109,8 @@ kn1-d 的 deepEqual 消费的是**测试内联 fixture** `health()` 构造物，
 
 **grep 结论（守卫输入面核查）**：
 - 字串「仅 state==='healthy' 才有意义」**从未落地**到 HOST-A2A-BRIDGE.md / health.ts（audit-2026-10-08
-  B4 行实测"全仓 grep 未见 ⇒ 仍为裸 backlog"）。它现存于 docs/changes/CL-020、docs/audit、
-  docs/changes/phase2-arch-design（均为历史登记件，**不是**本批可改的活文档，不回改）。
+  B4 行实测"全仓 grep 未见 ⇒ 仍为裸 backlog"）。它现存于 docs/archive/changes/CL-020、docs/audit、
+  docs/archive/changes/phase2-arch-design（均为历史登记件，**不是**本批可改的活文档，不回改）。
   ⇒ 所谓"升级"= 把这条**从未兑现**的临时口径，以正式判据形态落地到活文档，
   并在 CL-020 历史件旁不碰（K-20 的历史件本来就是划线对象）。
 - 静态断言消费核查：`snapshot-truth` 白名单守卫要求含 "snapshot" 字样的 src 文件集恰=12 ——

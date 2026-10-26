@@ -42,7 +42,7 @@
   同轮连带口径变更：根 `package.json` 的 `layout` 脚本（指向不存在的 `scripts/dep-lint.mjs`）**已删除**，
   依赖方向守卫 `dep-lint` 属 **Phase 2 规划**，改前请人工核对包间依赖方向。
 - **【历史快照 · 2026-10-07】单元测试（逐文件复核）：59 个 `tests/unit/*.test.js` ／ 1054 tests ／ 1054 pass ／ 0 fail ／ 0 skipped**（口径仅覆盖 `.test.js`，已被上一行取代，保留备查）。
-  ⚠ 2026-10-08 体检口径修正（`docs/audit/2026-10-08-test-docs-audit.md` §1）：`tests/unit/*.test.js` 实为 **60 个**（git ls-files 证实，现随 R3 增至 62）；另有 8 个 `*.test.mjs`（70 例）、`delivery/__tests__`（8 例）、`tests/e2e/`（17 例，本机 1 fail=pwsh ENOENT 无守卫）**均不在 1054 口径内**。1054 数字本身抽验属实无虚报。
+  ⚠ 2026-10-08 体检口径修正（`docs/archive/audit/2026-10-08-test-docs-audit.md` §1）：`tests/unit/*.test.js` 实为 **60 个**（git ls-files 证实，现随 R3 增至 62）；另有 8 个 `*.test.mjs`（70 例）、`delivery/__tests__`（8 例）、`tests/e2e/`（17 例，本机 1 fail=pwsh ENOENT 无守卫）**均不在 1054 口径内**。1054 数字本身抽验属实无虚报。
   相较第十七轮（51 文件 / 736 pass / 0 fail / 2 skipped）净增 **8 个文件、318 个用例**，主要来自：K-N1 专项 `r19c-kn1-*` 7 文件、K3R 专项 `r19c-k3r-*` 3 文件 + `cl-k3r-runpersistent-approval-routing.test.js`、A5 专项 `r19c-a5-*` 2 文件、以及 `r19b-*`、`r3-uninstall-verify`、`install-vm-admin-endpoint`、`cl017` 等。
 - 单元测试（逐文件复核，截至第十五轮 2026-09-29）：**636 tests / 634 pass / 0 fail / 2 skipped**（24 个 `tests/unit/*.test.js`；第十五轮新增 `k5-replay.test.js` 41 项、`k4-p3.test.js` 扩至 16 项，`k4-approval.test.js` 适配 ApprovalOutcome 契约 6 项；另含第十五轮前累计新增的 K2 预热/tunnel-mode 等测试）。历史快照曾记 214/214（第十四轮）、178 单测 + 16 e2e（分类口径不同）。
 - 审批链专项（K3/K4/P3/K5）：k5-replay 41/41、k4-approval 6/6、k4-p3 16/16 全绿；`tsc -b tsconfig.build.json` 0 error。

@@ -1,7 +1,7 @@
 /**
  * Phase 2 · P2-T6 单元测试 —— VM 内回连凭据分发通路（配置生成面 + 判序联动 + 探针 + 注入面）
  *
- * 覆盖设计 `docs/changes/phase2-arch-design.md` §2.2（F2 Step 2 判据）与 §13 Q3 裁决
+ * 覆盖设计 `docs/archive/changes/phase2-arch-design.md` §2.2（F2 Step 2 判据）与 §13 Q3 裁决
  * （通路实现 + 开关默认关）：
  *  A. `buildMcpConfig` 三参三态：
  *     - `undefined` ⇒ **逐字节旧输出**（缺席即旧行为，与本仓 r19c-kn1-b LEGACY_OUT 同一护栏口径）；

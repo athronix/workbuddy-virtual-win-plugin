@@ -205,7 +205,7 @@ async function cmdCheck() {
     if (!r.ok) {
       log('         Next step: install/expose "' + t + '" on PATH. HMOS sandbox ships');
       log('         /usr/bin/ssh, /usr/bin/scp, /bin/tar, /usr/bin/curl (verified in');
-      log('         docs/oh-host-install-run-test.md section 0); if missing here the');
+      log('         docs/01-investigation/oh-host-install-run-test.md section 0); if missing here the');
       log('         sandbox policy changed - re-check the WorkBuddy build.');
       blocking++;
     }

@@ -303,7 +303,7 @@ skills/<name>/
 | 任务取消（真取消） | 契约 `ProgressSink.isCancelled()/cancellationSignal` → 框架 `TaskStore.cancelController` + `addArtifact` 终态守卫 → 服务端 `onGoalTerminal` 三分支（`canceled` 入链、`errorCode:'TASK_CANCELED'`）→ 执行体消费（确定性 `step()` 咽喉 / LLM turn 边界 + CLI 子进程 kill）→ 宿主两态事实化。**协作式、非抢占**（见 `SECURITY-GOVERNANCE.md` §2.2） |
 | 宿主侧静态禁用 | `adapter-host-workbuddy` 生成 `mcp.json` 时写入 `disabledTools` |
 | traceId 全链路 | `core` 注入，贯穿 MCP/A2A/能力执行/审计 |
-| before/after 快照（**信息性声明，运行期不产**） | ~~L2/L3 操作自动截图 + 变更清单，作为 A2A artifact 回传~~ —— 该机制**未实现且经用户裁决不实现**（Phase 2 · P2-T3 / Q2 裁决 2026-10-10，降级为信息性）：能力定义 `audit.snapshot` 仅作注册表声明并参与**交付面** schema 形状校验（L2/L3 ⇒ 非 `none`），运行期零消费、`AuditRecord` 亦无承载字段；高危操作的事后证据 = 哈希链审计 + `artifacts` 哈希。事实三元组守卫 `tests/unit/phase2-snapshot-truth.test.js`，出处 `SECURITY-GOVERNANCE.md` §3.2 表「L2/L3 是否强制快照」行与 `docs/audit/2026-10-08-architecture-audit.md` ARCH-04 勘误指针 |
+| before/after 快照（**信息性声明，运行期不产**） | ~~L2/L3 操作自动截图 + 变更清单，作为 A2A artifact 回传~~ —— 该机制**未实现且经用户裁决不实现**（Phase 2 · P2-T3 / Q2 裁决 2026-10-10，降级为信息性）：能力定义 `audit.snapshot` 仅作注册表声明并参与**交付面** schema 形状校验（L2/L3 ⇒ 非 `none`），运行期零消费、`AuditRecord` 亦无承载字段；高危操作的事后证据 = 哈希链审计 + `artifacts` 哈希。事实三元组守卫 `tests/unit/phase2-snapshot-truth.test.js`，出处 `SECURITY-GOVERNANCE.md` §3.2 表「L2/L3 是否强制快照」行与 `docs/archive/audit/2026-10-08-architecture-audit.md` ARCH-04 勘误指针 |
 
 ---
 

@@ -24,7 +24,7 @@ import { pathToFileURL } from 'node:url';
 const SSH2_NAME = 'ssh2';
 
 /**
- * 构造「三要素」错误（不含任何凭据）。模板见 docs/changes/CL-015/TECHNICAL-SOLUTION.md §3.4。
+ * 构造「三要素」错误（不含任何凭据）。模板见 docs/archive/changes/CL-015/TECHNICAL-SOLUTION.md §3.4。
  * @param {{expectedPaths?:string[], fixAction?:string}} details
  * @returns {Error}
  */

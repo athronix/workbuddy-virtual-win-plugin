@@ -1,7 +1,7 @@
 /**
  * Phase 1 · T4 判据⑤ —— HTTP Bearer 守卫（`packages/vm-service/src/http-guard.ts`）
  *
- * 覆盖设计 `docs/changes/phase1-arch-design.md` §7.4-T4 判据⑤全部分项：
+ * 覆盖设计 `docs/archive/changes/phase1-arch-design.md` §7.4-T4 判据⑤全部分项：
  *  - `enforceBearer=false` ⇒ **路由逐字旧行为**（关键回归：现网
  *    `delivery/vm-service.config.json` 未写该键）；
  *  - `enforceBearer=true` + env 有值 ⇒ 非豁免端点 401、`/health` + agent-card 200、

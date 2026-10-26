@@ -1,7 +1,7 @@
 # K-N1 委派层审计真实性契约设计（含 S-3 / L1 取舍与任务分解）
 
 - **文档性质**：设计-only。不含实现代码，不改任何源码。
-- **缺陷来源**：`docs/test/reports/real-test-2026-09-30-r19.md` §5 K-N1（High，阻塞 E4 收尾）、§5 策略表 S-3、§8 L1/L2/L4/L8。
+- **缺陷来源**：`docs/archive/test/reports/real-test-2026-09-30-r19.md` §5 K-N1（High，阻塞 E4 收尾）、§5 策略表 S-3、§8 L1/L2/L4/L8。
 - **被测版本基线**：HEAD `9139239`。
 - **作者**：software-architect（Bob）· 任务板 #5。
 - **硬约束遵守**：最小变更、不重构；所有结论先读码后设计，引用一律 `file:line`。

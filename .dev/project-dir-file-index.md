@@ -7,7 +7,7 @@ workbuddy-virtual-win-plugin/
 ├── package.json              # workspace 根（npm workspaces，12 包）
 ├── tsconfig.base.json        # 共享 TS 配置（strict, ESM）
 ├── tsconfig.build.json       # 构建引用图（根无 tsconfig.json，构建须带此文件）
-├── docs/                     # 调研 / 设计 / 交付文档（含 docs/changes/CL-* 与 docs/test/reports/）
+├── docs/                     # 调研 / 设计 / 交付文档（含 docs/archive/changes/CL-* 与 docs/archive/test/reports/）
 ├── packages/                 # 12 个可独立编译/发布的 npm 包
 ├── skills/                   # 8 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 个 `winvm-mcp-reference` 部署参考 + 1 个 `hos-win-skill` 宿主分派）；`references/` 仅两家（winvm-orchestrator 的 approval-card.md、winvm-mcp-reference 的 mcps-reference.md）
 ├── tests/                    # unit/（59 个 *.test.js）+ e2e/ + fixtures/

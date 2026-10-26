@@ -438,7 +438,7 @@ Fix-2 改变的行为**只在并发下才可见**，而现有 41+ 个 test 全�
 
 ## 8. 补充说明：QA 离线复现结果回执（对 §1/§3/§6 的收敛）
 
-> 来源：QA（`software-qa-engineer-2`）commits `f3dd21e`（测试 D 组，`tests/unit/r19c-a5-approval-coordinator.test.js`）、`216fe9e`（报告 `docs/test/reports/a2a-coverage-2026-10-03.md` §A6.6）。本节只做源码侧复核与口径收敛，不改 `packages/**`。
+> 来源：QA（`software-qa-engineer-2`）commits `f3dd21e`（测试 D 组，`tests/unit/r19c-a5-approval-coordinator.test.js`）、`216fe9e`（报告 `docs/archive/test/reports/a2a-coverage-2026-10-03.md` §A6.6）。本节只做源码侧复核与口径收敛，不改 `packages/**`。
 
 ### 8.1 P1 的判级升级：由「静态判定」→「离线已复现」
 

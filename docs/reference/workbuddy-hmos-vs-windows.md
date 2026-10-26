@@ -2,7 +2,7 @@
 
 > **文档代号**：`ref:hmos-vs-windows` ｜ **作者**：架构师 高见远 ｜ **读者**：工程师、PM、真机验证者
 > **目的**：系统对比「真机鸿蒙（OH）宿主版 WorkBuddy」与「Windows VM 侧 WorkBuddy（本插件操作对象）」在架构、目录、连接器、插件、沙箱、shell 等维度的差异，并**直接落到本项目（WinVM Bridge）宿主侧适配**需要知道的行为差异。
-> **配套文档**：`docs/oh-host-selfcheck.md`（可行性门禁）、`docs/oh-tunnel-design.md`（ssh2 隧道设计）、`docs/oh-adaptation-plan.md`（适配需求+变更方案）。
+> **配套文档**：`docs/01-investigation/oh-host-selfcheck.md`（可行性门禁）、`docs/01-investigation/oh-tunnel-design.md`（ssh2 隧道设计）、`docs/01-investigation/oh-adaptation-plan.md`（适配需求+变更方案）。
 
 ---
 

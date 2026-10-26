@@ -60,4 +60,4 @@ cd ../vm   && ./deploy-vm.sh
 
 ## 七、问题台账
 
-发布过程问题按「版本→迭代」记录于 `docs/release/issues.md`（随包快照见 `overall/docs/issues.md`）。
+发布过程问题按「版本→迭代」记录于 `docs/release/ISSUES.md`（随包快照见 `overall/docs/issues.md`）。

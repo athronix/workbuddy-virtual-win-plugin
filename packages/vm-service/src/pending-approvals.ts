@@ -8,7 +8,7 @@
  * —— 长跑服务内存单调增长，且残留令牌的 `hostApproved=false` 虽不构成放行漏洞
  * （K4 续跑闸是严格等值），仍会让 `collectApprovalFacts` 的窗口归因面（R3）越扫越宽。
  *
- * ## 设计（`docs/changes/phase1-arch-design.md` §1.6-1）
+ * ## 设计（`docs/archive/changes/phase1-arch-design.md` §1.6-1）
  * - **替换而非改造**：`implements` 一个窄 `ReadonlyMap` 接口面（`get/has/size/values/
  *   entries/forEach/[Symbol.iterator]`）⇒ `server.ts` 既有三类调用点
  *   （`set` / `get` / `delete`）与 `collectApprovalFacts(ReadonlyMap)` 形参**签名不变**

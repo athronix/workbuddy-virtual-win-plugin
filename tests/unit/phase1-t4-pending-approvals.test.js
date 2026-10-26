@@ -1,7 +1,7 @@
 /**
  * Phase 1 · T4 判据⑥ —— MCP 续跑令牌表的有界化（`packages/vm-service/src/pending-approvals.ts`）
  *
- * 覆盖设计 `docs/changes/phase1-arch-design.md` §7.4-T4 判据⑥分项：
+ * 覆盖设计 `docs/archive/changes/phase1-arch-design.md` §7.4-T4 判据⑥分项：
  *  - `registry.sweepExpired` **不扫** `hostApproved:true` 的在途条目（**O-10**）；
  *  - `close()` 后**无定时器残留**（句柄被 clear、且不再复活）；
  * 附带覆盖：

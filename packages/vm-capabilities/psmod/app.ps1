@@ -775,7 +775,7 @@ function Get-UninstallPrecapture {
 # KN2 · dry-run 预览载荷构造（纯注册表只读，零子进程、零系统变更）。
 # 权威口径：docs/design/r19b-s1-kn2-contract.md §4（定稿契约，交叉核对 A1 要求
 # 本函数字段与 definitions.ts 的 output.plan / CAPABILITY-MODEL.md §3.2.1 三方逐字一致）；
-# 缺陷来源为 docs/test/reports/real-test-2026-09-30-r19.md §5「K-N2」与 §7 L3 路由。
+# 缺陷来源为 docs/archive/test/reports/real-test-2026-09-30-r19.md §5「K-N2」与 §7 L3 路由。
 # 字段集：packageId / displayName / version / installerType / installed / registryKey /
 #        hive / installRoot / expectedAction / actions / systemImpact
 # （契约 §4.2③ 明确废弃 wingetInvoked；§4.3 末明确 UninstallString/QuietUninstallString

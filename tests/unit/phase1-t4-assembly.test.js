@@ -11,7 +11,7 @@
  *   (c) **源码文本钉**（含"移动守卫"这类内存变异反例，防断言恒真）⇒ 装配纪律 O-7 写原始
  *       sink、区 8 挂载位置、区 9/10 透出与停表。
  *
- * 对应设计 `docs/changes/phase1-arch-design.md` §7.4-T4 判据：
+ * 对应设计 `docs/archive/changes/phase1-arch-design.md` §7.4-T4 判据：
  *  ①三态各一条 + 超时去重只一条；②sink 抛错决策不变仅 warn；③`/health.audit.scope`
  *  可读且 `chainValid` 语义不变；④启动落 `chain-archive-verify`（原始 sink）；
  *  ⑥清扫不扫在途 + close 后无定时器（装配线部分）；⑦链上 `terminalState:'canceled'`

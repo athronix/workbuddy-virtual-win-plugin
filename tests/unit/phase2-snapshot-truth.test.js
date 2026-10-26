@@ -41,7 +41,7 @@ const CHECK_TS = 'packages/contracts/src/schema-check.ts';
 const DEFS_TS = 'packages/vm-capabilities/src/registry/definitions.ts';
 const AUDIT_TS = 'packages/contracts/src/audit.ts';
 const SECURITY_MD = 'docs/02-design/SECURITY-GOVERNANCE.md';
-const AUDIT_MD = 'docs/audit/2026-10-08-architecture-audit.md';
+const AUDIT_MD = 'docs/archive/audit/2026-10-08-architecture-audit.md';
 
 /** 收集各包 src 目录下全部 .ts（相对仓库根路径） */
 function allSrcTs() {

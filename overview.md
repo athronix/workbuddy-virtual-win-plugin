@@ -136,7 +136,7 @@
 
 ## 交付物
 
-- `docs/test/reports/real-test-2026-09-23-run6.md`（本轮权威报告）
+- `docs/archive/test/reports/real-test-2026-09-23-run6.md`（本轮权威报告）
 - `qa/evidence/run6-qa-a-full.out` · `qa/evidence/run6-qa-skip13.out`
 - `qa/harness/tidy-vm-devqa.ps1`（VM dev-and-qa 收口）
 
@@ -168,7 +168,7 @@
 
 ## 交付物
 
-- `docs/test/reports/real-test-2026-09-24-run7.md`（本轮权威报告）
+- `docs/archive/test/reports/real-test-2026-09-24-run7.md`（本轮权威报告）
 - `qa/evidence/run7-qa-a-full.out` · `qa/evidence/run7-deploy-v2.log`（+ v1 失败实证 run7-deploy.log）
 
 ---
@@ -188,7 +188,7 @@ A2A 委派中 LLM 遇 L2 审批闸（APPROVAL_REQUIRED）会谎报「已完成�
 ## 验证链
 - 工程师自测：tsc 0 error、llm-provider 20/20、cl018 19/19；
 - QA（严过关）独立复跑 + 代码审查：全绿、无恒真断言、apr_ 正则与 vm-service newId('apr') 实测吻合 → **路由 NoOne**；
-- QA 报告：`docs/test/reports/k3-fix-qa-2026-09-28.md`。
+- QA 报告：`docs/archive/test/reports/k3-fix-qa-2026-09-28.md`。
 
 ## 已知边界（有意取舍）
 - 兜底是启发式（依赖 LLM 措辞），根治 = bridge 直读 MCP 结构化结果（更大改造，P2）；
@@ -223,7 +223,7 @@ A2A 委派中 LLM 遇 L2 审批闸（APPROVAL_REQUIRED）会谎报「已完成�
 ## 验证链
 - 工程师自测：tsc 0 error、15/15、winvm-plugin 回归 7/7；
 - QA 独立回归：**NoOne**——30 单测全过 + 冒烟 5/5 + **真实写盘回环**（HOME 注入 → 单键写入 5 字段保留 → 回读 → 回写）；运行态 vm-conn.json md5 前后不变；
-- 报告：`docs/test/reports/tunnel-mode-qa-2026-09-28.md`。
+- 报告：`docs/archive/test/reports/tunnel-mode-qa-2026-09-28.md`。
 
 ## 关键设计决定
 - **指引性配置**：不在桥层拦截（宿主 Agent 工具调用无法在 stdio 桥层拦截另一连接器）——配置事实源（CLI+vm-conn.json）+ skill 指引（宿主 LLM 决策入口）；

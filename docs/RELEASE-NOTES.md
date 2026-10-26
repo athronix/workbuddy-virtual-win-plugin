@@ -1,6 +1,6 @@
 # WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4.0 → V1.4.2 · 2026-10-26 同步）
 
-> 本文取代 `V1.0.0-release-notes.md` 的"演进路线"职能（后者已加冻结头注留痕）。**权威口径**：里程碑链来自 git log + `docs/changes/` 各批 notes + 两份终版台账（`docs/audit/2026-10-12-full-audit.md`、`docs/audit/2026-10-14-full-audit.md`），数字均实测登记值。
+> 本文取代 `V1.0.0-release-notes.md` 的"演进路线"职能（后者已加冻结头注留痕）。**权威口径**：里程碑链来自 git log + `docs/archive/changes/` 各批 notes + 两份终版台账（`docs/archive/audit/2026-10-12-full-audit.md`、`docs/archive/audit/2026-10-14-full-audit.md`），数字均实测登记值。
 
 ## 一、能力面总览（当前实况）
 

@@ -1,14 +1,14 @@
 # R19-B 缺陷修复契约：S-1 注册表路径形态归一化 + K-N2 dry-run 预览语义（R-B2 定稿）
 
 - **文档性质**：**权威设计契约（定稿）**。本文是 S-1 / K-N2 两项修复的**唯一判定依据**；此前该契约只存在于会话上下文（评审与裁决记录），未落盘 —— 本文即任务板 #17 的落盘产物。落盘后任何与本文件不一致的口头/会话表述一律以本文为准；本文自身的缺陷按 §6 流程**开新单修订**，不允许实现侧「边写边改契约」。
-- **缺陷来源**：`docs/test/reports/real-test-2026-09-30-r19.md`（真机轮 R19-B，HEAD 基线 `9139239`）
+- **缺陷来源**：`docs/archive/test/reports/real-test-2026-09-30-r19.md`（真机轮 R19-B，HEAD 基线 `9139239`）
   - S-1：§5「策略/环境类」表 S-1 行、§7 遗留项 **L6**、§6 复现脚本 **R-7**、§3 E2「子步 BLOCKED」段；
   - K-N2：§5「K-N2」小节（Severity **Medium**）、§7 遗留项 **L3**、§6 复现脚本 **R-6**、§2 观测 **OBS-B**、§6「未复现清单」第 4 项（R-0 预捕获产物级工件）。
 - **定稿链**：software-architect（Bob，任务板 #5 交接）提出 R-B2 → 主理人独立核验批准 → software-engineer-3（任务板 #7）背书并落盘。
 - **作者/落盘人**：software-engineer-3 · 任务板 #17。
 - **硬约束遵守**：最小变更、不重构；所有结论先读码后设计，引用一律 `file:line`。
 - **范围排除（明确不动）**：委派/审计层 —— `packages/vm-service/src/server.ts` 的审计写入分支、`packages/adapter-agent-workbuddy-llm/src/bridge.ts` 的 `reconcileExecutionTruth`（属 K-N1，见 `docs/design/kn1-delegation-audit-contract.md`，任务板 #5/#26）。**S-4（`POLICY_DENIED` 不落审计）不在本契约范围**：K-N1 契约 §2.2 末已明确排除、报告 §5 S-4 行亦「仅登记不推动」；本文只在 §5-A5 留一条交叉核对提示。
-  > **数据来源说明（避免误引）**：本文**只**引用 `real-test-2026-09-30-r19.md`（真机五例复跑 + 181 条审计链离线复核）与 `qa/r19/*.resp.json` 原始回执。`docs/test/reports/real-test-2026-10-02-e3e4retest.md`（E3/E4 复测）**不是**本文依据；`real-test-2026-09-28-uninstall-wecom.md` 等早期轮次仅作「同一缺陷跨轮次重现」的背景旁证，不作为判定证据。仓库内**不存在** 2026-07-25 的任何数据文件，故本文不引用该日期数据（曾有误引，见 §6）。
+  > **数据来源说明（避免误引）**：本文**只**引用 `real-test-2026-09-30-r19.md`（真机五例复跑 + 181 条审计链离线复核）与 `qa/r19/*.resp.json` 原始回执。`docs/archive/test/reports/real-test-2026-10-02-e3e4retest.md`（E3/E4 复测）**不是**本文依据；`real-test-2026-09-28-uninstall-wecom.md` 等早期轮次仅作「同一缺陷跨轮次重现」的背景旁证，不作为判定证据。仓库内**不存在** 2026-07-25 的任何数据文件，故本文不引用该日期数据（曾有误引，见 §6）。
 
 ---
 
@@ -248,7 +248,7 @@ if ($DryRun) { $wingetArgs += '--dry-run' }   # ← v1.29.380 的 uninstall 子�
 | **A2** | **无「旧文案」残留**：`请改用无冒号反斜杠形态`、`双端同样宽松` 之类**把归一职责说成 psmod 侧**的表述，全仓 `git grep` 零命中；运维事实（重启 VM 服务/旧 dist 判断口径）在 `app.ps1` 注释 + 本文 §4.5 + **commit message** 三处齐备 | `git grep -n "无冒号反斜杠形态"` 命中数为 0（本文与历史报告除外）。⚠ `双端同样宽松` 与「system.ps1 零改动」互斥，**已登记 OQ-3**，定稿前按较小解释只清回退建议文案 |
 | **A3** | **归一 ≠ 放行**：`HKCR:\`、`HKCC:\`、`HKU:\`（含 `HKEY_USERS\.DEFAULT`）三族形态必须 `POLICY_DENIED`，且 `matchedRule` 落在**注册表域**（`registryReadAllowlist:miss`），不是 `pathAllowlist:miss`；`HKLM:\SOFTWARE\**` 与 `HKCU:\**` 的等价写法（长短名 / 有无冒号 / 任意大小写 / 正斜杠）全 ALLOW | ≥7 形态矩阵单测（`tests/unit/r19b-s1-registry-forms.test.js`）逐条断言 |
 | **A4** | **幂等 + 无 `::`**：`canonicalRegistryPath` 对 `HKLM:`、`HKLM:\`、`HKLM\`、`hklm` 四个裸根键产出均为 `HKLM:`；二次归一结果不变（幂等） | 单测断言；曾出现 `HKLM::` 的实现缺陷不得复发 |
-| **A5** | **范围纪律**：`git diff --name-only` 不含 `packages/vm-service/src/server.ts`、`packages/adapter-agent-workbuddy-llm/src/bridge.ts`、`packages/vm-capabilities/psmod/system.ps1`（**system.ps1 必须回到原状**）、`docs/design/kn1-delegation-audit-contract.md`、`docs/test/reports/*` | 逐条 `git diff --stat` 复核；两个 commit 的 `git add` 按文件名点名（禁 `-A`） |
+| **A5** | **范围纪律**：`git diff --name-only` 不含 `packages/vm-service/src/server.ts`、`packages/adapter-agent-workbuddy-llm/src/bridge.ts`、`packages/vm-capabilities/psmod/system.ps1`（**system.ps1 必须回到原状**）、`docs/design/kn1-delegation-audit-contract.md`、`docs/archive/test/reports/*` | 逐条 `git diff --stat` 复核；两个 commit 的 `git add` 按文件名点名（禁 `-A`） |
 
 > **A5 附带提示（不属本契约范围，仅登记）**：S-4 导致 S-1/S-2 的 `POLICY_DENIED` 请求在审计链上零命中，故 QA 复验本修复**不能**以「审计里没有那条拒绝」为证据 —— 需以 `*.resp.json` 回执 + 新增离线脚本为准（报告 §5 S-4 行、§8 L10）。
 
@@ -259,7 +259,7 @@ if ($DryRun) { $wingetArgs += '--dry-run' }   # ← v1.29.380 的 uninstall 子�
 - 实现侧发现**本契约有缺陷**（判据自相矛盾、字段名冲突、验收项不可测）时：**不得**就地改本文或按个人判断改实现 —— 立即在任务板**开新单**描述缺陷并附证据，由 architect 出定稿后再动代码。
 - 允许实现侧自行决定的只有「本契约未约束的内部细节」（私有函数名、局部错误信息措辞、非契约字段），且须在回报中列出以便后续纳入核对。
 - 本文一经修订须同步升版本号与修订记录（在 §8）。
-- **落盘过程的一次自身失误记录（透明性要求）**：本文起草前，实现侧曾引用过**不存在**的 `docs/test/reports/r19b-consolidated-2026-10-02.md`，并向评审方误称裁决文本被截断。该文件不存在、`kn1-delegation-audit-contract.md` 亦无 R-B2 内容 —— 已撤回更正。**本文的落盘本身即是该风险的根治措施**：契约此后有唯一可 `git grep` 的载体，不再依赖会话记忆。
+- **落盘过程的一次自身失误记录（透明性要求）**：本文起草前，实现侧曾引用过**不存在**的 `docs/archive/test/reports/r19b-consolidated-2026-10-02.md`，并向评审方误称裁决文本被截断。该文件不存在、`kn1-delegation-audit-contract.md` 亦无 R-B2 内容 —— 已撤回更正。**本文的落盘本身即是该风险的根治措施**：契约此后有唯一可 `git grep` 的载体，不再依赖会话记忆。
 
 ---
 

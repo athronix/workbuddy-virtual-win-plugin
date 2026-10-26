@@ -1,7 +1,7 @@
 # 通过铠大师 App 在新鸿蒙机上安装部署 WinVM Bridge（Release 版）
 
 > 状态：设计方案（V1，2026-10-18）· **R2（REL-11，2026-10-18）：分发起点改为 GitHub Release 匿名下载**（仓库已 public）· 适用发布版本：**V1.4.0+**（`release/{version}/overall` 三包发布形态 + `winvm-overall-<version>.zip` 分发单元）
-> 关联文档：`docs/05-peripherals/DEPLOYMENT.md` §9（发布包与一键部署 + §9.1a zip/上架）、`docs/release/RELEASE-V1.4.0.md`、`docs/release/issues.md`
+> 关联文档：`docs/05-peripherals/DEPLOYMENT.md` §9（发布包与一键部署 + §9.1a zip/上架）、`docs/release/RELEASE-V1.4.0.md`、`docs/release/ISSUES.md`
 
 ## 1. 背景与目标
 
@@ -289,7 +289,7 @@ VM 地址：{VM_HOST}   VM 用户：{VM_USER}   SSH 端口：22   Provider：{WI
 | K2 | `winvm-prepare.ps1` 资产 + ②按钮（走既有 VM 软件安装通道） | 脚本资产=本仓库 `tools/winvm-prepare.ps1`（**已落地**，守卫单测 `tests/unit/winvm-prepare-ps1.test.js` 钉编码/KV 契约）；②按钮接入待铠大师侧 | **资产已落地 / 通道接入待铠大师侧** |
 | K3 | prompt 模板（§5.2）参数化生成 | 铠大师 K1 内 | **待铠大师侧** |
 | W1 | `bootstrap.mjs check` 增「离线公钥模式」文档说明（公钥由铠大师注入时 trust 跳过密码路径的行为已在 BatchMode 验证中天然覆盖，只需文档确认） | 本仓库 docs | 极小 |
-| W2 | 新鸿蒙机真机演练一次（吃自己的狗粮），结果按发布纪律记 `docs/release/issues.md` 或演练报告 | 联调 | 1 轮真机 |
+| W2 | 新鸿蒙机真机演练一次（吃自己的狗粮），结果按发布纪律记 `docs/release/ISSUES.md` 或演练报告 | 联调 | 1 轮真机 |
 | W3 | 发布链仓库侧资产：pack zip 产物（§4.4 ①）+ GitHub Release 上架器（§4.4 ②）+ 文档改造 | 本仓库 `delivery/pack-release.mjs` / `delivery/publish-release.mjs` / 本文档 | **已落地（REL-11）** |
 
 ## 9. 风险与已知坑清单（务必逐条设计规避）

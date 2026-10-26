@@ -10,7 +10,7 @@
  *   ⑤ 顺序纪律 O-1（abort 先于 updateStatus）—— 行为探针 + 源码时序双钉
  *      （`assembly-guard.test.js` 自身由单独逐文件跑复证）
  *
- * 设计出处：docs/changes/phase1-arch-design.md §1.1-2·3（O-1/O-2）、§1.6-2（ENG-08/O-11）、
+ * 设计出处：docs/archive/changes/phase1-arch-design.md §1.1-2·3（O-1/O-2）、§1.6-2（ENG-08/O-11）、
  *          §8 横切纪律表、§7.4 验收表 T3 行。
  *
  * 运行（逐文件，绝不整批 glob）：

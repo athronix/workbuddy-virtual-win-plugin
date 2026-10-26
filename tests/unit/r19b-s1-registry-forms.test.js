@@ -2,7 +2,7 @@
  * R19-B · S-1 单元测试：注册表路径**形态归一化**与**判定/回显一致性**
  *
  * 权威契约：`docs/design/r19b-s1-kn2-contract.md`（§1 B1 根因、§2 B2 归一权威、§3 B3 回显、
- * §5 交叉核对清单 A1–A4）。真机缺陷来源：`docs/test/reports/real-test-2026-09-30-r19.md`
+ * §5 交叉核对清单 A1–A4）。真机缺陷来源：`docs/archive/test/reports/real-test-2026-09-30-r19.md`
  * §5「S-1」行、§7 L6、§6 R-7、§3 E2「子步 BLOCKED」。
  *
  * 真机症状（本文件逐条封堵）：

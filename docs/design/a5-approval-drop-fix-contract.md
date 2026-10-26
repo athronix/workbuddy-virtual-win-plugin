@@ -618,7 +618,7 @@ try { … } finally { this.inflight.delete(key); … }
 1. `tsc -b` 全量类型检查 0 error（**并重建 dist** —— 见 §4 SK-5，否则单测测的是旧产物）。
 2. 跑全量受影响单测：`k4-approval.test.js`、`k4-p3.test.js`、`k5-replay.test.js`、`r19c-a5-approval-coordinator.test.js`、`r19c-kn1-a-pure.test.js`、`r19c-kn1-b-bridge.test.js`、`host-a2a-bridge.test.js`、`llm-provider.test.js`。
 3. 记录 before/after 测试计数（当前基线：`r19c-a5-approval-coordinator.test.js` = **tests 14 / pass 11 / fail 3**；`k5-replay.test.js` = **41 例全绿**）。
-4. 更新 `docs/test/reports/a2a-coverage-2026-10-03.md` 的 §A6（由 QA 执行；本文不代笔）。
+4. 更新 `docs/archive/test/reports/a2a-coverage-2026-10-03.md` 的 §A6（由 QA 执行；本文不代笔）。
 
 **验收判据（本迭代整体「通过」的定义）**
 - ✅ `r19c-a5-approval-coordinator.test.js` **fail 3 → 0**（B 组全绿，且 C5 改写后仍绿）。
@@ -851,7 +851,7 @@ npx tsc -b tsconfig.build.json --force  # 全量强制重建（门禁收口推�
 
 > **2026-10-08 处置闭环**：QA Phase 0 R3（commit `c10a400`）已按建议之二执行 —— `layout` 脚本键
 > 从根 `package.json` **删除**（死入口比缺失更误导）；补回 `dep-lint.mjs` 归 **Phase 2 规划**。
-> 全仓文档对 `npm run layout` 的引用已同轮标注/改写（见 `docs/changes/phase0-docs-notes.md`
+> 全仓文档对 `npm run layout` 的引用已同轮标注/改写（见 `docs/archive/changes/phase0-docs-notes.md`
 > "C2/C6 连带同步"节）。
 
 

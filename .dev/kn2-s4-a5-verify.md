@@ -1,5 +1,7 @@
 # K-N2 / S-4 / A5 核查结论（R19 真机轮复盘）
 
+> 〔归档注 2026-10-26〕一次性核验记录，非六大索引成员，保留原位备查。
+
 > 本文仅记录**读码 + 测试实证**结论（DDD 纪律：不编造、无 git 数字）。证据含 `文件:行号` + 测试文件名 + 通过与否。
 > 行号基于本仓库当前 HEAD 实读；与上轮 worker 报告存在偏差的旧行号（如 S-4 旧记 `server.ts:676-684`、A5 旧记 `server.ts:144`/`task-store.ts:188`）已按当前源码校正。
 > 关联 drift fix：本会话已同步 `docs/design/kn1-delegation-audit-contract.md` 与 `packages/adapter-agent-workbuddy-llm/src/delegation-truth.ts` 的陈旧行号引用。

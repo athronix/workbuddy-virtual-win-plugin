@@ -16,7 +16,7 @@
  *   F4b-2  maxRisk 缺省 ⇒ steps[0].risk === 'L1'（同上；owner Q4"缺省取 L2"口径已被
  *          arch3 F-5/N-7 判词推翻：封顶≠步骤实际风险，展示面归一取 cap.risk 权威值）
  *
- * 口径来源（批10 N-7 收口改判；受契约保护变更登记见 docs/changes/phase4-b10-notes.md）：
+ * 口径来源（批10 N-7 收口改判；受契约保护变更登记见 docs/archive/changes/phase4-b10-notes.md）：
  *   - Q4（A5 原裁定）：缺省 risk 取 'L2'，maxRisk 会透传 ⇒ 缺省⇒'L2'；maxRisk='L3'⇒'L3'。
  *     **批10 订正**：该形态即 F-5 病灶本身（"委派上限"冒充"步骤实际风险"），合成步骤
  *     capabilityId=appops.workflow.run ⇒ risk 恒取注册表权威值 'L1'（WORKFLOW_RUN_RISK）；

@@ -3,7 +3,7 @@
 > 让宿主机 WorkBuddy 完全操作一台 Windows 虚拟机的完整实现已交付。
 > 遵循 DDD（文档驱动）+ plan-first 方法论；全部 12 个包编译通过，单元测试全绿
 > （**订正注记 2026-10-13 批0，J-6**：旧句"单元测试与端到端全绿"中"端到端"曾失真——`tests/e2e` 不在
-> 门禁枚举面且本机不可跑绿；**端到端的唯一可指事实源 = 真机 A 系列，最近轮 `docs/test/reports/real-test-2026-09-24-run7.md`**，
+> 门禁枚举面且本机不可跑绿；**端到端的唯一可指事实源 = 真机 A 系列，最近轮 `docs/archive/test/reports/real-test-2026-09-24-run7.md`**，
 > 其后断供需批5 恢复；离线基线不含 e2e）。
 > （**测试基线数字的权威源 = `qa/` 下最新一轮 `*-sweep-result.txt` 汇总行**，本文件不静态维护
 > 文件数/例数以防漂移；查法见 `README.md` §8。skip 恒为 `ssh2-resolve` 离线用例 OFFLINE_SKIP）。
@@ -117,7 +117,7 @@ re-export（P2-T10 的 `reconcileApprovalWait` 不进 ⇒ 对外契约面零变�
 
 ## 六、下一步
 
-> 真机终验已于 R18 / R19 / A2A 覆盖补齐 / CL-K3R T05 多轮完成（详见 `docs/test/reports/` 与 `.dev/changing-log.md`）：`--self-test`、SSH 隧道端到端闭环、双连接器同生效、`codebuddy`/`hermes` CLI、A2A 委派 + 共享 Skills 下发、GUI 自动化均已落地；CL-K3R（K3 静默假成功根治）经 `on` 模式 3/3 真机委派验证通过。
+> 真机终验已于 R18 / R19 / A2A 覆盖补齐 / CL-K3R T05 多轮完成（详见 `docs/archive/test/reports/` 与 `.dev/changing-log.md`）：`--self-test`、SSH 隧道端到端闭环、双连接器同生效、`codebuddy`/`hermes` CLI、A2A 委派 + 共享 Skills 下发、GUI 自动化均已落地；CL-K3R（K3 静默假成功根治）经 `on` 模式 3/3 真机委派验证通过。
 
 1. （可选）扩充能力广度、加其他宿主/VM Agent 适配器（见 Roadmap §9.4）。
 2. （可选）多 VM 联邦编排（V1 未做，当前单 VM）。

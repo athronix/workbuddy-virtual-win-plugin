@@ -863,7 +863,7 @@ export interface PendingApprovalFact {
 | --- | --- |
 | `qa/r19/a2a-extra.mjs` | 新增 `k3r` 子命令：构造「LLM **不含**关键词但确有拦截」的委派（stub 已拦截 + 提示词引导 LLM 不说"等待审批"），断言终态 `input-required` 而非 `completed`（仿 `overlap` 子命令 `b01a41a`） |
 | `docs/design/a5-approval-drop-fix-impl-progress.md` | Engineer 独占：落 CL-K3R 增量进度（仿 R19F 同名文档 §0 环境事实 + 逐 T 验收） |
-| `docs/test/reports/a2a-coverage-2026-10-03.md` | QA 独占：新增 §A9 CL-K3R 终验（shadow 一轮命中率/串台率 + 切 on 后 K3 专项 + D-4/D-1 守门结论） |
+| `docs/archive/test/reports/a2a-coverage-2026-10-03.md` | QA 独占：新增 §A9 CL-K3R 终验（shadow 一轮命中率/串台率 + 切 on 后 K3 专项 + D-4/D-1 守门结论） |
 
 **动作清单（门禁）**
 1. `npx tsc -b tsconfig.build.json --force` 重建 dist（SK-5，E-2 根级路径）。

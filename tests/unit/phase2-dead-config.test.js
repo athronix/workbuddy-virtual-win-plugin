@@ -116,7 +116,7 @@ describe('P2-T2 · 静态守卫：源文本无残留', () => {
     // 注释面已归一（server.ts ×2、pending-approvals.ts ×1）⇒ 运行包 src（含注释）应零命中。
     // 唯一合法提及 = validateServiceConfig 的**旧键告警检测器**本身（config/index.ts），
     // 这是兼容面而非消费面：它读的是「键是否在场」，绝不解释键值。
-    // docs/changes（Phase1 存档）与 .dev 不在本断言范围（历史叙事不改）。
+    // docs/archive/changes（Phase1 存档）与 .dev 不在本断言范围（历史叙事不改）。
     const LEGAL = 'packages/core/src/config/index.ts';
     const offenders = [];
     let legalHits = 0;

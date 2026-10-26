@@ -500,7 +500,7 @@ describe('A5 / C 边界与回归锚点', () => {
    * 「恰 3 处零读取」同步为「恰 4 处 = 声明/初始化/赋值/**单点读取**」，并把原版语义作为
    * **回归红线**保留：读取点仍只允许一处（`isCancelled`），不得扩散成多消费者各自读标志位
    * （协作式取消的对外面是 `isCancelled` / `cancellationSignal`，标志位本身仍是内部状态）。
-   * 历史口径与病灶登记见 `docs/changes/phase1-t3-notes.md` §5 D-14、`docs/test/reports/
+   * 历史口径与病灶登记见 `docs/archive/changes/phase1-t3-notes.md` §5 D-14、`docs/archive/test/reports/
    * a2a-coverage-2026-10-03.md` C3 行。 */
   test('C3 task-store.cancelRequested 读侧已落地且恰一处（守卫更新：原「只写不读」= 缺陷现场）', () =>
     runCase('C3 cancelRequested 读侧单点', 'C-边界', () => {
@@ -795,7 +795,7 @@ describe('A5 / D 桥级交叠：完整复现 A5 时序（bridge → coordinator 
        *   - tB 应被挂起 1 次（缺陷核心症状消失）
        *   - B 的终态由宿主裁决决定（本例替身 resolve(false) ⇒ 未批准 ⇒ 仍是 APPROVAL_REQUIRED，
        *     但**成因不同**：现在是「宿主拒绝后收口」，不再是「审批闸被绕过」）
-       * 修复前的完整指纹已归档进 docs/test/reports/a2a-coverage-2026-10-03.md（A5 逐字对照）。
+       * 修复前的完整指纹已归档进 docs/archive/test/reports/a2a-coverage-2026-10-03.md（A5 逐字对照）。
        */
       const { resB, spy, activeAfterBothBegin, activeAfterA } = await runOverlap();
 

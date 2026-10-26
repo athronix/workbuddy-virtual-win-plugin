@@ -6,7 +6,7 @@
  * 的条件下被逐条断言（本沙箱里 `createService` 的 ps-bridge spawn 会触发 V8 fatal，
  * 无法作为单测入口）。
  *
- * ## 设计口径（`docs/changes/phase1-arch-design.md` §1.4-2 / §4 O-9）
+ * ## 设计口径（`docs/archive/changes/phase1-arch-design.md` §1.4-2 / §4 O-9）
  * - **双条件生效（O-9）**：`enforceBearer === true` **且** `process.env[tokenEnv]` 非空
  *   ⇒ 才真正校验凭据。与 dry-run 免批双条件同构，防「以为开了」。任一半缺件 ⇒
  *   守卫不生效（**逐字旧行为**），该降级事实由 `/health.security.authMode`

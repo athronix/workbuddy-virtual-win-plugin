@@ -1,14 +1,14 @@
 # REL-V1.4.0 · 发布包设计与打包方案（DDD Phase 2）
 
 > 版本：V1.4.0（git tag，用户 2026-10-18 裁定）｜设计日期：2026-10-18｜状态：已基线化
-> 上游事实源：`.workbuddy/memory/MEMORY.md`、`docs/audit/2026-10-16-panorama-phase6.md`、`docs/05-peripherals/DEPLOYMENT.md`、`docs/RELEASE-NOTES.md`
+> 上游事实源：`.workbuddy/memory/MEMORY.md`、`docs/archive/audit/2026-10-16-panorama-phase6.md`、`docs/05-peripherals/DEPLOYMENT.md`、`docs/RELEASE-NOTES.md`
 > 本设计是 `delivery/pack-release.mjs` 的实现依据（DDD 原则 7：代码未动，文档先行）。
 
 ## 一、目标与范围
 
-把当前研发态（HEAD 干净、gate GREEN 124 文件/2179 例）打成**可复现的发布版本**：三部分发布包 + 一键脚本 + 随包文档；随后**清空历史部署 → 用发布包真机重装 → 完整功能验证**；过程问题按「版本→迭代」记入 `docs/release/issues.md` 并驱动仓库侧优化，迭代至成功发布。
+把当前研发态（HEAD 干净、gate GREEN 124 文件/2179 例）打成**可复现的发布版本**：三部分发布包 + 一键脚本 + 随包文档；随后**清空历史部署 → 用发布包真机重装 → 完整功能验证**；过程问题按「版本→迭代」记入 `docs/release/ISSUES.md` 并驱动仓库侧优化，迭代至成功发布。
 
-非目标：不改运行行为（本批零 src 改动为默认预期；若迭代暴露缺陷则按 issues.md 流程修）；不动 `~/.workbuddy/teams` 非 winvm 域（永久纪律）。
+非目标：不改运行行为（本批零 src 改动为默认预期；若迭代暴露缺陷则按 ISSUES.md 流程修）；不动 `~/.workbuddy/teams` 非 winvm 域（永久纪律）。
 
 ## 二、发布目录结构（用户裁定）
 
@@ -20,7 +20,7 @@ release/
     └── overall/   # 整体一键部署发布脚本 + 相关文档包（host ∪ vm ∪ 文档）
 ```
 
-版本号 = git tag 名 = 目录名。后续迭代在其上递增（V1.4.1 / V1.5.0…），`issues.md` 同构记录。
+版本号 = git tag 名 = 目录名。后续迭代在其上递增（V1.4.1 / V1.5.0…），`ISSUES.md` 同构记录。
 
 ## 三、三包收录清单（闭包推导，非拍脑袋）
 
@@ -76,7 +76,7 @@ release/
 | `docs/05-peripherals/USER-MANUAL.md`、`SCENARIOS.md` | 操作使用说明 |
 | `docs/RELEASE-NOTES.md` | 发布说明（演进链 + 已知限制） |
 | `docs/release/RELEASE-V1.4.0.md` | 本版发布说明（新建，随包） |
-| `docs/release/issues.md` | 发布问题台账快照（按版本+迭代） |
+| `docs/release/ISSUES.md` | 发布问题台账快照（按版本+迭代） |
 | `deploy-all.sh`、`README.md`、`MANIFEST.txt` | 整体一键 + 索引 + 清单 |
 
 **并集不重复落盘**：overall 与 host/vm 共享同一份闭包文件（pack 脚本按目标分别组装，不互相拷贝）。
@@ -120,7 +120,7 @@ release/
 5. 审计链：委派 traceId 在链、`delegation.complete` 有诚实回执
 6. 缓存指纹：宿主缓存版本路径 + 安装尾 SHA256 对账（install-host 内置）
 
-## 七、issues.md 组织规范（docs/release/issues.md）
+## 七、ISSUES.md 组织规范（docs/release/ISSUES.md）
 
 ```
 # 发布问题台账
@@ -137,7 +137,7 @@ release/
 - [ ] `docs/05-peripherals/DEPLOYMENT.md`：新增「§9 发布包与一键部署」章节（release/ 结构 + 三脚本 + 清场重装 runbook）
 - [ ] `docs/RELEASE-NOTES.md`：§二 增 V1.4.0 行；§四 增 Phase 6 批15~20 行
 - [ ] `docs/release/RELEASE-V1.4.0.md`：发布说明（随包分发）
-- [ ] `docs/release/issues.md`：台账初始化
+- [ ] `docs/release/ISSUES.md`：台账初始化
 - [ ] `README.md`：发布包入口索引（若 §10 索引存在则补行）
 - [ ] `.workbuddy/memory/MEMORY.md`：里程碑补「REL-V1.4.0 发布」
 
@@ -147,6 +147,6 @@ release/
 |---|---|
 | 打包闭包遗漏（发布包装起来缺文件） | V2/V3 dry-run 静态解析 + V1 结构查 + 真机部署即终验 |
 | 清场误伤（uninstall 触及非 winvm 域） | uninstall.mjs 既有红线（绝不动 teams/仓库/ssh）；清场前快照相待 |
-| tag 后迭代出代码变更 | 迭代修复另起 commit + V1.4.1 tag，issues.md 记录跨版本 |
+| tag 后迭代出代码变更 | 迭代修复另起 commit + V1.4.1 tag，ISSUES.md 记录跨版本 |
 | push origin 失败（沙箱网络） | tag 本地生效即满足「打 tag 并提交」；push 单独尝试并如实报告 |
 | 真机重装后 MCP 连接器需重新信任 | DEPLOYMENT.md 已载人工收尾步；列入验证矩阵观察项 |

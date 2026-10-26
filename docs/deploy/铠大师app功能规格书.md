@@ -90,7 +90,7 @@
 | ID | 名称 | 简述 | 验收标准 | 依赖 |
 |---|---|---|---|---|
 | F-06 | provider=workbuddy 登录引导 | 方案 G4：`workbuddy` 选型依赖 VM 内 codebuddy CLI 登录态，**结构性不可脚本化**。首机引导策略：默认选 `workbuddy-deterministic` 跑通全链 → report `ok=true` 后状态面板追加卡片「切换 LLM Agent：在 VM 内登录 codebuddy 后将 Provider 改为 workbuddy、点③重新粘贴（可跳过 --wipe 的升级路径由 prompt 版本区分）」 | 引导文案准确描述 G4 限制；不出现任何「自动登录」伪承诺 | F-05 |
-| F-07 | 报告导出 | 将 report 渲染为分享文本/图片（含版本、耗时、7 项 checks、traceId），便于贴到问题台账 `docs/release/issues.md` | 导出内容不含 .env/私钥等敏感值 | F-05 |
+| F-07 | 报告导出 | 将 report 渲染为分享文本/图片（含版本、耗时、7 项 checks、traceId），便于贴到问题台账 `docs/release/ISSUES.md` | 导出内容不含 .env/私钥等敏感值 | F-05 |
 | F-08 | 版本检测与升级提示 | 打开页面时匿名请求 GitHub Release latest，比较已部署版本（读 report `version`），提示可升级 | 仅提示不自动执行；升级路径复用 US-2 | F-05 |
 
 ### P2（可选）
@@ -322,7 +322,7 @@ sequenceDiagram
 | **M2 零密码快路径**（F-03 + D-1/D-4） | VM 环境准备按钮、ps1 推送执行、KV 打勾、公钥注入（C-4 ①②级） | 新 VM 镜像直接可达：②后 prompt 第 4 步 BatchMode 秒过、prepare-vm 全 [SKIP] | codebuddy 登录 |
 | **M3 体验完整版**（F-06~F-10） | workbuddy 登录引导与切换、报告导出、版本检测、多机 Profile | 二机起全自动；G4 用户教育文案上线 | — |
 
-> 每里程碑建议按发布纪律做一次新鸿蒙机真机演练（方案 W2），结果记 `docs/release/issues.md`。
+> 每里程碑建议按发布纪律做一次新鸿蒙机真机演练（方案 W2），结果记 `docs/release/ISSUES.md`。
 
 ---
 

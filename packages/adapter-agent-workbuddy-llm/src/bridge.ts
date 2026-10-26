@@ -250,7 +250,7 @@ export function containsBearerCredentialLiteral(config: string): boolean {
  *   即：危害是**静默的零副作用虚假完成**，比当场失败更隐蔽，判据不可移除。
  * 开启 enforceBearer 之前必须先补齐：① 凭据如何进入 VM 内进程环境（注入面与
  * 保留期），② 本配置如何承载该凭据（新增字段须走契约评审），③ 401 的可观测归因。
- * 见 `docs/changes/CL-022/TECHNICAL-SOLUTION.md` 与 `docs/02-design/SECURITY-GOVERNANCE.md` §7。
+ * 见 `docs/archive/changes/CL-022/TECHNICAL-SOLUTION.md` 与 `docs/02-design/SECURITY-GOVERNANCE.md` §7。
  * ①②③ 的兑现现状：① `start-hidden.ps1` 显式 `$env:` 赋值 → vm-service 进程 env →
  * `launchCliProcess` 透传 CLI 子进程（同函数 :452 `:559` 既有 `env` 形参，**零改动**）；
  * ② 本函数 `bearerEnvName` 参数（provider options 走既有 `Record<string, unknown>`

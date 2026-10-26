@@ -1,7 +1,7 @@
 /**
  * C0（Phase 5 · K6 假成功回潮面根治）：K6 权威判定位折叠 —— **纯函数件**。
  *
- * 病灶（立案见 `qa/p5-batch/v19-VERDICT.md` 与 `docs/audit/2026-10-16-v19-analysis.md` §6.2）：
+ * 病灶（立案见 `qa/p5-batch/v19-VERDICT.md` 与 `docs/archive/audit/2026-10-16-v19-analysis.md` §6.2）：
  * psmod 卸载回执携带 K6 权威判定 `data.success`（exit0 ∧ 最终核验；核验不过
  * `success=false` 并附 `residualEvidence`），但 Node 呈报全链只消费信封 `ok`
  * （进程级"调用送达"），`data.success` 零消费点 —— `data.success=false` 的失败回执

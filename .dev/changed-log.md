@@ -466,7 +466,7 @@ VM 内 AI Agent 由「双选项」（workbuddy-deterministic / workbuddy）扩�
 ## 第十五轮 · 2026-09-28/29（K3+K4+P3+K5 审批链全量落地 + 双端部署）
 
 ### 背景（K4 完整闭环真机验证暴露假成功）
-K4 审批结构化回传宿主真机验证（报告 `docs/test/reports/real-test-2026-09-28-k4-approval.md`）确认：宿主收到 `input-required` + `data.type='approval-request'` 结构化事件（挂起零副作用，WXWork.exe 完好）。但 `replyApproval(true)` 放行后任务虽 completed，**审计链零执行记录、企业微信完好 = 假成功**——根因：bridge 的 `resumeSuffix` 依赖提示 LLM「带 __approvalId 重发能力调用」，LLM 未重发即文本自宣完成。K3 正则兜底（reconcileApprovalWait）对「自称完成」无感知。
+K4 审批结构化回传宿主真机验证（报告 `docs/archive/test/reports/real-test-2026-09-28-k4-approval.md`）确认：宿主收到 `input-required` + `data.type='approval-request'` 结构化事件（挂起零副作用，WXWork.exe 完好）。但 `replyApproval(true)` 放行后任务虽 completed，**审计链零执行记录、企业微信完好 = 假成功**——根因：bridge 的 `resumeSuffix` 依赖提示 LLM「带 __approvalId 重发能力调用」，LLM 未重发即文本自宣完成。K3 正则兜底（reconcileApprovalWait）对「自称完成」无感知。
 
 ### 三项修复（原子提交 `c93133f` → `c67398a`）
 1. **K5 · 服务端确定性重放（本轮核心）**：执行权收归 vm-service——批准后协调器直接用 pendingApprovals 留存原参数走真实执行段，LLM 文本永远不是完成证据。
@@ -500,7 +500,7 @@ K4 审批结构化回传宿主真机验证（报告 `docs/test/reports/real-test
 - `winvm-orchestrator` triggers 收窄为宽但准 3 词（`虚拟机`/`Windows 虚拟机`/`VM`）；5 领域 skill 统一 `虚拟机<域>` 前缀。
 - 正文新增「强制门禁（MUST·唯一入口）」与「域外任务处理流程」（五域之外先查网络定方案→经本项目通道执行→可自主扩展 skill/mcp 且必须接入审批闸）。
 
-### 二、真机实战：A2A 通道卸载 VM 企业微信（报告 `docs/test/reports/real-test-2026-09-29-uninstall-wecom-runtime.md`）
+### 二、真机实战：A2A 通道卸载 VM 企业微信（报告 `docs/archive/test/reports/real-test-2026-09-29-uninstall-wecom-runtime.md`）
 - 用户真实请求驱动；A2A 委派 → 审批闸（`apr_b22f4f483cf44fa0872c`，underlying=`app.winget.uninstall id=Tencent.WeCom`）→ 用户批准 → 服务端确定性重放 → **NSIS Uninstall.exe 真实卸载** → completed。
 - 独立核验铁证（`wecom-status-report.txt`）：EXE/目录/进程/winget/注册表五项全空 → 已卸载。K6（纯 winget 假成功）本次未触发（workflow 路径自行选了 NSIS），能力层 K6 仍未修。
 - 过程有效经验：审批窗口短须单脚本一气呵成；审批形态有 data/text 二象；深度空闲首调需 ≥5min 冷启动预算；证据取 artifact 解码。
@@ -528,7 +528,7 @@ CL-021（代号 R17）11 个 commit（`8cd5da0` → `a3308ae`），覆盖 T01/T0
 - **T02b 超时链**：`capTimeoutMs ?? req.timeoutMs ?? 30_000`（A2A metadata 仅 300s 会掐断 540s 最坏情形）。
 
 ### 验证
-- QA 报告 `docs/test/reports/r17-qa-2026-09-30.md`，**条件 PASS / 路由 NoOne**：`tsc -b tsconfig.build.json` EXIT=0；全量 51 文件 **736 pass / 0 fail / 2 skipped**（修复前唯一 fail 为 `sandbox-allowwrite` 测试桩缺 `renderConnectorEntry` 导出，`d183a76` 基线即坏、非 R17 回归）。
+- QA 报告 `docs/archive/test/reports/r17-qa-2026-09-30.md`，**条件 PASS / 路由 NoOne**：`tsc -b tsconfig.build.json` EXIT=0；全量 51 文件 **736 pass / 0 fail / 2 skipped**（修复前唯一 fail 为 `sandbox-allowwrite` 测试桩缺 `renderConnectorEntry` 导出，`d183a76` 基线即坏、非 R17 回归）。
 
 ### 遗留（移交 changing-log）
 - R17 真机 BLOCKED 五例（报告 §7）：①R1 审批卡端到端闭环 + 审计 `-replay` ②R2 矩阵 M4 连续≥3 新会话 ToolSearch 命中 ③R3 企业微信 NSIS/MSI 对照 / dryRun / exit≠0 / 600s 实测 ④T02b A2A 长卸载（>300s）不被掐断 ⑤R-4 预捕获时序真机复证。
@@ -538,7 +538,7 @@ CL-021（代号 R17）11 个 commit（`8cd5da0` → `a3308ae`），覆盖 T01/T0
 
 ## R19 真机轮 · 2026-09-30 轮次 / 执行跨 2026-10-02
 
-报告 `docs/test/reports/real-test-2026-09-30-r19.md`（R19 真机轮**唯一权威报告**）。
+报告 `docs/archive/test/reports/real-test-2026-09-30-r19.md`（R19 真机轮**唯一权威报告**）。
 
 | 例 | 判定 | 依据 |
 |---|---|---|
@@ -561,7 +561,7 @@ CL-021（代号 R17）11 个 commit（`8cd5da0` → `a3308ae`），覆盖 T01/T0
 
 ## A2A 通道「真机未覆盖 5 项」补齐 · 2026-10-03
 
-报告 `docs/test/reports/a2a-coverage-2026-10-03.md`，驱动 `qa/r19/a2a-extra.mjs`。本轮**未改任何 `packages/**` 源码**。
+报告 `docs/archive/test/reports/a2a-coverage-2026-10-03.md`，驱动 `qa/r19/a2a-extra.mjs`。本轮**未改任何 `packages/**` 源码**。
 
 - **A1 `message/stream`（SSE）PASS**：`http=200`、`ct=text/event-stream`、`eventCount=8`、终态 `status-update final:true state:completed`、`firstFrameMs=281`。
 - **A2 `tasks/list` PASS**：`taskCount=1`、`totalSize=1`；空库基线仍 200（方法本身可用，不因空库报错）。
@@ -583,7 +583,7 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 4. 灰度开关 `approvalTruth = on（默认治愈）| shadow（仅观察）| off`。
 
 ### T05 真机验证（A~F 全过）
-报告 `docs/test/reports/k3r-t05-real-machine-2026-10-06.md`（另有 `k3r-t05-runbook-2026-10-05.md`、`k3r-t05-phase-d-blocker-2026-10-05.md`）。
+报告 `docs/archive/test/reports/k3r-t05-real-machine-2026-10-06.md`（另有 `k3r-t05-runbook-2026-10-05.md`、`k3r-t05-phase-d-blocker-2026-10-05.md`）。
 - 门禁：G0 隧道 pid 22335 / G1 `/health` 200 / G2 `tsc -b --force` 0 error / G3 310/310（4 K3R + k5-replay 41 + 7 K-N1）/ G4 E-3 指纹（`/health` **顶层** `providerApprovalTruth={mode,enabled,shadow}`，**非** `provider.approvalTruth`）。
 - shadow×3：均 `completed`（观察不改，符合 G4 纪律），`[shadow]` warn 命中 2/3。
 - **`on`×3 决定性 PASS**：全部终态 `input-required`，`approvalId=apr_1bdd3e1e4b9e4e318b7e`、`capabilityId=app.winget.uninstall`、`risk=L2`、`params={id:Microsoft.WindowsCalculator,dryRun:false}`。
@@ -596,8 +596,8 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 
 ## 文档同步轮 · 2026-10-07（DDD 场景 F：历史变更补入索引）
 
-- **背景**：`.dev/` 六大索引停留在第十七轮（2026-09-30），其后的 R19 / A2A 覆盖 / CL-K3R T05 / harness 收紧**均未入册**；`docs/changes/` 缺 `CL-021`、`CL-K3R` 两个目录。
-- **本轮动作**：更新 `docs-index.md`、`project-dev-status.md`、`project-dir-file-index.md`、`changing-log.md`、`changed-log.md` 五索引；补建 `docs/changes/CL-021/`、`docs/changes/CL-K3R/`。
+- **背景**：`.dev/` 六大索引停留在第十七轮（2026-09-30），其后的 R19 / A2A 覆盖 / CL-K3R T05 / harness 收紧**均未入册**；`docs/archive/changes/` 缺 `CL-021`、`CL-K3R` 两个目录。
+- **本轮动作**：更新 `docs-index.md`、`project-dev-status.md`、`project-dir-file-index.md`、`changing-log.md`、`changed-log.md` 五索引；补建 `docs/archive/changes/CL-021/`、`docs/archive/changes/CL-K3R/`。
 - **实测基线**：**59 个 `tests/unit/*.test.js` ／ 1054 tests ／ 1054 pass ／ 0 fail ／ 0 skipped**（逐文件方式，2026-10-07）。
 
 ---
@@ -614,7 +614,7 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 ## 全维度体检轮 · 2026-10-08（纯分析，零源码改动）
 
 - **方法**：四专业域并行只读审计（产品/架构/实现+运维/测试+文档）+ 主理人 11 项关键结论源码级独立核验（含 dist 引擎复现路径穿越），全部成立、成员零虚报。
-- **产出**：`docs/audit/2026-10-08-comprehensive-assessment.md`（总报告）+ 四份分报告。合并定级 **P0×5 / P1×24 / P2×60+**。
+- **产出**：`docs/archive/audit/2026-10-08-comprehensive-assessment.md`（总报告）+ 四份分报告。合并定级 **P0×5 / P1×24 / P2×60+**。
 - **合并 P0**：U-P0-1 策略层 `..` 穿越（已复现）；U-P0-2 审计链基线随重启重置（freshChainOnStart）；U-P0-3 dryRun 免审批旁路（裁定 P1高并入 Phase 0）；U-P0-4 S-4/A5 装配点无守卫 + psmod 54 映射零回归；U-P0-5 幽灵能力×7 + 名实不符面向用户。
 - **核心根因**（架构 §7.2）：契约"先声明后实现"无回收机制 → 死字段群 6 处（commandAllowlist/snapshot/approvalTimeoutMs/endpointAllowlist/ToolContext.signal/AgentCard signature）；无 CI 无门禁（dep-lint 不存在）；取证面只覆盖执行轴；安全边界外包给部署形态。
 - **完善路径**：Phase 0 止血（≤1 天）→ Phase 1 安全兑现批 → Phase 2 治理门禁批 → Phase 3 卖点兑现批 → Phase 4 运维完备批 → Phase 5 功能广度（明确排在门禁之后）。待 owner 决断 4 项见总报告 §5。
@@ -624,7 +624,7 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 ## Phase 1 安全边界兑现批 · 2026-10-09（owner 三项终裁，团队 software-winvm-phase1-9d19）
 
 - **owner 终裁（14:55）**：① ARCH-18 死字段 `cmdAllowRe`/`commandAllowlist` = **删除**（不留 @deprecated 过渡，同批契约/schema/引擎/文档，登记刻意破坏性）；② ARCH-07 = **B 基线**（回环不可关 + SECURITY §2 信任边界文档化 + freshChainOnStart/审计保留期两权衡登记）**+ A 可选**（`enforceBearer` 默认 false、双条件守卫 O-9、`/health.security.authMode` 透出）**+ ENG-23 必做**（客户端 ssh-tunnel/streamable-http 统一 `applyBearerHeader` 消费 `tokenEnv`）；③ **裁断后立即派 T1-T5 离线代码批，真机轮挂起**（owner 选项=「立即派 T1，真机待 VM 窗口」）——14:52 VM 第 7 次掉线（OBS-C 电源漂移），A5 rejected 复验与 6 项真机验收清单待后续 VM 窗口，本轮验收口径=构建+离线单测。
-- **设计权威**：`docs/changes/phase1-arch-design.md`（502 行，commit `6f56c12`）§7.3 T1-T5 串行任务卡 + §7.2 server.ts 10 区域占用表（唯一写者=T4）+ §8 O-1..O-11 顺序纪律 + §10 R1-R10 风险。§5 七条待明确事项 owner 未表异议=按架构师默认取值实现。
+- **设计权威**：`docs/archive/changes/phase1-arch-design.md`（502 行，commit `6f56c12`）§7.3 T1-T5 串行任务卡 + §7.2 server.ts 10 区域占用表（唯一写者=T4）+ §8 O-1..O-11 顺序纪律 + §10 R1-R10 风险。§5 七条待明确事项 owner 未表异议=按架构师默认取值实现。
 - **Phase 0 修复真机生效注记**：10:45 `deploy-vm --apply` 五阶段全绿（psBridge uptime 25s 证实服务重启到新码），随后 14:52 VM 掉线不影响部署成果（VM 重开后即为新码运行态）。
 - **实现批任务板**（旧团队失效后于新板重建）：#1 T1 契约基座 → #6 T2 core 内核 ∥ #2 T3 a2a-framework（设计可并行；实排因同 checkout 双进程 `tsc -b` dist 互踩改单进程串行）→ #5 T4 vm-service 装配 → #3 T5 执行体/宿主/CLI/文档 → #4 QA 收官。
 - **T1 已提交 `4983a58`**（10 文件 548+/20−，主理人独立复跑+tsc 全绿后原子提交；D-1/D-2/D-4/D-6 认可，D-3 入 Phase 2 backlog）。
@@ -637,7 +637,7 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 
 - **T5 代码面已提交（ARCH-22 执行体消费取消 + LLM 路径取消 + 宿主事实化呈现 + `--token-env` 通路）**：6 源/测试文件 diff **+456/−10**（`adapter-workbuddy/index.ts` +76：`step()` 入口取消哨兵 + **双闸分叉**——执行期间取消时本地 `GoalResult.artifacts` 如实收纳但 `sink.onArtifact` 恒不推、五模板 `if (r.canceled) return canceledReturn()`、`goalCanceled()` 用 `TASK_CANCELED` 刻意绕 `shouldDegrade` 的 EXECUTION_FAILED 回落重跑、文案只陈述可证事实；`llm/bridge.ts` +169：`runPersistent`/`runOneShot` 双入口取消闸 + 常驻路径 onStatus turn 边界轮询与 `cancellationSignal` 事件驱动**双路互补打断**（监听器 finally 摘除防跨任务泄漏/错杀）+ one-shot `launchCliProcess` 透传 signal + **归因优先级修正**（实测 Node `AbortError` 经 `child.on('error')` **先于**本文件 onAbort 到达，不判取消会归成 `PROVIDER_UNAVAILABLE` ⇒ 触发降级重跑=安全红线，故 error 分支先问"是不是取消"）+ `canceledResult()` 三纪律（契约码 `TASK_CANCELED`／绝不返回 `{unavailable}` 形状防回退单次-p重跑／不做新磁盘扫描 O-5）+ `buildMcpConfig` 注释登记 enforceBearer 前置条件（R4：回连凭据通路不存在，先开 enforceBearer ⇒ 委派必 401）；`persistent-session.ts` +48：公开 `abortActiveTurn()` 复用既有 `activeAbort` 零新状态语义、**先 abort 后 killChild**（只 resolve promise 不杀 CLI=假动作，真止血须杀进程）、`turnAbortedByCancel` 标志挡"取消后同轮重建重投"崩溃恢复路径、无在飞轮返回 false 不动子进程；`tools.ts` +100：`deriveExecutedBeforeCancel`（steps 权威源=`execution-steps` artifact、取不到退进度文本确定性标记；artifacts 扣除 steps 载体防虚高）+ 取消文案两态事实化（旧句「审批通道已关闭，未执行任何变更」=**不实陈述**退场）+ 纯附加 `executedBeforeCancel`/`cancelObserved`（后者把"取消是否成立"变一等公民：服务端对已终态任务回原终态）；`cli.ts` +6：`--token-env` usage 原"默认 WINVM_BEARER_TOKEN"与实现（默认不启用）矛盾修正+变量名给出但未设值直接报错；`host-a2a-bridge.test.js` +67：旧断言按 §10 R3 同步（改断言非改实现，负向守卫逐条保留）+3 新用例。4 新测试 `phase1-t5-{provider-cancel 11,cancel-consume 17,llm-cancel 12,token-env 13}`=53 例。基线对账 **79/1456 = 75/1400+4 文件 56 例**。**主理人独立核验**：四测试逐文件 11/17/12/13 全绿 + t3-cancel-bounded 29/29 未破坏；自身 79 文件全量复跑 **1456/1454/0 fail/2 skip**（`t5-lead-full.txt`，逐文件 `fail=0` 筛验，与成员 SUMMARY 逐字等值——成员聚合留档再次截断仅存 70B SUMMARY，但主理人版独立成立故可交叉印证）；**12 份 diff 全部逐字审读通过**。**抹痕缺陷裁定实录**：五红消四后判据①残留红=取消收口把取消点前已完成产物从本地 artifacts 丢弃（流出面 0 正确但如实记账被抹）⇒主理人裁定**修实现面勿反向放宽断言**，成员按裁定实现双闸分叉并新增分叉钉 `result.artifacts.length > pushedArtifacts.length`。**成员停摆四型处置实证**：T5 首回合 38m 零落盘静默 completed（急查定性=只读侦察，立规"静默>25 分钟主动回报"）；二回合框架错误中断（`Tool function not found`，残产实测完好→唤醒同会话续做勿重做）。文档面（SECURITY-GOVERNANCE §2/§6.1、ARCHITECTURE、CL-022 三件套、DEPLOYMENT、SKILL.md:35）进行中=Checkpoint 2 补交。真机验收①②③（provider 消费取消/常驻打断+oneshot kill/宿主两态文案）待提交后部署执行。
 
-- **T5 文档面已提交（判据⑤兑现 + CL-022 三件套 + 信任边界文档化）**：10 文档 diff + 3 新文件（`docs/changes/CL-022/{REQUIREMENT 133,TECHNICAL-SOLUTION 297,QA-REPORT 110}`）。兑现：SECURITY §2.1 信任边界声明（"回环+SSH 隧道+审批闸，服务端不鉴权"三点含义 + enforceBearer 前置条件警告块 + authMode 三态表）/§2.2 取消真实语义/§3.2 重写为与 `defaults.ts` **逐字**一致的六组默认值（成员探针顺序敏感比对 + 主理人独立数条全对）+ 四条口径（无 `C:\Users\**`/模式侧展开 fail-closed/命令面只有黑名单/注册表两表成对同 commit 纪律）/§4.3.1 校验范围限定语（别把 `chainValid:true` 读成全链完好）/§6.1 双层模型三件事/§6.1.1 权衡摘要/§6.4 两项权衡四件套（W-1 freshChain 跨轮篡改不入判定面、W-2 无保留期——风险/为什么不修/缓解/运维动作/根治归属写黑）/§7 回环不可关行；ARCHITECTURE 机制表+§10 风险表缓解改述；HOST-A2A-BRIDGE 新增 §4.5 取消呈现口径（两态文案与 `tools.ts:354/356` 逐字核对）；CAPABILITY-MODEL policy 示例去 `commandAllowlist`；DEPLOYMENT §8.1/§8.5 旧"非回环直连触发 bearer 校验"两处失真修正；README §2.4 五行口径；OVERVIEW 三道闸+信任边界段；SKILL.md 白名单六条逐字+跨账户 DENY 说明（D-13）。**并发重写事故与取证**：§6.1.1 曾在 engineer-1/engineer-2 并发重写中**整体丢失**且 §6/§6.1 三处旧口径残留与 §2.1 冲突——成员文档探针（`t5-doc-verify.mjs` 20 项）抓到并重建；notes D-42 记录 §8/§9/§10 双版本节号撞车处置（首版为实况对应版、队友版降级附录 A + A.4 勘误"丢失—重建≠删除"）。**主理人独立核验**：六文档守卫 225 例全绿（35/39/69/35/8/39，含我改后复跑）；探针 20 项全 OK 独立复跑；§3.2 六组逐条对 `defaults.ts`（含 approvalTimeoutMs 120_000 死字段断言与三处注释实证交叉验证）。**主理人终审修正四处**：①SECURITY §3.2 口径 3 与 CAPABILITY-MODEL ★ 注与 REQUIREMENT 用户故事——"schema 直接拒绝"补**现状限定**（该 schema 未接入运行期校验=D-3 backlog，拒止兑现于 CI/交付面而非运行实例，勿写成运行期承诺）；②notes §7.1 "provider-cancel 12 例"笔误订正为 11（主理人四轮实测一致）。**T5 全部关闭（代码面 c2e902a + 本批文档面）**；移交真机①②③（B1 委派途中 cancel→CLI 子进程消失+链上 canceled、B2 win32 cmd 包装 signal 实跑、B3 误开 enforceBearer 401 复现归主理人部署后执行）+ QA 收官批（基线统一写数三处、QA-REPORT §4-B5/§6 填栏）。**新基线口径维持 79/1456（1454/0/2）**——文档批不涉代码零测试改动。
+- **T5 文档面已提交（判据⑤兑现 + CL-022 三件套 + 信任边界文档化）**：10 文档 diff + 3 新文件（`docs/archive/changes/CL-022/{REQUIREMENT 133,TECHNICAL-SOLUTION 297,QA-REPORT 110}`）。兑现：SECURITY §2.1 信任边界声明（"回环+SSH 隧道+审批闸，服务端不鉴权"三点含义 + enforceBearer 前置条件警告块 + authMode 三态表）/§2.2 取消真实语义/§3.2 重写为与 `defaults.ts` **逐字**一致的六组默认值（成员探针顺序敏感比对 + 主理人独立数条全对）+ 四条口径（无 `C:\Users\**`/模式侧展开 fail-closed/命令面只有黑名单/注册表两表成对同 commit 纪律）/§4.3.1 校验范围限定语（别把 `chainValid:true` 读成全链完好）/§6.1 双层模型三件事/§6.1.1 权衡摘要/§6.4 两项权衡四件套（W-1 freshChain 跨轮篡改不入判定面、W-2 无保留期——风险/为什么不修/缓解/运维动作/根治归属写黑）/§7 回环不可关行；ARCHITECTURE 机制表+§10 风险表缓解改述；HOST-A2A-BRIDGE 新增 §4.5 取消呈现口径（两态文案与 `tools.ts:354/356` 逐字核对）；CAPABILITY-MODEL policy 示例去 `commandAllowlist`；DEPLOYMENT §8.1/§8.5 旧"非回环直连触发 bearer 校验"两处失真修正；README §2.4 五行口径；OVERVIEW 三道闸+信任边界段；SKILL.md 白名单六条逐字+跨账户 DENY 说明（D-13）。**并发重写事故与取证**：§6.1.1 曾在 engineer-1/engineer-2 并发重写中**整体丢失**且 §6/§6.1 三处旧口径残留与 §2.1 冲突——成员文档探针（`t5-doc-verify.mjs` 20 项）抓到并重建；notes D-42 记录 §8/§9/§10 双版本节号撞车处置（首版为实况对应版、队友版降级附录 A + A.4 勘误"丢失—重建≠删除"）。**主理人独立核验**：六文档守卫 225 例全绿（35/39/69/35/8/39，含我改后复跑）；探针 20 项全 OK 独立复跑；§3.2 六组逐条对 `defaults.ts`（含 approvalTimeoutMs 120_000 死字段断言与三处注释实证交叉验证）。**主理人终审修正四处**：①SECURITY §3.2 口径 3 与 CAPABILITY-MODEL ★ 注与 REQUIREMENT 用户故事——"schema 直接拒绝"补**现状限定**（该 schema 未接入运行期校验=D-3 backlog，拒止兑现于 CI/交付面而非运行实例，勿写成运行期承诺）；②notes §7.1 "provider-cancel 12 例"笔误订正为 11（主理人四轮实测一致）。**T5 全部关闭（代码面 c2e902a + 本批文档面）**；移交真机①②③（B1 委派途中 cancel→CLI 子进程消失+链上 canceled、B2 win32 cmd 包装 signal 实跑、B3 误开 enforceBearer 401 复现归主理人部署后执行）+ QA 收官批（基线统一写数三处、QA-REPORT §4-B5/§6 填栏）。**新基线口径维持 79/1456（1454/0/2）**——文档批不涉代码零测试改动。
 
 ## Phase 0 止血批 · 2026-10-08 晚（owner 五项裁决后开工，团队 software-winvm-phase0）
 
@@ -649,7 +649,7 @@ LLM 措辞漂移时不说「等待审批 / APPROVAL_REQUIRED」，桥仅靠文�
 - **仓库卫生**（`870fab2`，owner 授权 R13）：`git rm --cached` 22 个 `.winvm-write-probe-*.tmp`。
 - **新基线口径（Phase 0 收官主理人全量实跑）**：**71 个测试文件 / 1247 例（1245 pass / 0 fail / 2 skipped）** = 63 `.test.js`（1177）+ 8 `.test.mjs`（70）；skip 3→2 因 assembly-guard dry-run 软探针随 `ba02fbb` 转硬断言通过。README/dev-status/OVERVIEW 三处已同步。
 - **主理人核验方法**：engine/contracts/audit 全量 diff 审阅；独立复跑 p0/cl017/assembly-guard；`path.win32.resolve` 权威参照逐条裁定首轮 7 红（6 断言错 + 1 实现遗漏，工程师复核结论与裁定一致）；SECURITY §3.4.1 与 definitions 标注数（6）核对；`npm run test:unit` 收官全量 failed=0。
-- **遗留登记**（Phase 1 议题，`docs/changes/phase0-engine-notes.md` R-1/R-3 同源）：R-1 注册表域不做段消解（`HKLM:\SOFTWARE\..\SAM` 字面命中 ALLOW，与 U-P0-1 同族、非本次引入，建议立 U-P0-1b 复注）；R-3 `buildPreview` 文案分叉"可预览≠可免批"，真机轮如涉旧文案断言需同步；VM 侧 `C:\WinVMBridge\shared-skills` 待重发布（隧道可达时）；skill frontmatter version bump 待发布流程统一处理。
+- **遗留登记**（Phase 1 议题，`docs/archive/changes/phase0-engine-notes.md` R-1/R-3 同源）：R-1 注册表域不做段消解（`HKLM:\SOFTWARE\..\SAM` 字面命中 ALLOW，与 U-P0-1 同族、非本次引入，建议立 U-P0-1b 复注）；R-3 `buildPreview` 文案分叉"可预览≠可免批"，真机轮如涉旧文案断言需同步；VM 侧 `C:\WinVMBridge\shared-skills` 待重发布（隧道可达时）；skill frontmatter version bump 待发布流程统一处理。
 
 ## 2026-10-10 · QA 收官批（板 #4）+ L6 措辞残留清账（主理人执笔）
 - **QA 独立复跑（严过关）**：HEAD 2b2f241 逐文件 79 文件 = **1457/1455/0 fail/2 skip**（`$HOME/wbtmp/qa-t5-full-run.txt`，逐行四重交叉校验）；与工程侧 1456 对账差 1 例可归因 2b2f241。三项证伪式抽查 D-1/D-2/D-3 全过（D-2 精准红→md5 等值复原→39/39 绿）。终判 **NoOne/PASS**。

@@ -2,7 +2,7 @@
 
 > Phase 3 批2 · Q1 成文（源自 audit-qa.md ⑥ 三次"死"复盘 + 项目 memory 实操沉淀）。
 > 本页只讲**宿主侧常驻隧道 daemon**（`delivery/tunnel-daemon.mjs` / `oh-tunnel.mjs`）。
-> 隧道设计见 `docs/oh-tunnel-design.md`；崩溃修复进度见 `docs/design/tunnel-crash-fix-progress.md`。
+> 隧道设计见 `docs/01-investigation/oh-tunnel-design.md`；崩溃修复进度见 `docs/design/tunnel-crash-fix-progress.md`。
 > 命名说明：审计原文建议落 `docs/05-peripherals/RUNBOOK-TUNNEL.md`，批2 任务书裁定落本路径（`docs/04-ops/`），以任务书为准。
 
 ---

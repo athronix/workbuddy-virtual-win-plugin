@@ -178,7 +178,7 @@ const OVERALL_DOCS = [
   ['docs/RELEASE-NOTES.md', 'RELEASE-NOTES.md'],
   ['docs/release/DESIGN-V1.4.0.md', 'DESIGN-V1.4.0.md'],
   ['docs/release/RELEASE-V1.4.0.md', 'RELEASE-V1.4.0.md'],
-  ['docs/release/issues.md', 'issues.md'],
+  ['docs/release/ISSUES.md', 'issues.md'],
 ];
 
 /* ------------------------------ 组装 ------------------------------ */

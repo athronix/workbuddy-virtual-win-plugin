@@ -2,7 +2,7 @@
 
 > 面向零基础使用者：在「全新鸿蒙 HarmonyOS NEXT PC（运行 WorkBuddy 桌面版）+ 同机 Windows 虚拟机」拓扑上，从零完成 WorkBuddy 虚拟 Windows 插件（WinVM Bridge，五域 54 能力）的一键安装、部署验证与日常运维。
 >
-> **事实性声明出处约定**：本文涉及的行为/数值均标注来源（形如 〔出处：…〕），全部引用自本仓库既有文件与已验证文档，未含虚构。核心出处：`delivery/setup.mjs`、`delivery/preflight.mjs`、`docs/oh-host-install-run-test.md`（下称《安装运行测试》）、`.workbuddy/memory/MEMORY.md`（下称 MEMORY）、`delivery/tools/README.md`。
+> **事实性声明出处约定**：本文涉及的行为/数值均标注来源（形如 〔出处：…〕），全部引用自本仓库既有文件与已验证文档，未含虚构。核心出处：`delivery/setup.mjs`、`delivery/preflight.mjs`、`docs/01-investigation/oh-host-install-run-test.md`（下称《安装运行测试》）、`.workbuddy/memory/MEMORY.md`（下称 MEMORY）、`delivery/tools/README.md`。
 
 ---
 
@@ -284,7 +284,7 @@ node delivery/winvm-plugin.mjs tunnel stop     # 向 daemon 发 SIGTERM，清理
 
 ③ **进程内 ssh2 隧道**：由 `delivery/tunnel-daemon.mjs` 承载——`spawn(process.execPath, [...], { detached:true, stdio:'ignore' })` 拉起后父进程退出仍存活（reparent 到 init/pid1）；通过 `OhSshTunnel`（进程内 ssh2）监听 `127.0.0.1:<localPort>` 仅回环转发到 VM `127.0.0.1:<remotePort>`；SSH 断线经退避重连自愈，断线期间状态如实报 `DEGRADED`；状态机 `STARTING → RUNNING / DEGRADED → STOPPING`，心跳写 `tunnel.state.json`（供 `tunnel status` 读取）〔delivery/tunnel-daemon.mjs〕。
 
-④ **HOURLY watchdog 自动化兜底**：自动化 `aaa87da4`（每小时触发）探测宿主机 `tunnel.status`，进程死亡时自动 `tunnel start` 重启，弥补 daemon 自身崩溃的极端场景〔docs/changes/CL-020/TECHNICAL-SOLUTION.md〕。
+④ **HOURLY watchdog 自动化兜底**：自动化 `aaa87da4`（每小时触发）探测宿主机 `tunnel.status`，进程死亡时自动 `tunnel start` 重启，弥补 daemon 自身崩溃的极端场景〔docs/archive/changes/CL-020/TECHNICAL-SOLUTION.md〕。
 
 ⑤ **平台判定硬纪律**：任何「宿主平台判断是否走 ssh2 隧道」的代码**必须**写成 `process.platform === 'ohos' || process.platform === 'openharmony'`（二者并列），不得只判 `ohos`。新增涉及隧道/宿主平台分支的代码一律沿用此双兼容式，否则实机 HMOS（`openharmony`）会静默回落系统 ssh 导致隧道失效〔MEMORY「HMOS 宿主适配」+ QA E-4〕。
 

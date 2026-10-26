@@ -1,7 +1,7 @@
 /**
  * Phase 2 · P2-T5 单元测试 —— bearer 生效自检（拒绝静默退化）
  *
- * 覆盖设计 `docs/changes/phase2-arch-design.md` §2.2（F2 Step 1 判据）与 §13 Q3/Q4 裁决：
+ * 覆盖设计 `docs/archive/changes/phase2-arch-design.md` §2.2（F2 Step 1 判据）与 §13 Q3/Q4 裁决：
  *  A. `runBearerMountSelfCheck` 全 5 结论码分支（含**真实 createBearerGuard 产物**求值，
  *     证明「自检与被检守卫同源」，不是自说自话的夹具）；
  *  B. `resolveInnerReconnect` 全 6 条判据（三态必须能表达 unverified —— PR3）；

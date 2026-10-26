@@ -57,7 +57,7 @@
 > **Windows 更新管理（原 `system.update.manage`）：V2 规划 · 当前不可用**，未在能力注册表
 > `packages/vm-capabilities/src/registry/definitions.ts` 注册，VM 侧亦无对应实现，
 > **不得作为可调用能力对外承诺**。落地建议分两阶（L0 检查可装清单先行、L2 安装含重启联动后随），
-> 见 `docs/audit/2026-10-08-product-audit.md` PM-07。
+> 见 `docs/archive/audit/2026-10-08-product-audit.md` PM-07。
 
 #### 3.1.2 名实口径与读写分派挂载（M6 已完成）
 
@@ -192,7 +192,7 @@
 > `gui.input.keyboard` / `gui.input.mouse`（填表/点击）→ `gui.wait.condition`（等稳定）→
 > `gui.screen.capture`（结果存档），多步序列可封装为 `appops.gui.produce`。
 > 依赖 CDP 直驱的增强（取 DOM、精确选择器）待 `gui.browser.control` 注册后再启用
-> （实现建议见 `docs/audit/2026-10-08-product-audit.md` NP-04）。
+> （实现建议见 `docs/archive/audit/2026-10-08-product-audit.md` NP-04）。
 
 ### 3.5 `appops` —— 应用生产操作（FR-205）
 

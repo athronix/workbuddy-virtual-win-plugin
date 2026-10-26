@@ -1,6 +1,6 @@
 # 进行中 / 待定 · changing-log
 
-> ⚠ **2026-10-08 口径对齐**（体检 R4，消除与 README §9.5「已闭环」的互斥表述）：下方「待在真实环境终验」6 项中，**VM `--self-test`、SSH 隧道端到端、codebuddy CLI 参数契约、真机 A2A 委派+共享 Skills 下发** 已在 R18/R19/CL-K3R T05 真机轮闭环（证据 `docs/test/reports/real-test-2026-09-30-r19.md`、`k3r-t05-real-machine-2026-10-06.md`）；**双连接器同生效** 部分闭环（MCP 直调+委派桥均真机跑过，"同时拉起"矩阵 M4 受会话 ToolSearch 波动 BLOCKED，见 `r2-m4-diagnosis.md`）；**hermes 真机 CLI** 仍未做（provider 已实现、离线单测覆盖）。逐项状态以 `docs/audit/2026-10-08-comprehensive-assessment.md` Phase 1-R15 为准。
+> ⚠ **2026-10-08 口径对齐**（体检 R4，消除与 README §9.5「已闭环」的互斥表述）：下方「待在真实环境终验」6 项中，**VM `--self-test`、SSH 隧道端到端、codebuddy CLI 参数契约、真机 A2A 委派+共享 Skills 下发** 已在 R18/R19/CL-K3R T05 真机轮闭环（证据 `docs/archive/test/reports/real-test-2026-09-30-r19.md`、`k3r-t05-real-machine-2026-10-06.md`）；**双连接器同生效** 部分闭环（MCP 直调+委派桥均真机跑过，"同时拉起"矩阵 M4 受会话 ToolSearch 波动 BLOCKED，见 `r2-m4-diagnosis.md`）；**hermes 真机 CLI** 仍未做（provider 已实现、离线单测覆盖）。逐项状态以 `docs/archive/audit/2026-10-08-comprehensive-assessment.md` Phase 1-R15 为准。
 
 ## 🟡 待在真实环境终验
 - [ ] **VM 侧真机 `--self-test`**：当前 e2e 已在本地用 `vm-service` 同进程完成双通道验证；需在真实 Windows VM 上跑 `node packages/vm-service/dist/cli.js --self-test` 确认 ps-bridge 常驻进程在 VM 网络/权限上下文下稳定。
@@ -21,15 +21,15 @@
 - 多 VM 联邦编排（当前单 VM）。
 
 ## 🟡 进行中（第十五轮追加 · 2026-09-29）
-- [ ] **QA 独立深审 K5**（重派中）：安全语义（拒绝/超时零重放路径、seg.approved 透传全调用点、deriveUnderlying 脱敏覆盖、approvalId 伪造绕过面）+ 断言恒真抽查 → 报告 `docs/test/reports/k5-fix-qa-2026-09-29.md`。
+- [ ] **QA 独立深审 K5**（重派中）：安全语义（拒绝/超时零重放路径、seg.approved 透传全调用点、deriveUnderlying 脱敏覆盖、approvalId 伪造绕过面）+ 断言恒真抽查 → 报告 `docs/archive/test/reports/k5-fix-qa-2026-09-29.md`。
 - [ ] **宿主 MCP 路径 K5 真机端到端演示**（最终验收）：委派"卸载VM企业微信" → 审批卡片（含真实目标行）→ 用户批准 → 服务端确定性重放真实执行 → 审计 `-replay` executed 条目 + WXWork.exe 磁盘消失双重证据 → 任务 completed。
 - [ ] **灰度 off 态 token 保留**（P2）：K4 语义下 REPLAY=off 时 token 待短 TTL 清理。
 - [ ] **COMPLETION_CLAIM_PATTERN 词表有限**（P2）：LLM 措辞绕过面，根治 = bridge 直读 MCP 结构化工具结果（更大改造）。
 - [ ] **workflow 场景 goalText 常缺席**（P3）：input schema 无 goal 字段，deriveUnderlying 尽力而为。
 
 ## ✅ 已闭环（第十五轮收尾 · 2026-09-29 晚）
-- [x] QA 独立深审 K5 → 报告 `docs/test/reports/k5-fix-qa-2026-09-29.md`，路由 **NoOne**（191/191 复跑 + a/b/c 安全语义全成立 + 12 例断言抽查无恒真）。
-- [x] 宿主 MCP 路径 K5 真机端到端演示 → **PASS**，报告 `docs/test/reports/real-test-2026-09-29-k5-e2e.md`：审批卡片含 underlying 真实目标 → 批准 → 服务端重放（审计 seq7 `-replay` approvedBy:host ok:true）→ 任务 completed。
+- [x] QA 独立深审 K5 → 报告 `docs/archive/test/reports/k5-fix-qa-2026-09-29.md`，路由 **NoOne**（191/191 复跑 + a/b/c 安全语义全成立 + 12 例断言抽查无恒真）。
+- [x] 宿主 MCP 路径 K5 真机端到端演示 → **PASS**，报告 `docs/archive/test/reports/real-test-2026-09-29-k5-e2e.md`：审批卡片含 underlying 真实目标 → 批准 → 服务端重放（审计 seq7 `-replay` approvedBy:host ok:true）→ 任务 completed。
 - [ ] **🆕 K6（能力层）**：`winget uninstall` 对企业微信报假成功（exit 0 但磁盘无变化，NSIS 包无 QuietUninstallString）→ 需卸载后核验 + NSIS `/S` 回退。实测 `Uninstall.exe /S` 真实卸载成功（EXE_GONE/DIR_GONE/WINGET_REMOVED）。
 
 ## 🟡 进行中（第十六轮追加 · 2026-09-29）
@@ -38,7 +38,7 @@
 - [x] **K6 能力层修复**（承前）：R17-T01/T02/T02b 已落地（verified/fallbackUsed 契约 + app.ps1 R-1…R-8 状态机 + NSIS /S 回退 + A2A 超时注册表权威）；QA r3 35/35 + 消费者四处对齐 + PS 静态配平过，**企业微信 NSIS/MSI 对照、dryRun/exit≠0/600s/长卸载不掐断实测 BLOCKED** → 遗留至真机轮。
 
 ## ✅ 已闭环（第十七轮 P4 · 2026-09-30）
-- [x] **R17 P4 集成回归（T05 离线可证部分）** → 报告 `docs/test/reports/r17-qa-2026-09-30.md`，结论 **条件 PASS / 路由 NoOne**：tsc EXIT=0；全量 51 文件 **736 pass / 0 fail / 2 skipped**（修复前唯一 fail 为 `sandbox-allowwrite` 测试桩缺 `renderConnectorEntry` 导出——`d183a76` 基线即坏，**非 R17 回归**，QA 自修一行桩后 9/9 pass）；`__approvalId` 全仓逐处语境核查合规（A2A 卡片产物源码+dist 零标记，双向净化实证）；SKILL 严格禁止恰 5 条 + 工具缺失指引零自动批准路径；host-a2a-bridge/src、contracts/、host-sdk/ 零改动复核成立；K6 四处消费者口径对齐；诊断工具 exit 0/1 语义 + md5 零写入 + 只读性源码核验 + install-host --dry-run 自检块零落盘；T02b 超时链 `capTimeoutMs ?? req.timeoutMs ?? 30_000` 源码逐字核对。
+- [x] **R17 P4 集成回归（T05 离线可证部分）** → 报告 `docs/archive/test/reports/r17-qa-2026-09-30.md`，结论 **条件 PASS / 路由 NoOne**：tsc EXIT=0；全量 51 文件 **736 pass / 0 fail / 2 skipped**（修复前唯一 fail 为 `sandbox-allowwrite` 测试桩缺 `renderConnectorEntry` 导出——`d183a76` 基线即坏，**非 R17 回归**，QA 自修一行桩后 9/9 pass）；`__approvalId` 全仓逐处语境核查合规（A2A 卡片产物源码+dist 零标记，双向净化实证）；SKILL 严格禁止恰 5 条 + 工具缺失指引零自动批准路径；host-a2a-bridge/src、contracts/、host-sdk/ 零改动复核成立；K6 四处消费者口径对齐；诊断工具 exit 0/1 语义 + md5 零写入 + 只读性源码核验 + install-host --dry-run 自检块零落盘；T02b 超时链 `capTimeoutMs ?? req.timeoutMs ?? 30_000` 源码逐字核对。
 - [ ] **遗留（非阻塞）**：F-2 skills 域未显式承载「success=false 如实转呈」文案（旧口径零残留、注册表描述已承载，建议下轮 app-manager「已知陷阱」补一行）；F-3 `fillApprovalCard([])` reason 码归 `MISSING_APPROVAL_ID` 而非 `NO_INPUT`（拒卡结果正确，P3 码表美学差）。
 - [ ] **R17 真机 BLOCKED 五例**（均因需 Windows VM 真机环境，清单见报告 §7）：①R1 审批卡端到端闭环 + 审计 -replay ②R2 矩阵 M4 连续≥3 新会话 ToolSearch 命中 ③R3 企业微信 NSIS/MSI 对照 / dryRun / exit≠0 / 600s 实测 ④T02b A2A 长卸载（>300s）不被掐断 ⑤R-4 预捕获时序真机复证。
 

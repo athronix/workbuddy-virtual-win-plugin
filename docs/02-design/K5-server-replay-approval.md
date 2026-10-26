@@ -1,6 +1,6 @@
 # K5 设计：审批放行后的服务端确定性重放（根治 A2A 假成功）
 
-> 状态：**已实现并真机验收**（Phase 1 · 2026-09-29 落地：`tests/unit/k5-replay.test.js` 41 例在册、`docs/test/reports/k5-fix-qa-2026-09-29.md`、`docs/test/reports/real-test-2026-09-29-k5-e2e.md`；§7 现状对齐 2026-10-12）。
+> 状态：**已实现并真机验收**（Phase 1 · 2026-09-29 落地：`tests/unit/k5-replay.test.js` 41 例在册、`docs/archive/test/reports/k5-fix-qa-2026-09-29.md`、`docs/archive/test/reports/real-test-2026-09-29-k5-e2e.md`；§7 现状对齐 2026-10-12）。
 > 状态行订正注记（2026-10-13 · Phase 3 批0，J-5）：原写"设计定稿，待实现"已停更 13 天，与正文实况不符，今改回。
 > 作者：主理人（基于 2026-09-28 真机取证 + 代码勘察）。
 > 前置：K3（假成功正则兜底）、K4（结构化审批回传）均真机验证通过。

@@ -2,7 +2,7 @@
 
 > 用途：增量落盘进度，进程异常中断时可按本文件恢复，不必重做。
 > 权威依据：`docs/design/a5-approval-drop-fix-contract.md`（STATUS: FINAL，794 行）
-> 实施人：寇豆码（software-engineer）。**独占 `packages/**`；不碰 `tests/**`、`docs/test/**`、`qa/**`**。
+> 实施人：寇豆码（software-engineer）。**独占 `packages/**`；不碰 `tests/**`、`docs/archive/test/**`、`qa/**`**。
 > 基线 HEAD：`6ad6410`（spec 引用的 `eb72788` 为文档撰写时 HEAD，仓库已前进）
 
 ---

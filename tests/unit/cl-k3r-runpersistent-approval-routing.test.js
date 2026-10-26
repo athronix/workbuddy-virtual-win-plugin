@@ -1,7 +1,7 @@
 /**
  * CL-K3R Phase-D 修复回归测试 —— `CliLlmBridge.runPersistent` 的「审批暂停态」路由。
  *
- * 背景（根因 `docs/test/reports/k3r-t05-phase-d-blocker-2026-10-05.md`）：
+ * 背景（根因 `docs/archive/test/reports/k3r-t05-phase-d-blocker-2026-10-05.md`）：
  *   常驻（stream-json）会话里，codebuddy 安全策略会在调用 winvm 工具**之前**拦截高危操作，
  *   并以 `is_error=true` 的 result 事件上报（文本含 `APPROVAL_REQUIRED` + `apr_…` token），
  *   从而 `turn.ok=false`。修复前 `runPersistent` 在 `!turn.ok` 时**直接返回 EXECUTION_FAILED**，
