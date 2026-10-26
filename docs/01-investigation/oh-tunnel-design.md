@@ -352,11 +352,11 @@ argv(--vm-*)  >  env(WINVM_VM_*)  >  .env(VM_*)  >  vm-conn.json  >  默认值
 
 | ID | 任务名 | 源文件 | 依赖 | 优先级 |
 |---|---|---|---|---|
-| **T01** | 项目基础设施：引入 ssh2 依赖 + 契约扩展 | `packages/core/package.json`、`packages/contracts/src/transport.ts`、`docs/oh-tunnel-design.md` | — | P0 |
+| **T01** | 项目基础设施：引入 ssh2 依赖 + 契约扩展 | `packages/core/package.json`、`packages/contracts/src/transport.ts`、`docs/01-investigation/oh-tunnel-design.md` | — | P0 |
 | **T02** | 主模块草稿 `delivery/oh-tunnel.mjs`：OhSshTunnel 类 + establishSsh2Tunnel 工厂（含 start/stop/on、转发、重连骨架） | `delivery/oh-tunnel.mjs`、`packages/core/src/transport/ssh-tunnel-ssh2.ts`（建议）、`packages/core/src/transport/ssh-tunnel.ts`（后端选择器） | T01 | P0 |
 | **T03** | core 传输层接入 ssh2 后端 | `packages/core/src/transport/index.ts`、`packages/core/src/transport/ssh-tunnel.ts`、`packages/core/package.json`（已含） | T02 | P0 |
 | **T04** | delivery 脚本接入：setup TUNNEL + winvm-plugin withTunnel + resolveVmConn 密钥解析 + install-host 写 key | `delivery/setup.mjs`、`delivery/winvm-plugin.mjs`、`delivery/install-host.mjs` | T02, T03 | P0 |
-| **T05** | 验证与自检：单元/集成测试 + 真机可达性核对（呼应 §11） | `tests/unit/oh-tunnel.test.mjs`、`docs/oh-tunnel-design.md`（待确认项回填） | T04 | P1 |
+| **T05** | 验证与自检：单元/集成测试 + 真机可达性核对（呼应 §11） | `tests/unit/oh-tunnel.test.mjs`、`docs/01-investigation/oh-tunnel-design.md`（待确认项回填） | T04 | P1 |
 
 **依赖关系图**：
 

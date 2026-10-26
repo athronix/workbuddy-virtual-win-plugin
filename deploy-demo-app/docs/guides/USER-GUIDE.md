@@ -59,7 +59,7 @@ WorkBuddy 按 prompt 步骤 9 把部署报告副本写入共享目录 → 助手
 
 ## 4. 真机验证清单（S2/S3）
 
-> 对应 `docs/02-design/TEST-PLAN.md` S2/S3。逐项打勾，异常记录到日志卡。
+> 对应 `docs/02-design/TEST-PLAN-winvm-onetap.md` S2/S3。逐项打勾，异常记录到日志卡。
 
 ### S2 单机功能（无需 VM）
 

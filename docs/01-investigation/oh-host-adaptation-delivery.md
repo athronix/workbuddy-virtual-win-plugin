@@ -56,7 +56,7 @@
 1. **配置**：复制 `.env.example` 为 `.env`（默认值已是 `172.16.100.2` / `User`，通常无需改）；先 `node delivery/setup.mjs`（dry-run 预览）→ `node delivery/setup.mjs --apply` 真装。
 2. **VM 侧前置（P0-R0 硬门禁）**：在 `172.16.100.2` 上先跑 `install-vm.mjs` 落 ps-bridge + 54 能力 + 起 `/mcp` `/a2a`；并补装 **node**（P1-R10，VM 不在 PATH）与 **codebuddy CLI**（P1-R8，或把 provider 改走其它后端）。
 3. **构建复核**：在可联网环境 `npm i && npm run build` 后再**逐文件**跑全部单测，复核「214/214 + 新增用例」并确认 TS 编译无误。
-4. **沙箱门禁**：在 HMOS 真机跑 `docs/oh-host-selfcheck.md` §5 三条命令（本地监听 / 长驻子进程 / 出站 TCP）——这是**唯一仍未决**项；若 FAIL 属 OS 层权限（INTERNET/socket），非改插件可绕。
+4. **沙箱门禁**：在 HMOS 真机跑 `docs/01-investigation/oh-host-selfcheck.md` §5 三条命令（本地监听 / 长驻子进程 / 出站 TCP）——这是**唯一仍未决**项；若 FAIL 属 OS 层权限（INTERNET/socket），非改插件可绕。
 5. **端到端串验**：VM 起服务 → HMOS `winvm-plugin status` 验证两连接器在 `8dd0df6a-…` 账户目录检出（A5）→ ssh2 隧道调一次 `connector:winvm` 工具（A4）→ a2a 桥委派（A2）。
 
 ---

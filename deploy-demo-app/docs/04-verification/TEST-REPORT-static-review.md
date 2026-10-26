@@ -7,7 +7,7 @@
 - 版本：v0.1.0（静态验证稿）
 - 日期：2026-10-20
 - 范围：`deploy-demo-app/` 全部 26 个源文件（.ets 12 + 配置 8 + 资源 4 + tools 1 + .dev 6 中代码相关项，见 §1）
-- 依据：`docs/02-design/TEST-PLAN.md` S1（静态）、`docs/02-design/INTERFACE-DEFINITION.md`、父项目契约源码
+- 依据：`docs/02-design/TEST-PLAN-winvm-onetap.md` S1（静态）、`docs/02-design/INTERFACE-DEFINITION-winvm-onetap.md`、父项目契约源码
 
 ---
 

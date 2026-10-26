@@ -2,7 +2,7 @@
 
 > 适用环境：**宿主 = 鸿蒙 HMOS WorkBuddy**（本机），**VM = Windows 11**（IP `172.16.100.2`）。
 > 本文是把「安装 / 运行 / 测试」流程落盘的单一事实源，命令均按本机拓扑给出。
-> 相关文档：`docs/oh-host-selfcheck.md`（真机可行性门禁）、`docs/oh-host-adaptation-delivery.md`（宿主适配交付）、`DEPLOYMENT.md`（通用部署）。
+> 相关文档：`docs/01-investigation/oh-host-selfcheck.md`（真机可行性门禁）、`docs/01-investigation/oh-host-adaptation-delivery.md`（宿主适配交付）、`DEPLOYMENT.md`（通用部署）。
 
 ---
 
@@ -245,7 +245,7 @@ node delivery/setup.mjs --uninstall --apply  # 执行：仅移除本项目部分
 
 ## 7. 真机遗留 / 待复核清单
 
-1. **HMOS 沙箱约束**（决定性）：沙箱是否放行出站 TCP / 长驻进程 / 本地监听 —— 见 `docs/oh-host-selfcheck.md §5` 三命令验证；FAIL 属 OS 权限，非改插件可绕。
+1. **HMOS 沙箱约束**（决定性）：沙箱是否放行出站 TCP / 长驻进程 / 本地监听 —— 见 `docs/01-investigation/oh-host-selfcheck.md` §5 三命令验证；FAIL 属 OS 权限，非改插件可绕。
 2. **联网构建复核**：在可联网真机 `npm i && npm run build` 后，**逐文件**复跑全量 `tests/unit`（基线 214/214）+ `tsc` 类型检查。
 3. **端到端冒烟**：MCP vs A2A 七槽位等价性、`codebuddy` CLI flag 兼容、`hermes` CLI 拉起 + MCP 自动加载。
 

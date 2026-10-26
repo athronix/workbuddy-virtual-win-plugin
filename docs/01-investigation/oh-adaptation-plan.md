@@ -1,7 +1,7 @@
 # 鸿蒙 OS（OH）宿主适配 · 需求 + 技术变更方案
 
 > **文档代号**：`plan:oh-adaptation` ｜ **作者**：架构师 高见远 ｜ **读者**：工程师、PM、主理人
-> **依据**：`docs/oh-host-selfcheck.md`（可行性门禁）、`docs/oh-tunnel-design.md`（ssh2 隧道设计，T01–T05 已落地草案）、`docs/reference/workbuddy-hmos-vs-windows.md`（对比结论）
+> **依据**：`docs/01-investigation/oh-host-selfcheck.md`（可行性门禁）、`docs/01-investigation/oh-tunnel-design.md`（ssh2 隧道设计，T01–T05 已落地草案）、`docs/reference/workbuddy-hmos-vs-windows.md`（对比结论）
 > **核心约束**：**宿主 = OH、VM = Windows（`172.16.100.2`）不变**；VM 侧零改动；Windows/macOS 路径零改动（仅经 `process.platform` 守卫分支）；复用上轮 ssh2 隧道成果。
 
 ---
@@ -183,7 +183,7 @@
   3. **③ HMOS 注册两连接器**（T06）：渲染 P0-R3 两份 JSON 写入 `~/.workbuddy/connectors/8dd0df6a-…/mcp.json`，跑 `winvm-plugin status` 验证 A5（双通道在 uuid 账户目录检出、可 Trust 激活）。
   4. **④ ssh2 隧道 + A4**（T02/T04，P0-R2）：建隧道 `127.0.0.1:18443 → VM:18443`，经 `connector:winvm` 调一次工具断言返回（VM 已由①起服务，隧道 VM 端 OpenSSH 9.5 已验证可达）。
   5. **⑤ A2 LLM 路径**（P1-R8）：a2a 桥（`connector:winvm-a2a`，stdio）委派任务经隧道下派到 VM，断言成功。
-  6. 回填 `docs/oh-host-selfcheck.md` 门禁结论 + 文档一附录 B（已回填，仅补门禁 PASS/FAIL）。
+  6. 回填 `docs/01-investigation/oh-host-selfcheck.md` 门禁结论 + 文档一附录 B（已回填，仅补门禁 PASS/FAIL）。
   7. 若 T04/T06–T09 在真机暴露缺陷，回流工程师修复并补 `tests/`。
 
 #### 3.2.1 Windows / macOS 路径零改动清单（守卫保证）
@@ -212,7 +212,7 @@
 | `delivery/deploy-winvm-plugin.mjs` | 跳过 .cmd（OH） | **T08 改** | `process.platform!=='win32'` |
 | `tests/unit/oh-tunnel.test.mjs` | 离线测试 | 已建（上轮 19/19） | 无 |
 | `tests/unit/account-resolve.test.mjs` | 账户解析单测 | **T06 新增** | 无 |
-| `docs/oh-adaptation-plan.md` | 本计划 | 新增 | — |
+| `docs/01-investigation/oh-adaptation-plan.md` | 本计划 | 新增 | — |
 
 ### 3.4 依赖图与实现顺序
 
@@ -298,7 +298,7 @@ graph TD
 
 ## 6. 落地状态（2026-09-14 更新 · 主理人汇编）
 
-> 团队 `software-winvm-oh-host-v2` 按增量开发部分工作流完成 **T06–T09 + 配置默认值** 落地，交付详情见 `docs/oh-host-adaptation-delivery.md`。
+> 团队 `software-winvm-oh-host-v2` 按增量开发部分工作流完成 **T06–T09 + 配置默认值** 落地，交付详情见 `docs/01-investigation/oh-host-adaptation-delivery.md`。
 
 | 任务 | 状态 | 落地文件 |
 |---|---|---|
@@ -329,7 +329,7 @@ graph TD
 | **T13** 启动器附带文件部署（G3） | ✅ 已落地（2026-09-14） | `delivery/deploy-winvm-plugin.mjs`、`delivery/install-host.mjs` | CL015-P0-02（B1 前置）/ A1 |
 | **T14** POSIX 启动器 sh 兼容（G4） | ✅ 已落地（2026-09-14） | `delivery/deploy-winvm-plugin.mjs`、`delivery/path-util.mjs` | **CL015-P1-01**（D1–D6） |
 | **T15** 离线可验证（单测锁） | ✅ 已落地（2026-09-14） | `tests/unit/ssh2-resolve.test.mjs`、`tunnel-daemon.test.mjs`、`launcher-posix.test.mjs`（新增）、`tests/unit/oh-tunnel.test.mjs`（补凭据哨兵） | **CL015-P0-03**（C1–C6） |
-| **T16** 权威文档同步（DDD 原则 7） | ✅ 已落地（2026-09-14） | `docs/oh-adaptation-plan.md`、`docs/05-peripherals/DEPLOYMENT.md` | **CL015-P1-02**（文档部分） |
+| **T16** 权威文档同步（DDD 原则 7） | ✅ 已落地（2026-09-14） | `docs/01-investigation/oh-adaptation-plan.md`、`docs/05-peripherals/DEPLOYMENT.md` | **CL015-P1-02**（文档部分） |
 
 **状态口径说明**：T13/T14 为本轮新增（G3/G4 两处断点分别为「`oh-tunnel.mjs` 未随启动器部署」与「POSIX 启动器/PATH 不兼容 `sh`」）。T11 收口 §3.2 T07 第 3 点订正所指的 ssh2 分发缺口。**T16 结论**：权威文档（本文件 §7 / DEPLOYMENT.md）已订正为落地；仓库内无 `.dev/` 六索引实体（`docs/06-OVERVIEW.md` 亦未追踪 CL-015），故该分工项在本仓库为空操作，状态统一记 ✅ 已落地。
 

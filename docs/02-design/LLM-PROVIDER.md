@@ -268,8 +268,8 @@ export interface LlmBridge { runGoal(input: LlmGoalInput, sink: ProgressSink): P
 
 | 层级 | 用例 | 验证点 |
 |---|---|---|
-| 单测 | `tests/unit/test-llm-provider.test.js` | registerProviderFactory 注入 MockLlmBridge + 假 executor；`declareCapabilities` 含 6 域；`runGoal` 成功→`ok:true`+artifact+steps；`runGoal` 失败→`ok:false`+error；`execute` 委托到 executor |
-| 单测 | `tests/unit/test-setup-env.test.js` | `.env` 解析（含注释/空行/默认值回退）；plan 模式下不触发真实 ssh/build |
+| 单测 | `tests/unit/llm-provider.test.js` | registerProviderFactory 注入 MockLlmBridge + 假 executor；`declareCapabilities` 含 6 域；`runGoal` 成功→`ok:true`+artifact+steps；`runGoal` 失败→`ok:false`+error；`execute` 委托到 executor |
+| 单测 | `tests/unit/setup-env.test.js` | `.env` 解析（含注释/空行/默认值回退）；plan 模式下不触发真实 ssh/build |
 | 集成 | `vm-service` 启动切换 | `agent.provider='workbuddy'` 经 loader 成功加载；`/health` 暴露 `provider.id='workbuddy'`、`kind='llm-agent'`；Agent Card `skills[]` 收敛包含 `app-operation` |
 | 集成 | 配置校验 | `validateServiceConfig` 对 `workbuddy` entry 通过；未知 provider 仍报错 |
 | E2E | `cli --self-test` | 新增 `workbuddy` provider 能力目录校验（catalog 注入 mock 后通过） |

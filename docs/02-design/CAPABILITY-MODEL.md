@@ -297,4 +297,4 @@
 4. **契约校验现状如实化**：schema + 风险分级合法性校验**不是自动运行期校验**——落点在测试/门禁面（`phase2-contract-schema.test.js` + `npm run gate`，裁决 Q1=(b)），故第 3 步与门禁必须人工触发；
 5. MCP 工具与 A2A Skill **自动出现**（由注册表派生，无需改框架代码）；
 6. 若风险为 L2/L3，宿主适配器会自动将其加入 `disabledTools` 建议清单；同步更新 `skills/*/SKILL.md`（若涉对外语义）与本文件 §3 清单；
-7. **重装/重启 VM 侧**（psmod 变更不重启服务不生效——改 `.ps1` 必须让常驻 ps-bridge 重载，见 `docs/04-ops/DEPLOYMENT.md`）。
+7. **重装/重启 VM 侧**（psmod 变更不重启服务不生效——改 `.ps1` 必须让常驻 ps-bridge 重载，见 `docs/05-peripherals/DEPLOYMENT.md`）。
