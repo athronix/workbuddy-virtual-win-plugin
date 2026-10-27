@@ -475,6 +475,14 @@ function verifyPackages(dest, version) {
     results.push({ label: `V5 ${kind} install-host 含 NON_ACCOUNT_DIRS`, ok: hit, status: hit ? 0 : 1, tail: '' });
     console.log(`  ${hit ? '✓' : '✗'} V5 ${kind} install-host 含 NON_ACCOUNT_DIRS`);
   }
+  // V6（V1.4.4 起，I-6.1 防回归）：包内 gui.ps1 必须含 cbSize 实例重载修复——
+  // V1.4.3 事故=修复晚于打包，Release 包内键鼠仍带 PS5.1 SizeOf([Type]) 真 bug。
+  for (const kind of ['vm', 'overall']) {
+    const gfp = join(dest, kind, 'packages', 'vm-capabilities', 'psmod', 'gui.ps1');
+    const hit2 = existsSync(gfp) && readFileSync(gfp, 'utf8').includes('$cbSize');
+    results.push({ label: `V6 ${kind} gui.ps1 含键鼠修复(cbSize)`, ok: hit2, status: hit2 ? 0 : 1, tail: '' });
+    console.log(`  ${hit2 ? '\u2713' : '\u2717'} V6 ${kind} gui.ps1 含键鼠修复(cbSize)`);
+  }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
   if (existsSync(capPkg)) {
