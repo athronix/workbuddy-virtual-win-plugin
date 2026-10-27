@@ -11,6 +11,7 @@
 - MSYS：远端逻辑 `.ps1→scp→powershell -File`；ASCII 载荷；`$_` 内联必坏；公钥等参数 **base64 单参**传；杀隧道直 kill PID 勿 pkill -f。
 - **空密码网络登录=两层串联**（PermitEmptyPasswords 默认 no + LimitBlankPasswordUse=1），只改一层必败；两层同改后建好免密**立即回滚**（deploy-strategy §2.1-B）。
 - **大文档多轮 Edit 必静默缩水/回退（10-26 两次）**：改前 `git show HEAD:` 留基线；批量改动=一次性脚本+每处 assert count==1+不匹配整体拒写；写后立即 `wc -l`+锚点 grep+扫控制字符（python 普通串写 Win 路径 `\n\v` 会转义！）；commit 前后各核一次。
+- - 版本升版批**必须 grep 全仓旧 tag 清点同步面**（10-27 案：v2.9 变更行宣称"RELEASE_TAG 升 V1.4.4"但 strategy §0.5-B/§7 与 deploy-prompts §2.2 仍写 V1.4.3——声称≠已改；pack V7 断言同款思路=机械化替代人肉声称）。
 - 搜索假阴性：**Grep 工具与 `git grep` 都漏过** →清点用文件系统 `grep -rn` 交叉；仓库清点 `git ls-files`。
 - provider=workbuddy **禁批量 tasks/cancel**（真机红线）。ssh `cmd &` 脱管、schtasks 拖死通道→轮询 /health。VM-START bind EACCES=socket 未 drain→清持有者+等待重试。
 - 沙箱路径：git/node/python3 全路径（`.harmonybrew/opt/git` / `el1/bundle/libs/arm64/node` / `/data/service/hnp`）；/tmp 只读→`$HOME/wbtmp`；rm shim 坏→fs.unlinkSync；getcwd 异常→绝对路径。
