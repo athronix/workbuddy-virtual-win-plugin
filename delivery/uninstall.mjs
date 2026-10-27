@@ -36,11 +36,12 @@
  *     - ~/.workbuddy/connectors/skills/connector-winvm/  (8 connector skills：1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派)
  *     - installed_plugins.json entry "winvm-bridge@winvm"   (backup kept)
  *     - connectors/<account>/mcp.json keys connector:winvm + connector:winvm-a2a (backup kept)
+ *     - global ~/.workbuddy/mcp.json keys winvm + winvm-a2a (install-host global registration; backup kept)
  *     - settings.json sandbox.extraAllowWrite entries added by install (backup kept)
  *     - settings.json enabledPlugins["winvm-bridge@winvm"] added by install (backup kept) [D16]
  *     - user PATH / shell profile injection (shell-init.sh line + .bashrc/.profile block)
  *     - ~/.workbuddy/winvm/ marker files: side.json, vm-conn.json, shell-init.sh,
- *       tunnel.state.json, tunnel.pid, tunnel.log, known_hosts (directory itself kept)
+ *       tunnel.state.json, tunnel.pid, tunnel.log, tunnel-autostart.json, known_hosts (directory itself kept)
  *   VM (Windows, e.g. 172.16.100.2):
  *     - scheduled task WinVMBridge.Service (schtasks /End + /Delete)
  *     - vm-service node process tree + start-hidden.ps1 wrappers (identified by
@@ -87,6 +88,8 @@ import { removeFromUserPath } from './path-util.mjs';
 
 const PLUGIN_KEY = 'winvm-bridge@winvm';
 const CONNECTOR_KEYS = ['connector:winvm', 'connector:winvm-a2a'];
+// install-host 全局注册面（~/.workbuddy/mcp.json）用的键名与账户级不同（无 connector: 前缀）。
+const GLOBAL_MCP_KEYS = ['winvm', 'winvm-a2a'];
 const SERVICE_TASK = 'WinVMBridge.Service';
 const SERVICE_PORT = 18443;
 const VM_BRIDGE_DIR = 'C:/WinVMBridge';
@@ -420,6 +423,31 @@ function cleanConnectorMcpJson(hostRoot, dryRun, log) {
   return true;
 }
 
+/* 镜像对称缺口（undeploy 回环实测 2026-10-27）：install-host 除账户级 connectors/<acct>/mcp.json 外，
+ * 还会把 winvm / winvm-a2a 注册进**全局** ~/.workbuddy/mcp.json（连接器页面读取面，
+ * disabledTools 落点亦在此）。旧 uninstall 只清账户级 → 全局键残留 = 拆除不对称。 */
+function cleanGlobalMcpJson(hostRoot, dryRun, log) {
+  const p = join(hostRoot, 'mcp.json');
+  const json = readJsonSafe(p);
+  const servers = json && json.mcpServers && typeof json.mcpServers === 'object' ? json.mcpServers : null;
+  if (!servers) {
+    log(`[SKIP] global mcp.json ${existsSync(p) ? 'absent or has no mcpServers' : 'not present'}: ${p}`);
+    return true;
+  }
+  const hits = GLOBAL_MCP_KEYS.filter((k) => k in servers);
+  if (hits.length === 0) {
+    log('[SKIP] global mcp.json has no winvm entries');
+    return true;
+  }
+  const bak = backupFile(p, dryRun);
+  if (!dryRun) {
+    for (const k of hits) delete servers[k];
+    writeFileSync(p, JSON.stringify(json, null, 2) + '\n', 'utf8');
+  }
+  log(`${dryRun ? '[DRY]' : '[DO] '} ${p}: remove ${hits.join(', ')}${bak ? ` (backup: ${bak})` : ''}`);
+  return true;
+}
+
 /* D16 第二重问题：仅从 installed_plugins.json 移除条目 ≠ 停用插件。
  * 平台以 settings.json.enabledPlugins 为启用真相源；残留该键会让平台继续加载已移除的
  * hooks（SessionStart 隧道自启动）。故卸载必须对称地把该键移除。 */
@@ -508,7 +536,9 @@ function cleanWinvmMarkerFiles(home, dryRun, log) {
     return true;
   }
   // Files written by install scripts / tunnel daemon / oh-tunnel (TOFU known_hosts).
-  const markers = ['side.json', 'vm-conn.json', 'shell-init.sh', 'tunnel.state.json', 'tunnel.pid', 'tunnel.log', 'known_hosts'];
+  // tunnel-autostart.json is written by install-host (session-start hook marker) —
+  // symmetry requires removing it here, otherwise the hook keeps re-ensuring a dead tunnel.
+  const markers = ['side.json', 'vm-conn.json', 'shell-init.sh', 'tunnel.state.json', 'tunnel.pid', 'tunnel.log', 'tunnel-autostart.json', 'known_hosts'];
   for (const name of markers) {
     const p = join(dir, name);
     if (!existsSync(p)) continue;
@@ -830,6 +860,15 @@ async function printVerification(hostRoot, home, vm, purgeWorkspace, executed) {
   const conn = readJsonSafe(join(hostRoot, 'connectors', 'skills', 'mcp.json'));
   const connClean = !conn || !conn.mcpServers || !('connector:winvm' in conn.mcpServers);
   rows.push(['HOST connectors/skills/mcp.json has no winvm entry', connClean, connClean]);
+  const globalMcp = readJsonSafe(join(hostRoot, 'mcp.json'));
+  const globalClean =
+    !globalMcp || !globalMcp.mcpServers || !GLOBAL_MCP_KEYS.some((k) => k in globalMcp.mcpServers);
+  rows.push(['HOST global ~/.workbuddy/mcp.json has no winvm entry', globalClean, globalClean]);
+  rows.push([
+    'HOST ~/.workbuddy/winvm/tunnel-autostart.json absent',
+    !existsSync(join(home, '.workbuddy', 'winvm', 'tunnel-autostart.json')),
+    !existsSync(join(home, '.workbuddy', 'winvm', 'tunnel-autostart.json')),
+  ]);
   rows.push(['HOST ~/.workbuddy/winvm/side.json absent', !existsSync(side), !existsSync(side)]);
   rows.push(['HOST ~/.workbuddy/winvm/vm-conn.json absent', !existsSync(connJson), !existsSync(connJson)]);
 
@@ -918,6 +957,9 @@ async function main() {
 
   console.log('--- HOST: connectors/*/mcp.json winvm entries ---');
   cleanConnectorMcpJson(hostRoot, dryRun, log);
+
+  console.log('--- HOST: global ~/.workbuddy/mcp.json winvm entries ---');
+  cleanGlobalMcpJson(hostRoot, dryRun, log);
 
   console.log('--- HOST: settings.json sandbox.extraAllowWrite ---');
   cleanSandboxAllowWrite(hostRoot, home, dryRun, log);

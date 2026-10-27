@@ -202,4 +202,12 @@
 | 上架 + 回环 | tag `V1.4.4`（2789957，基于 2671f0f）；`publish-release --apply` 双资产上架；latest API 指向 V1.4.4 | 三向对账=远端旁挂=本地旁挂=下载件实算 `03cef597…`（2,768,597 B） |
 | 清场重装（run，铁律 --wipe） | 包根切 V1.4.4（`.env` 从 v143-backup 迁移）；uninstall 17/17 PASS；setup 七相位 2m6s（HEALTH ok:true）；三探针 mcp 20/20 + a2a 5/5 + example 13/13；VM 侧 gui.ps1 含 cbSize；G-1 复验非账户零污染、连接器 8 skill | 全维终验 25/25 + example 13/13 + disabledTools=8 |
 
-**结论：迭代 7 关闭。I-6.1（P1 能力面真 bug）经「修复→V6 断言机械化钉死→入包 V1.4.4→清场重装态 25/25+13/13 复验」全链闭环；发布链「修复晚于打包」盲区被 V6 断言永久封堵。当前线上版本=V1.4.4。**
+**结论：迭代 7 关闭。I-6.1（P1 能力面真 bug）经「修复→V6 断言机械化钉死→入包 V1.4.4→清场重装态 25/25+13/13 复验」全链闭环；发布链「修复晚于打包」盲区在 **gui.ps1 面**被 V6 断言封堵（其余交付面仍靠人肉回环发现，见迭代7 追加 I-6.3）。当前线上版本=V1.4.4。**
+
+### 迭代7 追加 · I-6.3（2026-10-27，undeploy⇄deploy 回环实测发现）
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.3** | P2 | `delivery/uninstall.mjs` 两处**镜像不对称**（回环 U4 独立复核抓到，自报清单当时全绿）：**U-1** 不清全局 `~/.workbuddy/mcp.json` 的 `winvm`/`winvm-a2a`（install-host 全局注册面，disabledTools 落点；只清了账户级 `connectors/*/mcp.json`）；**U-2** markers 缺 `tunnel-autostart.json`（拆后重开 WB，SessionStart hook 会对已不存在的插件 ensure 死隧道）。修复=新增 `cleanGlobalMcpJson`（备份后删）+ markers 补名 + 核验清单加两行（17→19）；复验 dry-run `[DRY] remove winvm, winvm-a2a`→apply **19/19 PASS**、独立复核 GLOBAL_MCP_CLEAN、r3-uninstall-verify 47/47、gate:quick 265/265。教训沿用 I-6.1：**「自报全绿」≠「拆除干净」，不对称只能靠独立复核面抓**。另：块注释内写 `connectors/*/mcp.json` 的 `*/` 会提前闭合注释（node --check 当场抓住，改 `<acct>` 写法）。 | **已修复（源码+文档）**；⚠ **晚于 V1.4.4 打包**——包内 `uninstall.mjs` 无 `cleanGlobalMcpJson`（overall-root 与 v144-loop 双处 grep=0）。影响=纯 Release 新装用户 uninstall 后全局键残留+autostart 标记（非阻断，重装幂等自愈）。**建议**：不单独补发（无阻断），并入下一迭代自然收编；同时给 pack-release 加 **V7 断言**（包内 uninstall.mjs 必含 `cleanGlobalMcpJson` 特征串）。待用户裁定 |
+
+证据：`qa/real-test-2026-10-27-run1.md`（回环全记录，含 R5=38/38 与瞬态定性）+ `qa/evidence/undeploy-loop-20261027/`（8 份日志）。

@@ -357,7 +357,7 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 | `docs/INSTALL-GUIDE.md` | 安装指南（开发者本机/仓库通道 `setup.mjs` 一条龙；从零/灾备见下行策略文档） |
 | `docs/deploy/deploy-strategy.md` | **部署策略 v2（从零安装，权威）**：六步可行性+变量表+Step 3.0 运行时前置+§2.1-B 空密码预案+§5.0 遇困决策协议+Step 6 交付引导+缺口台账（§9.1）与实测记录 |
 | `docs/deploy/deploy-prompts.md` | **部署 Prompt 总集**：变量确认表+总 Prompt（一键粘贴）+分步 P1~P6+验收速查+§8 异常处置协议 |
-| `docs/deploy/undeploy-prompts.md` | **卸载 Prompt 总集（deploy-prompts 逆向镜像）**：十七落点镜像清单+总 Prompt U0~U5（DRY-RUN 先行/POST-CLEANUP 核验/存留项逐项问用户）+`--wipe` 清场重装衔接 |
+| `docs/deploy/undeploy-prompts.md` | **卸载 Prompt 总集（deploy-prompts 逆向镜像，现 v1.1 经 10-27 回环实测）**：十八落点镜像清单+总 Prompt U0~U5（DRY-RUN 先行/POST-CLEANUP 核验/存留项逐项问用户）+`--wipe` 清场重装衔接 |
 | `docs/04-ops/OPS-OVERVIEW.md` | 运维权威手册：部署/运行机制综述+配置逐键穷举+坑速查 |
 | `docs/RELEASE-NOTES.md` | **Release Notes（演进链/能力面/已知限制，权威）**；旧 `V1.0.0-release-notes.md` 已冻结并移至 `docs/archive/legacy-release-notes-V1.0.0.md` |
 | `docs/05-peripherals/DEPLOYMENT.md` | 部署指南（含 §1.7 分发跟批闭环、策略闸执法切换） |

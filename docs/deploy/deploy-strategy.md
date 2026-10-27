@@ -902,6 +902,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-27 | v2.8 | **Step 6.3 全矩阵补测闭环**：9 场景能力 100% 实跑（表格「能力实测」列全 ✅ 含证据与判据注记）；发现并修复 **gui.ps1 PS5.1 `Marshal::SizeOf([Type])` 真 bug**（键鼠输入此前从未真跑通，实例重载修正+防回归钉 E11）；example-probe 8→13 项；新增 §9.3（含 ⚠ 发布链影响：V1.4.3 包内 gui.ps1 仍旧版，建议补发 V1.4.4） |
 | 2026-10-27 | v2.9 | **V1.4.4 补发销账**：§9.3 发布链影响裁定（补发 V1.4.4 已执行闭环）+ I-6.1 关闭注记；`pack-release` V6 硬断言（包内 gui.ps1 必含 `cbSize`）固化「修复晚于打包」盲区；RELEASE_TAG 默认升 V1.4.4 |
 | 2026-10-27 | v3.0 | **卸载 Prompt 总集立项**：新增 `docs/deploy/undeploy-prompts.md` v1.0（deploy-prompts 的逆向镜像：§2.3 十七落点镜像清单 + U0~U5 总 Prompt + POST-CLEANUP 核验 + 存留项决策表 + `--wipe` 清场重装衔接）；§6 回滚与清理加 Prompt 版指针；deploy-prompts 头注加对偶行 |
+| 2026-10-27 | v3.1 | **undeploy⇄deploy 回环实测（run1）**：拆除 19/19 + 重装 38/38 全绿；抓出并修复 `uninstall.mjs` 两处镜像不对称（全局 mcp.json / tunnel-autostart，ISSUES I-6.3）；`undeploy-prompts.md` 升 v1.1（十八落点、动态 16→19 核验口径、--vm-host 兜底、排错补 2 条瞬态）。详见 `qa/real-test-2026-10-27-run1.md` |
 
 ### 9.1 本次实测发现的三处发布链缺口（**已随 V1.4.3 全部关闭**，2026-10-26；原发现记录保留）
 

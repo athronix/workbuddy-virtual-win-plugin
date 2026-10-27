@@ -1,7 +1,10 @@
 # WinVM Bridge · 卸载 Prompt 总集（undeploy-prompts）
 
 > 文档 ID：UNDEPLOY-PROMPTS-v1
-> 状态：**卸载器已真机实测通过**（dry-run→apply→POST-CLEANUP 核验全 PASS、零 FAIL；清单按运行态动态生成，实测 16~17 项，见 `qa/evidence/uninstall-pre-run3.log`（16 项）、`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项，含 --purge-workspace 与 enabledPlugins 两条））
+> 状态：**卸载器已真机实测通过**（dry-run→apply→POST-CLEANUP 核验全 PASS、零 FAIL；清单按运行态动态生成，判据=全 [PASS] 零 [FAIL]，历史 16~17 项、修复不对称后 19 项）
+> **2026-10-27 回环实测（run1）**：按本文 U0~U4 拆除 → deploy-prompts Step 3~5 重装 → 三探针 38/38 全绿；
+> 实测揪出并修复两处镜像不对称（U-1 全局 mcp.json 不清、U-2 tunnel-autostart.json 残留，见 §9 v1.1）。
+> 证据：`qa/evidence/uninstall-pre-run3.log`（16 项）、`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）、`qa/real-test-2026-10-27-run1.md`（拆除 19/19 + 重装回绿）
 > 更新：2026-10-27
 > 上游：`delivery/uninstall.mjs`（双端一键卸载器，本文件的判据真源）、`docs/deploy/deploy-strategy.md` §6（回滚与清理）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/deploy-prompts.md`（部署 Prompt 总集）——本文件是它的**逆向镜像**
@@ -57,7 +60,7 @@ VM 侧免密通道需**仍然可用**（`ssh User@$VM_HOST whoami` 成功）—�
 | `--host-root <dir>` | `~/.workbuddy` | 覆盖 WorkBuddy 根 | ☐ |
 | `--trash-dir <dir>` | `~/.workbuddy/winvm-trash` | 宿主侧删除物**移入此处**（非直接 rm，可回滚） | ☐ |
 
-### 2.3 拆除落点（`uninstall.mjs` 头注的镜像清单，逐项对应安装体系）
+### 2.3 拆除落点（`uninstall.mjs` 头注的镜像清单，逐项对应安装体系；18 项=10-27 回环修复后全貌）
 
 | # | 端 | 落点 | 谁放的 | 动作 |
 |---|---|---|---|---|
@@ -70,7 +73,7 @@ VM 侧免密通道需**仍然可用**（`ssh User@$VM_HOST whoami` 成功）—�
 | 7 | 宿主 | `settings.json` `sandbox.extraAllowWrite` 安装追加项 | `install-host` | 删项（**先备份**） |
 | 8 | 宿主 | `settings.json` `enabledPlugins["winvm-bridge@winvm"]` | `install-host` | 删项（**先备份**）[D16] |
 | 9 | 宿主 | 用户 PATH / shell profile（`shell-init.sh` 行 + `.bashrc`/`.profile` 块） | `install-host` | 按标记 `# WinVM Bridge PATH` 去段 |
-| 10 | 宿主 | `~/.workbuddy/winvm/` 标记文件 `side.json`/`vm-conn.json`/`shell-init.sh`/`tunnel.state.json`/`tunnel.pid`/`tunnel.log`/`known_hosts` | 各相位 | 删文件（**目录本身保留**） |
+| 10 | 宿主 | `~/.workbuddy/winvm/` 标记文件 `side.json`/`vm-conn.json`/`shell-init.sh`/`tunnel.state.json`/`tunnel.pid`/`tunnel.log`/`tunnel-autostart.json`/`known_hosts` | 各相位（autostart=WorkBuddy 会话自启标记，install-host 写） | 删文件（**目录本身保留**；`nonaccount-mcp-trash-*` 等无关子目录不动） |
 | 11 | VM | 计划任务 `WinVMBridge.Service` | `deploy-vm`/`setup` | `schtasks /End` + `/Delete` |
 | 12 | VM | `vm-service` node 进程树 + `start-hidden.ps1` | 计划任务托管 | **按命令行 `C:\WinVMBridge` 签名杀，绝不按可执行路径**（node 二进制与宿主共享） |
 | 13 | VM | `C:/WinVMBridge/`（程序+dist+shared-skills+QA scratch） | `deploy-vm`/`setup` | 删目录 |
@@ -78,6 +81,7 @@ VM 侧免密通道需**仍然可用**（`ssh User@$VM_HOST whoami` 成功）—�
 | 15 | VM | VM 用户 PATH 项 `C:\WinVMBridge\delivery` | `install-vm` | 去项 |
 | 16 | VM | VM 标记 `~/.workbuddy/winvm/side.json` | `setup` | 删 |
 | 17 | VM | `C:/WinVMWorkspace` | 运行期 | **仅 `--purge-workspace` 才删**（默认保留） |
+| 18 | 宿主 | **全局 `~/.workbuddy/mcp.json`** 键 `winvm`/`winvm-a2a`（连接器页面读取面、disabledTools 落点） | `install-host` 全局注册 | 删键（**先备份**）⚠ 10-27 回环实测补齐——旧版只清 `connectors/*/mcp.json` 不清全局 |
 
 ### 2.4 宿主工具路径（鸿蒙沙箱必须绝对路径）
 
@@ -132,8 +136,9 @@ U2 · 宿主相位：执行拆除（--apply）
   2.1 $NODE delivery/uninstall.mjs --apply
       （保留工作区=默认；彻底清另加 --purge-workspace，须用户明确同意）
   2.2 卸载器内部按序：停隧道（按 PID）→ 插件缓存/marketplace/connector skill 移入 trash
-      → 删 installed_plugins.json 键 → 删 connectors/*/mcp.json 两键 → 删 settings.json 追加项
-      → 去 PATH/shell profile 段 → 删 ~/.workbuddy/winvm 标记文件。
+      → 删 installed_plugins.json 键 → 删 connectors/*/mcp.json 两键 → 删**全局 ~/.workbuddy/mcp.json**
+        两键（winvm/winvm-a2a，10-27 回环补齐） → 删 settings.json 追加项
+      → 去 PATH/shell profile 段 → 删 ~/.workbuddy/winvm 标记文件（含 tunnel-autostart.json）。
   2.3 判据：退出码 0；"APPLY complete" 且核验清单全 [PASS]（见 U4）。
 
 ────────────────────────────────────────
@@ -158,6 +163,8 @@ U4 · 拆除核验（POST-CLEANUP 清单全 [PASS]；清单按运行态动态生
         [PASS] connectors/skills/mcp.json has no winvm entry
         [PASS] ~/.workbuddy/winvm/side.json absent
         [PASS] ~/.workbuddy/winvm/vm-conn.json absent
+        [PASS] HOST global ~/.workbuddy/mcp.json has no winvm entry（10-27 补齐）
+        [PASS] ~/.workbuddy/winvm/tunnel-autostart.json absent（10-27 补齐）
         [PASS] 127.0.0.1:18443 not listening
       VM（8）：
         [PASS] VM ssh passwordless ("whoami") works     ← 拆完密钥仍在、通道仍可用
@@ -172,13 +179,16 @@ U4 · 拆除核验（POST-CLEANUP 清单全 [PASS]；清单按运行态动态生
       $NODE ~/.workbuddy/plugins/cache/winvm/.../winvm-plugin.mjs tunnel status --json 2>&1 | tail -3
         → 期望：插件已不在 → 报模块不存在/无 RUNNING（不能再是 state=RUNNING）
       curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18443/health  → 期望 000（拒连）
-      读 ~/.workbuddy/mcp.json → winvm 条目应已消失（键不存在，而非 disabledTools 残留空壳）
+      读 ~/.workbuddy/mcp.json → winvm/winvm-a2a 条目应已消失（键不存在，而非 disabledTools 残留空壳）
   4.3 判据：4.1 全 [PASS] + 4.2 三项均指向"已拆除"。任一不符 → 停并给失败四元组。
+  4.4 历史口径说明：清单为**动态生成**（按运行态落点有无增减行），10-27 修复不对称前实测 16~17 项、
+      修复后 19 项——**判据永远是"全 [PASS] 零 [FAIL]"，不是固定条数**。
 
 ────────────────────────────────────────
 U5 · 存留项处置（卸载器**按设计不动**，逐项问用户）
   5.1 SSH 密钥与免密通道：uninstall 永不删。彻底告别才单独清（见 §7，⚠ 注意 id_ed25519 一号多用坑）。
-  5.2 运行态目录 `~/.workbuddy/winvm/`（目录本身保留）、trash 目录（可回滚来源，用户确认后可清）。
+  5.2 运行态目录 `~/.workbuddy/winvm/`（目录本身保留；卸载后应只剩与本项目无关的历史子目录如
+      `nonaccount-mcp-trash-*`，标记文件含 tunnel-autostart.json 已全清）、trash 目录（可回滚来源，用户确认后可清）。
   5.3 下载物 `~/winvm-deploy/`（pkg zip + overall-root 解包）：非部署产物，属获取阶段，按需手动清。
   5.4 仓库 `/.env`：uninstall 不动（设计约束）。
   5.5 定时自动化/看门狗：经 `automation_update list` 核实是否有与本项目相关的 ACTIVE 自动化
@@ -316,6 +326,8 @@ ssh User@172.16.100.2 'powershell -NoProfile -Command "Get-ScheduledTask -TaskNa
 | `git push` Permission denied (publickey) | U5.1 删掉了兼作 GitHub 推送凭据的 `id_ed25519`（一号多用） | 恢复为独立 `id_ed25519_github`（600）+ `GIT_SSH_COMMAND` 指定；长期正解两把密钥分开 |
 | 想连 trash 一起清又怕丢回滚 | trash 是可回滚来源 | 用户明确确认"不再需要回滚"后才清 `~/.workbuddy/winvm-trash/` |
 | 拆除误删了 `C:/WinVMWorkspace` | 加了 `--purge-workspace`（默认不删） | 该标志不可逆；如需数据请先备份再拆 |
+| 重装 setup TUNNEL 相位报 `EADDRINUSE 18443`、HEALTH 相位却 ✅ | daemon 正持端口 + 黑洞预热竞态（VM 服务刚起、回落自建撞端口） | 瞬态：直接 `curl /health`=200 + `tunnel status`=RUNNING 即已自愈，无需处理；反复出现才按隧道黑洞判据排查 |
+| example-probe 首跑 E7/E8 `PSBRIDGE_EXITED`（stderr 双份「ps-bridge 启动」banner） | 重装窗口内 ps-bridge 重启竞态（首次调用打在换代瞬间） | 复跑 example-probe 即稳（10-27 run1 实测：首跑 11/13→复跑 13/13）；稳定复现才按 VM 侧热更路径排查 |
 
 ---
 
@@ -343,6 +355,8 @@ ssh User@172.16.100.2 'powershell -NoProfile -Command "Get-ScheduledTask -TaskNa
 ```text
 1) 拆除（本文件 U1~U4）：**保留** SSH 密钥与下载物（马上要用），不加 --purge-workspace。
    → $NODE delivery/uninstall.mjs --apply   核验 POST-CLEANUP 清单全 PASS
+   ⚠ 反复清场时 `vm-conn.json` 首轮即被删——再跑 uninstall 须显式传
+     `--vm-host $VM_HOST --vm-user $VM_USER`（或保留 vm-conn.json 到重装前），否则 VM 相位 SKIPPED+fail。
 2) 重装（deploy-prompts.md 总 Prompt，从 Step 2 起即可，免密通道仍在可跳 Step 1）。
 3) 判据：重装后 25/25（mcp-probe 20 + a2a-probe 5）+ example-probe 全绿。
 ```
@@ -357,3 +371,4 @@ ssh User@172.16.100.2 'powershell -NoProfile -Command "Get-ScheduledTask -TaskNa
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-10-27 | v1.0 | 首版：作为 `deploy-prompts.md` 的逆向镜像。结构对齐部署文档（使用方式/变量表/总 Prompt U1~U5/分步 Prompt/核验速查/排错/存留项/清场重装衔接/变更记录）。拆除清单取自 `delivery/uninstall.mjs` 头注（§2.3 逐条镜像安装体系 17 落点）；核验判据取自真机 `qa/evidence/uninstall-pre-run3.log`（16 项）与 `qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）的 POST-CLEANUP VERIFICATION；强调三条设计红线（镜像拆除不越界、宿主删除移入 trash 可回滚、OS 级配置与 SSH 密钥永不触碰）+ 独立复核防假 PASS + 一号多用密钥坑 + `--wipe` 清场重装衔接（保留密钥） |
+| 2026-10-27 | v1.1 | **回环实测（run1，`qa/real-test-2026-10-27-run1.md`）驱动修订**：U0~U4 拆除→Step 3~5 重装→三探针 38/38 全绿。揪出并修复 `uninstall.mjs` 两处镜像不对称——**U-1 全局 `~/.workbuddy/mcp.json` 的 winvm/winvm-a2a 键不清**（install-host 全局注册面，disabledTools 落点；新增 `cleanGlobalMcpJson`+核验行）、**U-2 `tunnel-autostart.json` 不在 markers**（会话自启标记残留=拆后重开 WB 会 ensure 死隧道；补入 markers+核验行）。落点表 17→**18 项**、核验清单口径改「全 PASS 零 FAIL，动态 16→19 项」；§8 补反复清场 `--vm-host` 兜底（vm-conn.json 首轮即删）；排错表补 TUNNEL EADDRINUSE 瞬态与 ps-bridge 换代抖动（E7/E8 首跑 FAIL 复跑稳）两条。⚠ 修复晚于 V1.4.4 打包 → 包内 uninstall.mjs 仍旧版（已登记 ISSUES） |
