@@ -18,12 +18,10 @@
 
 ## 口径与纪律
 - 测试基线权威=`qa/p3-batch-sweep/` 最新 gate-*.txt 汇总行（现 2280 GREEN；文档禁硬编码）。门禁 `npm run gate`。
-- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（hmdfs 大小写不敏感以 git 索引为准）；每迭代 --wipe 重验；完成必 push origin。V1.4.2=当前线上。
+- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3）；每迭代 --wipe 重验；完成必 push origin。**V1.4.3=当前线上**（10-26：G-1/2/3 收编版，pack 含 V5 NON_ACCOUNT_DIRS 断言+包内 verify-release.mjs+deploy-probes/tools 入包；latest API 已指向；宿主连接器 8 skill 含 hos-win）。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
 - 文档：导航权威 `.dev/docs-index.md`；归档 `docs/archive/{changes,audit,test}`+legacy-*（10-26 两次归位：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes；铠大师中文名保留——活引用+契约锚点）；**qa/ 保原位**（setup/pack-release 活引用）；改路径前先查活引用。证据每轮一份 real-test-<date>-runN.md；FAIL 四元组；裁决落档再引用。⚠ hmdfs `core.ignorecase=true`：git mv 改大小写**磁盘名可能不变**（ISSUES.md 案，10-26 两步 rename 实修），大小写敏感 glob/脚本会踩空。
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
 ## backlog（P2）
-- **G-1 发 V1.4.3**（待用户批准）：V1.4.2 包(eba187e)早于 P2-3/4 修复→Release 安装回归非账户污染、缺 delivery/tools/；发版时把 `delivery/tools/`+`qa/deploy-probes/`(G-3) 收编 overall 并加 NON_ACCOUNT_DIRS 硬断言。污染回收站 `~/wbtmp/winvm-nonaccount-trash-20261026/`。
-- **G-2** MANIFEST 无消费者→宜收编 `delivery/verify-release.mjs`（口径：per-file 段 `"<rel>  <sha>"` 双空格排序不含自身，total-sha256=sha256(rows)）。
-- **G-3** deploy-probes 不进包：兜底=内联 `node -v; npm -v; codebuddy --version`。
-- 其他：冷启动 49.3s TTL 保持 5min；teams 残骸永久不动；GUI preflight P2 观察。**VM 10-26 18:05 起不可达**（根因在 VM 自身），恢复后跑 mcp/a2a/example 三探针回归。
+- ~~G-1/G-2/G-3~~ → **10-26 销账（V1.4.3 发布闭环）**：G-1 修复入包+pack V5 硬断言（host/overall 包内 install-host 必含 NON_ACCOUNT_DIRS≥3）；G-2 `delivery/verify-release.mjs`（=verify-manifest.py 四判据+V5）入包；G-3 六探针+diagnose-connectors 入 overall（PACKAGE_REQUIRED 兜底）。复验：非账户零污染、连接器 8 skill、run2 25/25。github.com 直连不稳→切 **api.github.com asset 端点**取旁挂（三向对账）。
+- 其他：冷启动 49.3s TTL 保持 5min；teams 残骸永久不动；GUI preflight P2 观察。~~VM 不可达~~ → 10-26 19:3x 恢复（三探针 25/25 + example 8/8；example-probe 修 3 缺陷：timeout 形参/E2b path+白名单目标/E6 断言读宿主 mcp.json disabledTools——勿再断原始 tools/list）。

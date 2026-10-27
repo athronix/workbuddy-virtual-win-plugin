@@ -168,3 +168,20 @@
 | I-5.1 | 部署·清场（run5） | `--wipe` 中 POST-CLEANUP `[FAIL] VM C:/WinVMBridge absent`、deploy-all EXIT=1（fail-loud 中止，正确） | 目录内文件已全删（0 文件），剩空目录骨架被 **VM 桌面 WorkBuddy 本尊**（node，PPID=WorkBuddy.exe daemon）与一闲置裸 PowerShell 的活 cwd 句柄顶住删不掉。**非 uninstall 缺陷**：Kill-Sig 按命令行签名匹配正确地未误杀 VM WorkBuddy（迭代3 设计反向验证） | 收掉闲置裸 shell（非用户前台窗口，如实报备）；确认剩余空骨架（packages/vm-service/dist）对 tar 解包无害后，跳过重复清场续跑七相位 | run5b EXIT=0 七相位全过（HOST 1.6/VM 43.0/VM-START 17.3/TUNNEL 13.7 黑洞场景又被捕获处置/TEST 0.4/QA-PROBE 67.1/HEALTH 0.5）；矩阵：54 能力(tr_mvi1yxo4_1)/gui healthy(tr_mvi1yxpk_2)/A2A steps ok 24.6s(tr_mvi1zfbc_9)/审计链 41 条+字段级回执/双侧部署态 | **已关闭**（观察：VM 桌面若有第三方进程 cwd 卡在 BridgeDir，清场会 fail-loud 停下——行为正确，处置人工介入即可） |
 
 **V1.4.2 Release 终态**：`releases/tag/V1.4.2`（zip a06e7520…/2,722,056B + 旁挂，匿名回环 SIDECAR/PACK 双匹配；包内 dist_tools 含 input-required 收口四判据全在位、SKILL show_widget×4）。本机会话桥进程启动早于跟批（常驻不热载），新会话委派即为出卡验收态。
+
+## 迭代6 · V1.4.3（2026-10-26，缺口收编版）
+
+**动因**：迭代5 发布链实测（deploy-strategy §9.1）发现的三处缺口 G-1/G-2/G-3 一并收编；用户批准发版。
+
+| ID | 内容 | 证据 |
+|---|---|---|
+| G-1 | **发布包陈旧回归修复入包**：V1.4.2 包（eba187e/10-21）早于 P2-3（856a0f4）/P2-4 修复 → Release 安装把 `connector:winvm` 写进非账户目录。V1.4.3 包（a63146b）包内 `install-host.mjs` 含 `NON_ACCOUNT_DIRS`（x3），打包机新增 **V5 硬断言**（host+overall，阈 3，fail-loud 防再犯） | `qa/release/V1.4.3-pack.txt` V5 双 ✓；真机清场重装复验：`connectors/skills/mcp.json` 与 `marketplace-meta/mcp.json` **不存在=零污染**；连接器 8 skill 含 hos-win（原 G-1 连带症状同批消失） |
+| G-2 | **MANIFEST 消费端收编**：新增 `delivery/verify-release.mjs`（Node，四判据与 `qa/deploy-probes/verify-manifest.py` 逐字一致 + `--expect-nonaccount-guard` V5 断言），随 overall 包分发；Step 2 判据二改用它 | V1.4.2 旧包双版本互证 FAIL（total-sha MATCH / 2 undeclared / V5 x0 命中）；V1.4.3 解包态 876/876 rows、bytes 7,413,560、total-sha `a41e7559…` MATCH、V5 PASS → RESULT: PASS |
+| G-3 | **`qa/deploy-probes/` 6 探针 + `delivery/tools/diagnose-connectors.mjs` 入 overall 包**（install-host:1434 自检硬依赖，V1.4.2 缺=自检静默跳过）；PACKAGE_REQUIRED 同步必存断言 | 包内 ls 6 件全在；MANIFEST 行 `deploy-probes`×6；匿名下载回环后直接用**包内** verify-manifest.py/verify-release.mjs 自校验闭环（dogfooding） |
+
+**分发与回环**：tag `V1.4.3`（附注 tag，push 后 GitHub `releases/latest` 已指向之）；Release 双资产 zip 2,764,412 B + 旁挂 91 B；**三向对账**=远端旁挂（API asset 通道取回）= 本地 pack 旁挂 = 下载件实算 `2e1de077…`。github.com 直连本轮多次抖动（zip 首下 65s 超时续传成功；旁挂直连 6 连败改 **api.github.com** 成功——「绝对 download URL 不稳时切 API asset 端点」记入判据经验）。
+
+**清场重装实录（run2，22:0x）**：`deploy-all.sh --wipe` 卸载面 17 判据 16 PASS（唯一 FAIL=「VM C:/WinVMWorkspace kept」——该目录 10-26 run1 时经用户裁定 `--purge-workspace` 已清，PRE STATUS 即 False，属核对清单预期口径过时非缺陷）；setup 七相位 **164s**（HOST 1.7 / VM 49.7 / VM-START 23.9 / TUNNEL 14.8〔黑洞嫌疑自纠成功：daemon 自报 healthy 但探测未通→ensure 0.3s 恢复〕/ TEST 0.4 / QA-PROBE 72.9 / HEALTH 0.7）；`/health` ok:true provider=workbuddy ready session healthy interactive=true。**全维终验 25/25**（mcp-probe 20 + a2a-probe 5）+ example-probe 8/8 + disabledTools=8 + 全局 mcp.json winvm/winvm-a2a 双条目正常。
+
+**example-probe 三缺陷顺手修**（10-26 19:4x，V1.4.3 包内首版即含）：rpc() 无 timeout 形参（TypeError）/ E2b 参数名 `target`→定义实名 `path` 且目标须落策略白名单（`C:\Users\User`，`POLICY_DENIED` 是执法正确行为非缺陷）/ E6 断言面从「原始 tools/list 无高危」（§Step5 已知假阳性坑）改为读宿主 `mcp.json` 的 `disabledTools`。
+

@@ -92,8 +92,8 @@
 | **Step 3.0 VM 运行时前置自检** | ✅ 三例真机验证 | `qa/deploy-probes/vm-env-check.ps1`（正例 PASS / `-SimulateMissing` 负例 FAIL+hint / `-Fix` 幂等）；preflight `vm-agent-cli` blocking 行为经直调 `checkLocalVmDeps` 实证 |
 | **仓库结构归位第一批** | ✅ | 4 件 git mv（OPS-OVERVIEW / INSTALL-VERIFY→archive/test/reports / 根 overview、V1.0.0 notes→archive/legacy-*）；引用同步 + .gitignore 收编 demo build；`%LOCALAPPDATA%` 隔离回收站 |
 | **文档一致性盘点（doc-auditor）** | 🔄 进行中 | 报告 `qa/evidence/tidy-20261026/doc-consistency-audit.md`（6 维度分级 P1/P2/P3）；修复按 TOP 清单执行 |
-| **发布链缺口 G-1/G-2/G-3** | ⬜ 待 V1.4.3（待用户批准发版） | 详见 `docs/deploy/deploy-strategy.md` §9.1 台账 |
-| **VM 不可达（10-26 18:05 起）** | ⬜ 阻塞观察 | 根因在 VM 自身（网关 OK/出网 OK）；恢复后跑三探针回归 + example 补测（待办在 `~/winvm-deploy/deploy-session.md`） |
+| **发布链缺口 G-1/G-2/G-3** | ✅ **V1.4.3 关闭（10-26 上架+复验）** | G-1 修复入包+V5 断言（非账户零污染复验）；G-2 verify-release.mjs 入包；G-3 探针/tools 入包。台账=ISSUES.md 迭代6 |
+| **VM 不可达事件（10-26 18:05~19:3x）** | ✅ 已恢复闭环 | 三探针 25/25 + example-probe 8/8 + V1.4.3 清场重装 run2 全绿（七相位 164s、非账户零污染、连接器 8 skill） |
 | **CL-WBNATIVE（workbuddy-native ACP）** | ⏸ DEFERRED | 用户裁定维持 workbuddy+codebuddy 现状；取证归档 `docs/archive/changes/CL-WBNATIVE/` |
 
 > 测试基线权威口径不变：`qa/p3-batch-sweep/` 最新 `gate-*.txt` 汇总行（2280 GREEN 快照）；本表不重复记数字。

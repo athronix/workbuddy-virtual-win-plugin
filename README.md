@@ -2,7 +2,7 @@
 
 > 一套**分层解耦、标准协议驱动、强监管**的宿主 AI Agent 插件体系，使宿主机 AI Agent（V1 = WorkBuddy）能够安全、可控、可审计地**完全操作一台 Windows 虚拟机**——覆盖系统管理、应用管理、存储管理、GUI 自动化与图形化生产操作。
 
-- **版本**：`0.1.0`（插件内部版本，对应宿主缓存路径 `winvm-bridge/0.1.0`；**发布版本以 GitHub Release `V1.4.2` 为准**，演进链见 `docs/RELEASE-NOTES.md`）
+- **版本**：`0.1.0`（插件内部版本，对应宿主缓存路径 `winvm-bridge/0.1.0`；**发布版本以 GitHub Release 最新 tag 为准（当前 `V1.4.3`，2026-10-26）**，演进链见 `docs/RELEASE-NOTES.md`）
 - **形态**：npm workspaces 单仓，12 个可独立编译/发布的包 + 8 个 WorkBuddy Skill（1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派）+ 双端一键部署器
 - **状态**：核心链路与审批链已真机验收（详见 §10 文档导航与 `.dev/` 索引）
 - **License**：私有（当前为单一项目仓库）

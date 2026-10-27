@@ -1,4 +1,4 @@
-# WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4.0 → V1.4.2 · 2026-10-26 同步）
+# WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4.0 → V1.4.2 → V1.4.3 · 2026-10-26 同步）
 
 > 本文取代 `V1.0.0-release-notes.md` 的"演进路线"职能（后者已加冻结头注留痕）。**权威口径**：里程碑链来自 git log + `docs/archive/changes/` 各批 notes + 两份终版台账（`docs/archive/audit/2026-10-12-full-audit.md`、`docs/archive/audit/2026-10-14-full-audit.md`），数字均实测登记值。
 
@@ -28,6 +28,7 @@
 | V1.4.0 迭代2~4（10-18~19） | 发布工程加固 + GitHub Release 上架 | 迭代2 OBS-1 TUNNEL 相位判据收紧；迭代3 清场强化（uninstall 前先查杀 VM 端看门狗与 services）；迭代4 发布包上 GitHub Release（仓库转 public、匿名下载、双资产 zip+sha256 旁挂三方一致回环实测）+ **I-4.1 安全缺陷根治**（zip 卷入真机 `.env`/shim 而双道校验检不出多余文件 ⇒ `pack-release.mjs` 增「zip 条目集 ⊆ MANIFEST ∪ {MANIFEST.txt}」fail-loud 纯净断言）+ I-4.2/I-4.3 上架真网络 bug（upload URL RFC6570 模板剥离、Content-Type 头合并反压）即修即验（`docs/release/ISSUES.md` 迭代4） |
 | V1.4.1（10-20） | CL-026 审批卡强制呈现闭环 | 病灶=出卡全凭 agent 自由发挥、R17 两段式契约缺触发面。`tools.ts` 权威串 `APPROVAL_PRESENTATION_DIRECTIVE` 五携带面（delegate 早退 / `approval.presentationDirective` 纯附加幂等字段 / `task.get` 挂起观测 / delegate+reply 双 description 闭合）；SKILL.md 审批协议升 MUST ①-④（show_widget 七槽位 → AskUserQuestion 批准/拒绝/暂不 → 禁止纯文本转呈代批 → reply+task.get 至终态）；守卫 31 例 + ST3 升格双写；tag SHA 见 `git rev-list -n1 V1.4.1`，证据 `docs/design/cl026-approval-presentation.md` + `qa/release/V1.4.1-pack.txt`（V1-V4 全过），全量 gate 127 文件/2265 例 GREEN |
 | V1.4.2（10-21） | CL-026b 真机挂起路径根治 + run5 清场实录 | 主理人真机实测暴露 mock 盲区：VM 侧挂起 `input-required` 即掐 SSE，桥 for-await 抛 undici terminated 落 catch 分支返回纯 error 形态无 directive（CL-026 五携带面全在 approval 正分支，真机走不到）。修复=catch 双条件短路挂起收口（isError:false/无 error 字段/三面 directive/留痕 pending）+ 单源化 `suspendSummaryText`/`buildApprovalCarriers` 三面逐字同源守卫钉全等 + 行为级守卫 15 例（terminated mock stream 驱动整条 delegate）；全量 gate 128/2280 GREEN。发布侧 run5 清场插曲 I-5.1（空目录骨架被 VM 活 cwd 顶住，fail-loud 正确中止）+ run5b 七相位全过；tag SHA 见 `git rev-list -n1 V1.4.2`，证据 `docs/release/ISSUES.md` 迭代5 + `qa/release/V1.4.2-pack.txt` / `V1.4.2-deploy-run5.log`。**V1.4.1/V1.4.2 均已上架 GitHub Release（双资产匿名回环 SIDECAR/PACK 双匹配）** |
+| V1.4.3（10-26） | 发布链缺口收编 G-1/G-2/G-3 + V5 防回归断言 | **G-1**：P2-3/P2-4 修复（NON_ACCOUNT_DIRS 非账户目录排除）随 a63146b 入包，终结「V1.4.2 包早于修复→Release 安装回归污染」；打包机新增 V5 硬断言（host+overall 包内 install-host 必含 NON_ACCOUNT_DIRS≥3，fail-loud）。**G-2**：`delivery/verify-release.mjs`（MANIFEST 消费端 Node 版，与 verify-manifest.py 四判据逐字一致+V5）入包，Step 2 第三层校验纯 Release 可跑。**G-3**：`qa/deploy-probes/` 六探针+`delivery/tools/diagnose-connectors.mjs`（install-host 自检硬依赖）入 overall 包（876 文件/2,764,412 B）。tag V1.4.3 上架；回环三向对账（远端旁挂=本地旁挂=下载实算 2e1de077…）；github.com 直连不稳时切 api.github.com asset 端点。清场重装 run2 七相位 164s + **25/25** + example-probe 8/8 + 非账户零污染 + 连接器 8 skill（hos-win 随包，G-1 连带症状消失）。详见 `docs/release/ISSUES.md` 迭代6、`qa/release/V1.4.3-pack.txt` |
 
 ## 三、已知限制（如实，2026-10-15 批11~14 后态）
 

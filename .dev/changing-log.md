@@ -63,8 +63,8 @@
 
 - [x] **部署策略 v2 六步全流程真机通赛**：run1 25/25 PASS（`qa/real-test-2026-10-26-run1.md`）；provider 双档（deterministic/workbuddy）各全绿；用户裁定默认 `workbuddy`+`codebuddy`、安装一律 @latest。文档定型 `docs/deploy/deploy-strategy.md` v2.5 + `deploy-prompts.md` v1.4（含 Step 3.0 运行时前置、§2.1-B 空密码双层预案、§5.0/§8 遇困决策协议、Step 6/P6 交付引导）。
 - [x] **仓库结构归位第一批**：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes 四件 git mv 归位；.gitignore 收编 demo build 产物；`%LOCALAPPDATA%` 垃圾隔离 `~/wbtmp/repo-tidy-trash-20261026/`。
-- [ ] **发布链缺口 G-1/G-2/G-3**（待发 V1.4.3 一并处置，**待用户批准发版**）：G-1=V1.4.2 包早于 P2-3/4 修复（Release 安装回归非账户污染，本轮污染已入回收站 `~/wbtmp/winvm-nonaccount-trash-20261026/`）；G-2=MANIFEST 无消费者（宜收编 `delivery/verify-release.mjs`）；G-3=`qa/deploy-probes/` 不进包（宜入 overall 白名单）。详见 `docs/deploy/deploy-strategy.md` §9.1。
-- [ ] **VM 不可达事件（10-26 18:05 起）**：分层定位=根因在 VM 自身（网关 OK/出网 OK/VM ping 全丢），宿主无带外通道。恢复后按 `~/winvm-deploy/deploy-session.md` 待办跑三探针回归 + `example-probe.py` 补测 Step 6 ⏳ 7 项。
+- [x] **发布链缺口 G-1/G-2/G-3** → **10-26 已随 V1.4.3 全部关闭**（用户批准）：G-1=P2-3/4 修复入包 + 打包 V5 硬断言（NON_ACCOUNT_DIRS≥3 fail-loud），清场重装复验非账户零污染；G-2=`delivery/verify-release.mjs` 收编入包；G-3=六探针+`delivery/tools/diagnose-connectors.mjs` 入 overall。台账=`docs/release/ISSUES.md` 迭代6；证据=`qa/release/V1.4.3-pack.txt` + 匿名回环三向对账 + run2 25/25。
+- [x] **VM 不可达事件（10-26 18:05~19:3x）** → **已恢复并闭环**：三探针回归 20/20+5/5、`example-probe.py` 8/8（顺手修其 3 缺陷：rpc timeout 形参/E2b path 参数+白名单目标/E6 断言面改宿主 mcp.json）、隧道黑洞自纠有效（watchdog）。V1.4.3 清场重装 run2 全链验证。
 - [ ] **CL-WBNATIVE**：DEFERRED（用户裁定不引入 workbuddy-native；ACP 取证已归档 `docs/archive/changes/CL-WBNATIVE/`）。
 - [ ] **doc-auditor 一致性盘点**（本批进行中）：报告 `qa/evidence/tidy-20261026/doc-consistency-audit.md`；P1/P2 问题按报告 TOP 清单修复中。
 

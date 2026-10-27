@@ -53,8 +53,8 @@
 |---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | latest 跳转链接 | ☐ |
-| `RELEASE_TAG` | `V1.4.2`（由 latest 解析） | 发布标签 | ☐ |
-| `ZIP_NAME` | `winvm-overall-V1.4.2.zip` | 分发单元（含 host∪vm∪bootstrap∪tools） | ☐ |
+| `RELEASE_TAG` | `V1.4.3`（由 latest 解析，2026-10-26 上架；历史 run 用 `V1.4.2`） | 发布标签 | ☐ |
+| `ZIP_NAME` | `winvm-overall-V1.4.3.zip` | 分发单元（V1.4.3 起含 delivery/tools/ + qa/deploy-probes/ + verify-release.mjs） | ☐ |
 | `ZIP_SHA256` | `a06e7520…d00e149`（91 B sidecar） | 整包校验值 | ☐ |
 | `PKG_FILES` / `PKG_BYTES` / `PKG_TOTAL` | `867` / `7313511` / `8d753c70…ecdd3a3` | MANIFEST 三元组（重装核对用） | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 宿主解压根 | ☐ |
@@ -80,7 +80,7 @@
 |---|---|---|---|
 | `HOST_STATE_DIR` | `~/.workbuddy/winvm` | `vm-conn.json` / `tunnel.pid` / `tunnel.state.json` / `tunnel.log` | ☐ |
 | `HOST_PLUGIN_CACHE` | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0` | 插件缓存（单文件白名单，9 文件） | ☐ |
-| `HOST_SKILL_DIR` | `~/.workbuddy/connectors/skills/connector-winvm` | Skill 缓存落点（**HEAD=8；V1.4.2 包=7**，hos-win 10-23 并入随 V1.4.3 收敛） | ☐ |
+| `HOST_SKILL_DIR` | `~/.workbuddy/connectors/skills/connector-winvm` | Skill 缓存落点（**=8 含 hos-win**，HEAD 与 V1.4.3 包一致；历史 V1.4.2 包=7 属 G-1，已随 V1.4.3 收敛） | ☐ |
 | `SSH_KEY` | `~/.ssh/id_ed25519` | 宿主身份密钥 | ☐ |
 | `ASKPASS` | `~/wbtmp/askpass.sh` | 密码非交互化脚本（`chmod 700`） | ☐ |
 
@@ -125,7 +125,7 @@
 | **空密码网络登录** | **被禁**：`HKLM\SYSTEM\CurrentControlSet\Control\Lsa\LimitBlankPasswordUse=1` | 实测空密码 → `Permission denied` |
 | VM 服务端口 | `18443`，**仅回环**（VM 零对外暴露） | `Get-NetTCPConnection` |
 | 公钥落点 | 管理员组用户走 `C:\ProgramData\ssh\administrators_authorized_keys`（**不是** `~/.ssh/authorized_keys`），且 ACL 必须仅 `SYSTEM + Administrators` | `sshd_config:88` + 实测 |
-| 最新 Release | `V1.4.2`，资产 `winvm-overall-V1.4.2.zip`（2,722,056 B）+ `.zip.sha256`（91 B） | GitHub API |
+| 最新 Release | `V1.4.3`（10-26 上架），资产 `winvm-overall-V1.4.3.zip`（2,764,412 B）+ `.zip.sha256`（91 B）；历史 `V1.4.2`=2,722,056 B | GitHub API |
 | **VM 运行时链** | `node v24.21.0` / `npm 11.19.0` / `codebuddy 2.167.0`（`@tencent-ai/codebuddy-code`）；由 **nvm-windows 2.0.0** 管理，全局包在 `%LOCALAPPDATA%\Author Software\nvm\installs\v24.21.0\` | `vm-env-check.ps1`（§4 Step 3.0） |
 | VM 权限/会话 | ssh 会话为**管理员**上下文（`IS_ADMIN=true`）、**非交互**（`SESSIONNAME` 空） | 同上 |
 | **`winget`（VM）** | 命令存在但 `--version` **输出为空且 exit 0**（MSIX alias 空壳）→ 非交互 ssh 下不可用 | 只读探针 |
@@ -359,7 +359,7 @@ ssh -o BatchMode=yes -o PreferredAuthentications=publickey User@$VM_HOST "whoami
 ### Step 2 · 获取 Release 并校验解压
 
 ```sh
-VER=V1.4.2
+VER=V1.4.3   # 历史 run 为 V1.4.2；V1.4.3=10-26 缺口收编版
 BASE=https://github.com/athronix/workbuddy-virtual-win-plugin/releases/download/$VER
 # 关键：github.com 在本网段存在抖动（GET 偶发 60s 超时）。必须带 --retry-all-errors + -C -，
 # 且用绝对 URL 而非 latest 跳转（latest 多一跳 302，放大抖动）。
@@ -436,7 +436,7 @@ ssh User@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/
 **全局安装的 codebuddy 会立即「消失」**——自动装 Node 等于给下一步埋雷。故 Node 缺失时
 探针只输出 `RUNTIME_HINT_*` 让人决策。
 
-**无探针时的最小检查**（`qa/deploy-probes/` 不在发布包里，见 §9.1-G3；纯 Release 安装时用这条）：
+**无探针时的最小检查**（G-3 已随 V1.4.3 关闭——`qa/deploy-probes/` 已在包内；此行保留给旧包 V1.4.2 及更早）：
 
 ```sh
 ssh User@$VM_HOST 'powershell -NoProfile -Command "node -v; npm -v; codebuddy --version"'
@@ -759,7 +759,7 @@ node delivery/uninstall.mjs --apply --purge-workspace   # 连工作区一起清�
 
 【环境常量】VM_HOST=172.16.100.2  VM_USER=User  VM_SSH_PORT=22  SERVICE_PORT=18443
   VM_DEPLOY_DIR=C:/WinVMBridge  PROVIDER=workbuddy  WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.2  ZIP=winvm-overall-V1.4.2.zip
+  RELEASE_TAG=V1.4.3  ZIP=winvm-overall-V1.4.3.zip
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
             python3=/data/service/hnp/bin/python3；有 ssh/scp/unzip/sha256sum/curl；无 sshpass
 【安全红线】不要把密码写进任何文件/提交；不要在日志里回显密码。
@@ -796,8 +796,9 @@ Step 2 获取并校验 Release
   判据一：sha256sum -c $ZIP.sha256 → OK。
   解压：mkdir -p ~/winvm-deploy/overall-root && unzip -q -o $ZIP -d ~/winvm-deploy/overall-root
         （zip 内含顶层 overall/，包根 = ~/winvm-deploy/overall-root/overall）
-  判据二：python3 qa/deploy-probes/verify-manifest.py <包根> → RESULT: PASS
-        （逐文件 sha256 + files/bytes 计数 + total-sha256 复算 + 无多余/缺失文件）
+  判据二：node delivery/verify-release.mjs <包根> --expect-nonaccount-guard → RESULT: PASS
+        （逐文件 sha256 + files/bytes 计数 + total-sha256 复算 + 无多余/缺失 + V5 G-1 防回归断言；
+        V1.4.3 起校验器已随包，纯 Release 安装零仓库依赖；无 Node 环境兜底 = 包内 verify-manifest.py）
   若下载 connect timeout：先用 curl -I https://github.com 确认是抖动还是断网，再重试。
 
 Step 3 部署 VM-service（用免密通道）
@@ -894,8 +895,9 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-26 | v2.4 | **安装默认取 latest 不锁版本**（`@latest`，用户裁定）+ 新增 **§5.0 遇到困难时的处置协议**（三段式：定位根因→给方案→要决策；5 类必须问的动作；2 次重试熔断；决策台账）+ 新增 **Step 6 交付引导**（加载 `hos-win-skill`/`winvm-orchestrator`、通道三铁律、9 个典型任务 Prompt 示例、3 种错误下发对照、交付自检 3 条） |
 | 2026-10-26 | v2.5 | Step 6.3 示例表增「能力实测」列（✅5 实跑／⏳7 语义核未跑）+ **§9.2 VM 断连事件与待补测台账**（18:05 起不可达，分层定位=根因在 VM）+ 补测脚本 `example-probe.py` 入库 |
 | 2026-10-26 | v2.6 | 文档一致性盘点修复：Step 6.1 hos-win 落点口径改「HEAD=连接器 8／V1.4.2 包=连接器 7／用户级=独立手工副本」（原「宿主用户级 host-only」与渲染器实态不符）+ §0.5-D HOST_SKILL_DIR 括注双口径 + 头注标准化 |
+| 2026-10-26 | v2.7 | **V1.4.3 发布销账**：§9.1 三缺口关闭注记（G-1 修复入包+V5 断言/G-2 verify-release.mjs/G-3 探针入包）+ §9.2 VM 断连闭环注记（25/25+example 8/8）+ RELEASE_TAG 默认升 V1.4.3 + Step 2 判据二改用包内 verify-release + Step 6/HOST_SKILL_DIR 口径收敛=8 |
 
-### 9.1 本次实测发现的三处发布链缺口（须在下次发版前处置）
+### 9.1 本次实测发现的三处发布链缺口（**已随 V1.4.3 全部关闭**，2026-10-26；原发现记录保留）
 
 | # | 缺口 | 证据 | 影响 | 建议 |
 |---|---|---|---|---|
@@ -906,7 +908,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 > 三处缺口**不影响本策略可行**（六步均已实测通过），但影响「从 Release 安装」的**交付质量**。
 > 处置顺序建议：先修 G-2 / G-3（低成本、纯增量）→ 再随 V1.4.3 一起关 G-1。
 
-### 9.2 待补测项（本轮环境中断导致，需 VM 恢复后补齐）
+### 9.2 VM 断连事件与待补测项（**已闭环**：VM 10-26 恢复，三探针 25 项回归 + example-probe 8/8 全绿；下文保留事件记录与处置过程）
 
 **现象**：2026-10-26 18:05 起 VM `172.16.100.2` 从宿主**完全不可达**（`ping` 3/3 丢包、
 `ssh: Host is unreachable`、宿主 `18443` 隧道随之 `Connection refused`）。
