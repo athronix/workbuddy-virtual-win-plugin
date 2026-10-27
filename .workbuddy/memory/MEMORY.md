@@ -23,5 +23,6 @@
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
 ## backlog（P2）
+- **I-6.1 gui.ps1 PS5.1 `Marshal::SizeOf([Type])` 真 bug（10-27 发现并已修）**：键鼠输入自上线从未真跑通（20 项验收不含键鼠写面）；修复=实例重载 `SizeOf($arr[0])`+防回归钉 example-probe E11。**运行态 VM 已热更，但 V1.4.3 包体仍含旧 gui.ps1 → 待批准补发 V1.4.4**（ISSUES 迭代6 追加/strategy §9.3）。教训：**能力写面必须真跑**，静态核对会漏 P1。**
 - ~~G-1/G-2/G-3~~ → **10-26 销账（V1.4.3 发布闭环）**：G-1 修复入包+pack V5 硬断言（host/overall 包内 install-host 必含 NON_ACCOUNT_DIRS≥3）；G-2 `delivery/verify-release.mjs`（=verify-manifest.py 四判据+V5）入包；G-3 六探针+diagnose-connectors 入 overall（PACKAGE_REQUIRED 兜底）。复验：非账户零污染、连接器 8 skill、run2 25/25。github.com 直连不稳→切 **api.github.com asset 端点**取旁挂（三向对账）。
 - 其他：冷启动 49.3s TTL 保持 5min；teams 残骸永久不动；GUI preflight P2 观察。~~VM 不可达~~ → 10-26 19:3x 恢复（三探针 25/25 + example 8/8；example-probe 修 3 缺陷：timeout 形参/E2b path+白名单目标/E6 断言读宿主 mcp.json disabledTools——勿再断原始 tools/list）。

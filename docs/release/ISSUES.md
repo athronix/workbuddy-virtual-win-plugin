@@ -185,3 +185,9 @@
 
 **example-probe 三缺陷顺手修**（10-26 19:4x，V1.4.3 包内首版即含）：rpc() 无 timeout 形参（TypeError）/ E2b 参数名 `target`→定义实名 `path` 且目标须落策略白名单（`C:\Users\User`，`POLICY_DENIED` 是执法正确行为非缺陷）/ E6 断言面从「原始 tools/list 无高危」（§Step5 已知假阳性坑）改为读宿主 `mcp.json` 的 `disabledTools`。
 
+### 迭代6 追加（2026-10-27）
+
+| ID | 级别 | 现象 | 根因 | 处置 | 状态 |
+|---|---|---|---|---|---|
+| I-6.1 | **P1（能力面）** | Step 6.3 补测暴露：`gui.input.keyboard`/`gui.input.mouse` 在 VM PS 5.1 上报「System.RuntimeType 不能作为非托管结构封送」——**键鼠输入自上线从未真跑通**（此前仅静态核对，20 项验收不含键鼠写面） | `psmod/gui.ps1` 两处 `Marshal::SizeOf([Type])` 静态重载不支持运行时 Add-Type 结构 | 改实例重载 `SizeOf($arr[0])`；守卫 contract 7/7 + drift 13/13 GREEN；VM scp+kill-restart 热更；防回归钉=`example-probe` E11（sent>0，8→13 项）；详见 `docs/deploy/deploy-strategy.md` §9.3 | 运行态已修复；**⚠ V1.4.3 包体仍含旧 gui.ps1** → 建议补发 **V1.4.4**（待用户批准） |
+| I-6.2 | P3（探针） | 补测中 example-probe/probe 脚本自身 4 处缺陷（space.analyze 参数名与白名单目标、service.control 对象错、标题匹配、E6 断言面） | 首轮探针按语义猜测未对照 definitions.ts/策略实态 | 全部修正并经验证；教训固化：探针参数面**必须 grep definitions.ts 实名** + 目标路径先对 pathAllowlist | ✅ |

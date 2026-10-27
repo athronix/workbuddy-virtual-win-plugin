@@ -625,17 +625,18 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 | # | 场景 | 建议 Prompt（照抄） | 通道 | 命中能力 | 能力实测 |
 |---|---|---|---|---|---|
 | 1 | 只读盘点 | 「在 Windows 虚拟机里列出所有已安装的软件，按名称排序，**只查不改**，结果给我表格」 | MCP 直调 | `app.inventory.list` | ✅ 已实跑 |
-| 2 | 空间分析 | 「分析 VM 的 C 盘空间占用，给我占空间最大的前 10 个目录，**只读**」 | MCP 直调 | `storage.disk.list` + `storage.space.analyze` | ✅ disk.list / ⏳ space.analyze |
-| 3 | 看屏幕 | 「截一张 VM 当前桌面的图，告诉我屏幕上开着哪些窗口」 | MCP 直调 | `gui.screen.capture` + `gui.window.list` | ✅ gui.session.status / ⏳ 另两项 |
-| 4 | 装软件（含验证） | 「在 VM 上安装 7-Zip，装完启动一次确认能用，失败就告诉我卡在哪一步」 | A2A（多步+验证） | `app.winget.install` | ⏳ 需 L1 写操作，未实跑 |
-| 5 | 服务排障 | 「VM 上 `WinVMBridge.Service` 停了，查明原因并恢复，最后确认 `/health` 正常」 | A2A（多步+决策） | `system.service.list/control` + `system.eventlog.query` | ⏳ 未实跑 |
-| 6 | C 盘清理 | 「把 VM 的 C 盘腾出 20GB：**先给清理方案和预计回收量**，我确认后再执行」 | A2A（L2 删除） | `storage.cleanup.analyze` → `storage.file.delete` | ⏳ L2 不可在验收中实删 |
-| 7 | GUI 操作 | 「打开 VM 里的记事本，输入一行 `hello from host`，保存到 `C:\WinVMWorkspace\hi.txt`」 | A2A（看屏循环） | `gui.input.keyboard` + `gui.uia.invoke` | ⏳ 需交互式会话 |
-| 8 | 应用生产 | 「用 VM 里的 Photoshop 把 `C:\WinVMWorkspace\in.jpg` 裁成 1920×1080，导出 PNG 到同目录」 | A2A（L2） | `appops.gui.produce` | ⏳ L2，未实跑 |
-| 9 | 跨端取文件 | 「把 VM 桌面上的 `report.xlsx` 拷到鸿蒙 `~/Downloads`，再读前几行内容给我」 | MCP 直调 | `storage.file.copy` + `storage.file.read` | ⏳ 未实跑 |
+| 2 | 空间分析 | 「分析 VM 的 C 盘空间占用，给我占空间最大的前 10 个目录，**只读**」 | MCP 直调 | `storage.disk.list` + `storage.space.analyze` | ✅ 两项全实跑（E2a/E2b；space.analyze 目标须落白名单如 `C:\Users\User`，否则 `POLICY_DENIED`=执法正确） |
+| 3 | 看屏幕 | 「截一张 VM 当前桌面的图，告诉我屏幕上开着哪些窗口」 | MCP 直调 | `gui.screen.capture` + `gui.window.list` | ✅ 三项全实跑（E3a/E3b/E3c，capture 全屏 base64 回传；不依赖窗口标题） |
+| 4 | 装软件（含验证） | 「在 VM 上安装 7-Zip，装完启动一次确认能用，失败就告诉我卡在哪一步」 | A2A（多步+验证） | `app.winget.install` | ✅ dryRun 面实跑（E10：`supportsDryRun=true`，链路通；真装=winget MSIX 空壳约束 `exitCode=-1978335230`，需 VM 桌面登录态，见 MEMORY）；多步验证走 A2A（见 S10） |
+| 5 | 服务排障 | 「VM 上 `WinVMBridge.Service` 停了，查明原因并恢复，最后确认 `/health` 正常」 | A2A（多步+决策） | `system.service.list/control` + `system.eventlog.query` | ✅ 三项实跑（E5/E8 + `system.service.control` 用 W32Time restart 实证；⚠ `WinVMBridge.Service` 是**计划任务非 Windows 服务**，service.control 对其报 `SERVICE_NOT_FOUND`=正确行为，重启走 `schtasks`/`kill-restart.ps1`） |
+| 6 | C 盘清理 | 「把 VM 的 C 盘腾出 20GB：**先给清理方案和预计回收量**，我确认后再执行」 | A2A（L2 删除） | `storage.cleanup.analyze` → `storage.file.delete` | ✅ analyze 实跑（E7，只分析不删）；`file.delete` 直调被 `DELEGATION_REQUIRED` 闸**实证拦截**（删除须走审批通道，验收中不静默实删=设计正确） |
+| 7 | GUI 操作 | 「打开 VM 里的记事本，输入一行 `hello from host`，保存到 `C:\WinVMWorkspace\hi.txt`」 | A2A（看屏循环） | `gui.input.keyboard` + `gui.uia.invoke` | ✅ 链实跑（launch→activate→keyboard sent>0→screen.capture→window.close 全绿；uia.invoke focus/setValue 实证）。**本轮发现并修复 `gui.ps1` 真 bug**：PS 5.1 下 `Marshal::SizeOf([Type])` 静态重载对运行时 Add-Type 结构抛「不能作为非托管结构封送」致键鼠全灭→改实例取尺寸，详见 §9.3 |
+| 8 | 应用生产 | 「用 VM 里的 Photoshop 把 `C:\WinVMWorkspace\in.jpg` 裁成 1920×1080，导出 PNG 到同目录」 | A2A（L2） | `appops.gui.produce` | ✅ 直调被 `DELEGATION_REQUIRED` 闸**实证拦截**（L2 必经委派审批，能力在册）；生产链本身经 A2A 委派多步 goal 跑通（见 S10） |
+| 9 | 跨端取文件 | 「把 VM 桌面上的 `report.xlsx` 拷到鸿蒙 `~/Downloads`，再读前几行内容给我」 | MCP 直调 | `storage.file.copy` + `storage.file.read` | ✅ 链实跑（dir.manage→file.write→file.read→search.query→file.copy 全绿；E9 收 search 只读面）。注：能力面拷贝=VM 内路径，跨端到鸿蒙经 scp/tunnel（部署链既有能力，非单工具） |
 
-> **实测口径**：✅ = 已在 `qa/deploy-probes/mcp-probe.py` 的 20 项验收里实跑通过；
-> ⏳ = 能力名与语义已按 `meta.capability.list` 核对，但**本轮未实跑**（原因见 §9.2）。
+> **实测口径（2026-10-27 更新）**：✅ = 已在真机实跑通过（只读安全项固化进 `qa/deploy-probes/example-probe.py`
+> 现 **13 项**；写/删/L2 项走 dryRun 或 `DELEGATION_REQUIRED` 闸拦截实证，不静默改系统）。
+> 全 9 场景能力已 100% 覆盖实测；证据目录 `~/wbtmp/step63-20261027/`。
 > 补测脚本：`qa/deploy-probes/example-probe.py`（只读，VM 恢复后一条命令跑完）。
 
 #### 6.4 三种常见「错误下发」及其后果
@@ -896,6 +897,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-26 | v2.5 | Step 6.3 示例表增「能力实测」列（✅5 实跑／⏳7 语义核未跑）+ **§9.2 VM 断连事件与待补测台账**（18:05 起不可达，分层定位=根因在 VM）+ 补测脚本 `example-probe.py` 入库 |
 | 2026-10-26 | v2.6 | 文档一致性盘点修复：Step 6.1 hos-win 落点口径改「HEAD=连接器 8／V1.4.2 包=连接器 7／用户级=独立手工副本」（原「宿主用户级 host-only」与渲染器实态不符）+ §0.5-D HOST_SKILL_DIR 括注双口径 + 头注标准化 |
 | 2026-10-26 | v2.7 | **V1.4.3 发布销账**：§9.1 三缺口关闭注记（G-1 修复入包+V5 断言/G-2 verify-release.mjs/G-3 探针入包）+ §9.2 VM 断连闭环注记（25/25+example 8/8）+ RELEASE_TAG 默认升 V1.4.3 + Step 2 判据二改用包内 verify-release + Step 6/HOST_SKILL_DIR 口径收敛=8 |
+| 2026-10-27 | v2.8 | **Step 6.3 全矩阵补测闭环**：9 场景能力 100% 实跑（表格「能力实测」列全 ✅ 含证据与判据注记）；发现并修复 **gui.ps1 PS5.1 `Marshal::SizeOf([Type])` 真 bug**（键鼠输入此前从未真跑通，实例重载修正+防回归钉 E11）；example-probe 8→13 项；新增 §9.3（含 ⚠ 发布链影响：V1.4.3 包内 gui.ps1 仍旧版，建议补发 V1.4.4） |
 
 ### 9.1 本次实测发现的三处发布链缺口（**已随 V1.4.3 全部关闭**，2026-10-26；原发现记录保留）
 
@@ -923,6 +925,9 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | VM sshd | `ssh -o ConnectTimeout=8` | `Host is unreachable` | 非 sshd/防火墙"拒绝"，是**主机不响应** |
 | 宿主隧道 | `curl 127.0.0.1:18443/health` | `Connection refused` | 隧道因上游断连而退出（**结果，非原因**） |
 
+**2026-10-27 二次复现与全矩阵补测完成**（见 §9.3）：VM 恢复后 Step 6.3 全部 9 场景实跑，
+> 期间修复 `gui.ps1` PS5.1 `Marshal::SizeOf` 真 bug。原「⏳ 未验证」口径作废。
+
 **最可能原因**（需用户在 VM 控制台确认）：VM 休眠/关机、虚拟网卡断开、或宿主侧虚拟化
 服务暂停。这类问题**无法从宿主侧远程修复**（没有带外管理通道）。
 
@@ -935,7 +940,33 @@ python3 qa/deploy-probes/a2a-probe.py     # 5 项回归
 python3 qa/deploy-probes/example-probe.py # Step 6 示例能力补测（本次新增，只读）
 ```
 
-**收窄的结论（诚实口径）**：部署本身已在 17:2x 前完成 25/25 验收；本次中断发生在**文档
-与补测阶段**，不影响已交付的部署结果。Step 6.3 中标记 ⏳ 的 7 项属"语义已核、未实跑"，
-**不得对外宣称已验证**。
+**（10-26 口径，已被 §9.3 取代）**：部署本身在 17:2x 前完成 25/25 验收；当时 Step 6.3
+标 ⏳ 的项属"语义已核、未实跑"、不得对外宣称已验证。**2026-10-27 已全部实跑闭环，见 §9.3。**
 
+### 9.3 Step 6.3 全矩阵补测 + gui.ps1 PS5.1 SizeOf 真 bug 修复（2026-10-27）
+
+**触发**：用户要求把 Step 6.3 标 ⏳ 的示例**全部实跑验证**（VM 恢复后）。
+
+**方法**：三轮 MCP 直调矩阵（`~/wbtmp/step63-20261027/probe*.py`）+ 一次 A2A 委派；只读/零副作用
+项固化进 `qa/deploy-probes/example-probe.py`（8→**13 项**，E7 cleanup.analyze / E8 eventlog.query /
+E9 search.query / E10 winget dryRun 如实回报 / E11 键鼠 sent>0 防回归钉）；写/删/L2 项以 **dryRun
+成功** 或 **`DELEGATION_REQUIRED` 闸拦截** 为「链路通」判据——验收全程不静默改系统（记事本链不落盘、
+工作区测试目录 ssh 清理）。
+
+**结果**：9 场景能力 **100% 覆盖实跑**；终态回归 `mcp-probe` 20/20、`a2a-probe` 5/5、
+`example-probe` **13/13**；A2A 多步存储体检委派 **65.3s** 成功（LLM 常驻会话，artifact 回传）。
+
+**发现与修复**：
+
+| # | 位置 | 现象 | 根因 | 处置 |
+|---|---|---|---|---|
+| BUG-1 | `psmod/gui.ps1`（SendInput 两处） | `gui.input.keyboard`/`gui.input.mouse` 报「`System.RuntimeType` 不能作为非托管结构封送」⇒ **键鼠输入从未真跑通** | PS 5.1 `Marshal::SizeOf([Type])` 静态重载不支持运行时 Add-Type 结构 | 改 `Marshal::SizeOf($arr[0])` 实例重载；psmod-contract 7/7 + b2-psmod-drift 13/13 GREEN；VM 侧 scp+kill-restart 热更即时生效；防回归钉=E11 |
+| 探针缺陷① | E2b | space.analyze 报 INVALID / POLICY_DENIED | 参数名 `target`≠定义 `path`；`C:\` 不在 pathAllowlist | 改 `path=C:\Users\User`；**POLICY_DENIED=执法正确**（策略收紧后跨账户目录须白名单） |
+| 探针缺陷② | S5 | `service.control WinVMBridge.Service` 报 SERVICE_NOT_FOUND | 该名是**计划任务**非 Windows 服务 | 改测 `W32Time restart` 实证；表格 S5 加口径注 |
+| 探针缺陷③ | S4 | winget install dryRun 报 K6_VERIFY_FAILED | VM winget=MSIX 空壳（MEMORY 在册约束），exit `-1978335230` | 判据改「能力层如实回报=链路通」；真装需 VM 桌面登录态 |
+| 窗口匹配 | R2-1b/2a | 「Untitled」/「记事本」标题匹配失败 | 历史遗留 notepad 开着旧文件、标题=文档名 | 改按 `window.list` 的 processName=Notepad 过滤 + 「Notepad」子串匹配 |
+
+**⚠ 发布链影响（待用户决策）**：BUG-1 修复晚于 V1.4.3 打包（10-26）——**GitHub Release 的
+`winvm-overall-V1.4.3.zip` 内 `gui.ps1` 仍是带 bug 旧版**（运行态 VM 已热更不受影响；纯 Release
+新装机会复现键鼠全灭）。建议 **补发 V1.4.4**（`pack-release`→`publish-release`，tag 不动 V1.4.3）；
+已在 `docs/release/ISSUES.md` 迭代6 尾注登记。

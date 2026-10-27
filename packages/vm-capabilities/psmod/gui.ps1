@@ -307,7 +307,11 @@ function Send-KeyboardInput {
     if ($inputs.Count -eq 0) { throw 'INVALID_PARAMS: Text 与 Keys 不能同时为空' }
 
     $arr = [WinVM.InputApi+INPUT[]]$inputs.ToArray()
-    $sent = [WinVM.InputApi]::SendInput([uint32]$arr.Length, $arr, [System.Runtime.InteropServices.Marshal]::SizeOf([WinVM.InputApi+INPUT]))
+    # 2026-10-27 Step6.3 补测暴露：静态 Marshal::SizeOf([Type]) 在 PS 5.1 对运行时 Add-Type
+    # 结构抛「类型 System.RuntimeType 不能作为非托管结构进行封送处理」=> 键鼠输入全灭。
+    # 正解=对**实例**取非托管尺寸（SizeOf(object) 重载），一次算好复用。
+    $cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($arr[0])
+    $sent = [WinVM.InputApi]::SendInput([uint32]$arr.Length, $arr, $cbSize)
     Start-Sleep -Milliseconds $DelayMs
 
     return [ordered]@{ sent = $sent; textLength = $Text.Length; keys = $Keys }
@@ -356,7 +360,11 @@ function Send-MouseInput {
     }
 
     $arr = [WinVM.InputApi+INPUT[]]$inputs.ToArray()
-    $sent = [WinVM.InputApi]::SendInput([uint32]$arr.Length, $arr, [System.Runtime.InteropServices.Marshal]::SizeOf([WinVM.InputApi+INPUT]))
+    # 2026-10-27 Step6.3 补测暴露：静态 Marshal::SizeOf([Type]) 在 PS 5.1 对运行时 Add-Type
+    # 结构抛「类型 System.RuntimeType 不能作为非托管结构进行封送处理」=> 键鼠输入全灭。
+    # 正解=对**实例**取非托管尺寸（SizeOf(object) 重载），一次算好复用。
+    $cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($arr[0])
+    $sent = [WinVM.InputApi]::SendInput([uint32]$arr.Length, $arr, $cbSize)
     Start-Sleep -Milliseconds $DelayMs
 
     return [ordered]@{ action = $Action; sent = $sent; x = $X; y = $Y }

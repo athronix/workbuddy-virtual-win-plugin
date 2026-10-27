@@ -66,6 +66,38 @@ call("gui.window.list", {}, "E3b gui.window.list")
 call("gui.screen.capture", {}, "E3c gui.screen.capture")
 # E5 排障第一步：服务清单
 call("system.service.list", {}, "E5 system.service.list")
+# ---- 2026-10-27 Step 6.3 全矩阵补测新增（保持只读/零副作用口径）----
+# E7 清理建议分析（cleanup.analyze：仅分析不删，L0）
+call("storage.cleanup.analyze", {"topLargeFiles": 5}, "E7 storage.cleanup.analyze")
+# E8 事件日志（排障场景 S5 只读面）
+call("system.eventlog.query", {"logName": "System", "maxEvents": 5, "level": "Error"}, "E8 system.eventlog.query")
+# E9 文件搜索（跨端取文件链 S9 第一环，只读）
+call("storage.search.query", {"path": "C:\\Users\\User\\Desktop", "pattern": "*", "maxResults": 5}, "E9 storage.search.query")
+# E10 winget 安装 dry-run（装软件场景 S4 语义面：supportsDryRun=true，零安装副作用；
+#     判据=能力层如实回报——ok:true 或带 exitCode 的如实失败均算链路通，winget=MSIX 空壳约束见 MEMORY）
+try:
+    r = cli.rpc("tools/call", {"name": "app.winget.install", "arguments": {"id": "7zip.7zip", "dryRun": True}})
+    res = r.get("result") or {}
+    body0 = str(res.get("content", ""))
+    reported = ('"ok": true' in body0.replace("\\", "").replace(" ", "").lower()) or ("exitcode" in body0.lower())
+    rec("E10 app.winget.install(dryRun) 如实回报", reported, body0[:120].replace("\n", " "))
+except Exception as e:
+    rec("E10 app.winget.install(dryRun)", False, "EXC " + str(e)[:100])
+# E11 GUI 键盘输入回归（2026-10-27 发现并修复 PS5.1 Marshal::SizeOf([Type]) 真 bug 的防回归钉；
+#     判据=sent>0；输入落在无焦点桌面不产生实际文本副作用）
+try:
+    r = cli.rpc("tools/call", {"name": "gui.input.keyboard", "arguments": {"text": " ", "delayMs": 10}})
+    res = r.get("result") or {}
+    jtxt = ""
+    try:
+        jtxt = (res.get("content") or [{}])[0].get("text", "")
+        jb = json.loads(jtxt)
+        sent = (jb.get("data") or {}).get("sent", 0)
+        rec("E11 gui.input.keyboard sent>0（SizeOf 修复防回归）", bool(jb.get("ok")) and sent > 0, "sent=%s" % sent)
+    except Exception:
+        rec("E11 gui.input.keyboard", False, jtxt[:110])
+except Exception as e:
+    rec("E11 gui.input.keyboard", False, "EXC " + str(e)[:100])
 
 # E6 高危闸门：读宿主全局 mcp.json 的 disabledTools（正确断言面，非 /mcp tools/list）
 HIGH = {"system.service.configure", "system.process.terminate", "system.registry.write",
