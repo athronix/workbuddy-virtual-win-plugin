@@ -96,6 +96,6 @@
 | **VM 不可达事件（10-26 18:05~19:3x）** | ✅ 已恢复闭环 | 三探针 25/25 + example-probe 8/8 + V1.4.3 清场重装 run2 全绿（七相位 164s、非账户零污染、连接器 8 skill） |
 | **CL-WBNATIVE（workbuddy-native ACP）** | ⏸ DEFERRED | 用户裁定维持 workbuddy+codebuddy 现状；取证归档 `docs/archive/changes/CL-WBNATIVE/` |
 
-| **Step 6.3 全矩阵补测（10-27）** | ✅ 9 场景 100% 实跑 | example-probe 8→13（含 E11 键鼠防回归钉）；mcp 20/20 + a2a 5/5 + A2A 多步委派 65.3s；**发现修复 gui.ps1 PS5.1 SizeOf 真 bug**（键鼠此前从未真跑通）；⚠ V1.4.3 包体含旧版→建议补发 V1.4.4（待批准）。见 strategy §9.3 / ISSUES I-6.1 |
+| **Step 6.3 全矩阵补测（10-27）** | ✅ 9 场景 100% 实跑 | example-probe 8→13（含 E11 键鼠防回归钉）；mcp 20/20 + a2a 5/5 + A2A 多步委派 65.3s；**发现修复 gui.ps1 PS5.1 SizeOf 真 bug**（键鼠此前从未真跑通）；**V1.4.4（2789957）已上架**：pack V6 断言钉死 cbSize、清场重装 25/25 + example 13/13，I-6.1 已闭环。见 strategy §9.3 / ISSUES 迭代7 |
 
 > 测试基线权威口径不变：`qa/p3-batch-sweep/` 最新 `gate-*.txt` 汇总行（2280 GREEN 快照）；本表不重复记数字。

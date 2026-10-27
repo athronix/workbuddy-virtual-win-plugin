@@ -898,6 +898,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-26 | v2.6 | 文档一致性盘点修复：Step 6.1 hos-win 落点口径改「HEAD=连接器 8／V1.4.2 包=连接器 7／用户级=独立手工副本」（原「宿主用户级 host-only」与渲染器实态不符）+ §0.5-D HOST_SKILL_DIR 括注双口径 + 头注标准化 |
 | 2026-10-26 | v2.7 | **V1.4.3 发布销账**：§9.1 三缺口关闭注记（G-1 修复入包+V5 断言/G-2 verify-release.mjs/G-3 探针入包）+ §9.2 VM 断连闭环注记（25/25+example 8/8）+ RELEASE_TAG 默认升 V1.4.3 + Step 2 判据二改用包内 verify-release + Step 6/HOST_SKILL_DIR 口径收敛=8 |
 | 2026-10-27 | v2.8 | **Step 6.3 全矩阵补测闭环**：9 场景能力 100% 实跑（表格「能力实测」列全 ✅ 含证据与判据注记）；发现并修复 **gui.ps1 PS5.1 `Marshal::SizeOf([Type])` 真 bug**（键鼠输入此前从未真跑通，实例重载修正+防回归钉 E11）；example-probe 8→13 项；新增 §9.3（含 ⚠ 发布链影响：V1.4.3 包内 gui.ps1 仍旧版，建议补发 V1.4.4） |
+| 2026-10-27 | v2.9 | **V1.4.4 补发销账**：§9.3 发布链影响裁定（补发 V1.4.4 已执行闭环）+ I-6.1 关闭注记；`pack-release` V6 硬断言（包内 gui.ps1 必含 `cbSize`）固化「修复晚于打包」盲区；RELEASE_TAG 默认升 V1.4.4 |
 
 ### 9.1 本次实测发现的三处发布链缺口（**已随 V1.4.3 全部关闭**，2026-10-26；原发现记录保留）
 
@@ -966,7 +967,10 @@ E9 search.query / E10 winget dryRun 如实回报 / E11 键鼠 sent>0 防回归�
 | 探针缺陷③ | S4 | winget install dryRun 报 K6_VERIFY_FAILED | VM winget=MSIX 空壳（MEMORY 在册约束），exit `-1978335230` | 判据改「能力层如实回报=链路通」；真装需 VM 桌面登录态 |
 | 窗口匹配 | R2-1b/2a | 「Untitled」/「记事本」标题匹配失败 | 历史遗留 notepad 开着旧文件、标题=文档名 | 改按 `window.list` 的 processName=Notepad 过滤 + 「Notepad」子串匹配 |
 
-**⚠ 发布链影响（待用户决策）**：BUG-1 修复晚于 V1.4.3 打包（10-26）——**GitHub Release 的
+**⚠ 发布链影响（已决策并闭环，2026-10-27）**：BUG-1 修复晚于 V1.4.3 打包（10-26）——**GitHub Release 的
 `winvm-overall-V1.4.3.zip` 内 `gui.ps1` 仍是带 bug 旧版**（运行态 VM 已热更不受影响；纯 Release
-新装机会复现键鼠全灭）。建议 **补发 V1.4.4**（`pack-release`→`publish-release`，tag 不动 V1.4.3）；
+新装机会复现键鼠全灭）。**裁定：补发 V1.4.4** → **已执行并闭环**：tag `V1.4.4`（2789957，基于 2671f0f）
+上架、三向对账 `03cef597…`（2,768,597 B）；清场重装 `--wipe` 七相位 2m6s + **25/25** + example-probe
+**13/13** + VM 侧 gui.ps1 含 `cbSize`；`pack-release.mjs` 新增 **V6 硬断言**（包内 `gui.ps1` 必含 `cbSize`）
+把「修复晚于打包」盲区永久封堵。详见 `docs/release/ISSUES.md` 迭代7。
 已在 `docs/release/ISSUES.md` 迭代6 尾注登记。

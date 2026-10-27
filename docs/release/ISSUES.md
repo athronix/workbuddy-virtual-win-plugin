@@ -189,5 +189,17 @@
 
 | ID | 级别 | 现象 | 根因 | 处置 | 状态 |
 |---|---|---|---|---|---|
-| I-6.1 | **P1（能力面）** | Step 6.3 补测暴露：`gui.input.keyboard`/`gui.input.mouse` 在 VM PS 5.1 上报「System.RuntimeType 不能作为非托管结构封送」——**键鼠输入自上线从未真跑通**（此前仅静态核对，20 项验收不含键鼠写面） | `psmod/gui.ps1` 两处 `Marshal::SizeOf([Type])` 静态重载不支持运行时 Add-Type 结构 | 改实例重载 `SizeOf($arr[0])`；守卫 contract 7/7 + drift 13/13 GREEN；VM scp+kill-restart 热更；防回归钉=`example-probe` E11（sent>0，8→13 项）；详见 `docs/deploy/deploy-strategy.md` §9.3 | 运行态已修复；**⚠ V1.4.3 包体仍含旧 gui.ps1** → 建议补发 **V1.4.4**（待用户批准） |
+| I-6.1 | **P1（能力面）** | Step 6.3 补测暴露：`gui.input.keyboard`/`gui.input.mouse` 在 VM PS 5.1 上报「System.RuntimeType 不能作为非托管结构封送」——**键鼠输入自上线从未真跑通**（此前仅静态核对，20 项验收不含键鼠写面） | `psmod/gui.ps1` 两处 `Marshal::SizeOf([Type])` 静态重载不支持运行时 Add-Type 结构 | 改实例重载 `SizeOf($arr[0])`；守卫 contract 7/7 + drift 13/13 GREEN；VM scp+kill-restart 热更；防回归钉=`example-probe` E11（sent>0，8→13 项）；详见 `docs/deploy/deploy-strategy.md` §9.3 | 运行态已热更；**V1.4.4（tag 2789957，2026-10-27）已将修复入包上架，GitHub Release 双资产+三向对账 03cef597** → I-6.1 **已关闭** |
 | I-6.2 | P3（探针） | 补测中 example-probe/probe 脚本自身 4 处缺陷（space.analyze 参数名与白名单目标、service.control 对象错、标题匹配、E6 断言面） | 首轮探针按语义猜测未对照 definitions.ts/策略实态 | 全部修正并经验证；教训固化：探针参数面**必须 grep definitions.ts 实名** + 目标路径先对 pathAllowlist | ✅ |
+
+## 迭代7 · V1.4.4（2026-10-27，I-6.1 补发版）
+
+> 状态：**已关闭**。动因=迭代6 追加 I-6.1（`gui.ps1` PS5.1 `Marshal::SizeOf([Type])` 真 bug：键鼠输入自上线从未真跑通），其修复晚于 V1.4.3 打包 → **Release 包内 gui.ps1 旧版**会让纯 Release 新装机复现键鼠全灭。用户批准补发 V1.4.4 把修复入包。
+
+| ID | 内容 | 证据 |
+|---|---|---|
+| V6 断言（发布链盲区固化） | `pack-release.mjs` 新增 **V6 硬断言**：包内 `vm/overall` 的 `psmod/gui.ps1` **必含 `cbSize`**（键鼠修复特征串），缺失即 fail-loud 拒产包；根因=「修复晚于打包」是发布链盲区——热更运行态 ≠ 包内二进制 | `qa/release/V1.4.4-pack.txt` V1–V6 全绿；匿名回环解包 `overall/packages/vm-capabilities/psmod/gui.ps1` 含 4 处 `cbSize`、旧 `SizeOf([Type])` 零残留 |
+| 上架 + 回环 | tag `V1.4.4`（2789957，基于 2671f0f）；`publish-release --apply` 双资产上架；latest API 指向 V1.4.4 | 三向对账=远端旁挂=本地旁挂=下载件实算 `03cef597…`（2,768,597 B） |
+| 清场重装（run，铁律 --wipe） | 包根切 V1.4.4（`.env` 从 v143-backup 迁移）；uninstall 17/17 PASS；setup 七相位 2m6s（HEALTH ok:true）；三探针 mcp 20/20 + a2a 5/5 + example 13/13；VM 侧 gui.ps1 含 cbSize；G-1 复验非账户零污染、连接器 8 skill | 全维终验 25/25 + example 13/13 + disabledTools=8 |
+
+**结论：迭代 7 关闭。I-6.1（P1 能力面真 bug）经「修复→V6 断言机械化钉死→入包 V1.4.4→清场重装态 25/25+13/13 复验」全链闭环；发布链「修复晚于打包」盲区被 V6 断言永久封堵。当前线上版本=V1.4.4。**
