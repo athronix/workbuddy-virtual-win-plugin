@@ -722,6 +722,8 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18443/health   # 期�
 
 ## 6. 回滚与清理
 
+> Prompt 版（把本节交给 WorkBuddy 驱动执行）见 `docs/deploy/undeploy-prompts.md` —— deploy-prompts 的逆向镜像：U0 前置→U1 DRY-RUN→U2/U3 apply→U4 POST-CLEANUP 核验→U5 存留项逐项问用户；`--wipe` 清场重装的拆除衔接见彼文 §8。
+
 ```sh
 node delivery/uninstall.mjs                      # 默认 dry-run，先看清单
 node delivery/uninstall.mjs --apply              # 保留 C:/WinVMWorkspace 与 ssh 密钥
@@ -899,6 +901,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-26 | v2.7 | **V1.4.3 发布销账**：§9.1 三缺口关闭注记（G-1 修复入包+V5 断言/G-2 verify-release.mjs/G-3 探针入包）+ §9.2 VM 断连闭环注记（25/25+example 8/8）+ RELEASE_TAG 默认升 V1.4.3 + Step 2 判据二改用包内 verify-release + Step 6/HOST_SKILL_DIR 口径收敛=8 |
 | 2026-10-27 | v2.8 | **Step 6.3 全矩阵补测闭环**：9 场景能力 100% 实跑（表格「能力实测」列全 ✅ 含证据与判据注记）；发现并修复 **gui.ps1 PS5.1 `Marshal::SizeOf([Type])` 真 bug**（键鼠输入此前从未真跑通，实例重载修正+防回归钉 E11）；example-probe 8→13 项；新增 §9.3（含 ⚠ 发布链影响：V1.4.3 包内 gui.ps1 仍旧版，建议补发 V1.4.4） |
 | 2026-10-27 | v2.9 | **V1.4.4 补发销账**：§9.3 发布链影响裁定（补发 V1.4.4 已执行闭环）+ I-6.1 关闭注记；`pack-release` V6 硬断言（包内 gui.ps1 必含 `cbSize`）固化「修复晚于打包」盲区；RELEASE_TAG 默认升 V1.4.4 |
+| 2026-10-27 | v3.0 | **卸载 Prompt 总集立项**：新增 `docs/deploy/undeploy-prompts.md` v1.0（deploy-prompts 的逆向镜像：§2.3 十七落点镜像清单 + U0~U5 总 Prompt + POST-CLEANUP 核验 + 存留项决策表 + `--wipe` 清场重装衔接）；§6 回滚与清理加 Prompt 版指针；deploy-prompts 头注加对偶行 |
 
 ### 9.1 本次实测发现的三处发布链缺口（**已随 V1.4.3 全部关闭**，2026-10-26；原发现记录保留）
 

@@ -97,5 +97,6 @@
 | **CL-WBNATIVE（workbuddy-native ACP）** | ⏸ DEFERRED | 用户裁定维持 workbuddy+codebuddy 现状；取证归档 `docs/archive/changes/CL-WBNATIVE/` |
 
 | **Step 6.3 全矩阵补测（10-27）** | ✅ 9 场景 100% 实跑 | example-probe 8→13（含 E11 键鼠防回归钉）；mcp 20/20 + a2a 5/5 + A2A 多步委派 65.3s；**发现修复 gui.ps1 PS5.1 SizeOf 真 bug**（键鼠此前从未真跑通）；**V1.4.4（2789957）已上架**：pack V6 断言钉死 cbSize、清场重装 25/25 + example 13/13，I-6.1 已闭环。见 strategy §9.3 / ISSUES 迭代7 |
+| **undeploy-prompts.md 立项（10-27）** | ✅ v1.0 入库 | `docs/deploy/undeploy-prompts.md`＝deploy-prompts 的逆向镜像：§2.3 十七落点镜像清单（对照 uninstall.mjs 头注）+ U0~U5 总 Prompt（DRY-RUN 先行→apply→POST-CLEANUP 核验→存留项逐项问用户）+ 核验速查（独立复核防假 PASS）+ §7 存留项决策表 + §8 `--wipe` 清场重装衔接（保留密钥）；strategy §6/dev-status/docs-index/README 交叉引用已挂；判据真源=run3（16 项）+ cleanup-20261026（17 项）两份实测日志 |
 
 > 测试基线权威口径不变：`qa/p3-batch-sweep/` 最新 `gate-*.txt` 汇总行（2280 GREEN 快照）；本表不重复记数字。

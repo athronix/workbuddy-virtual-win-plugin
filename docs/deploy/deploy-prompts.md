@@ -4,6 +4,7 @@
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
 > 更新：2026-10-26
 > 上游：`docs/deploy/deploy-strategy.md`（论证与实测记录）、`docs/INSTALL-GUIDE.md`（逐项细节）
+> 对偶：`docs/deploy/undeploy-prompts.md`（卸载 Prompt 总集，本文件的逆向镜像；清场重装 `--wipe` 前置拆除见彼文 §8）
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可从零驱动双端安装
 
 ---
