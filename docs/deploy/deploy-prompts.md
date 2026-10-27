@@ -2,7 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
-> 更新：2026-10-26
+> 更新：2026-10-27（v1.6：版本引用同步 V1.4.4）
 > 上游：`docs/deploy/deploy-strategy.md`（论证与实测记录）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/undeploy-prompts.md`（卸载 Prompt 总集，本文件的逆向镜像；清场重装 `--wipe` 前置拆除见彼文 §8）
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可从零驱动双端安装
@@ -48,10 +48,10 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 |---|---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 同左 | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | 解析到 `V1.4.2` | latest 跳转页 | ☐ |
-| `RELEASE_TAG` | `V1.4.3` | 10-26 实测 latest=V1.4.3 | 发布标签（V1.4.3=缺口收编版：tools+probes+verify-release 入包） | ☐ |
-| `ZIP_NAME` | `winvm-overall-V1.4.3.zip` | 2,764,412 B（旁挂 91 B 三向对账一致） | 分发单元 | ☐ |
-| `ZIP_SHA256` | `a06e7520…d00e149` | 一致 | 整包校验值 | ☐ |
-| `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | `867` / `7313511` / `8d753c70…ecdd3a3` | 一致 | MANIFEST 三元组 | ☐ |
+| `RELEASE_TAG` | `V1.4.4` | 10-27 实测 latest=V1.4.4 | 发布标签（V1.4.4=I-6.1 补发版：键鼠修复入包+pack V6 断言；V1.4.3=缺口收编版） | ☐ |
+| `ZIP_NAME` | `winvm-overall-V1.4.4.zip` | 2,768,597 B（旁挂 91 B 三向对账一致） | 分发单元 | ☐ |
+| `ZIP_SHA256` | `03cef597…a7f411` | 一致 | 整包校验值 | ☐ |
+| `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | `876` / `7422500` / `5f50a2c2…585326` | 一致 | MANIFEST 三元组 | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 同左 | 宿主解压根 | ☐ |
 | `PKG_ROOT` | `$DEPLOY_ROOT/overall-root/overall` | 同左 | 包根（zip 内含顶层 `overall/`） | ☐ |
 
@@ -75,7 +75,7 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 | `HOST_GLOBAL_MCP` | `~/.workbuddy/mcp.json` | `winvm.disabledTools=8` | **`disabledTools` 的真实落点** | ☐ |
 | `HOST_STATE_DIR` | `~/.workbuddy/winvm` | `vm-conn.json`/`tunnel.*` | 运行态 | ☐ |
 | `HOST_PLUGIN_CACHE` | `~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0` | 9 文件 | 插件缓存（单文件白名单） | ☐ |
-| `HOST_SKILL_DIR` | `~/.workbuddy/connectors/skills/connector-winvm` | 实测 8（V1.4.3 包，含 hos-win） | Skill 缓存落点（历史 V1.4.2 包=7 属 G-1，已收敛） | ☐ |
+| `HOST_SKILL_DIR` | `~/.workbuddy/connectors/skills/connector-winvm` | 实测 8（V1.4.3/V1.4.4 包与 HEAD 均 8，含 hos-win） | Skill 缓存落点（历史 V1.4.2 包=7 属 G-1，已收敛） | ☐ |
 | `SSH_KEY` | `~/.ssh/id_ed25519` | 同左 | 宿主身份密钥 | ☐ |
 | `ASKPASS` | `~/wbtmp/askpass.sh` | 同左 | 密码非交互化（`chmod 700`） | ☐ |
 
@@ -126,7 +126,7 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
   VM_DEPLOY_DIR=C:/WinVMBridge   VM_WORKSPACE=C:/WinVMWorkspace
   SERVICE_PORT=18443（仅回环 127.0.0.1）
   PROVIDER=workbuddy   WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.3   ZIP=winvm-overall-V1.4.3.zip
+  RELEASE_TAG=V1.4.4   ZIP=winvm-overall-V1.4.4.zip
   REPO=athronix/workbuddy-virtual-win-plugin
   DEPLOY_ROOT=~/winvm-deploy   PKG_ROOT=~/winvm-deploy/overall-root/overall
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
@@ -315,7 +315,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 
 ```text
 从 GitHub Release 取 WinVM Bridge 分发包并做三层校验。
-  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.3  ZIP=winvm-overall-V1.4.3.zip
+  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.4  ZIP=winvm-overall-V1.4.4.zip
 1) 用绝对 URL（不要 releases/latest）下载 zip 与 .zip.sha256 到 ~/winvm-deploy/pkg/，
    带 --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 --retry-all-errors -C -。
    判据①：sha256sum -c 通过。
@@ -387,7 +387,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 ```text
 部署已通过，现在进入交付引导：让用户能正确下发 Windows 任务。
 1) 加载 @skill:hos-win-skill（host-only：VM 侧不分发；宿主侧用户级 ~/.workbuddy/skills/ 或连接器目录
-   任一供入即可——V1.4.3 包/HEAD 安装连接器=8 含之；历史 V1.4.2 包=7 时靠用户级副本），由它带入 winvm-orchestrator。
+   任一供入即可——V1.4.3/V1.4.4 包/HEAD 安装连接器=8 含之；历史 V1.4.2 包=7 时靠用户级副本），由它带入 winvm-orchestrator。
    判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；connector-winvm 目录数按安装源=包 7 / HEAD 8。
 2) 向用户复述通道三铁律：风险优先（L2/L3 必走 a2a.delegate）／步骤定界（1~2 步可穷举走 MCP 直调）
    ／先探后定（先 L0 读能力取事实，遇 DELEGATION_REQUIRED 立即转委派）。
@@ -410,7 +410,7 @@ NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node
 PY=/data/service/hnp/bin/python3
 PKG=~/winvm-deploy/overall-root/overall
 
-# 包完整性（867 文件 / 7,313,511 B / total-sha256）
+# 包完整性（V1.4.4=876 文件 / 7,422,500 B / total-sha256；以包内 MANIFEST 为准）
 $PY qa/deploy-probes/verify-manifest.py "$PKG"
 
 # VM 运行时前置（node / npm / codebuddy CLI / 登录态）——部署前必过
@@ -474,7 +474,7 @@ $PY qa/deploy-probes/a2a-probe.py
 |---|---|---|---|
 | 1 | ~~是否发布 V1.4.3~~ | **已裁决并执行（10-26 用户批准）**：V1.4.3 已上架（G-1 修复入包+V5 断言），清场重装 run2 复验非账户零污染 | ✅ 关闭 |
 | 2 | ~~G-2 MANIFEST 无消费者~~ | **已收编**：`delivery/verify-release.mjs`（四判据+V5）随包分发，Step 2 判据二入口 | ✅ 关闭 |
-| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / `V1.4.3`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
+| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / `V1.4.4`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
 | 4 | **VM 密码管理方式** | 当前经 `WINVM_SSH_PASSWORD` 运行期注入，未落任何文件 | 用户：确认是否维持该方式 |
 | 5 | ~~G-3 deploy-probes 不进包~~ | **已收编**：V1.4.3 包内 `qa/deploy-probes/` 6 件 + `delivery/tools/diagnose-connectors.mjs`（PACKAGE_REQUIRED 必存断言兜底），纯 Release 安装链零仓库依赖 | ✅ 关闭 |
 
@@ -558,3 +558,4 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.3 | ① 安装统一 **`@latest` 不锁版本**（§2.6 注明，全文命令改 `@latest`，原待确认第 6 项已裁定并移除）② 新增 **§8 异常处置与决策交互协议**（三段式取证/7 类问题定位与方案/5 类必问动作/交互模板/2 次重试熔断/决策台账）③ 新增 **P6 交付引导**（加载 `hos-win-skill`+`winvm-orchestrator`、通道三铁律、示范 prompt、反例提醒）；原 §8 变更记录顺延为 §9 |
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
+| 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |

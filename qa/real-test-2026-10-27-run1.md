@@ -109,4 +109,4 @@
 
 U-1/U-2 修复晚于 **V1.4.4 打包**（`overall-root` 与 `v144-loop` 包内 `uninstall.mjs` 均无 `cleanGlobalMcpJson`，grep=0）——与 I-6.1 同款「修复晚于打包」盲区，本次由 pack V6 之外的面暴露：**V6 只钉 gui.ps1，uninstall 对称性无机械化断言**。
 - 影响面：纯 Release 新装用户执行包内 uninstall → 全局 mcp.json 残留 winvm 键 + autostart 标记（P2，非阻断，重装可幂等自愈）。
-- 建议：并入下一迭代自然收编（不单独补发 V1.4.5——无用户在新装态被阻断）；同时给 pack-release 增 **V7 断言**（包内 uninstall.mjs 必含 `cleanGlobalMcpJson` 特征串），把本盲区机械化钉死。**待用户裁定。**
+- **裁定（10-27 用户同意）**：不单独补发（无阻断），修复随下一迭代自然收编；pack-release 已增 **V7 硬断言**（`overall/delivery/uninstall.mjs` 必含 `cleanGlobalMcpJson`，缺失 fail-loud 拒产包），自 V1.4.5 起每次打包当场核验「修复已入包」，本盲区机械化钉死。

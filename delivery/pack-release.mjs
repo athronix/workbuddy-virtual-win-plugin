@@ -483,6 +483,15 @@ function verifyPackages(dest, version) {
     results.push({ label: `V6 ${kind} gui.ps1 含键鼠修复(cbSize)`, ok: hit2, status: hit2 ? 0 : 1, tail: '' });
     console.log(`  ${hit2 ? '\u2713' : '\u2717'} V6 ${kind} gui.ps1 含键鼠修复(cbSize)`);
   }
+  // V7（V1.4.5 起，I-6.3 防回归）：包内 uninstall.mjs 必须含全局 mcp.json 对称清理
+  //（cleanGlobalMcpJson）——V1.4.4 事故同款=修复晚于打包，包内卸载器不清全局
+  // ~/.workbuddy/mcp.json 的 winvm/winvm-a2a 键、markers 缺 tunnel-autostart.json。
+  {
+    const ufp = join(dest, 'overall', 'delivery', 'uninstall.mjs');
+    const hit3 = existsSync(ufp) && readFileSync(ufp, 'utf8').includes('cleanGlobalMcpJson');
+    results.push({ label: 'V7 overall uninstall 含全局 mcp 对称清理(cleanGlobalMcpJson)', ok: hit3, status: hit3 ? 0 : 1, tail: '' });
+    console.log(`  ${hit3 ? '\u2713' : '\u2717'} V7 overall uninstall 含全局 mcp 对称清理(cleanGlobalMcpJson)`);
+  }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
   if (existsSync(capPkg)) {
