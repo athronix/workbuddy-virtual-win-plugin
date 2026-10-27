@@ -1,0 +1,30 @@
+# Overview · 2026-10-27 会话（undeploy-prompts 立项 → 回环实测 → I-6.3 裁定落地）
+
+## 做了什么
+
+1. **undeploy-prompts.md 立项**（用户提议"有 deploy-prompts 就该有 undeploy-prompts"）
+   - `docs/deploy/undeploy-prompts.md` = deploy-prompts 的逆向镜像：§2.3 落点镜像清单（对照 `delivery/uninstall.mjs` 头注）+ U0~U5 总 Prompt（DRY-RUN 先行→apply→POST-CLEANUP 核验→存留项逐项问用户）+ 核验速查 + 排错 + §7 存留项决策表 + §8 `--wipe` 清场重装衔接。
+   - 交叉引用五处同步（strategy §6 / deploy-prompts 头注对偶行 / docs-index / dev-status / README）。
+
+2. **真机回环实测（run1）**（用户令"测试验证 undeploy 和 deploy"）
+   - 拆除：U0~U4 全走真机；重装：Step 3~5；终态 **mcp 20/20 + a2a 5/5 + example 13/13 = 38/38 全绿**，health=200。
+   - **抓出 I-6.3（P2 真缺陷）**：`uninstall.mjs` 两处镜像不对称——U-1 全局 `~/.workbuddy/mcp.json` 的 winvm/winvm-a2a 键不清；U-2 `tunnel-autostart.json` 残留。已修 HEAD（`cleanGlobalMcpJson` + markers 补名，核验清单 17→19 项，复验 19/19）。
+   - 两条瞬态定性（非缺陷）：setup TUNNEL 相位 EADDRINUSE（自愈）；example 首跑 E7/E8 PSBRIDGE_EXITED（ps-bridge 换代竞态，复跑 13/13 稳）。均入 undeploy §6 排错表。
+   - 报告 `qa/real-test-2026-10-27-run1.md`，证据 `qa/evidence/undeploy-loop-20261027/`（8 份日志）。
+
+3. **用户裁定落地**（"同意"）
+   - I-6.3 不补发 V1.4.5，修复随下迭代自然收编；pack-release 加 **V7 硬断言**（包内 uninstall 必含 `cleanGlobalMcpJson`，fail-loud；正反例验证：V1.4.4 旧包=拒产、HEAD=过）。
+   - 顺带修正第二处陈旧：deploy-prompts v1.5 / strategy §0.5-B/§7 仍写 V1.4.3 → 升 **v1.6 / v3.2**，版本引用全量同步 V1.4.4（zip sha `03cef597…`、三元组 `876/7422500/5f50a2c2…`）。
+   - 纪律入 MEMORY：**升版批必须 grep 全仓旧 tag 清点同步面**（声称≠已改）。
+
+## 关键决策
+- 修复回源码（uninstall.mjs）而非文档记"残留项"；机械化断言（V7）替代人肉声称。
+- 核验判据口径="全 PASS 零 FAIL，清单动态生成"，不硬编码条数。
+
+## 待办 / 后续
+- **I-6.3 收编**：V1.4.5（下迭代）打包时 V7 断言自动核验修复入包。
+- **backlog 观察（待裁定）**：`OVERALL_DOCS` 不含 deploy-strategy/deploy-prompts/undeploy-prompts 三篇（纯 Release 装机者无 Prompt 总集）——是否入包涉及 MANIFEST 三元组判据面，留待迭代统一裁定，勿单独塞。
+- 历史批次遗留 pending 任务（#54/#63/#64/#68/#91/#93/#101 区段的 K4 批、批20 技术债 PRD 等）不属本链，未动。
+
+## 提交链（均已 push main）
+`60b7390` undeploy v1.0 → `83af90a` 日志 → `4b7fd52` 回环+uninstall 修复+I-6.3 → `15d8504` V7 断言+版本同步 v1.6/v3.2 → `0143933` 升版纪律入册 → `3306634` docs 打包面疑点入 backlog。
