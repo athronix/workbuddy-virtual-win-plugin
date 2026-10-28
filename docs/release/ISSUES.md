@@ -208,6 +208,20 @@
 
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
-| **I-6.3** | P2 | `delivery/uninstall.mjs` 两处**镜像不对称**（回环 U4 独立复核抓到，自报清单当时全绿）：**U-1** 不清全局 `~/.workbuddy/mcp.json` 的 `winvm`/`winvm-a2a`（install-host 全局注册面，disabledTools 落点；只清了账户级 `connectors/*/mcp.json`）；**U-2** markers 缺 `tunnel-autostart.json`（拆后重开 WB，SessionStart hook 会对已不存在的插件 ensure 死隧道）。修复=新增 `cleanGlobalMcpJson`（备份后删）+ markers 补名 + 核验清单加两行（17→19）；复验 dry-run `[DRY] remove winvm, winvm-a2a`→apply **19/19 PASS**、独立复核 GLOBAL_MCP_CLEAN、r3-uninstall-verify 47/47、gate:quick 265/265。教训沿用 I-6.1：**「自报全绿」≠「拆除干净」，不对称只能靠独立复核面抓**。另：块注释内写 `connectors/*/mcp.json` 的 `*/` 会提前闭合注释（node --check 当场抓住，改 `<acct>` 写法）。 | **已修复（源码+文档）**；⚠ **晚于 V1.4.4 打包**——包内 `uninstall.mjs` 无 `cleanGlobalMcpJson`（overall-root 与 v144-loop 双处 grep=0）。影响=纯 Release 新装用户 uninstall 后全局键残留+autostart 标记（非阻断，重装幂等自愈）。**裁定（10-27 用户同意）**：不单独补发（无阻断），修复随下一迭代自然收编入包；pack-release 已加 **V7 硬断言**（`overall/delivery/uninstall.mjs` 必含 `cleanGlobalMcpJson`，缺失 fail-loud 拒产包）——自 V1.4.5 起每次打包当场核验「修复已入包」，本盲区机械化封堵 |
+| **I-6.3** | P2 | `delivery/uninstall.mjs` 两处**镜像不对称**（回环 U4 独立复核抓到，自报清单当时全绿）：**U-1** 不清全局 `~/.workbuddy/mcp.json` 的 `winvm`/`winvm-a2a`（install-host 全局注册面，disabledTools 落点；只清了账户级 `connectors/*/mcp.json`）；**U-2** markers 缺 `tunnel-autostart.json`（拆后重开 WB，SessionStart hook 会对已不存在的插件 ensure 死隧道）。修复=新增 `cleanGlobalMcpJson`（备份后删）+ markers 补名 + 核验清单加两行（17→19）；复验 dry-run `[DRY] remove winvm, winvm-a2a`→apply **19/19 PASS**、独立复核 GLOBAL_MCP_CLEAN、r3-uninstall-verify 47/47、gate:quick 265/265。教训沿用 I-6.1：**「自报全绿」≠「拆除干净」，不对称只能靠独立复核面抓**。另：块注释内写 `connectors/*/mcp.json` 的 `*/` 会提前闭合注释（node --check 当场抓住，改 `<acct>` 写法）。 | **已关闭（V1.4.5 入包，见迭代8）**；曾晚于 V1.4.4 打包。裁定（10-27 用户同意）不单独补发、随下迭代收编；pack-release **V7 硬断言**（包内 uninstall 必含 cleanGlobalMcpJson，fail-loud）——V1.4.5 打包当场通过，盲区机械化封堵 ✅ |
 
 证据：`qa/real-test-2026-10-27-run1.md`（回环全记录，含 R5=38/38 与瞬态定性）+ `qa/evidence/undeploy-loop-20261027/`（8 份日志）。
+
+## 迭代8 · V1.4.5（2026-10-28，I-6.3 收编版 + Prompt 总集入包）
+
+> 状态：**已关闭**。动因=迭代7 追加 I-6.3（uninstall.mjs 两处镜像不对称）已修 HEAD 但晚于 V1.4.4 打包，用户裁定随本迭代自然收编；同批落地「Prompt 总集入发布包」backlog 裁定。
+
+| 项 | 内容 | 证据 |
+|---|---|---|
+| V7 断言首战 | `pack-release` V7（包内 uninstall 必含 `cleanGlobalMcpJson`）**首次执行即通过**=I-6.3 修复确认入包；V1–V7 全绿 | `qa/release/V1.4.5-pack.txt`（@76c0c65） |
+| Prompt 总集入包 | `OVERALL_DOCS` 增 `docs/deploy/deploy-strategy.md`/`deploy-prompts.md`/`undeploy-prompts.md`（子目录化拷贝+`PACKAGE_REQUIRED.overall` 存在性断言+包 README 文案）——纯 Release 装机者解包即得三篇总集，零仓库依赖 | 匿名回环解包 `overall/docs/deploy/` 三篇在（v1.7/v3.3/v1.2 同步版） |
+| 打包时序教训 | **首打包 @6745a50 早于 docs 版本同步 commit**→包内三篇仍旧版口径；处置=`release/V1.4.5.superseded-it1` 封存、@76c0c65 重打包（zip `a225cc95…`/2,833,330 B）、tag 移至包源点。教训入册：**pack 前一切文档改动先 commit**（包=HEAD 快照，文档同步属包内容） | 本行即记录；superseded 目录留档 |
+| 上架+回环 | publish --apply 双资产；latest API=V1.4.5；匿名下载三向对账一致 `a225cc9562f2fadf…`（github.com 直连 5 连超时后成功，重试纪律奏效）；verify-release.mjs --expect-nonaccount-guard PASS | `~/winvm-deploy/v145-loop/` |
+| 清场重装（铁律 --wipe 语义） | **用包内 V1.4.5 uninstall.mjs 实弹拆除=19/19 全 PASS**（含两条新 PASS 行——I-6.3 修复在发布态真生效）；setup 七相位 rc=0（~2.2min）；三探针 mcp 20/20 + a2a 5/5 + example 13/13；disabledTools=8、连接器 8 skill、VM gui.ps1 cbSize×4 | 本会话日志 |
+
+**结论：迭代 8 关闭。当前线上版本=V1.4.5。**
