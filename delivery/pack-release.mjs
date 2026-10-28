@@ -174,6 +174,8 @@ const PACKAGE_REQUIRED = {
     'delivery/install-vm.mjs', 'delivery/vm-service.config.json', 'delivery/bootstrap.mjs',
     'delivery/uninstall.mjs', 'delivery/env.example', 'package.json', '.env.example',
     'docs/DEPLOYMENT.md', 'docs/RELEASE-V1.4.0.md', 'docs/issues.md',
+    // V1.4.5 收编项（Prompt 总集三篇）的包内存在性（漏收=打包 fail-loud）
+    'docs/deploy/deploy-strategy.md', 'docs/deploy/deploy-prompts.md', 'docs/deploy/undeploy-prompts.md',
     'tools/winvm-prepare.ps1',
     // V1.4.3 收编项的包内存在性（漏收=打包 fail-loud）
     'delivery/tools/diagnose-connectors.mjs', 'delivery/verify-release.mjs',
@@ -189,6 +191,11 @@ const OVERALL_DOCS = [
   ['docs/release/DESIGN-V1.4.0.md', 'DESIGN-V1.4.0.md'],
   ['docs/release/RELEASE-V1.4.0.md', 'RELEASE-V1.4.0.md'],
   ['docs/release/ISSUES.md', 'issues.md'],
+  // V1.4.5 收编（10-27 裁定）：Prompt 总集三篇入包（保持 docs/deploy/ 子目录），
+  // 纯 Release 装机者自此零仓库依赖拿到 部署策略/部署 Prompt/卸载 Prompt。
+  ['docs/deploy/deploy-strategy.md', 'deploy/deploy-strategy.md'],
+  ['docs/deploy/deploy-prompts.md', 'deploy/deploy-prompts.md'],
+  ['docs/deploy/undeploy-prompts.md', 'deploy/undeploy-prompts.md'],
 ];
 
 /* ------------------------------ 组装 ------------------------------ */
@@ -606,7 +613,9 @@ function main() {
   ensureDir(join(dest, 'overall', 'docs'));
   for (const [src, name] of OVERALL_DOCS) {
     if (!existsSync(join(ROOT, src))) fail(`overall 文档源缺失：${src}（请先撰写）`);
-    cpSync(join(ROOT, src), join(dest, 'overall', 'docs', name));
+    const dst = join(dest, 'overall', 'docs', name);
+    ensureDir(dirname(dst)); // name 可含子目录（deploy/xxx.md）
+    cpSync(join(ROOT, src), dst);
   }
   writeReadme(join(dest, 'overall'), 'overall', version, {
     title: '整体一键部署发布包（宿主机 + VM + 文档）',
@@ -615,7 +624,7 @@ function main() {
       '- host 包与 vm 包的全部条目（并集，共享同一闭包）',
       '- `delivery/bootstrap.mjs` / `prepare-vm.mjs`：环境自检 + SSH 信任 + env 生成（备环境）',
       '- `delivery/uninstall.mjs`：双端清场（回收站可恢复）',
-      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账',
+      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账 / **deploy/ 三篇**（部署策略 deploy-strategy + 部署 Prompt 总集 deploy-prompts + 卸载 Prompt 总集 undeploy-prompts）',
       '',
       '## 一键部署',
       '```bash',
