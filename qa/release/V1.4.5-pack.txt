@@ -1,5 +1,5 @@
 
-== pack-release V1.4.5 @ 6745a50 ==
+== pack-release V1.4.5 @ 76c0c65 ==
 · 组装 host/（install-host 闭包）
 · 组装 vm/（deploy-vm 闭包）
 · 组装 overall/（整体包 = host ∪ vm ∪ 编排与文档）
@@ -18,10 +18,10 @@
 · 生成 overall zip + sha256 旁挂（GitHub Release 分发单元）
 
 ✓ 发布包已生成：release/V1.4.5
-  host    848 文件 / 6744K / sha256 7afcc8d988e021c7…
-  vm      345 文件 / 2857K / sha256 7a205f00a97f00f7…
-  overall 879 文件 / 7401K / sha256 ef008e52a77b6de6…
-  overall-zip release/V1.4.5/winvm-overall-V1.4.5.zip / 2766K / sha256 105c0d8ace6f6e84…  旁挂 release/V1.4.5/winvm-overall-V1.4.5.zip.sha256  →上架：node delivery/publish-release.mjs --tag V1.4.5 --zip release/V1.4.5/winvm-overall-V1.4.5.zip [--apply]
+  host    848 文件 / 6744K / sha256 9802f74049314fb5…
+  vm      345 文件 / 2857K / sha256 0fd940f9d375a745…
+  overall 879 文件 / 7402K / sha256 88fd11c1c2687cdf…
+  overall-zip release/V1.4.5/winvm-overall-V1.4.5.zip / 2767K / sha256 a225cc9562f2fadf…  旁挂 release/V1.4.5/winvm-overall-V1.4.5.zip.sha256  →上架：node delivery/publish-release.mjs --tag V1.4.5 --zip release/V1.4.5/winvm-overall-V1.4.5.zip [--apply]
   证据：qa/release/V1.4.5-pack.txt
 
 下一步：cd release/V1.4.5/overall && bash deploy-all.sh --wipe   （清空历史部署后整体重装；bash 显式解释防 hmdfs 丢执行位）

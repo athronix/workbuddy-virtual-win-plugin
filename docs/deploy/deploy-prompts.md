@@ -50,8 +50,8 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | 解析到 `V1.4.2` | latest 跳转页 | ☐ |
 | `RELEASE_TAG` | `V1.4.5` | 10-28 上架 latest=V1.4.5 | 发布标签（V1.4.5=I-6.3 收编版：uninstall 对称修复+Prompt 总集三篇入包+pack V7 断言；V1.4.4=I-6.1 补发版） | ☐ |
 | `ZIP_NAME` | `winvm-overall-V1.4.5.zip` | 2,832,593 B（旁挂 91 B） | 分发单元 | ☐ |
-| `ZIP_SHA256` | `105c0d8a…5d0abb` | 待回环对账 | 整包校验值 | ☐ |
-| `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | `879` / `7578571` / `ef008e52…23fe98` | 待回环对账 | MANIFEST 三元组 | ☐ |
+| `ZIP_SHA256` | `a225cc95…72f64d` | 待回环对账 | 整包校验值 | ☐ |
+| `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | `879` / `7580107` / `88fd11c1…aa2d0` | 待回环对账 | MANIFEST 三元组 | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 同左 | 宿主解压根 | ☐ |
 | `PKG_ROOT` | `$DEPLOY_ROOT/overall-root/overall` | 同左 | 包根（zip 内含顶层 `overall/`） | ☐ |
 
@@ -410,7 +410,7 @@ NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node
 PY=/data/service/hnp/bin/python3
 PKG=~/winvm-deploy/overall-root/overall
 
-# 包完整性（V1.4.5=879 文件 / 7,578,571 B / total-sha256；以包内 MANIFEST 为准）
+# 包完整性（V1.4.5=879 文件 / 7,580,107 B / total-sha256；以包内 MANIFEST 为准）
 $PY qa/deploy-probes/verify-manifest.py "$PKG"
 
 # VM 运行时前置（node / npm / codebuddy CLI / 登录态）——部署前必过
@@ -559,4 +559,4 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
 | 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |
-| 2026-10-28 | v1.7 | **V1.4.5 版本引用同步（迭代8）**：§2.2/总 Prompt/P2/§5 升 V1.4.5（zip `105c0d8a…`/三元组 879/7578571/`ef008e52…`）；V1.4.5=I-6.3 收编版（uninstall 对称修复入包+pack V7 断言）且**包内新带 docs/deploy/ 三篇 Prompt 总集**——Step 2 起包根内即可直读本文与 undeploy-prompts |
+| 2026-10-28 | v1.7 | **V1.4.5 版本引用同步（迭代8）**：§2.2/总 Prompt/P2/§5 升 V1.4.5（zip `a225cc95…`/三元组 879/7580107/`88fd11c1…`——首打包早于 docs 同步，@6745a50 包已被 `V1.4.5.superseded-it1` 封存，**重打包 @76c0c65**）；V1.4.5=I-6.3 收编版（uninstall 对称修复入包+pack V7 断言）且**包内新带 docs/deploy/ 三篇 Prompt 总集**——Step 2 起包根内即可直读本文与 undeploy-prompts |
