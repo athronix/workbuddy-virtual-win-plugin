@@ -262,3 +262,17 @@
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
 | **I-6.4** | P2 | 探针面双缺陷（往返 run2 `qa/real-test-2026-10-29-run2.md`）：**D-1** `verify-manifest.py`/`verify-release.mjs` 对**已安装态包根**假 FAIL——安装体系自写的运行期产物（`.env`=Step 3.1 配置、`delivery/winvm-plugin(.cmd)`=install-host 管理 CLI 启动器）被判 undeclared（前两轮 Step 2.3 从未在此场景跑过，本轮按脚本"包已在本地直接 2.3"路径首触暴露）；修复=runtime 白名单三条目，**四场景回归**（已装态 PASS/纯净面 PASS/verify-release PASS/canary 负例仍 FAIL=检出力未削弱）。**D-2** `vmcheck.ps1` 输出 GBK 双坑（PS5.1 `Content` 无 charset JSON 按 GBK 解码 + 重定向 stdout 按控制台码页编码中文 health_body→宿主 UTF-8 消费者解析炸）；修复=`RawContentStream` 显式 UTF-8 解码 + `[Console]::OutputEncoding=UTF8`，**探针文件保持 ASCII-only**（带中文注释的修复版远端解析异常，二次坐实既有规范）；VM 复测 2537 B 全 UTF-8 判据直读。教训：**探针判据面要跑遍"已装态/纯净态"两种宿主场景**；脚本内"latest 现解"指引（V1.4.7 自指根除面）本轮首战生效——示例值 V1.4.6 未误导。 | **已随 V1.4.8 入包收编（迭代11）**；10-29 用户裁定修复+打包+第四轮验证。pack **V9 断言**（包内 verify-manifest 必含 runtime_ok、verify-release 必含 RUNTIME_OK、vmcheck 必含 RawContentStream，缺失 fail-loud）首战核验——同款 V5/V6/V7/V8 机械化封堵 |
+
+
+## 迭代11 · V1.4.8（2026-10-29，I-6.4 探针修复入包收编版——开账即关）
+
+> 状态：**已关闭**。动因=用户裁定「修复，提交，打包，继续第4轮卸载和安装验证测试」——run2 抓出的 I-6.4（探针面双缺陷）随本迭代入包，并以第四轮往返验证发布态生效。运行码同 V1.4.7。
+
+| 项 | 内容 | 证据 |
+|---|---|---|
+| V9 断言首战 | pack-release 新增 **V9 三探针特征断言**（包内 verify-manifest 必含 `runtime_ok`、verify-release 必含 `RUNTIME_OK`、vmcheck 必含 `RawContentStream`，缺失 fail-loud 拒产包）；**正反例验证**：对 V1.4.7 包根旧探针判 FAIL=若当时已有 V9 会当场拦截 I-6.4 | `qa/release/V1.4.8-pack.txt`（@8929c97，V1–V9 全绿） |
+| 示例值可自记 | RELEASE_TAG/ZIP 为 tag 名（非 sha 自指物）→ 包内快照可正确自记 V1.4.8；§5 速查包完整性行改为纯指包内 MANIFEST（sha 彻底不写）。run2 观察的"包内示例 V1.4.6 误导面"自此消除 | 解包核验 `RELEASE_TAG=V1.4.8` 在包内 prompt |
+| 上架+回环 | latest API=V1.4.8；三向 sha 一致 `602d303e…`（2,852,223 B/881/7620953/`efb4a6ce…`）；解包核 V9 三特征+双 verify PASS | `~/winvm-deploy/v148-loop/` |
+| 第四轮往返（run3） | **I-6.4 发布态双首验**：包内修复版 verify-manifest 跑已装态包根 **PASS**（D-1 闭环）、包内 vmcheck **UTF-8 直读全判据**（D-2 闭环）；拆除 19/19 零 FAIL+独立复核（000/GLOBAL_MCP_CLEAN）；重装 4.1~4.5 全绿+**38/38 首跑即稳**（连续两轮零瞬态）；6.1/cbSize×4 | `qa/real-test-2026-10-29-run3.md` + `qa/evidence/prompt-run3-20261029/` |
+
+**结论：迭代 11 关闭。当前线上版本=V1.4.8。发布链断言面=V1–V9。缺陷台账（I-6.1~I-6.4+G-1/2/3）全部闭环入包。**
