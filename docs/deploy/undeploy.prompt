@@ -1,0 +1,99 @@
+========================================================================
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v1.0）
+用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
+文档母本：docs/deploy/undeploy-prompts.md §3（V1.4.5 起随发布包分发 docs/deploy/）
+========================================================================
+
+【运行期注入（执行前设置；密码只走环境变量，禁止落文件）】
+  export VM_HOST=172.16.100.2
+  export VM_USER=User
+  export VM_SSH_PORT=22
+  export PKG_ROOT=~/winvm-deploy/overall-root        # 包根=含 MANIFEST.txt 与 delivery/ 的目录（ls 判定；另一种可能是 .../overall-root/overall）
+  export NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node
+  export PY=/data/service/hnp/bin/python3
+  export WINVM_DRY_RUN=0                              # ⚠ 必须 0：=1 会把 --apply 降级成 dry-run（假拆）
+  # export WINVM_SSH_PASSWORD=***                    # 仅免密通道已失效、需重建时才注入；拆除本身不需要密码
+
+────────────────────────────────────────
+你是 WinVM Bridge 的拆除执行者。请把双端部署干净拆回"未安装"态：严格按 U0→U5 顺序执行，
+每一步用「判据」自检；任何判据不通过就立即停下并报告（现象 / 根因 / 证据 / 建议），
+不要跳步硬推，不要用"应该删干净了"代替实测。
+
+【设计红线】卸载 = 镜像拆除。只删 install-host/install-vm/setup/deploy-vm 自己放下去的东西；
+  OS 级配置（VM 的 OpenSSH Server、两端 ~/.ssh、VM Node 运行时、宿主其它插件/连接器）一律不动。
+  宿主删除物一律**移入 trash 目录**（~/.workbuddy/winvm-trash/<时间戳>/）而非直接 rm —— 可回滚。
+
+【安全红线】
+  - 默认**保留** C:/WinVMWorkspace 与所有 SSH 密钥；除非用户明确要求 --purge-workspace / 删密钥。
+  - 密码只走运行期 WINVM_SSH_PASSWORD；禁止落文件、禁止提交、禁止日志回显。
+
+────────────────────────────────────────
+U0 · 拆除前置检查（只读）
+  0.1 免密通道仍在（卸载器 VM 相位依赖它）：
+      ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
+          -o NumberOfPasswordPrompts=0 -p $VM_SSH_PORT $VM_USER@$VM_HOST whoami
+      判据：输出用户名 + 退出码 0。若已失效 → 需先按 deploy 脚本 Step 1 重建通道再拆，
+            或经用户同意后改用密码通道（WINVM_SSH_PASSWORD + askpass）。
+  0.2 WINVM_DRY_RUN=0（否则 --apply 会被降级，出现"假已拆"）。
+  0.3 记录拆除前基线（供 U4 对照）：当前 ~/.workbuddy 下 winvm 落点清单、VM 上
+      C:/WinVMBridge 与计划任务是否存在。
+
+────────────────────────────────────────
+U1 · 规划：先跑 DRY-RUN，逐行核对清单（**零改动**）
+  1.1 cd $PKG_ROOT && $NODE delivery/uninstall.mjs
+  1.2 判据：输出以 "mode : DRY-RUN" 开头，逐项列出 [DRY]/[DO]/[SKIP]/[KEEP]。
+  1.3 人工核对：trash 目标路径、要删的 mcp.json 键（含全局 ~/.workbuddy/mcp.json 的
+      winvm/winvm-a2a 两键）、VM 相位计划（task/进程/目录/junction/PATH/side.json）。
+      ⚠ 这一步就是安全阀：清单里出现"你以为不该删"的落点，立即停并报告，不要进 U2。
+
+────────────────────────────────────────
+U2 · 宿主相位 + U3 · VM 相位（同一次 --apply 完成）
+  2.1 $NODE delivery/uninstall.mjs --apply
+      （保留工作区=默认；彻底清另加 --purge-workspace，须用户明确同意。
+        反复清场时 vm-conn.json 首轮即被删——再跑须显式 --vm-host $VM_HOST --vm-user $VM_USER）
+  2.2 内部按序：停隧道（按记录 PID，绝不 pkill -f）→ 插件缓存/marketplace/connector skill
+      移入 trash → 删 installed_plugins.json 键 → 删 connectors/*/mcp.json 两键 →
+      删全局 ~/.workbuddy/mcp.json 两键 → 删 settings.json 追加项 → 去 PATH/shell profile 段
+      → 删 ~/.workbuddy/winvm 标记文件（含 tunnel-autostart.json）。
+      VM：schtasks /End+/Delete → 按命令行 C:\WinVMBridge 签名杀进程 → 删目录/junction/PATH 项/side.json。
+  2.3 判据：退出码 0；"APPLY complete" 且核验清单全 [PASS]（见 U4）。
+
+────────────────────────────────────────
+U4 · 拆除核验（清单动态生成，判据=全 [PASS] 零 [FAIL]，不数固定条数）
+  4.1 自报 POST-CLEANUP VERIFICATION CHECKLIST 应含（宿主 9~10 + VM 8）：
+      plugins/cache/winvm absent / marketplaces/winvm absent / connector-winvm absent /
+      installed_plugins.json 无 winvm / settings.json enabledPlugins 无 winvm /
+      connectors/skills/mcp.json 无 winvm / 全局 ~/.workbuddy/mcp.json 无 winvm /
+      winvm/side.json、vm-conn.json、tunnel-autostart.json absent / 127.0.0.1:18443 不通
+      + VM：免密通道仍可用 / C:/WinVMBridge absent / task absent / 18443 不监听 /
+        无 vm-service 进程 / OpenSSH Server 仍 Running（must survive）/
+        authorized_keys 未动 / C:/WinVMWorkspace kept（默认）
+  4.2 独立复核（不信自报，防假 PASS）：
+      curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18443/health → 期望 000（拒连）
+      ls ~/.workbuddy/plugins/cache/winvm → 应不存在
+      $NODE -e "const j=require(process.env.HOME+'/.workbuddy/mcp.json');const k=Object.keys(j.mcpServers||{}).filter(x=>/winvm/i.test(x));console.log(k.length?('LEFT:'+k):'GLOBAL_MCP_CLEAN')" → 期望 GLOBAL_MCP_CLEAN
+      VM 复核（⚠ 同样禁止内联 -Command：$null/$_ 会被本地 bash 展开→ParserError；
+        用 printf 造临时 .ps1 → scp → powershell -File）：
+      printf 'Test-Path C:\\WinVMBridge\r\n$null -ne (Get-ScheduledTask -TaskName WinVMBridge.Service -ErrorAction SilentlyContinue)\r\n(Get-NetTCPConnection -LocalPort 18443 -State Listen -ErrorAction SilentlyContinue).Count\r\n(Get-Service sshd).Status\r\nTest-Path C:\\WinVMWorkspace\r\n' > ~/wbtmp/vm-recheck.ps1
+      scp ~/wbtmp/vm-recheck.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vm-recheck.ps1
+      ssh $VM_USER@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vm-recheck.ps1'
+      → 期望依次：False / False / 0 / Running / True（工作区默认保留）
+  4.3 判据：4.1 全 [PASS] + 4.2 全部指向"已拆除"。任一不符 → 停并给失败四元组。
+
+────────────────────────────────────────
+U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得自行清理）
+  5.1 SSH 密钥/免密通道：保留（重装要复用）。仅"彻底告别"才单独清，且注意
+      ⚠ id_ed25519 可能一号多用（兼 GitHub 推送凭据）——删前确认，长期正解两把密钥分开。
+  5.2 trash 目录 ~/.workbuddy/winvm-trash/：回滚来源，用户确认"不再需要"后才清。
+  5.3 下载物 ~/winvm-deploy/pkg/ 与解包目录：非部署产物，按需手动清。
+  5.4 相关 ACTIVE 定时自动化：先 automation list 核实，有本项目相关才 PAUSED/DELETE（ID 不写死）。
+  5.5 新开会话验证：新 WorkBuddy 会话里 winvm__* 工具应彻底消失（mcp.json 变更仅新会话生效）。
+
+【排错速查】
+- "--apply 说拆完了但 18443 还在听" → 查 WINVM_DRY_RUN 是否 =1。
+- VM 相位 ssh 拒绝/超时 → 免密已失效（U0 判据没真过），先重建再拆。
+- 远端 ParserError/乱码 → .ps1 + powershell -File + ASCII 载荷（卸载器已内置，手工兜底同纪律）。
+- 隧道想 pkill -f → 禁止；只按 tunnel.pid 记录的 PID 精确 kill。
+- 反复清场第二轮报 VM 相位 SKIPPED → 显式传 --vm-host/--vm-user（vm-conn.json 首轮已删）。
+- git push 突然 Permission denied → 误删了一号多用的 id_ed25519；恢复为 id_ed25519_github 独立文件。
+========================================================================

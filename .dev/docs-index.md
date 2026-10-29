@@ -14,11 +14,12 @@
 8. `docs/02-design/INTERFACES.md` —— MCP tools / A2A skills / 内部 API 契约
 9. `docs/02-design/SECURITY-GOVERNANCE.md` —— 风险分级/策略引擎/审批闸/防篡改审计/会话保活
 10. `docs/05-peripherals/DEPLOYMENT.md` —— 部署指南（双端一键 `setup.mjs` + `agent.provider` 选型 + §7 插件管理命令 `winvm-plugin`（host/VM 统一查验与管理）+ §8 远程 Windows 部署与 SSH 密钥认证）
-10.1 `docs/deploy/deploy-strategy.md` —— **部署策略 v2（从零安装，现 v3.3）**：六步可行性论证 + 环境事实基线 + §0.5 部署参数变量表（A–F 六组，含 VM 运行时前提）+ **§2.1-B 空密码双层预案** + Step 3.0 运行时前置自检 + §5.0 遇困处置协议（根因→方案→决策）+ 各步实测记录 + 排错速查 + 回滚 + §7 WorkBuddy 指导 Prompt + §9.1 发布链缺口台账（G-1/2/3）+ **Step 6 交付引导**（hos-win-skill+通道三铁律+9 示例）+ §9.2 VM 断连待补测
+10.1 `docs/deploy/deploy-strategy.md` —— **部署策略 v2（从零安装，现 v3.4）**：六步可行性论证 + 环境事实基线 + §0.5 部署参数变量表（A–F 六组，含 VM 运行时前提）+ **§2.1-B 空密码双层预案** + Step 3.0 运行时前置自检 + §5.0 遇困处置协议（根因→方案→决策）+ 各步实测记录 + 排错速查 + 回滚 + §7 WorkBuddy 指导 Prompt + §9.1 发布链缺口台账（G-1/2/3）+ **Step 6 交付引导**（hos-win-skill+通道三铁律+9 示例）+ §9.2 VM 断连待补测
 10.1a `docs/deploy/通过铠大师app安装部署.md` —— 铠大师 App 新机部署**方案**（V1/R2，Release 匿名下载起点；§5.2 install prompt 模板 / deploy-report.json 契约 / G1–G12 坑清单）
 10.1b `docs/deploy/铠大师app功能规格书.md` —— 铠大师 K1–K3 **功能规格**（V1.3，C-1~C-5 契约 / F-01~F-10 / Q-1~Q-6 裁决；winvm-prepare.ps1 单一真相源）
-10.2 `docs/deploy/deploy-prompts.md` —— **部署 Prompt 总集（现 v1.7，版本引用=V1.4.5；V1.4.5 起随发布包分发）**：待确认变量表（§2 七组）+ 总 Prompt（一键粘贴，Step 1~6）+ 分步 Prompt P1~P6 + 验收命令速查 + §8 异常处置与决策交互协议 + 排错 + 待确认清单
-10.3 `docs/deploy/undeploy-prompts.md` —— **卸载 Prompt 总集（现 v1.2，deploy-prompts 的逆向镜像；10-27 回环实测→修复 uninstall 两处不对称→I-6.3 已随 V1.4.5 入包+V7 断言钉死；V1.4.5 起随发布包分发）**：拆除范围开关表 + §2.3 十八落点镜像清单（对照 uninstall.mjs 头注）+ 总 Prompt U0~U5（DRY-RUN 先行→apply→POST-CLEANUP 核验→存留项逐项问用户）+ 分步 U1~U5 + 核验速查（独立复核防假 PASS）+ 排错 + §7 卸载后存留项 + §8 `--wipe` 清场重装衔接（保留密钥）
+10.2 `docs/deploy/deploy-prompts.md` —— **部署 Prompt 总集（现 v1.8，版本引用=V1.4.5；V1.4.5 起随发布包分发）**：待确认变量表（§2 七组）+ 总 Prompt（一键粘贴，Step 1~6）+ 分步 Prompt P1~P6 + 验收命令速查 + §8 异常处置与决策交互协议 + 排错 + 待确认清单
+10.3a `docs/deploy/deploy.prompt` / `docs/deploy/undeploy.prompt` —— **纯 Prompt 一键粘贴脚本（各 v1.0）**：§3 总 Prompt+运行期注入变量的独立脚本版，10-29 真机回环双向验证通过（`qa/real-test-2026-10-29-run1.md`）；是否入发布包=下迭代统一裁定
+10.3 `docs/deploy/undeploy-prompts.md` —— **卸载 Prompt 总集（现 v1.3，deploy-prompts 的逆向镜像；10-27 回环实测→修复 uninstall 两处不对称→I-6.3 已随 V1.4.5 入包+V7 断言钉死；V1.4.5 起随发布包分发）**：拆除范围开关表 + §2.3 十八落点镜像清单（对照 uninstall.mjs 头注）+ 总 Prompt U0~U5（DRY-RUN 先行→apply→POST-CLEANUP 核验→存留项逐项问用户）+ 分步 U1~U5 + 核验速查（独立复核防假 PASS）+ 排错 + §7 卸载后存留项 + §8 `--wipe` 清场重装衔接（保留密钥）
 11. `docs/05-peripherals/SCENARIOS.md` —— 应用场景故事/流程/机制/demo（含 Photoshop 大山→海洋 LLM 端到端）
 12. `docs/05-peripherals/USER-MANUAL.md` —— 用户手册
 13. `docs/06-OVERVIEW.md` —— 交付概览

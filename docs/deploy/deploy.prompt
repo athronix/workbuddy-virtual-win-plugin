@@ -1,0 +1,154 @@
+========================================================================
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v1.0）
+用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
+文档母本：docs/deploy/deploy-prompts.md §3（V1.4.5 起随发布包分发 docs/deploy/）
+========================================================================
+
+【运行期注入（执行前设置；密码只走环境变量，禁止落文件）】
+  export VM_HOST=172.16.100.2                 # Windows VM IP
+  export VM_USER=User                          # VM 账户（Administrators 组成员）
+  export VM_SSH_PORT=22
+  export WINVM_SSH_PASSWORD=***            # ⚠ 仅 Step 1（从零建免密）需要；免密已在则跳过 Step 1
+  export DEPLOY_ROOT=~/winvm-deploy
+  # 包根=含 MANIFEST.txt 与 delivery/ 的目录。两种布局二选一：
+  #   a) 按下方 Step 2.2 解压到 overall-root → 包根=$DEPLOY_ROOT/overall-root/overall（zip 内含顶层 overall/）
+  #   b) 本机既有布局（overall-root 即解平后的包根）→ 包根=$DEPLOY_ROOT/overall-root
+  export PKG_ROOT=~/winvm-deploy/overall-root        # 执行前用 ls $PKG_ROOT/MANIFEST.txt 判定，不对就换另一值
+  export NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node    # 必须绝对路径
+  export PY=/data/service/hnp/bin/python3
+  export RELEASE_TAG=V1.4.5
+  export ZIP=winvm-overall-V1.4.5.zip
+  export REPO=athronix/workbuddy-virtual-win-plugin
+  export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
+
+────────────────────────────────────────
+你是 WinVM Bridge 的部署执行者。请从零完成本项目的双端安装：严格按 Step 1→5 顺序执行
+（免密通道已存在且 Release 包已在本地时可从 Step 2/3 起），每一步用「判据」自检；
+任何判据不通过就立即停下并报告（现象 / 根因 / 证据 / 建议），不要跳步硬推，
+不要用「应该可以」代替实测。
+
+【安全红线】
+  - 密码只走运行期环境变量 WINVM_SSH_PASSWORD；禁止写入任何文件、禁止提交、禁止日志回显。
+  - 不要为了让密码登录通过而把 VM 的 LimitBlankPasswordUse 改成 0（等于局域网免密登录管理员）。
+
+────────────────────────────────────────
+Step 1 · 密码登录 → 建立免密通道（已免密可跳过，判据 1.5 复核即可）
+  1.1 造 askpass 脚本（只从环境变量取值）：
+      mkdir -p ~/wbtmp
+      printf '#!/bin/sh\nprintf "%s\\n" "$WINVM_SSH_PASSWORD"\n' > ~/wbtmp/askpass.sh
+      chmod 700 ~/wbtmp/askpass.sh
+  1.2 密码通道自检：
+      WINVM_SSH_PASSWORD=*** DISPLAY=:0 SSH_ASKPASS=$HOME/wbtmp/askpass.sh \
+        SSH_ASKPASS_REQUIRE=force ssh -o PubkeyAuthentication=no \
+        -o PreferredAuthentications=password -o NumberOfPasswordPrompts=1 \
+        -p $VM_SSH_PORT $VM_USER@$VM_HOST "echo PASSWORD_AUTH_OK"
+      判据：输出 PASSWORD_AUTH_OK。
+      若 Permission denied → 先区分密码错/空密码（空密码=两层串联拦截：OpenSSH
+      PermitEmptyPasswords 默认 no + LSA LimitBlankPasswordUse=1）→ 停下请用户设非空密码。
+  1.3 生成宿主密钥（已存在则跳过；⚠ 若 id_ed25519 兼 GitHub 推送凭据，先备份再动）：
+      [ -f ~/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+  1.4 写公钥到 VM 两处并收紧 ACL：
+      - C:/Users/$VM_USER/.ssh/authorized_keys
+      - C:/ProgramData/ssh/administrators_authorized_keys（Administrators 组成员只认这个）
+      - 对后者：icacls <file> /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F'
+      ⚠ 公钥含空格与 +/，禁止内联拼进 ssh 命令；base64 传参，由远端 .ps1 解码。
+      ⚠ 远端逻辑一律写 .ps1 → scp → powershell -NoProfile -ExecutionPolicy Bypass -File；
+        禁止内联 powershell -Command（本地 bash 会展开 $_ 导致 ParserError）。
+      ⚠ 追加而非覆盖：已存在则去重跳过，绝不覆盖他人 key。
+  1.5 判据（免密）：
+      ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
+          -o NumberOfPasswordPrompts=0 -p $VM_SSH_PORT $VM_USER@$VM_HOST whoami
+      → 输出用户名且退出码 0。
+
+────────────────────────────────────────
+Step 2 · 获取 Release 并三重校验（包已在 $DEPLOY_ROOT/overall-root 可跳下载，直接 2.3 校验）
+  2.1 下载（用绝对 URL，不要 releases/latest；github.com 本网段有抖动）：
+      mkdir -p $DEPLOY_ROOT/pkg
+      BASE=https://github.com/$REPO/releases/download/$RELEASE_TAG
+      curl -fsSL --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 \
+           --retry-all-errors -C - -o $DEPLOY_ROOT/pkg/$ZIP $BASE/$ZIP
+      curl -fsSL --connect-timeout 20 --max-time 120 --retry 5 --retry-delay 3 \
+           --retry-all-errors -o $DEPLOY_ROOT/pkg/$ZIP.sha256 $BASE/$ZIP.sha256
+      判据①：sha256sum -c $DEPLOY_ROOT/pkg/$ZIP.sha256 → OK
+  2.2 解压（zip 内含顶层 overall/）：
+      mkdir -p $DEPLOY_ROOT/overall-root
+      unzip -q -o $DEPLOY_ROOT/pkg/$ZIP -d $DEPLOY_ROOT/overall-root
+      包根 = $PKG_ROOT
+  2.3 包内完整性：
+      cd $PKG_ROOT && $PY qa/deploy-probes/verify-manifest.py .
+      判据②：RESULT: PASS（逐文件 sha256 + files/bytes 计数 + total-sha256 复算 + 无多余/缺失）
+      判据③：README.md / MANIFEST.txt / delivery/install-host.mjs / delivery/deploy-vm.mjs 均在；
+              V1.4.5 起包内自带 docs/deploy/ 三篇（本文母本的出处）可交叉核对。
+
+────────────────────────────────────────
+Step 3 · 部署 VM-service（用免密通道）
+  3.0 运行时前置自检（**硬门禁：缺一即中止，安装器不会代装**）：
+      cd $PKG_ROOT
+      scp qa/deploy-probes/vm-env-check.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vm-env-check.ps1
+      ssh $VM_USER@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vm-env-check.ps1'
+      判据：ENV_PRECHECK=PASS 且 BLOCKERS=none（NODE_OK / NPM_FOUND / CLI_OK 全 true）。
+      缺失按序补齐（前一项是后一项前提）：
+        - node<18 或无 node：有 nvm → `nvm install 24.21.0 && nvm use 24.21.0`；
+          无 nvm → 官方 MSI 静默装（需管理员 + 桌面会话）。
+          ⚠ 不要用 winget：经 ssh 非交互会话是 MSIX alias 空壳（--version 输出空且 exit 0）。
+        - 无 npm：随 Node 一起装，不要单独补。
+        - 无 codebuddy：`npm i -g @tencent-ai/codebuddy-code@latest`（无需提权；latest 不锁版本）。
+          ⚠ nvm 切版本会使全局 CLI 失效 → 换版本后必须重装。
+        - AUTH_VERDICT=installed-unverified → VM 内交互式跑一次 `codebuddy` 完成登录。
+      自动化（只补 CLI，已装则短路）：探针加 `-Fix`。
+  3.1 准备 .env：
+      cd $PKG_ROOT && cp -n .env.example .env
+      确认 VM_HOST=$VM_HOST / VM_USER=$VM_USER / VM_SSH_PORT=$VM_SSH_PORT /
+      VM_DEPLOY_DIR=C:/WinVMBridge / WINVM_SERVICE_PORT=18443 /
+      WINVM_VM_PROVIDER=workbuddy / WINVM_WORKBUDDY_CLI=codebuddy / WINVM_DRY_RUN=0
+  3.2 先规划再执行（--skip-build 必须加：发布包不含 src/tsc，dist 指纹在 MANIFEST）：
+      $NODE delivery/deploy-vm.mjs --skip-build --env=.env
+      $NODE delivery/deploy-vm.mjs --apply --skip-build --env=.env
+  3.3 判据（VM 本机探针一次取全）：
+      scp qa/deploy-probes/vmcheck.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vmcheck.ps1
+      ssh $VM_USER@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vmcheck.ps1'
+      要求：task_state=Running、listen_addr=127.0.0.1、listen_count=1、side_json=true、
+            bridge_dir=true、health_http=200、health_body.ok=true
+
+────────────────────────────────────────
+Step 4 · 安装宿主插件 + 隧道
+  4.1 一条命令（末尾自动拉起常驻隧道）：
+      cd $PKG_ROOT
+      $NODE delivery/install-host.mjs --yes --vm-host $VM_HOST --vm-user $VM_USER --vm-ssh-port $VM_SSH_PORT
+  4.2 判据①隧道：
+      $NODE ~/.workbuddy/plugins/cache/winvm/winvm-bridge/0.1.0/winvm-plugin.mjs tunnel status --json
+      → state=RUNNING、healthy=true、ownerMatch=true、stateStale=false
+      （⚠ 瞬态：刚清场重装时 TUNNEL 相位可能报 EADDRINUSE 但 HEALTH 相位 200=已自愈，别当失败处理）
+  4.3 判据②对账面：$NODE delivery/install-host.mjs --check-fresh → FRESH
+  4.4 判据③宿主健康：curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18443/health → 200
+  4.5 判据④高危闸门（落点=全局文件，不是 connectors/<acct>/）：
+      ~/.workbuddy/mcp.json 的 winvm 条目 disabledTools 长度必须为 8
+
+────────────────────────────────────────
+Step 5 · 全维度测试并出报告
+  5.1 MCP 面 20 项：$PY qa/deploy-probes/mcp-probe.py
+  5.2 A2A 面 5 项：$PY qa/deploy-probes/a2a-probe.py
+  5.3 示例能力 13 项：$PY qa/deploy-probes/example-probe.py
+      （⚠ 首跑若 E7/E8 报 PSBRIDGE_EXITED=重装窗口 ps-bridge 换代瞬态，复跑即稳；
+        稳定复现才按 ISSUES 排查。E11=键鼠防回归钉，必真跑）
+  判据：三个脚本 RESULT: PASS（20/20 + 5/5 + 13/13）
+  5.4 出报告 qa/real-test-<日期>-run<N>.md：健康/连接/功能抽样/失败四元组四张表 +
+      「可交付 / 有阻塞」明确结论。
+
+────────────────────────────────────────
+Step 6 交付引导（不参与部署判据，但决定任务通道路由正确）
+  6.1 skill 就位判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在 且
+      ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l == 8
+  6.2 通道三铁律：①风险优先（L2/L3 一律 a2a.delegate）②步骤定界（1~2 步可穷举走 MCP 直调）
+      ③先探后定（L0 读能力取事实；遇 DELEGATION_REQUIRED 立即转委派不重试）。
+  6.3 告知用户：不要让助手 ssh 进 VM 裸跑 PowerShell（绕过审批卡与审计回执）。
+
+【排错速查】
+- 密码拒绝 → 区分密码错/空密码（两层串联拦截）；首选设非空密码。
+- 公钥无效 → Administrators 成员必须写 C:/ProgramData/ssh/administrators_authorized_keys（icacls 用 SID）。
+- 部署报「✅ 完成」但服务没起 → .env WINVM_DRY_RUN 是否 =1。
+- 下载 (28) connect timeout → --retry-all-errors -C - 重试（链路抖动非封禁）。
+- 隧道 TCP 通但 HTTP 黑洞 → tunnel status 看 ownerMatch/stateStale，kill 旧 pid 后 ensure。
+- tools/list 见高危工具 → 正常（原始面恒列全 54），闸门在宿主 mcp.json disabledTools。
+- a2a.delegate 报 goal 必填 → 传 {"goal":"自然语言"}；无 /a2a/health 路由。
+========================================================================

@@ -2,7 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
-> 更新：2026-10-28（v1.7：版本引用同步 V1.4.5；包内已带 docs/deploy/ 三篇）
+> 更新：2026-10-29（v1.8：§3 总 Prompt 抽出为可整段粘贴的 `docs/deploy/deploy.prompt` 纯脚本并经真机回环验证）
 > 上游：`docs/deploy/deploy-strategy.md`（论证与实测记录）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/undeploy-prompts.md`（卸载 Prompt 总集，本文件的逆向镜像；清场重装 `--wipe` 前置拆除见彼文 §8）
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可从零驱动双端安装
@@ -559,4 +559,5 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
 | 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |
+| 2026-10-29 | v1.8 | **纯 Prompt 脚本抽面**：新增 `docs/deploy/deploy.prompt`（本文 §3 总 Prompt + 运行期注入变量段的独立可粘贴脚本，v1.0）；同日与 `undeploy.prompt` 一并真机回环验证（拆除 19/19+独立复核零残留 → 部署 Step 3.0~6.1 判据逐条一致，三探针 38/38 首跑即稳，报告 `qa/real-test-2026-10-29-run1.md`）。脚本自纠两口径：PKG_ROOT 双布局判定法（S-1）、U4.2 VM 复核禁内联 -Command 改 .ps1 -File（S-2，踩坑即固化警示）。是否入 OVERALL_DOCS 随包分发=下迭代统一裁定（backlog） |
 | 2026-10-28 | v1.7 | **V1.4.5 版本引用同步（迭代8）**：§2.2/总 Prompt/P2/§5 升 V1.4.5（zip `a225cc95…`/三元组 879/7580107/`88fd11c1…`——首打包早于 docs 同步，@6745a50 包已被 `V1.4.5.superseded-it1` 封存，**重打包 @76c0c65**）；V1.4.5=I-6.3 收编版（uninstall 对称修复入包+pack V7 断言）且**包内新带 docs/deploy/ 三篇 Prompt 总集**——Step 2 起包根内即可直读本文与 undeploy-prompts |

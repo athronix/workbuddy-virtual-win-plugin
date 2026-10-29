@@ -24,6 +24,7 @@
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
 ## backlog（P2）
+- **`.prompt` 纯脚本入包与否（10-29 新增，待迭代裁定）**：`docs/deploy/deploy.prompt`/`undeploy.prompt` v1.0（总集 §3 独立粘贴版+运行期变量）已真机回环验证（报告 real-test-2026-10-29-run1.md，拆 19/19+装 38/38）。若入 OVERALL_DOCS=改三元组判据面，与 10-28 三篇同路径收编——勿单独塞。**注意时序教训：pack 前文档先 commit**。
 - ~~打包 docs 面口径疑点~~ → **10-28 裁定并入包（V1.4.5/迭代8）**：OVERALL_DOCS 增 `docs/deploy/` 三篇（子目录化拷贝+PACKAGE_REQUIRED 断言）；三元组随之=879/7580107/88fd11c1…。注意时序教训：**pack 前一切文档改动先 commit**（首打包早于 docs 同步=superseded-it1 重打案例）。
 - ~~I-6.3 uninstall.mjs 镜像不对称~~ → **10-28 随 V1.4.5 入包关闭（迭代8）**：cleanGlobalMcpJson+markers 补名；V7 断言首战通过+包内 uninstall 实弹拆除 19/19。教训留册：自报全绿≠拆干净，不对称靠**独立复核面**抓（undeploy U4.2）。
 - **I-6.1 gui.ps1 PS5.1 `Marshal::SizeOf([Type])` 真 bug（10-27 发现并已修）**：键鼠输入自上线从未真跑通（20 项验收不含键鼠写面）；修复=实例重载 `SizeOf($arr[0])`+防回归钉 example-probe E11。已随 V1.4.4（2789957，2026-10-27）关闭：修复入包 + pack V6 断言钉死 cbSize + 清场重装 25/25 + example 13/13（ISSUES 迭代6 追加/迭代7、strategy §9.3）。教训：**能力写面必须真跑**，静态核对会漏 P1。**
