@@ -1,0 +1,33 @@
+
+== pack-release V1.4.8 @ 8929c97 ==
+· 组装 host/（install-host 闭包）
+· 组装 vm/（deploy-vm 闭包）
+· 组装 overall/（整体包 = host ∪ vm ∪ 编排与文档）
+· 包内验证（V2 host 闭包 / V3 vm 闭包 / V4 能力计数）
+  ✓ V1 host 必存文件
+  ✓ V1 vm 必存文件
+  ✓ V1 overall 必存文件
+  ✓ V2 host 闭包 dry-run（exit 0）
+  ✓ V3 vm 闭包 dry-run（exit 0）
+  ✓ V5 host install-host 含 NON_ACCOUNT_DIRS
+  ✓ V5 overall install-host 含 NON_ACCOUNT_DIRS
+  ✓ V6 vm gui.ps1 含键鼠修复(cbSize)
+  ✓ V6 overall gui.ps1 含键鼠修复(cbSize)
+  ✓ V7 overall uninstall 含全局 mcp 对称清理(cleanGlobalMcpJson)
+  ✓ V8 deploy/deploy-strategy.md 含权威校验源口径
+  ✓ V8 deploy/deploy-prompts.md 含权威校验源口径
+  ✓ V9 verify-manifest 含运行期白名单
+  ✓ V9 verify-release 含运行期白名单
+  ✓ V9 vmcheck 含 UTF-8 解码修复
+  ✓ V4 能力计数=54（exit 0）
+· 生成 overall zip + sha256 旁挂（GitHub Release 分发单元）
+
+✓ 发布包已生成：release/V1.4.8
+  host    848 文件 / 6744K / sha256 f01fdbffaecc32b1…
+  vm      345 文件 / 2857K / sha256 800efccbd8a63982…
+  overall 881 文件 / 7442K / sha256 efb4a6ce691fbc87…
+  overall-zip release/V1.4.8/winvm-overall-V1.4.8.zip / 2785K / sha256 602d303e16baecc4…  旁挂 release/V1.4.8/winvm-overall-V1.4.8.zip.sha256  →上架：node delivery/publish-release.mjs --tag V1.4.8 --zip release/V1.4.8/winvm-overall-V1.4.8.zip [--apply]
+  证据：qa/release/V1.4.8-pack.txt
+
+下一步：cd release/V1.4.8/overall && bash deploy-all.sh --wipe   （清空历史部署后整体重装；bash 显式解释防 hmdfs 丢执行位）
+
