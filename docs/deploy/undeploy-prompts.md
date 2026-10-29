@@ -5,7 +5,7 @@
 > **2026-10-27 回环实测（run1）**：按本文 U0~U4 拆除 → deploy-prompts Step 3~5 重装 → 三探针 38/38 全绿；
 > 实测揪出并修复两处镜像不对称（U-1 全局 mcp.json 不清、U-2 tunnel-autostart.json 残留，见 §9 v1.1）。
 > 证据：`qa/evidence/uninstall-pre-run3.log`（16 项）、`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）、`qa/real-test-2026-10-27-run1.md`（拆除 19/19 + 重装回绿）
-> 更新：2026-10-29（v1.5：配套 deploy-prompts v2.1 权威校验源口径；随 V1.4.7 分发）
+> 更新：2026-10-29（v1.6：第三轮往返 run2 验证通过；排错补 I-6.4 白名单口径）
 > 上游：`delivery/uninstall.mjs`（双端一键卸载器，本文件的判据真源）、`docs/deploy/deploy-strategy.md` §6（回滚与清理）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/deploy-prompts.md`（部署 Prompt 总集）——本文件是它的**逆向镜像**
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可把双端部署**干净拆除**，或为清场重装（`--wipe`）做准备

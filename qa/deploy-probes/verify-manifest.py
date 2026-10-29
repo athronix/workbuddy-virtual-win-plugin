@@ -75,7 +75,11 @@ def main() -> int:
                 continue
             on_disk.add(rel)
     declared = {r for r, _ in rows}
-    extra = sorted(on_disk - declared)
+    # 安装体系在已部署包根自写的运行期产物，非"多余文件"（10-29 三轮回环实测：
+    # 对已安装态包根跑 Step 2.3 时 .env 与 winvm-plugin 启动器必存在，原判据假 FAIL）。
+    # 纯净回环解包面这些文件不存在，白名单不影响其检出力。
+    runtime_ok = {".env", "delivery/winvm-plugin", "delivery/winvm-plugin.cmd"}
+    extra = sorted(on_disk - declared - runtime_ok)
 
     print(f"pkg            : {root}")
     print(f"files declared : {declared_files}  (rows={len(rows)}, on-disk={len(on_disk)})")

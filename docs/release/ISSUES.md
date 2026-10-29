@@ -256,3 +256,9 @@
 | 清场重装（--wipe 铁律） | 包根切 V1.4.7（v146-backup/.env 迁移）；**包内 uninstall 实弹 19/19**+独立复核（000/GLOBAL_MCP_CLEAN）；setup 七相位 rc=0；mcp 20/20+a2a 5/5+example 13/13；FRESH、disabledTools=8、连接器 8 skill、VM cbSize×4、health=200 | 本会话日志 |
 
 **结论：迭代 10 关闭。当前线上版本=V1.4.7。发布链断言面=V1–V8。**
+
+### 迭代10 追加 · I-6.4（2026-10-29，.prompt 第三轮往返 run2 发现）
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.4** | P2 | 探针面双缺陷（往返 run2 `qa/real-test-2026-10-29-run2.md`）：**D-1** `verify-manifest.py`/`verify-release.mjs` 对**已安装态包根**假 FAIL——安装体系自写的运行期产物（`.env`=Step 3.1 配置、`delivery/winvm-plugin(.cmd)`=install-host 管理 CLI 启动器）被判 undeclared（前两轮 Step 2.3 从未在此场景跑过，本轮按脚本"包已在本地直接 2.3"路径首触暴露）；修复=runtime 白名单三条目，**四场景回归**（已装态 PASS/纯净面 PASS/verify-release PASS/canary 负例仍 FAIL=检出力未削弱）。**D-2** `vmcheck.ps1` 输出 GBK 双坑（PS5.1 `Content` 无 charset JSON 按 GBK 解码 + 重定向 stdout 按控制台码页编码中文 health_body→宿主 UTF-8 消费者解析炸）；修复=`RawContentStream` 显式 UTF-8 解码 + `[Console]::OutputEncoding=UTF8`，**探针文件保持 ASCII-only**（带中文注释的修复版远端解析异常，二次坐实既有规范）；VM 复测 2537 B 全 UTF-8 判据直读。教训：**探针判据面要跑遍"已装态/纯净态"两种宿主场景**；脚本内"latest 现解"指引（V1.4.7 自指根除面）本轮首战生效——示例值 V1.4.6 未误导。 | 已修复（HEAD·源码+文档）；⚠ 晚于 V1.4.7 打包（探针在包内分发面）→ 随下一迭代自然收编（同款 I-6.3 路径，非阻断：包内旧探针仅在"已装态跑 2.3"场景假 FAIL，可目视豁免；纯净回环面不受影响）。可考虑下迭代给 pack 加探针指纹断言（V9=包内 verify-manifest 必含 RUNTIME_OK 白名单），待裁定 |

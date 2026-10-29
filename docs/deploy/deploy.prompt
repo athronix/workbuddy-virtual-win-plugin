@@ -76,7 +76,9 @@ Step 2 · 获取 Release 并三重校验（包已在 $DEPLOY_ROOT/overall-root �
       包根 = $PKG_ROOT
   2.3 包内完整性：
       cd $PKG_ROOT && $PY qa/deploy-probes/verify-manifest.py .
-      判据②：RESULT: PASS（逐文件 sha256 + files/bytes 计数 + total-sha256 复算 + 无多余/缺失）
+      判据②：RESULT: PASS（逐文件 sha256 + files/bytes 计数 + total-sha256 复算 + 无多余/缺失；
+            已安装态包根下 .env 与 delivery/winvm-plugin(.cmd) 为安装体系运行期自写产物，
+            V1.4.8 起探针白名单豁免——旧包内探针在此场景会假 FAIL，见 ISSUES I-6.4）
       判据③：README.md / MANIFEST.txt / delivery/install-host.mjs / delivery/deploy-vm.mjs 均在；
               V1.4.5 起包内自带 docs/deploy/ 三篇（本文母本的出处）可交叉核对。
 
@@ -150,5 +152,6 @@ Step 6 交付引导（不参与部署判据，但决定任务通道路由正确�
 - 下载 (28) connect timeout → --retry-all-errors -C - 重试（链路抖动非封禁）。
 - 隧道 TCP 通但 HTTP 黑洞 → tunnel status 看 ownerMatch/stateStale，kill 旧 pid 后 ensure。
 - tools/list 见高危工具 → 正常（原始面恒列全 54），闸门在宿主 mcp.json disabledTools。
+- vmcheck 输出解析炸（invalid start byte）→ 旧探针 GBK 双坑（PS5.1 Content 解码+控制台码页）；V1.4.8 起探针已修（UTF-8 直读），旧包内用字节容错解码兜底。
 - a2a.delegate 报 goal 必填 → 传 {"goal":"自然语言"}；无 /a2a/health 路由。
 ========================================================================

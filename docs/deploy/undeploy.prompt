@@ -96,4 +96,5 @@ U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得�
 - 隧道想 pkill -f → 禁止；只按 tunnel.pid 记录的 PID 精确 kill。
 - 反复清场第二轮报 VM 相位 SKIPPED → 显式传 --vm-host/--vm-user（vm-conn.json 首轮已删）。
 - git push 突然 Permission denied → 误删了一号多用的 id_ed25519；恢复为 id_ed25519_github 独立文件。
+- 重装后 Step 2.3 在包根报 undeclared `.env`/`delivery/winvm-plugin` → 安装体系运行期自写产物（V1.4.8 起白名单豁免，ISSUES I-6.4）；旧探针下这两行可目视豁免、其余多余文件仍须查。
 ========================================================================

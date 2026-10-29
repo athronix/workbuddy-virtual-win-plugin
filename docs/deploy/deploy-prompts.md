@@ -2,7 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
-> 更新：2026-10-29（v2.1：§2.2 校验面改权威源口径（MANIFEST-sidecar-authoritative），根除包内快照自指陈旧；pack 新增 V8 断言钉死）
+> 更新：2026-10-29（v2.2：第三轮 .prompt 往返 run2 验证通过（拆 19/19+装 38/38）；抓出 I-6.4 探针双缺陷已修 HEAD）
 > 上游：`docs/deploy/deploy-strategy.md`（论证与实测记录）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/undeploy-prompts.md`（卸载 Prompt 总集，本文件的逆向镜像；清场重装 `--wipe` 前置拆除见彼文 §8）
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可从零驱动双端安装
@@ -178,7 +178,7 @@ Step 2 · 获取 Release 并三重校验
       包根 = ~/winvm-deploy/overall-root/overall
   2.3 包内完整性：
       python3 qa/deploy-probes/verify-manifest.py $PKG_ROOT
-      判据②：RESULT: PASS（逐文件 sha256 + files/bytes 计数 + total-sha256 复算 + 无多余/缺失）
+      判据②：RESULT: PASS（逐文件 sha256 + files/bytes 计数 + total-sha256 复算 + 无多余/缺失；已装态包根下 .env 与 delivery/winvm-plugin(.cmd) 为运行期自写产物，V1.4.8 起白名单豁免=ISSUES I-6.4）
       判据③：README.md / MANIFEST.txt / delivery/install-host.mjs / delivery/deploy-vm.mjs 均在
   若下载 connect timeout：先 curl -I https://github.com 数次，能拿到 200 即链路抖动，重试即可。
 

@@ -87,7 +87,10 @@ for (const [rel, sha] of rows) {
 // ---- 3) 多余文件 ----
 const onDisk = new Set(walkFiles(root).map(relOf).filter((r) => r !== 'MANIFEST.txt'));
 const declared = new Set(rows.map(([r]) => r));
-const extra = [...onDisk].filter((r) => !declared.has(r)).sort();
+// 安装体系在已部署包根自写的运行期产物不算"多余"（同 verify-manifest.py，10-29 三轮回环实测）：
+// .env=Step 3.1 用户配置、winvm-plugin(.cmd)=install-host 管理 CLI 启动器——纯净回环解包面无此二者，白名单不削弱检出力。
+const RUNTIME_OK = new Set(['.env', 'delivery/winvm-plugin', 'delivery/winvm-plugin.cmd']);
+const extra = [...onDisk].filter((r) => !declared.has(r) && !RUNTIME_OK.has(r)).sort();
 
 // ---- 4) V5 NON_ACCOUNT_DIRS 硬断言（overall 包，G-1 防回归）----
 let guardCheck = { ran: false, ok: true, detail: 'skipped' };

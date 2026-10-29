@@ -24,6 +24,7 @@
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
 ## backlog（P2）
+- **I-6.4 探针面双缺陷（10-29 第三轮往返 run2 发现并已修 HEAD）**：D-1 verify-manifest.py/verify-release.mjs 对**已装态包根**假 FAIL（安装体系运行期自写产物 `.env`/`delivery/winvm-plugin(.cmd)` 被判多余——前两轮 Step 2.3 从未在此场景跑，本轮按 .prompt 直跑路径首触）；修复=runtime 白名单三条+四场景回归（含 canary 负例仍 FAIL=检出力未削）。D-2 vmcheck.ps1 GBK 双坑（PS5.1 Content 无 charset JSON 按 GBK 解码+重定向 stdout 控制台码页）→ RawContentStream 显式 UTF-8+`[Console]::OutputEncoding=UTF8`，**探针 ASCII-only 二次坐实**。⚠ 晚于 V1.4.7 打包→随下迭代收编；建议下迭代给 pack 加 **V9 断言**（包内 verify-manifest 必含 RUNTIME_OK）待裁定。教训：**探针判据要跑遍已装态/纯净态两场景**。
 - ~~`.prompt` 纯脚本入包与否~~ → **10-29 用户裁定并入包（迭代9/V1.4.6）**：OVERALL_DOCS+PACKAGE_REQUIRED 收编两脚本；README §5.4 配置用法说明。时序教训沿用：**pack 前一切文档改动先 commit**（V1.4.5 superseded-it1 案）。
 - ~~打包 docs 面口径疑点~~ → **10-28 裁定并入包（V1.4.5/迭代8）**：OVERALL_DOCS 增 `docs/deploy/` 三篇（子目录化拷贝+PACKAGE_REQUIRED 断言）；三元组随之=879/7580107/88fd11c1…。注意时序教训：**pack 前一切文档改动先 commit**（首打包早于 docs 同步=superseded-it1 重打案例）。
 - ~~I-6.3 uninstall.mjs 镜像不对称~~ → **10-28 随 V1.4.5 入包关闭（迭代8）**：cleanGlobalMcpJson+markers 补名；V7 断言首战通过+包内 uninstall 实弹拆除 19/19。教训留册：自报全绿≠拆干净，不对称靠**独立复核面**抓（undeploy U4.2）。
