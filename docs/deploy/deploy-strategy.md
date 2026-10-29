@@ -53,7 +53,7 @@
 |---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | latest 跳转链接 | ☐ |
-| `RELEASE_TAG` | `V1.4.6`（示例值——**以 latest API 现解为准**；2026-10-29 上架；历史 run 用 `V1.4.5`/`V1.4.4`） | 发布标签 | ☐ |
+| `RELEASE_TAG` | `V1.4.7`（示例值——**以 latest API 现解为准**；2026-10-29 上架；历史 run 用 `V1.4.6`/`V1.4.5`） | 发布标签 | ☐ |
 | `ZIP_NAME` | `winvm-overall-V1.4.3.zip` | 分发单元（V1.4.3 起含 delivery/tools/ + qa/deploy-probes/ + verify-release.mjs） | ☐ |
 | `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：release 旁挂 `.zip.sha256` 现取现验（`sha256sum -c`）；V1.4.6 回环样例 `dc417bf2…` | 整包校验值 | ☐ |
 | `PKG_FILES` / `PKG_BYTES` / `PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：包内 `MANIFEST.txt` 头七行为权威，verify-manifest/verify-release 复算即验；历史样例 V1.4.6=881/7606427/`2562a598…`、V1.4.5=879/7580107/`88fd11c1…` | MANIFEST 三元组（重装核对用） | ☐ |
@@ -762,7 +762,7 @@ node delivery/uninstall.mjs --apply --purge-workspace   # 连工作区一起清�
 
 【环境常量】VM_HOST=172.16.100.2  VM_USER=User  VM_SSH_PORT=22  SERVICE_PORT=18443
   VM_DEPLOY_DIR=C:/WinVMBridge  PROVIDER=workbuddy  WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.6  ZIP=winvm-overall-V1.4.6.zip
+  RELEASE_TAG=V1.4.7  ZIP=winvm-overall-V1.4.7.zip
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
             python3=/data/service/hnp/bin/python3；有 ssh/scp/unzip/sha256sum/curl；无 sshpass
 【安全红线】不要把密码写进任何文件/提交；不要在日志里回显密码。

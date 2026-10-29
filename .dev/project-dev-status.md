@@ -97,7 +97,7 @@
 | **CL-WBNATIVE（workbuddy-native ACP）** | ⏸ DEFERRED | 用户裁定维持 workbuddy+codebuddy 现状；取证归档 `docs/archive/changes/CL-WBNATIVE/` |
 
 | **Step 6.3 全矩阵补测（10-27）** | ✅ 9 场景 100% 实跑 | example-probe 8→13（含 E11 键鼠防回归钉）；mcp 20/20 + a2a 5/5 + A2A 多步委派 65.3s；**发现修复 gui.ps1 PS5.1 SizeOf 真 bug**（键鼠此前从未真跑通）；**V1.4.4（2789957）已上架**：pack V6 断言钉死 cbSize、清场重装 25/25 + example 13/13，I-6.1 已闭环。见 strategy §9.3 / ISSUES 迭代7 |
-| **undeploy-prompts 立项+回环实测+V1.4.5 收编（10-27/28）** | ✅ v1.3；回环 38/38；I-6.3 入包 | deploy-prompts 逆向镜像。回环实测揪出 `uninstall.mjs` 两处镜像不对称并修复：U-1 全局 `~/.workbuddy/mcp.json` winvm 键不清（新增 cleanGlobalMcpJson）、U-2 `tunnel-autostart.json` 残留（补 markers）；核验清单动态 16→19 项口径、§8 --vm-host 兜底、排错补 2 条瞬态。⚠ 修复晚于 V1.4.4 打包（ISSUES 迭代7 追加） |
+| **undeploy-prompts 立项+回环实测+V1.4.5 收编（10-27/28）** | ✅ v1.5；回环 38/38；I-6.3 入包 | deploy-prompts 逆向镜像。回环实测揪出 `uninstall.mjs` 两处镜像不对称并修复：U-1 全局 `~/.workbuddy/mcp.json` winvm 键不清（新增 cleanGlobalMcpJson）、U-2 `tunnel-autostart.json` 残留（补 markers）；核验清单动态 16→19 项口径、§8 --vm-host 兜底、排错补 2 条瞬态。⚠ 修复晚于 V1.4.4 打包（ISSUES 迭代7 追加） |
 | **纯 Prompt 脚本抽面+回环+V1.4.6 入包（10-29）** | ✅ v1.1 随包分发；拆 19/19+装 38/38 | deploy-prompts §3/undeploy-prompts §3 各抽出独立可粘贴脚本（运行期注入变量+判据内嵌）；真机往返验证全判据逐条一致（`qa/real-test-2026-10-29-run1.md`、证据 `qa/evidence/prompt-test-20261029/` 8 日志）；脚本自纠 S-1 PKG_ROOT 双布局、S-2 U4.2 禁内联 -Command（血泪坑撰写当场重现即固化）；入包与否=下迭代裁定（backlog） |
 
 > 测试基线权威口径不变：`qa/p3-batch-sweep/` 最新 `gate-*.txt` 汇总行（2280 GREEN 快照）；本表不重复记数字。

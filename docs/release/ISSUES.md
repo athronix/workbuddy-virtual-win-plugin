@@ -241,3 +241,18 @@
 | 结构性口径 | **包内自指限制**：deploy-prompts §2.2 版本表在 V1.4.6 包内快照仍写 V1.4.5（zip sha 自指——pack 后订正属仓库面，再重打必再次自指）。权威校验值=包内 `MANIFEST.txt`+旁挂 `.zip.sha256`（verify-manifest/verify-release 即读它）；口径已在 deploy-prompts v2.0 与 strategy §0.5-B 注明 | 本文行即记录 |
 
 **结论：迭代 9 关闭。当前线上版本=V1.4.6。**
+
+
+## 迭代10 · V1.4.7（2026-10-29，完善版：文档自指根除——开账即关）
+
+> 状态：**已关闭**。动因=用户「需要完善都完善发布一下」→ 把迭代9 登记的**结构性自指口径**从"注明限制"升级为"根除"：取消文档逐版本硬编码校验值。运行码同 V1.4.6。
+
+| 项 | 内容 | 证据 |
+|---|---|---|
+| 自指根除 | deploy-prompts §2.2 + strategy §0.5-B：`ZIP_SHA256`/`PKG 三元组`改**权威源口径**（标记 `MANIFEST-sidecar-authoritative`=旁挂 sidecar `sha256sum -c` + 包内 `MANIFEST.txt` 头七行 verify-manifest 复算）；`RELEASE_TAG` 标注"示例值+latest API 现解为准"；deploy.prompt 注入段同步改指引。历史逐版本值降级为"历史样例"保留（不再承担核对职责） | 包内解包核验：三篇文档均含标记（strategy×3/prompts×4 处） |
+| V8 断言 | pack-release 新增 **V8**：包内 `docs/deploy/deploy-strategy.md`/`deploy-prompts.md` 必含 `MANIFEST-sidecar-authoritative`，缺失 fail-loud 拒产包=口径倒退机械化封堵（V5/V6/V7 同款思路）；断言面升 **V1–V8** | `qa/release/V1.4.7-pack.txt`（@edd7e78，V1–V8 全绿、V8 首战通过） |
+| 时序纪律 | 完善批先 commit（edd7e78）→ 再 pack；tag 直指包源点 | 本行即记录 |
+| 上架+回环 | 双资产上架、latest API=V1.4.7；匿名 api-asset 下载一次成功、三向 sha 一致 `a5ac52b7…`；解包核验 docs/deploy 五件+三篇同步版（v2.1/v3.7/v1.5）含权威口径+uninstall 含 cleanGlobalMcpJson；verify-manifest/verify-release 双 PASS | `~/winvm-deploy/v147-loop/` |
+| 清场重装（--wipe 铁律） | 包根切 V1.4.7（v146-backup/.env 迁移）；**包内 uninstall 实弹 19/19**+独立复核（000/GLOBAL_MCP_CLEAN）；setup 七相位 rc=0；mcp 20/20+a2a 5/5+example 13/13；FRESH、disabledTools=8、连接器 8 skill、VM cbSize×4、health=200 | 本会话日志 |
+
+**结论：迭代 10 关闭。当前线上版本=V1.4.7。发布链断言面=V1–V8。**
