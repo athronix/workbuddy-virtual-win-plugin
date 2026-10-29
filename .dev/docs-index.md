@@ -18,7 +18,7 @@
 10.1a `docs/deploy/通过铠大师app安装部署.md` —— 铠大师 App 新机部署**方案**（V1/R2，Release 匿名下载起点；§5.2 install prompt 模板 / deploy-report.json 契约 / G1–G12 坑清单）
 10.1b `docs/deploy/铠大师app功能规格书.md` —— 铠大师 K1–K3 **功能规格**（V1.3，C-1~C-5 契约 / F-01~F-10 / Q-1~Q-6 裁决；winvm-prepare.ps1 单一真相源）
 10.2 `docs/deploy/deploy-prompts.md` —— **部署 Prompt 总集（现 v1.8，版本引用=V1.4.5；V1.4.5 起随发布包分发）**：待确认变量表（§2 七组）+ 总 Prompt（一键粘贴，Step 1~6）+ 分步 Prompt P1~P6 + 验收命令速查 + §8 异常处置与决策交互协议 + 排错 + 待确认清单
-10.3a `docs/deploy/deploy.prompt` / `docs/deploy/undeploy.prompt` —— **纯 Prompt 一键粘贴脚本（各 v1.0）**：§3 总 Prompt+运行期注入变量的独立脚本版，10-29 真机回环双向验证通过（`qa/real-test-2026-10-29-run1.md`）；是否入发布包=下迭代统一裁定
+10.3a `docs/deploy/deploy.prompt` / `docs/deploy/undeploy.prompt` —— **纯 Prompt 一键粘贴脚本（各 v1.0，V1.4.6 起随发布包分发）**：§3 总 Prompt+运行期注入变量的独立脚本版，10-29 真机回环双向验证通过（`qa/real-test-2026-10-29-run1.md`）；配置与用法=README §5.4 / 包 README 快速指引
 10.3 `docs/deploy/undeploy-prompts.md` —— **卸载 Prompt 总集（现 v1.3，deploy-prompts 的逆向镜像；10-27 回环实测→修复 uninstall 两处不对称→I-6.3 已随 V1.4.5 入包+V7 断言钉死；V1.4.5 起随发布包分发）**：拆除范围开关表 + §2.3 十八落点镜像清单（对照 uninstall.mjs 头注）+ 总 Prompt U0~U5（DRY-RUN 先行→apply→POST-CLEANUP 核验→存留项逐项问用户）+ 分步 U1~U5 + 核验速查（独立复核防假 PASS）+ 排错 + §7 卸载后存留项 + §8 `--wipe` 清场重装衔接（保留密钥）
 11. `docs/05-peripherals/SCENARIOS.md` —— 应用场景故事/流程/机制/demo（含 Photoshop 大山→海洋 LLM 端到端）
 12. `docs/05-peripherals/USER-MANUAL.md` —— 用户手册

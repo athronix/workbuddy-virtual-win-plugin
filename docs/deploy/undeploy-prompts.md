@@ -5,7 +5,7 @@
 > **2026-10-27 回环实测（run1）**：按本文 U0~U4 拆除 → deploy-prompts Step 3~5 重装 → 三探针 38/38 全绿；
 > 实测揪出并修复两处镜像不对称（U-1 全局 mcp.json 不清、U-2 tunnel-autostart.json 残留，见 §9 v1.1）。
 > 证据：`qa/evidence/uninstall-pre-run3.log`（16 项）、`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）、`qa/real-test-2026-10-27-run1.md`（拆除 19/19 + 重装回绿）
-> 更新：2026-10-29（v1.3：§3 总 Prompt 抽出为可整段粘贴的 `docs/deploy/undeploy.prompt` 纯脚本并经真机回环验证）
+> 更新：2026-10-29（v1.4：`undeploy.prompt` 随 V1.4.6 入发布包分发；配置与用法见包/仓库 README §5.4）
 > 上游：`delivery/uninstall.mjs`（双端一键卸载器，本文件的判据真源）、`docs/deploy/deploy-strategy.md` §6（回滚与清理）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/deploy-prompts.md`（部署 Prompt 总集）——本文件是它的**逆向镜像**
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可把双端部署**干净拆除**，或为清场重装（`--wipe`）做准备
@@ -372,5 +372,6 @@ ssh User@172.16.100.2 'powershell -NoProfile -Command "Get-ScheduledTask -TaskNa
 |---|---|---|
 | 2026-10-27 | v1.0 | 首版：作为 `deploy-prompts.md` 的逆向镜像。结构对齐部署文档（使用方式/变量表/总 Prompt U1~U5/分步 Prompt/核验速查/排错/存留项/清场重装衔接/变更记录）。拆除清单取自 `delivery/uninstall.mjs` 头注（§2.3 逐条镜像安装体系 17 落点）；核验判据取自真机 `qa/evidence/uninstall-pre-run3.log`（16 项）与 `qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）的 POST-CLEANUP VERIFICATION；强调三条设计红线（镜像拆除不越界、宿主删除移入 trash 可回滚、OS 级配置与 SSH 密钥永不触碰）+ 独立复核防假 PASS + 一号多用密钥坑 + `--wipe` 清场重装衔接（保留密钥） |
 | 2026-10-27 | v1.1 | **回环实测（run1，`qa/real-test-2026-10-27-run1.md`）驱动修订**：U0~U4 拆除→Step 3~5 重装→三探针 38/38 全绿。揪出并修复 `uninstall.mjs` 两处镜像不对称——**U-1 全局 `~/.workbuddy/mcp.json` 的 winvm/winvm-a2a 键不清**（install-host 全局注册面，disabledTools 落点；新增 `cleanGlobalMcpJson`+核验行）、**U-2 `tunnel-autostart.json` 不在 markers**（会话自启标记残留=拆后重开 WB 会 ensure 死隧道；补入 markers+核验行）。落点表 17→**18 项**、核验清单口径改「全 PASS 零 FAIL，动态 16→19 项」；§8 补反复清场 `--vm-host` 兜底（vm-conn.json 首轮即删）；排错表补 TUNNEL EADDRINUSE 瞬态与 ps-bridge 换代抖动（E7/E8 首跑 FAIL 复跑稳）两条。⚠ 修复晚于 V1.4.4 打包 → 包内 uninstall.mjs 仍旧版（ISSUES I-6.3；用户裁定：随下迭代收编，pack V7 硬断言钉死「包内 uninstall 必含 cleanGlobalMcpJson」） |
+| 2026-10-29 | v1.4 | **`.prompt` 入包裁定落地（迭代9/V1.4.6）**：`undeploy.prompt` 并入 `OVERALL_DOCS`+`PACKAGE_REQUIRED` 断言，随 V1.4.6 分发；README §5.4 增卸载四步（DRY-RUN 安全阀→apply→19 项核验+独立复核→U5 存留项逐项问） |
 | 2026-10-29 | v1.3 | **纯 Prompt 脚本抽面+二次回环**：新增 `docs/deploy/undeploy.prompt`（本文 §3 + 运行期注入变量的独立可粘贴脚本，v1.0）；与 deploy.prompt 同日真机往返验证=拆除 19/19 全 PASS + 独立复核（000/GLOBAL_MCP_CLEAN/VM 五连 False/False/0/Running/True）零残留 + 重装 38/38（`qa/real-test-2026-10-29-run1.md`）。脚本自纠：U4.2 VM 复核禁止内联 `-Command`（`$null` 被本地 bash 展开→ParserError，血泪坑重现于新脚本撰写当场）→ 改临时 .ps1+scp+`-File` 并内置警示；PKG_ROOT 双布局 ls MANIFEST 判定。是否入包=下迭代统一裁定 |
 | 2026-10-28 | v1.2 | **迭代8 · V1.4.5 收编闭环**：① I-6.3 修复正式入包——V1.4.5 打包 V7 断言当场通过（包内 `delivery/uninstall.mjs` 含 `cleanGlobalMcpJson`），「修复晚于打包」盲区就此机械化封堵；② **本文与 deploy 两篇首次进入发布包**（`docs/deploy/` 三篇，OVERALL_DOCS 收编 + PACKAGE_REQUIRED 存在性断言）——纯 Release 装机者解包即得部署/卸载 Prompt 总集，零仓库依赖 |

@@ -176,6 +176,8 @@ const PACKAGE_REQUIRED = {
     'docs/DEPLOYMENT.md', 'docs/RELEASE-V1.4.0.md', 'docs/issues.md',
     // V1.4.5 收编项（Prompt 总集三篇）的包内存在性（漏收=打包 fail-loud）
     'docs/deploy/deploy-strategy.md', 'docs/deploy/deploy-prompts.md', 'docs/deploy/undeploy-prompts.md',
+    // V1.4.6 收编项（10-29 裁定：纯 Prompt 一键粘贴脚本两篇）
+    'docs/deploy/deploy.prompt', 'docs/deploy/undeploy.prompt',
     'tools/winvm-prepare.ps1',
     // V1.4.3 收编项的包内存在性（漏收=打包 fail-loud）
     'delivery/tools/diagnose-connectors.mjs', 'delivery/verify-release.mjs',
@@ -196,6 +198,10 @@ const OVERALL_DOCS = [
   ['docs/deploy/deploy-strategy.md', 'deploy/deploy-strategy.md'],
   ['docs/deploy/deploy-prompts.md', 'deploy/deploy-prompts.md'],
   ['docs/deploy/undeploy-prompts.md', 'deploy/undeploy-prompts.md'],
+  // V1.4.6 收编（10-29 裁定）：纯 Prompt 一键粘贴脚本两篇入包——装机者解包后
+  // 直接把 docs/deploy/deploy.prompt / undeploy.prompt 整段粘给 WorkBuddy 即可部署/拆除。
+  ['docs/deploy/deploy.prompt', 'deploy/deploy.prompt'],
+  ['docs/deploy/undeploy.prompt', 'deploy/undeploy.prompt'],
 ];
 
 /* ------------------------------ 组装 ------------------------------ */
@@ -624,7 +630,12 @@ function main() {
       '- host 包与 vm 包的全部条目（并集，共享同一闭包）',
       '- `delivery/bootstrap.mjs` / `prepare-vm.mjs`：环境自检 + SSH 信任 + env 生成（备环境）',
       '- `delivery/uninstall.mjs`：双端清场（回收站可恢复）',
-      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账 / **deploy/ 三篇**（部署策略 deploy-strategy + 部署 Prompt 总集 deploy-prompts + 卸载 Prompt 总集 undeploy-prompts）',
+      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账 / **deploy/ 五件**（部署策略 deploy-strategy + 部署 Prompt 总集 deploy-prompts + 卸载 Prompt 总集 undeploy-prompts + **一键粘贴脚本 deploy.prompt / undeploy.prompt**——整段复制给 WorkBuddy 即可安装/卸载，用法见下方「快速部署/卸载」）',
+      '## 快速部署/卸载（零仓库）',
+      '1. 解压本包 → 解出目录即包根（含 `MANIFEST.txt` 与 `delivery/`）。',
+      '2. 打开 `docs/deploy/deploy.prompt`，先把【运行期注入】段里的 `VM_HOST` / `VM_USER` / `PKG_ROOT`（=包根绝对路径）等按实际环境改好。',
+      '3. 整段复制粘贴给 WorkBuddy（鸿蒙宿主）新会话，即按 Step 1→6 自动部署，每步带判据自检。',
+      '4. 卸载同理：整段粘贴 `docs/deploy/undeploy.prompt`（U0→U5，DRY-RUN 先行，默认保留工作区与 SSH 密钥）。',
       '',
       '## 一键部署',
       '```bash',
