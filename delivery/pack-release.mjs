@@ -505,6 +505,15 @@ function verifyPackages(dest, version) {
     results.push({ label: 'V7 overall uninstall 含全局 mcp 对称清理(cleanGlobalMcpJson)', ok: hit3, status: hit3 ? 0 : 1, tail: '' });
     console.log(`  ${hit3 ? '\u2713' : '\u2717'} V7 overall uninstall 含全局 mcp 对称清理(cleanGlobalMcpJson)`);
   }
+  // V8（V1.4.7 起，文档自指根除防回归）：包内两篇部署文档必须含权威校验源口径
+  //（MANIFEST-sidecar-authoritative）——zip sha/三元组不在文档硬编码逐版本值，
+  // 现取现验于包内 MANIFEST.txt + 旁挂 sidecar。缺口径=文档退回逐版本硬编码陈旧面，fail-loud。
+  for (const dname of ['deploy/deploy-strategy.md', 'deploy/deploy-prompts.md']) {
+    const dfp = join(dest, 'overall', 'docs', dname);
+    const hit4 = existsSync(dfp) && readFileSync(dfp, 'utf8').includes('MANIFEST-sidecar-authoritative');
+    results.push({ label: `V8 ${dname} 含权威校验源口径`, ok: hit4, status: hit4 ? 0 : 1, tail: '' });
+    console.log(`  ${hit4 ? '\u2713' : '\u2717'} V8 ${dname} 含权威校验源口径`);
+  }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
   if (existsSync(capPkg)) {

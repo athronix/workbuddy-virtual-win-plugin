@@ -257,6 +257,8 @@ node delivery/winvm-plugin.mjs tunnel ensure
 4. 存留项（SSH 密钥、`C:/WinVMWorkspace`、trash、下载物）按脚本 U5 **逐项征询后处置**——想彻底清或准备 `--wipe` 清场重装，看脚本 §8 衔接说明（拆除阶段保留密钥与下载物，重装从 Step 2 起即可）。
 
 > 两份脚本的"母本"是 `docs/deploy/deploy-prompts.md` / `undeploy-prompts.md` 总集的 §3（含分步 Prompt 与更多论证细节）；脚本已于 2026-10-29 真机回环验证（拆除 19/19 + 重装 38/38，见 `qa/real-test-2026-10-29-run1.md`），V1.4.6 起随发布包分发。
+>
+> **校验值权威源口径**：文档不硬编码逐版本 zip sha / MANIFEST 三元组（`MANIFEST-sidecar-authoritative`）——下载后以 release 旁挂 `.zip.sha256` 做 `sha256sum -c`，解包后以包内 `MANIFEST.txt` 头七行为准跑 `verify-manifest.py`；`RELEASE_TAG` 以 releases/latest API 现解为准。V1.4.7 起打包面 V8 断言机械化钉死此口径。
 
 ---
 

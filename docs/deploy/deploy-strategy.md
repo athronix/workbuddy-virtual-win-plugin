@@ -53,10 +53,10 @@
 |---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | latest 跳转链接 | ☐ |
-| `RELEASE_TAG` | `V1.4.6`（由 latest 解析，2026-10-29 上架；历史 run 用 `V1.4.5`/`V1.4.4`） | 发布标签 | ☐ |
+| `RELEASE_TAG` | `V1.4.6`（示例值——**以 latest API 现解为准**；2026-10-29 上架；历史 run 用 `V1.4.5`/`V1.4.4`） | 发布标签 | ☐ |
 | `ZIP_NAME` | `winvm-overall-V1.4.3.zip` | 分发单元（V1.4.3 起含 delivery/tools/ + qa/deploy-probes/ + verify-release.mjs） | ☐ |
-| `ZIP_SHA256` | `dc417bf2…c4d468`（91 B sidecar；V1.4.6） | 整包校验值 | ☐ |
-| `PKG_FILES` / `PKG_BYTES` / `PKG_TOTAL` | `881` / `7606427` / `2562a598…473fbe` | MANIFEST 三元组（重装核对用；V1.4.6 实算=匿名回环三向一致，历史 V1.4.5=879/7580107/88fd11c1…；包内快照自指限制见 deploy-prompts v2.0 行——权威=包内 MANIFEST.txt/sidecar） | ☐ |
+| `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：release 旁挂 `.zip.sha256` 现取现验（`sha256sum -c`）；V1.4.6 回环样例 `dc417bf2…` | 整包校验值 | ☐ |
+| `PKG_FILES` / `PKG_BYTES` / `PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：包内 `MANIFEST.txt` 头七行为权威，verify-manifest/verify-release 复算即验；历史样例 V1.4.6=881/7606427/`2562a598…`、V1.4.5=879/7580107/`88fd11c1…` | MANIFEST 三元组（重装核对用） | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 宿主解压根 | ☐ |
 | `PKG_DIR` | `$DEPLOY_ROOT/pkg` | zip + sidecar 存放 | ☐ |
 | `PKG_ROOT` | `$DEPLOY_ROOT/overall-root/overall` | 解压后的包根（脚本入口所在） | ☐ |
@@ -904,6 +904,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-27 | v3.0 | **卸载 Prompt 总集立项**：新增 `docs/deploy/undeploy-prompts.md` v1.0（deploy-prompts 的逆向镜像：§2.3 十七落点镜像清单 + U0~U5 总 Prompt + POST-CLEANUP 核验 + 存留项决策表 + `--wipe` 清场重装衔接）；§6 回滚与清理加 Prompt 版指针；deploy-prompts 头注加对偶行 |
 | 2026-10-27 | v3.1 | **undeploy⇄deploy 回环实测（run1）**：拆除 19/19 + 重装 38/38 全绿；抓出并修复 `uninstall.mjs` 两处镜像不对称（全局 mcp.json / tunnel-autostart，ISSUES I-6.3）；`undeploy-prompts.md` 升 v1.1（十八落点、动态 16→19 核验口径、--vm-host 兜底、排错补 2 条瞬态）。详见 `qa/real-test-2026-10-27-run1.md` |
 | 2026-10-27 | v3.2 | **版本引用同步 V1.4.4 + 裁定落地**：§0.5-B RELEASE_TAG/ZIP_SHA256/PKG 三元组升 V1.4.4（**补 v2.9 漏网**——变更行宣称"默认升 V1.4.4"但 §0.5 表与 §7 Prompt 未同步，10-27 回环核对 deploy-prompts 时发现同款陈旧）；§7 总 Prompt 版本行同步；I-6.3 用户裁定（不补发、下迭代收编）+ pack-release **V7 硬断言**（包内 uninstall 必含 cleanGlobalMcpJson，正反例验证：V1.4.4 旧包=拒产/HEAD=过） |
+| 2026-10-29 | v3.7 | **文档自指根除（迭代10/V1.4.7）**：§0.5-B 校验面改权威源口径（`MANIFEST-sidecar-authoritative`，同 deploy-prompts v2.1）；pack **V8 断言**（包内 strategy/prompts 必含标记）——发布链断言面升 V1–V8 |
 | 2026-10-29 | v3.6 | **迭代9 · V1.4.6 发布闭环**：.prompt 两篇入 OVERALL_DOCS+PACKAGE_REQUIRED；V1–V7 全绿打包 @71cda55（zip `dc417bf2…`/881/7606427/`2562a598…`）→上架 latest=V1.4.6→匿名回环三向一致+解包 docs/deploy 五件核验→清场重装（包内 uninstall 实弹 **19/19**+独立复核零残留→setup 七相位 rc=0→**mcp 20/20+a2a 5/5+example 13/13**+FRESH+disabledTools=8+连接器 8 skill+VM cbSize×4）；仓库 README §5.4 配置用法说明+包 README 快速部署/卸载四步随包分发 |
 | 2026-10-29 | v3.5 | **`.prompt` 入包裁定（迭代9 起点）**：deploy/undeploy 两脚本并入 OVERALL_DOCS+PACKAGE_REQUIRED（V1.4.6 收编），包 README 增「快速部署/卸载」指引、仓库 README §5.4 配置用法说明；入包与否的 backlog 当场销账 |
 | 2026-10-29 | v3.4 | **纯 Prompt 脚本面**：deploy-prompts/undeploy-prompts §3 总 Prompt 各抽出独立可粘贴脚本 `docs/deploy/deploy.prompt`/`undeploy.prompt`（含运行期注入变量段、判据内嵌）；同日真机回环验证拆除 19/19+独立复核零残留+部署 38/38（`qa/real-test-2026-10-29-run1.md`）；入包与否留迭代统一裁定（backlog 同款路径） |
