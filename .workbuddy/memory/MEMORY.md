@@ -19,7 +19,7 @@
 
 ## 口径与纪律
 - 测试基线权威=`qa/p3-batch-sweep/` 最新 gate-*.txt 汇总行（现 2280 GREEN；文档禁硬编码）。门禁 `npm run gate`。
-- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3 / 迭代7=V1.4.4 / 迭代8=V1.4.5 收编）；每迭代 --wipe 重验；完成必 push origin。**V1.4.5=当前线上**（10-28 迭代8：I-6.3 收编+Prompt 总集三篇入包+V7 断言；zip `a225cc95…`、tag@76c0c65；清场重装包内 uninstall 19/19+25/25+13/13）。发布链断言面=V1–V7（V5 NON_ACCOUNT_DIRS/V6 cbSize/V7 cleanGlobalMcpJson）。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
+- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3 / 迭代7=V1.4.4 / 迭代8=V1.4.5 / 迭代9=V1.4.6 开账即关）；每迭代 --wipe 重验；完成必 push origin。**V1.4.6=当前线上**（10-29 迭代9：.prompt 两脚本+README §5.4 入包分发，运行码同 V1.4.5；zip `dc417bf2…`、tag@71cda55、三元组 881/7606427/`2562a598…`；清场重装包内 uninstall 19/19+38/38）。⚠ 包内自指口径：包内文档快照的版本表恒写上一版（zip sha 自指），权威校验=包内 MANIFEST.txt+sidecar。发布链断言面=V1–V7（V5 NON_ACCOUNT_DIRS/V6 cbSize/V7 cleanGlobalMcpJson）。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
 - 文档：导航权威 `.dev/docs-index.md`；归档 `docs/archive/{changes,audit,test}`+legacy-*（10-26 两次归位：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes；铠大师中文名保留——活引用+契约锚点）；**qa/ 保原位**（setup/pack-release 活引用）；改路径前先查活引用。证据每轮一份 real-test-<date>-runN.md；FAIL 四元组；裁决落档再引用。⚠ hmdfs `core.ignorecase=true`：git mv 改大小写**磁盘名可能不变**（ISSUES.md 案，10-26 两步 rename 实修），大小写敏感 glob/脚本会踩空。
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 

@@ -1,7 +1,7 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v1.0）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v1.1）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
-文档母本：docs/deploy/deploy-prompts.md §3（V1.4.5 起随发布包分发 docs/deploy/）
+文档母本：docs/deploy/deploy-prompts.md §3（本脚本自 V1.4.6 起随发布包分发）
 ========================================================================
 
 【运行期注入（执行前设置；密码只走环境变量，禁止落文件）】
@@ -16,8 +16,8 @@ WinVM Bridge · 一键部署 Prompt（deploy.prompt v1.0）
   export PKG_ROOT=~/winvm-deploy/overall-root        # 执行前用 ls $PKG_ROOT/MANIFEST.txt 判定，不对就换另一值
   export NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node    # 必须绝对路径
   export PY=/data/service/hnp/bin/python3
-  export RELEASE_TAG=V1.4.5
-  export ZIP=winvm-overall-V1.4.5.zip
+  export RELEASE_TAG=V1.4.6                    # ⚠ 若已有更新版本上架，以 releases/latest API 为准：curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name（包内快照恒落后一版=zip sha 自指，见 README §5.4）
+  export ZIP=winvm-overall-V1.4.6.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 

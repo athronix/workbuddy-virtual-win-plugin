@@ -2,7 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
-> 更新：2026-10-29（v1.9：`deploy.prompt` 随 V1.4.6 入发布包分发；配置与用法见包/仓库 README §5.4）
+> 更新：2026-10-29（v2.0：版本引用升 V1.4.6；`deploy.prompt` 已随包分发）
 > 上游：`docs/deploy/deploy-strategy.md`（论证与实测记录）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/undeploy-prompts.md`（卸载 Prompt 总集，本文件的逆向镜像；清场重装 `--wipe` 前置拆除见彼文 §8）
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可从零驱动双端安装
@@ -48,10 +48,10 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 |---|---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 同左 | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | 解析到 `V1.4.2` | latest 跳转页 | ☐ |
-| `RELEASE_TAG` | `V1.4.5` | 10-28 上架 latest=V1.4.5 | 发布标签（V1.4.5=I-6.3 收编版：uninstall 对称修复+Prompt 总集三篇入包+pack V7 断言；V1.4.4=I-6.1 补发版） | ☐ |
-| `ZIP_NAME` | `winvm-overall-V1.4.5.zip` | 2,832,593 B（旁挂 91 B） | 分发单元 | ☐ |
-| `ZIP_SHA256` | `a225cc95…72f64d` | 待回环对账 | 整包校验值 | ☐ |
-| `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | `879` / `7580107` / `88fd11c1…aa2d0` | 待回环对账 | MANIFEST 三元组 | ☐ |
+| `RELEASE_TAG` | `V1.4.6` | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
+| `ZIP_NAME` | `winvm-overall-V1.4.6.zip` | 2,846,225 B（旁挂 91 B 三向对账一致） | 分发单元 | ☐ |
+| `ZIP_SHA256` | `dc417bf2…c4d468` | 一致（10-29 匿名回环三向对账） | 整包校验值 | ☐ |
+| `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | `881` / `7606427` / `2562a598…473fbe` | 一致 | MANIFEST 三元组（V1.4.6 包实算；包内快照自指限制见 v2.0 变更行——包权威=内附 MANIFEST.txt/sidecar） | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 同左 | 宿主解压根 | ☐ |
 | `PKG_ROOT` | `$DEPLOY_ROOT/overall-root/overall` | 同左 | 包根（zip 内含顶层 `overall/`） | ☐ |
 
@@ -126,7 +126,7 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
   VM_DEPLOY_DIR=C:/WinVMBridge   VM_WORKSPACE=C:/WinVMWorkspace
   SERVICE_PORT=18443（仅回环 127.0.0.1）
   PROVIDER=workbuddy   WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.5   ZIP=winvm-overall-V1.4.5.zip
+  RELEASE_TAG=V1.4.6   ZIP=winvm-overall-V1.4.6.zip
   REPO=athronix/workbuddy-virtual-win-plugin
   DEPLOY_ROOT=~/winvm-deploy   PKG_ROOT=~/winvm-deploy/overall-root/overall
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
@@ -315,7 +315,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 
 ```text
 从 GitHub Release 取 WinVM Bridge 分发包并做三层校验。
-  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.5  ZIP=winvm-overall-V1.4.5.zip
+  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.6  ZIP=winvm-overall-V1.4.6.zip
 1) 用绝对 URL（不要 releases/latest）下载 zip 与 .zip.sha256 到 ~/winvm-deploy/pkg/，
    带 --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 --retry-all-errors -C -。
    判据①：sha256sum -c 通过。
@@ -410,7 +410,7 @@ NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node
 PY=/data/service/hnp/bin/python3
 PKG=~/winvm-deploy/overall-root/overall
 
-# 包完整性（V1.4.5=879 文件 / 7,580,107 B / total-sha256；以包内 MANIFEST 为准）
+# 包完整性（V1.4.6=881 文件 / 7,606,427 B / total-sha256；以包内 MANIFEST 为准）
 $PY qa/deploy-probes/verify-manifest.py "$PKG"
 
 # VM 运行时前置（node / npm / codebuddy CLI / 登录态）——部署前必过
@@ -474,7 +474,7 @@ $PY qa/deploy-probes/a2a-probe.py
 |---|---|---|---|
 | 1 | ~~是否发布 V1.4.3~~ | **已裁决并执行（10-26 用户批准）**：V1.4.3 已上架（G-1 修复入包+V5 断言），清场重装 run2 复验非账户零污染 | ✅ 关闭 |
 | 2 | ~~G-2 MANIFEST 无消费者~~ | **已收编**：`delivery/verify-release.mjs`（四判据+V5）随包分发，Step 2 判据二入口 | ✅ 关闭 |
-| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / `V1.4.5`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
+| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / `V1.4.6`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
 | 4 | **VM 密码管理方式** | 当前经 `WINVM_SSH_PASSWORD` 运行期注入，未落任何文件 | 用户：确认是否维持该方式 |
 | 5 | ~~G-3 deploy-probes 不进包~~ | **已收编**：V1.4.3 包内 `qa/deploy-probes/` 6 件 + `delivery/tools/diagnose-connectors.mjs`（PACKAGE_REQUIRED 必存断言兜底），纯 Release 安装链零仓库依赖 | ✅ 关闭 |
 
@@ -559,6 +559,7 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
 | 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |
+| 2026-10-29 | v2.0 | **迭代9 · V1.4.6 版本引用同步**：§2.2/总 Prompt/§5 速查升 V1.4.6（zip `dc417bf2…`/2,846,225 B/三元组 881/7606427/`2562a598…`，匿名回环三向一致）；清场重装=包内 uninstall 实弹 19/19+独立复核零残留+setup 七相位+38/38。⚠ **结构性口径**：V1.4.6 包内快照的本文版本表仍写 V1.4.5——zip sha 自指（打包在同步前，同步后订正属仓库面，再重打会再次自指），**包的权威校验值以包内 `MANIFEST.txt` 与旁挂 `.zip.sha256` 为准**（verify-manifest/verify-release 即读它） |
 | 2026-10-29 | v1.9 | **`.prompt` 入包裁定落地（迭代9/V1.4.6）**：用户裁定 `deploy.prompt`/`undeploy.prompt` 并入 `OVERALL_DOCS`（连同 PACKAGE_REQUIRED 存在性断言+包 README「快速部署/卸载」四步指引）——纯 Release 装机者解包即得可整段粘贴的安装/卸载脚本；仓库 README 新增 §5.4 配置与用法说明。⚠ 时序教训沿用：**pack 前文档先 commit** |
 | 2026-10-29 | v1.8 | **纯 Prompt 脚本抽面**：新增 `docs/deploy/deploy.prompt`（本文 §3 总 Prompt + 运行期注入变量段的独立可粘贴脚本，v1.0）；同日与 `undeploy.prompt` 一并真机回环验证（拆除 19/19+独立复核零残留 → 部署 Step 3.0~6.1 判据逐条一致，三探针 38/38 首跑即稳，报告 `qa/real-test-2026-10-29-run1.md`）。脚本自纠两口径：PKG_ROOT 双布局判定法（S-1）、U4.2 VM 复核禁内联 -Command 改 .ps1 -File（S-2，踩坑即固化警示）。是否入 OVERALL_DOCS 随包分发=下迭代统一裁定（backlog） |
 | 2026-10-28 | v1.7 | **V1.4.5 版本引用同步（迭代8）**：§2.2/总 Prompt/P2/§5 升 V1.4.5（zip `a225cc95…`/三元组 879/7580107/`88fd11c1…`——首打包早于 docs 同步，@6745a50 包已被 `V1.4.5.superseded-it1` 封存，**重打包 @76c0c65**）；V1.4.5=I-6.3 收编版（uninstall 对称修复入包+pack V7 断言）且**包内新带 docs/deploy/ 三篇 Prompt 总集**——Step 2 起包根内即可直读本文与 undeploy-prompts |

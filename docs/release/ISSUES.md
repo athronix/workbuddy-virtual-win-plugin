@@ -225,3 +225,19 @@
 | 清场重装（铁律 --wipe 语义） | **用包内 V1.4.5 uninstall.mjs 实弹拆除=19/19 全 PASS**（含两条新 PASS 行——I-6.3 修复在发布态真生效）；setup 七相位 rc=0（~2.2min）；三探针 mcp 20/20 + a2a 5/5 + example 13/13；disabledTools=8、连接器 8 skill、VM gui.ps1 cbSize×4 | 本会话日志 |
 
 **结论：迭代 8 关闭。当前线上版本=V1.4.5。**
+
+
+## 迭代9 · V1.4.6（2026-10-29，.prompt 入包版——开账即关）
+
+> 状态：**已关闭**。动因=用户裁定「两 .prompt 并入发布包分发 + README 说明如何配置和使用」。纯打包面/文档面变更，无运行码改动（V1.4.5 的运行面原样携带）。
+
+| 项 | 内容 | 证据 |
+|---|---|---|
+| pack 收编 | `OVERALL_DOCS` 增 `docs/deploy/deploy.prompt`/`undeploy.prompt`（子目录化拷贝）；`PACKAGE_REQUIRED.overall` 两行存在性断言（漏收=fail-loud）；包 README 生成面加「快速部署/卸载」四步指引 | `qa/release/V1.4.6-pack.txt`（@71cda55，V1–V7 全绿） |
+| README 用法面 | 仓库 README 新增 **§5.4**：脚本定位表+安装四步（取包→配置运行期注入变量逐项含义→整段粘贴→判据回收）+卸载四步（DRY-RUN 安全阀→apply→POST-CLEANUP 19 项+独立复核→U5 存留项逐项问）+母本关系与自指口径 | `README.md` §5.4 |
+| 时序纪律 | **先 commit（71cda55）后 pack**——V1.4.5 superseded-it1 教训沿用，包内五件 docs/deploy 均为同步版 | 解包核验 `v146-loop/overall/docs/deploy/` |
+| 上架+回环 | publish --apply 双资产；latest API=V1.4.6；匿名 api-asset 下载一次成功；三向 sha 一致 `dc417bf2d1e8a349…`；解包 uninstall 含 cleanGlobalMcpJson×2；verify-manifest/verify-release --expect-nonaccount-guard 双 PASS | `~/winvm-deploy/v146-loop/` |
+| 清场重装（铁律 --wipe 语义） | 包根切 V1.4.6（v145-backup 留旧、.env 迁移）；**包内 uninstall 实弹拆除 19/19 全 PASS**+独立复核（health=000、GLOBAL_MCP_CLEAN）；setup 七相位 rc=0；三探针 mcp 20/20+a2a 5/5+example 13/13；check-fresh FRESH、disabledTools=8、连接器 8 skill、VM gui.ps1 cbSize×4、health=200 | 本会话日志+`qa/real-test-2026-10-29-run1.md` 同款判据面 |
+| 结构性口径 | **包内自指限制**：deploy-prompts §2.2 版本表在 V1.4.6 包内快照仍写 V1.4.5（zip sha 自指——pack 后订正属仓库面，再重打必再次自指）。权威校验值=包内 `MANIFEST.txt`+旁挂 `.zip.sha256`（verify-manifest/verify-release 即读它）；口径已在 deploy-prompts v2.0 与 strategy §0.5-B 注明 | 本文行即记录 |
+
+**结论：迭代 9 关闭。当前线上版本=V1.4.6。**

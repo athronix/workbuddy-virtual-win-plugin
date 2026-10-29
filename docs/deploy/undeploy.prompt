@@ -1,7 +1,7 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v1.0）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v1.1）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
-文档母本：docs/deploy/undeploy-prompts.md §3（V1.4.5 起随发布包分发 docs/deploy/）
+文档母本：docs/deploy/undeploy-prompts.md §3（本脚本自 V1.4.6 起随发布包分发）
 ========================================================================
 
 【运行期注入（执行前设置；密码只走环境变量，禁止落文件）】
