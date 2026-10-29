@@ -514,6 +514,22 @@ function verifyPackages(dest, version) {
     results.push({ label: `V8 ${dname} 含权威校验源口径`, ok: hit4, status: hit4 ? 0 : 1, tail: '' });
     console.log(`  ${hit4 ? '\u2713' : '\u2717'} V8 ${dname} 含权威校验源口径`);
   }
+  // V9（V1.4.8 起，I-6.4 防回归）：包内三探针必须带 10-29 run2 修复特征——
+  // verify-manifest.py/verify-release.mjs 的运行期产物白名单（已装态包根假 FAIL 修复）
+  // 与 vmcheck.ps1 的 RawContentStream UTF-8 解码（GBK 双坑修复）。缺失=fail-loud 拒产包。
+  {
+    const probes = [
+      ['qa/deploy-probes/verify-manifest.py', 'runtime_ok', 'V9 verify-manifest 含运行期白名单'],
+      ['delivery/verify-release.mjs', 'RUNTIME_OK', 'V9 verify-release 含运行期白名单'],
+      ['qa/deploy-probes/vmcheck.ps1', 'RawContentStream', 'V9 vmcheck 含 UTF-8 解码修复'],
+    ];
+    for (const [rel, feat, label] of probes) {
+      const fp = join(dest, 'overall', rel);
+      const hit5 = existsSync(fp) && readFileSync(fp, 'utf8').includes(feat);
+      results.push({ label, ok: hit5, status: hit5 ? 0 : 1, tail: '' });
+      console.log(`  ${hit5 ? '\u2713' : '\u2717'} ${label}`);
+    }
+  }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
   if (existsSync(capPkg)) {

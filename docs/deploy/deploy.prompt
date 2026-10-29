@@ -16,8 +16,8 @@ WinVM Bridge · 一键部署 Prompt（deploy.prompt v1.1）
   export PKG_ROOT=~/winvm-deploy/overall-root        # 执行前用 ls $PKG_ROOT/MANIFEST.txt 判定，不对就换另一值
   export NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node    # 必须绝对路径
   export PY=/data/service/hnp/bin/python3
-  export RELEASE_TAG=V1.4.7                    # ⚠ 以 releases/latest API 现解为准：curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name（校验值=旁挂 sidecar+包内 MANIFEST，见 README §5.4）
-  export ZIP=winvm-overall-V1.4.7.zip
+  export RELEASE_TAG=V1.4.8                    # ⚠ 以 releases/latest API 现解为准：curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name（校验值=旁挂 sidecar+包内 MANIFEST，见 README §5.4）
+  export ZIP=winvm-overall-V1.4.8.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
