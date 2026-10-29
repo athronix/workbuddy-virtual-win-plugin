@@ -1,0 +1,28 @@
+
+== pack-release V1.4.6 @ 71cda55 ==
+· 组装 host/（install-host 闭包）
+· 组装 vm/（deploy-vm 闭包）
+· 组装 overall/（整体包 = host ∪ vm ∪ 编排与文档）
+· 包内验证（V2 host 闭包 / V3 vm 闭包 / V4 能力计数）
+  ✓ V1 host 必存文件
+  ✓ V1 vm 必存文件
+  ✓ V1 overall 必存文件
+  ✓ V2 host 闭包 dry-run（exit 0）
+  ✓ V3 vm 闭包 dry-run（exit 0）
+  ✓ V5 host install-host 含 NON_ACCOUNT_DIRS
+  ✓ V5 overall install-host 含 NON_ACCOUNT_DIRS
+  ✓ V6 vm gui.ps1 含键鼠修复(cbSize)
+  ✓ V6 overall gui.ps1 含键鼠修复(cbSize)
+  ✓ V7 overall uninstall 含全局 mcp 对称清理(cleanGlobalMcpJson)
+  ✓ V4 能力计数=54（exit 0）
+· 生成 overall zip + sha256 旁挂（GitHub Release 分发单元）
+
+✓ 发布包已生成：release/V1.4.6
+  host    848 文件 / 6744K / sha256 5183b27442619254…
+  vm      345 文件 / 2857K / sha256 47359eda0c6ba5c6…
+  overall 881 文件 / 7428K / sha256 2562a5980189917b…
+  overall-zip release/V1.4.6/winvm-overall-V1.4.6.zip / 2780K / sha256 dc417bf2d1e8a349…  旁挂 release/V1.4.6/winvm-overall-V1.4.6.zip.sha256  →上架：node delivery/publish-release.mjs --tag V1.4.6 --zip release/V1.4.6/winvm-overall-V1.4.6.zip [--apply]
+  证据：qa/release/V1.4.6-pack.txt
+
+下一步：cd release/V1.4.6/overall && bash deploy-all.sh --wipe   （清空历史部署后整体重装；bash 显式解释防 hmdfs 丢执行位）
+
