@@ -28,3 +28,11 @@
 
 ## 提交链（均已 push main）
 `60b7390` undeploy v1.0 → `83af90a` 日志 → `4b7fd52` 回环+uninstall 修复+I-6.3 → `15d8504` V7 断言+版本同步 v1.6/v3.2 → `0143933` 升版纪律入册 → `3306634` docs 打包面疑点入 backlog。
+
+
+## 追加（10-29）：迭代9 · V1.4.6 —— .prompt 入包分发 + README 用法
+- 用户裁定两 .prompt 并入发布包 + README 说明配置用法 → 完整发布链：pack 收编（OVERALL_DOCS/PACKAGE_REQUIRED+2、包 README 快速部署/卸载四步）、仓库 README **§5.4**（脚本定位表/安装四步/卸载四步/母本关系）。
+- **先 commit（71cda55）后 pack**；V1–V7 全绿；tag V1.4.6@71cda55；zip `dc417bf2…`/2,846,225 B/三元组 881/7606427/`2562a598…`。
+- 上架 latest=V1.4.6 → 匿名回环三向一致+解包 docs/deploy 五件 → 清场重装：包内 uninstall **19/19**+独立复核零残留 → setup 七相位 → **38/38**+FRESH+disabledTools=8+8skill+cbSize×4。
+- 结构性口径入册：**包内文档快照版本表恒落后一版（zip sha 自指）**，权威校验=包内 MANIFEST.txt+sidecar；.prompt 加 latest API 防陈旧指引（v1.1）。
+- 当前线上=**V1.4.6**（运行码同 V1.4.5，纯打包/文档面）。
