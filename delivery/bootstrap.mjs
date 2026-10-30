@@ -146,6 +146,17 @@ function loadEnvOrTemplate() {
  * @param {{timeoutMs?: number, interactive?: boolean}} [opts]
  * @returns {{ok: boolean, code: number, out: string, err: string}}
  */
+/**
+ * Cross-shell PowerShell one-liner over ssh (R8 fix): the script is base64-encoded as
+ * UTF-16LE and passed as a SINGLE `-EncodedCommand` token, so it survives cmd.exe /
+ * Git-Bash / pwsh default shells alike (no quoting/expansion ever reaches the remote shell).
+ * @returns {{ok:boolean, code:number, out:string, err:string}}
+ */
+function runSshPs(targetArgs, script, opts = {}) {
+  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  return runSsh([...targetArgs, `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`], opts);
+}
+
 function runSsh(sshArgs, opts = {}) {
   const args = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', ...sshArgs];
   if (opts.interactive) {
@@ -284,9 +295,10 @@ async function cmdCheck() {
       // 实测 codebuddy 无非交互身份命令 ⇒ 只判"配置根标记文件是否存在"，结论如实标注局限；
       // provider=workbuddy ∧ 登录态未证实 ⇒ 红字播报「当前确定性可用；切 LLM 需 VM 内交互登录」。
       {
-        const mk = runSsh(
-          ['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost,
-           'test -f ~/.codebuddy/settings.json || test -f ~/.codebuddy/user-state.json'],
+        // R8 fix: was bash `test -f … || test -f …` (cmd.exe 不认)。改跨壳 PS（EncodedCommand）。
+        const mk = runSshPs(
+          ['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost],
+          "$d=Join-Path $env:USERPROFILE '.codebuddy'; $ok=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json'))); Write-Output $ok; if(-not $ok){exit 1}",
           { timeoutMs: 15_000 },
         );
         const verdict = evaluateAgentLogin({
@@ -362,14 +374,29 @@ async function cmdTrust() {
   //    - C:/ProgramData/ssh/administrators_authorized_keys (Administrators-group users;
   //      Windows OpenSSH ignores the per-user file for them - well-known pitfall -
   //      and requires this file's ACL to allow only SYSTEM + Administrators).
-  //    Remote default shell is Git-Bash/MSYS on this topology, so POSIX syntax + icacls.
-  const remoteCmd =
-    "umask 077; mkdir -p ~/.ssh; echo '" + pubKey + "' >> ~/.ssh/authorized_keys; " +
-    "mkdir -p /c/ProgramData/ssh 2>/dev/null; " +
-    "echo '" + pubKey + "' >> /c/ProgramData/ssh/administrators_authorized_keys 2>/dev/null; " +
-    "icacls 'C:\\ProgramData\\ssh\\administrators_authorized_keys' /inheritance:r " +
-    "/grant 'SYSTEM:F' /grant 'BUILTIN\\Administrators:F' 2>/dev/null; " +
-    'echo TRUST_DONE';
+  //    R8 root-cause fix (2026-10-30): the OLD form was Git-Bash-only POSIX syntax
+  //    (umask / mkdir -p / ~ / 2>/dev/null), which fails outright when the VM's sshd
+  //    default shell is cmd.exe (the Windows OpenSSH factory default). Now the payload
+  //    is PowerShell, delivered via `powershell -EncodedCommand` (base64 UTF-16LE):
+  //    a SINGLE native-exe token + one arg = portable across cmd / bash / pwsh default
+  //    shells, and base64 sidesteps every quoting/expansion trap (no $, no embedded
+  //    quotes reaching the remote shell). Append is idempotent (dedupe before add).
+  const psLines = [
+    "$ErrorActionPreference='SilentlyContinue'",
+    `$pub = '${pubKey.replace(/'/g, "''")}'`,
+    '$dir = Join-Path $env:USERPROFILE \'.ssh\'',
+    'New-Item -ItemType Directory -Force -Path $dir | Out-Null',
+    '$ak = Join-Path $dir \'authorized_keys\'',
+    'if (-not ((Test-Path $ak) -and ((Get-Content $ak -Raw) -match [regex]::Escape($pub))) ) { Add-Content -Path $ak -Value $pub }',
+    '$pdir = \'C:\\ProgramData\\ssh\'',
+    'New-Item -ItemType Directory -Force -Path $pdir | Out-Null',
+    '$agak = Join-Path $pdir \'administrators_authorized_keys\'',
+    'if (-not ((Test-Path $agak) -and ((Get-Content $agak -Raw) -match [regex]::Escape($pub))) ) { Add-Content -Path $agak -Value $pub }',
+    'icacls $agak /inheritance:r /grant \'*S-1-5-18:F\' /grant \'*S-1-5-32-544:F\' | Out-Null',
+    'Write-Output \'TRUST_DONE\'',
+  ];
+  const encoded = Buffer.from(psLines.join('\r\n'), 'utf16le').toString('base64');
+  const remoteCmd = `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`;
   log(' [2/3] Appending the public key on ' + target + ' (you will be asked for the VM');
   log('       password ONCE; the key goes to ~/.ssh/authorized_keys AND to');
   log("       C:/ProgramData/ssh/administrators_authorized_keys with icacls ACL fix, so");
@@ -556,7 +583,8 @@ async function cmdPrepareVm(argv) {
   // apply .ps1 通道（powershell -File 无 MSYS 干扰；powercfg /change 本身幂等无害）。
   const rNode = probe('node -v');
   const rCli = probe(cfg.workbuddyCli + ' --version');
-  const rMarker = probe('test -f ~/.codebuddy/settings.json || test -f ~/.codebuddy/user-state.json', 15_000);
+  // R8 fix: bash `test -f` → 跨壳 PS（EncodedCommand），判据仍用退出码（ok=exit 0）。
+  const rMarker = runSshPs(sshBase, "$d=Join-Path $env:USERPROFILE '.codebuddy'; $ok=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json'))); Write-Output $ok; if(-not $ok){exit 1}", { timeoutMs: 15_000 });
 
   const sshdInstalled = !/1060|does not exist/i.test(rSshdQ.out + rSshdQ.err);
   const sshdRunning = /RUNNING/i.test(rSshdQ.out);

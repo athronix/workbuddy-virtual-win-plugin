@@ -276,3 +276,15 @@
 | 第四轮往返（run3） | **I-6.4 发布态双首验**：包内修复版 verify-manifest 跑已装态包根 **PASS**（D-1 闭环）、包内 vmcheck **UTF-8 直读全判据**（D-2 闭环）；拆除 19/19 零 FAIL+独立复核（000/GLOBAL_MCP_CLEAN）；重装 4.1~4.5 全绿+**38/38 首跑即稳**（连续两轮零瞬态）；6.1/cbSize×4 | `qa/real-test-2026-10-29-run3.md` + `qa/evidence/prompt-run3-20261029/` |
 
 **结论：迭代 11 关闭。当前线上版本=V1.4.8。发布链断言面=V1–V9。缺陷台账（I-6.1~I-6.4+G-1/2/3）全部闭环入包。**
+
+
+## 迭代12 · V1.4.9（2026-10-30，R8 根除+新宿主机复盘收编版——开账）
+
+> 状态：**进行中**。动因=用户提交新鸿蒙宿主机实跑复盘 `docs/deploy/deploy.prompt.to-be-improved.md`（基于 V1.4.8 的 deploy.prompt 在 VM 默认 shell=cmd.exe 拓扑上跑通 Step1→5 的全过程，12 类坑 R1~R12）+ 四条建议（VM 密码/OpenSSH 安装法/虚拟机电源/cmd.exe 默认 shell）+ 两条过程协议（缺信息问用户；环境缺件审批后自动补齐或给方法请辅助）。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.5** | P1（发布链前置） | **R8 隐藏前置根除**：`vmInstallCommand`/`vmUninstallCommand`（setup.mjs）生成 **Git-Bash 专属语法**（`set -o pipefail`/`mkdir -p`/`node -e '单引号'`/`tee`），VM sshd 默认 shell=cmd.exe（**Windows OpenSSH 出厂默认**）下 Step3 apply 必败（复盘实测失败 183 次、报「cd C:/WinVMBridge 找不到路径」）；本机历史拓扑默认壳恰为 Git-Bash（MEMORY 口径）⇒ 前置从未显形。同族残余：bootstrap trust（`umask/mkdir -p/~/2>/dev/null`）、marker 探测（`test -f`）、两处清理（`rm -f`）、setup manifest（`cat >`）、winvm-plugin 卸载段（`cd && node`）。修复=**全部收口跨壳通道**：复合逻辑走 .ps1→scp→`powershell -File`（铁律本形）；短片段走 `powershell -EncodedCommand`（base64 UTF-16LE 单 token，cmd/bash/pwsh 通吃、零引号面）；写文件直接 scp。**cmd.exe 出厂默认可直装，无需 Git-Bash/DefaultShell 改动**；单测重写+跨壳防回归锁（BASH_ONLY_TOKENS 零出现断言）。真机验证=cmd.exe 默认壳下 .ps1-File/EncodedCommand/mkdir-inline/netstat-pipe/Set-Location 五通道冒烟全过 + run4 全链往返。 | 已修复（HEAD·源码+文档）；入包随本版 pack（V10 断言防回归，见下） |
+| **I-6.6** | P2 | **R7 DB-3 winget 单腿**：prepare-vm `--ensure-node` 仅 winget 一路（经 ssh=MSIX alias 空壳、且旧版要求管理员）；复盘实测 winget 失败 + MSI per-user 1603。修复=DB-3 增 **zip+cdn.npmmirror.com 镜像兜底**（用户作用域免管理员，本次实跑 v24.21.0 验证）：winget 首选→检测无效果自动落 zip→持久化用户 PATH。测试锁增 4 断言（镜像 URL/Expand-Archive/SetEnvironmentVariable/顺序）。 | 已修复（HEAD） |
+| **I-6.7** | P2 | **uninstall.mjs 保留项断言误报**（undeploy 侧复盘 R1，`docs/deploy/undeploy.prompt.to-be-improved.md`）：`C:/WinVMWorkspace` 系 GUI/生产线运行期才创建，从未存在的环境里默认 kept 断言判 `[FAIL]`（observed: False）→ `EXIT=1`，且与同一次运行自报 0 failure(s) **自相矛盾**——拆除本身完整、独立复核全绿，纯误报。根因=KEEP 校验写成断言式（要求目录存在），忽略了「本就不存在」合法态。修复=不 purge 时实体缺失判 PASS 并标注 `entity never existed, nothing to keep [SKIP]`（卸载器从不删工作区，不存在≠误删）；r3-uninstall-verify 47/47。文档面同步=undeploy.prompt v2.1（U4 语义注记+U0 落点动态口径 R5+U5 删密钥子流程 G3/G4/rm 禁令 G2/决策导航 G6）。 | 已修复（HEAD），入包随本版 pack |
+| **R1~R5/R9~R12（文档面）** | P3 | 复盘其余项按文档面收编：Step 0 前置检查五项（密码非空提醒+原因、OpenSSH 安装启动精确命令、虚拟机"从不暂停+自动开机"、防火墙 Profile=Any 诊断修复、桥接重试）；执行协议 P-1~P-4（缺信息问用户/环境缺件审批后自动补齐或给方法请辅助/人工卡点清单/判据自检）；NODE/PY 自动探测多候选（R5，勿硬编码）；vmssh/vmscp 重试封装（R4）；.env 八字段清单（R9）；Step 6.1 判据=连接器目录 8 为准（R11 路径漂移修正）。askpass/addkey/install/launch/env.sh 模板（R10）不另造——功能已由 `bootstrap.mjs trust/env/prepare-vm` 覆盖且更完整，prompt 改为引用包内命令。 | 已收编（deploy.prompt v2.0 / undeploy.prompt v2.0 / 母本 deploy-prompts v2.4 / undeploy-prompts v1.8 / INSTALL-GUIDE 三处口径） |

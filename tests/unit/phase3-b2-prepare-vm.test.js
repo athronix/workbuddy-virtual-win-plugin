@@ -58,6 +58,15 @@ test('apply .ps1：每项先探测再动作（幂等骨架）+ [SKIP]/[MANUAL] �
   assert.ok(!ps1.includes('winget install --id'), 'ensureNode=false 必须零 node 安装命令面');
   const ps1b = buildPrepareVmApplyPs1({ ...CFG, ensureNode: true });
   assert.ok(ps1b.includes('winget install --id OpenJS.NodeJS.LTS'), 'DB-3 --ensure-node 开时给 winget 静默装');
+  // R7（2026-10-30 复盘）：winget 经 ssh=MSIX 空壳 / MSI per-user 1603 ⇒ 必须带 zip+镜像兜底
+  assert.ok(ps1b.includes('cdn.npmmirror.com/binaries/node'), 'DB-3 必须带 npmmirror zip 兜底通道');
+  assert.ok(ps1b.includes('Expand-Archive'), 'DB-3 zip 兜底须解压落 LOCALAPPDATA');
+  assert.ok(ps1b.includes('SetEnvironmentVariable("Path"'), 'DB-3 zip 兜底须持久化用户 PATH');
+  // 兜底段必须在 winget 段之后（winget 无效才落 zip）
+  assert.ok(
+    ps1b.indexOf('winget install --id') < ps1b.indexOf('cdn.npmmirror.com/binaries/node'),
+    '顺序：winget 首选 → zip 兜底',
+  );
 });
 
 /* ================= parsePrepareVmProbe ================= */

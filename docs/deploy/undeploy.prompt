@@ -1,24 +1,43 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v1.1）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.1）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
-文档母本：docs/deploy/undeploy-prompts.md §3（本脚本自 V1.4.6 起随发布包分发）
+文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
+v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、
+  执行协议 P-1/P-2（缺信息问用户；可自动化项审批后补齐、人工项给精确方法）；
+  R8 根除后拆除链与远端默认 shell（cmd.exe/Git-Bash/pwsh）无关，无需任何 shell 前置。
 ========================================================================
 
 【运行期注入（执行前设置；密码只走环境变量，禁止落文件）】
-  export VM_HOST=172.16.100.2
+  export VM_HOST=<VM 的 IP>                    # ⚠ 未知 → 问用户（P-1）
   export VM_USER=User
   export VM_SSH_PORT=22
-  export PKG_ROOT=~/winvm-deploy/overall-root        # 包根=含 MANIFEST.txt 与 delivery/ 的目录（ls 判定；另一种可能是 .../overall-root/overall）
-  export NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node
-  export PY=/data/service/hnp/bin/python3
-  export WINVM_DRY_RUN=0                              # ⚠ 必须 0：=1 会把 --apply 降级成 dry-run（假拆）
-  # export WINVM_SSH_PASSWORD=***                    # 仅免密通道已失效、需重建时才注入；拆除本身不需要密码
+  # 包根=含 MANIFEST.txt 与 delivery/ 的目录（ls 判定；另一种可能是 .../overall-root/overall）
+  export PKG_ROOT=~/winvm-deploy/overall-root
+  # NODE/PY 自动探测（多候选回退，R5：不同鸿蒙宿主机路径不同，勿硬编码）：
+  export NODE="$(command -v node || true)"
+  for c in /data/storage/el1/bundle/libs/arm64/node/bin/node /data/service/hnp/bin/node; do
+    [ -x "$c" ] && NODE=$c; done
+  export PY="$(command -v python3 || true)"
+  for c in /data/service/hnp/bin/python3 /data/storage/el1/bundle/libs/arm64/python/bin/python3; do
+    [ -x "$c" ] && PY=$c; done
+  echo "NODE=$NODE PY=$PY"                     # 判据：两者非空且可执行；取不到 → 问用户
+  export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 会把 --apply 降级成 dry-run（假拆）
+  # export WINVM_SSH_PASSWORD=***             # 仅免密通道已失效、需重建时才注入；拆除本身不需要密码
+  # SSH 重试封装（R4：桥接抖动；判据不变、只加韧性）：
+  vmssh()  { for i in 1 2 3; do ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 \
+              -p $VM_SSH_PORT $VM_USER@$VM_HOST "$@" && return 0; sleep 2; done; return 1; }
+  vmscp()  { for i in 1 2 3; do scp -P $VM_SSH_PORT -o ConnectTimeout=10 -o BatchMode=yes \
+              "$@" && return 0; sleep 2; done; return 1; }
 
 ────────────────────────────────────────
-你是 WinVM Bridge 的拆除执行者。请把双端部署干净拆回"未安装"态：严格按 U0→U5 顺序执行，
-每一步用「判据」自检；任何判据不通过就立即停下并报告（现象 / 根因 / 证据 / 建议），
-不要跳步硬推，不要用"应该删干净了"代替实测。
+【执行协议】（与 deploy.prompt 同规）
+  P-1 缺信息/信息错（VM IP 不可达、账号不对、免密失效原因不明）→ 停下问用户，不猜。
+  P-2 拆除前置不满足（如免密通道已失效）→ 可自动化重建（deploy.prompt Step 1）的先报告
+      取得审批再做；必须用户辅助的（VM 密码、VM 内管理员操作）给精确方法请用户完成后通知继续。
+  P-3 人工卡点仅三处：① VM 密码 ② VM 内管理员操作 ③ 方案拍板（如"要不要 --purge-workspace"）。
+  P-4 每步判据自检；不过即停，报告（现象/根因/证据/建议），不用"应该删干净了"代替实测。
 
+────────────────────────────────────────
 【设计红线】卸载 = 镜像拆除。只删 install-host/install-vm/setup/deploy-vm 自己放下去的东西；
   OS 级配置（VM 的 OpenSSH Server、两端 ~/.ssh、VM Node 运行时、宿主其它插件/连接器）一律不动。
   宿主删除物一律**移入 trash 目录**（~/.workbuddy/winvm-trash/<时间戳>/）而非直接 rm —— 可回滚。
@@ -29,18 +48,22 @@ WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v1.1）
 
 ────────────────────────────────────────
 U0 · 拆除前置检查（只读）
-  0.1 免密通道仍在（卸载器 VM 相位依赖它）：
-      ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
+  0.1 免密通道仍在（卸载器 VM 相位依赖它；经 vmssh 带重试）：
+      vmssh whoami 即 ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
           -o NumberOfPasswordPrompts=0 -p $VM_SSH_PORT $VM_USER@$VM_HOST whoami
-      判据：输出用户名 + 退出码 0。若已失效 → 需先按 deploy 脚本 Step 1 重建通道再拆，
+      判据：输出用户名 + 退出码 0。若已失效 → 按 P-2：先按 deploy 脚本 Step 1 重建通道再拆，
             或经用户同意后改用密码通道（WINVM_SSH_PASSWORD + askpass）。
   0.2 WINVM_DRY_RUN=0（否则 --apply 会被降级，出现"假已拆"）。
   0.3 记录拆除前基线（供 U4 对照）：当前 ~/.workbuddy 下 winvm 落点清单、VM 上
       C:/WinVMBridge 与计划任务是否存在。
+      ⚠ 连接器由平台**账户级动态注册/缓存**，落点可能漂移或本会话不可见（如
+        connectors/skills/connector-winvm/ 暂 absent）——不阻塞：拆除以 uninstall.mjs
+        实际发现为准，辅以 `find ~/.workbuddy -iname '*winvm*'` 全量定位真实落点。
 
 ────────────────────────────────────────
 U1 · 规划：先跑 DRY-RUN，逐行核对清单（**零改动**）
   1.1 cd $PKG_ROOT && $NODE delivery/uninstall.mjs
+      （反复清场时 vm-conn.json 首轮即被删——须显式加 --vm-host $VM_HOST --vm-user $VM_USER）
   1.2 判据：输出以 "mode : DRY-RUN" 开头，逐项列出 [DRY]/[DO]/[SKIP]/[KEEP]。
   1.3 人工核对：trash 目标路径、要删的 mcp.json 键（含全局 ~/.workbuddy/mcp.json 的
       winvm/winvm-a2a 两键）、VM 相位计划（task/进程/目录/junction/PATH/side.json）。
@@ -49,13 +72,14 @@ U1 · 规划：先跑 DRY-RUN，逐行核对清单（**零改动**）
 ────────────────────────────────────────
 U2 · 宿主相位 + U3 · VM 相位（同一次 --apply 完成）
   2.1 $NODE delivery/uninstall.mjs --apply
-      （保留工作区=默认；彻底清另加 --purge-workspace，须用户明确同意。
-        反复清场时 vm-conn.json 首轮即被删——再跑须显式 --vm-host $VM_HOST --vm-user $VM_USER）
+      （保留工作区=默认；彻底清另加 --purge-workspace，须用户明确同意。）
   2.2 内部按序：停隧道（按记录 PID，绝不 pkill -f）→ 插件缓存/marketplace/connector skill
       移入 trash → 删 installed_plugins.json 键 → 删 connectors/*/mcp.json 两键 →
       删全局 ~/.workbuddy/mcp.json 两键 → 删 settings.json 追加项 → 去 PATH/shell profile 段
       → 删 ~/.workbuddy/winvm 标记文件（含 tunnel-autostart.json）。
       VM：schtasks /End+/Delete → 按命令行 C:\WinVMBridge 签名杀进程 → 删目录/junction/PATH 项/side.json。
+      （V1.4.9 起 VM 相位与远端默认 shell 无关：载荷走 .ps1 推送 + EncodedCommand 清理，
+        cmd.exe/Git-Bash/pwsh 均可——无需任何 shell 前置。）
   2.3 判据：退出码 0；"APPLY complete" 且核验清单全 [PASS]（见 U4）。
 
 ────────────────────────────────────────
@@ -67,31 +91,44 @@ U4 · 拆除核验（清单动态生成，判据=全 [PASS] 零 [FAIL]，不数�
       winvm/side.json、vm-conn.json、tunnel-autostart.json absent / 127.0.0.1:18443 不通
       + VM：免密通道仍可用 / C:/WinVMBridge absent / task absent / 18443 不监听 /
         无 vm-service 进程 / OpenSSH Server 仍 Running（must survive）/
-        authorized_keys 未动 / C:/WinVMWorkspace kept（默认）
+        authorized_keys 未动 / C:/WinVMWorkspace kept（默认；**实体本就从未存在时判
+        "never existed [SKIP]"=PASS**——卸载器不删它，不存在≠误删；V1.4.9 起误报
+        EXIT=1 缺陷已修，ISSUES I-6.7）
   4.2 独立复核（不信自报，防假 PASS）：
       curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18443/health → 期望 000（拒连）
       ls ~/.workbuddy/plugins/cache/winvm → 应不存在
       $NODE -e "const j=require(process.env.HOME+'/.workbuddy/mcp.json');const k=Object.keys(j.mcpServers||{}).filter(x=>/winvm/i.test(x));console.log(k.length?('LEFT:'+k):'GLOBAL_MCP_CLEAN')" → 期望 GLOBAL_MCP_CLEAN
-      VM 复核（⚠ 同样禁止内联 -Command：$null/$_ 会被本地 bash 展开→ParserError；
-        用 printf 造临时 .ps1 → scp → powershell -File）：
+      VM 复核（⚠ 禁止内联 -Command 含 $：$null/$_ 会被本地 bash 展开→ParserError；
+        用 printf 造临时 .ps1 → vmscp → powershell -File；该通道与远端默认 shell 无关）：
       printf 'Test-Path C:\\WinVMBridge\r\n$null -ne (Get-ScheduledTask -TaskName WinVMBridge.Service -ErrorAction SilentlyContinue)\r\n(Get-NetTCPConnection -LocalPort 18443 -State Listen -ErrorAction SilentlyContinue).Count\r\n(Get-Service sshd).Status\r\nTest-Path C:\\WinVMWorkspace\r\n' > ~/wbtmp/vm-recheck.ps1
-      scp ~/wbtmp/vm-recheck.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vm-recheck.ps1
-      ssh $VM_USER@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vm-recheck.ps1'
+      vmscp ~/wbtmp/vm-recheck.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vm-recheck.ps1
+      vmssh 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vm-recheck.ps1'
       → 期望依次：False / False / 0 / Running / True（工作区默认保留）
   4.3 判据：4.1 全 [PASS] + 4.2 全部指向"已拆除"。任一不符 → 停并给失败四元组。
 
 ────────────────────────────────────────
-U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得自行清理）
-  5.1 SSH 密钥/免密通道：保留（重装要复用）。仅"彻底告别"才单独清，且注意
+U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得自行清理；一次 AskUserQuestion 三连收集）
+  ⚠ 本宿主删文件**勿依赖 rm**（部分鸿蒙宿主 rm 被运行时 shim 替换且可能损坏=bad interpreter）：
+     统一用 $NODE -e 'require("fs").unlinkSync(...)' / rmSync 或 trash 机制。
+  5.1 SSH 密钥/免密通道：**默认保留**（重装要复用）。用户选"删除"时按子流程：
+      a) 先抓待删公钥留底：cat ~/.ssh/id_ed25519.pub > ~/wbtmp/hostkey.pub
+         （删私钥前先备份 id_ed25519* 到 ~/wbtmp/ssh-backup/ 作可逆安全网）；
+      b) **先清 VM 残留**（探针/辅助脚本，此时通道仍在）——删私钥即刻断 publickey；
+      c) 推 vm-rmkey.ps1（读 hostkey.pub 逐行比对）从**两处**各精确删该行：
+         ~\.ssh\authorized_keys 与 C:\ProgramData\ssh\administrators_authorized_keys
+         （追加式双写 ⇒ 删除也要双写位；按行匹配删，⚠ 勿整文件清空误伤他人密钥）；
+      d) 最后删 host 私钥（node fs）；此后登 VM 只能走**密码通道**（需用户密码），
+         提前确认密码可用；
       ⚠ id_ed25519 可能一号多用（兼 GitHub 推送凭据）——删前确认，长期正解两把密钥分开。
-  5.2 trash 目录 ~/.workbuddy/winvm-trash/：回滚来源，用户确认"不再需要"后才清。
-  5.3 下载物 ~/winvm-deploy/pkg/ 与解包目录：非部署产物，按需手动清。
+  5.2 trash 目录 ~/.workbuddy/winvm-trash/：回滚来源，用户确认"不再需要"后才清
+      （$NODE -e 'fs.rmSync(dir,{recursive:true})'，勿 rm -rf）。
+  5.3 下载物 ~/winvm-deploy/pkg/ 与解包目录：非部署产物，按需手动清（默认保留=重装零下载）。
   5.4 相关 ACTIVE 定时自动化：先 automation list 核实，有本项目相关才 PAUSED/DELETE（ID 不写死）。
   5.5 新开会话验证：新 WorkBuddy 会话里 winvm__* 工具应彻底消失（mcp.json 变更仅新会话生效）。
 
 【排错速查】
 - "--apply 说拆完了但 18443 还在听" → 查 WINVM_DRY_RUN 是否 =1。
-- VM 相位 ssh 拒绝/超时 → 免密已失效（U0 判据没真过），先重建再拆。
+- VM 相位 ssh 拒绝/超时 → 免密已失效（U0 判据没真过），先重建再拆；偶发一次失败先用 vmssh 重试面（R4）。
 - 远端 ParserError/乱码 → .ps1 + powershell -File + ASCII 载荷（卸载器已内置，手工兜底同纪律）。
 - 隧道想 pkill -f → 禁止；只按 tunnel.pid 记录的 PID 精确 kill。
 - 反复清场第二轮报 VM 相位 SKIPPED → 显式传 --vm-host/--vm-user（vm-conn.json 首轮已删）。

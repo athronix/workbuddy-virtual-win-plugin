@@ -66,7 +66,7 @@ tar -xzf workbuddy-virtual-win-plugin.tgz -C ~/Documents/projects/
    Set-Service sshd -StartupType Automatic
    Start-Service sshd
    ```
-3. 确认默认 shell 不影响部署：本机拓扑实测 VM 默认 ssh shell 为 Git-Bash/MSYS（CLANGARM64），部署脚本已兼容 〔出处：《安装运行测试》§0/§0.5.3〕。
+3. 确认默认 shell：**V1.4.9 起保持出厂默认 cmd.exe 即可**——安装/拆除链全走跨壳通道（.ps1 推送 + powershell -EncodedCommand），无需改 sshd DefaultShell、无需装 Git for Windows（历史坑 R8 已根除，ISSUES I-6.5；≤V1.4.8 旧包在 cmd.exe 默认壳下 Step3 apply 会失败，需先设 Git-Bash 兜底）。
 
 ### 1.2 防火墙放行 22 / 18443
 
@@ -300,7 +300,7 @@ node delivery/winvm-plugin.mjs tunnel stop     # 向 daemon 发 SIGTERM，清理
 | VM 掉线后 ssh 命令一直卡 | 宿主 ssh 进程假活。处置：确认 VM 网络后 `taskkill` 宿主侧残留 ssh/隧道进程，再重试 〔MEMORY「隧道黑洞诊断」〕 |
 | `/health` 的 `audit.chainValid=false` | 旧版并发竞态已修（D30）：取号+哈希+回写串行化；`freshChainOnStart` 语义 = **启动即开新分片、全新 genesis**，历史分片仅归档、不参与校验（见到 entries 小 ≠ 链坏）；`/health` 会透出 `brokenAt`+`reason`（HASH_MISMATCH/SEQ_DUP/SEQ_GAP/CHAIN_BREAK）。处置：升级到含 D30 的版本后重启服务，用 `delivery/tools/verify-d30.ps1` 复验 〔MEMORY「遗留 1」〕 |
 | 错误返回两层 code | 设计如此：契约层 `code`（封闭码集，单源 errors.ts、登记 §2.6，管重试/审批）+ 领域层 `reason`（psmod `UPPER_SNAKE`，管补救），唯一映射点在 `adapter-agent-workbuddy` 的 `toBridgeError()`。按 reason 找补救、按 code 定重试策略 〔MEMORY「关键坑」〕 |
-| ssh 传参 `/End` 变成 `C:/.../End`、`$_` 变 `/usr/bin/bash` | 远端默认 shell = Git-Bash(MSYS)：路径转换 + 变量吞。处置：远端逻辑一律写 .ps1 推过去 `powershell -File` 跑，勿 ssh 内联 〔MEMORY「关键坑」+ tools/README 坑 1〕 |
+| 远端命令被壳吞改：Git-Bash 下 `/End`→`C:/.../End`、`$_` 变 `/usr/bin/bash`；cmd.exe 下 POSIX 语法（`set -o pipefail`/`mkdir -p`/`rm -f`/`test -f`）直接报错 | 双壳两套坑。处置（铁律）：远端逻辑一律写 .ps1 推过去 `powershell -File` 跑，勿 ssh 内联；短小 PS 片段走 `powershell -EncodedCommand`（base64 单 token，cmd/bash/pwsh 通吃）。V1.4.9 起安装链已全部收口到跨壳形态 〔MEMORY「关键坑」+ ISSUES I-6.5〕 |
 | `Sort-Object` 排序"不生效" | PS 5.1 对 `[ordered]@{}` 用 `-Property <键>` 静默失效：不带 `-Unique` 不排序、带 `-Unique` 塌成 1 条。处置：`-Property { $_.key }`（数值套 `[double]`）〔MEMORY + tools/README 坑 3〕 |
 | A3 验收把 ps-bridge 杀了？ | 属预期：A3 就是强杀自愈验收（restarts +1 正常）；历史上「A3 强杀 × 委派负载并发 → 重生风暴致 18443 监听消失」已记录为 D31（复现条件特殊，服务可自恢复）〔MEMORY「遗留 4」〕 |
 | 单测整批跑全红 | 铁律：`node --test tests/unit/*.test.js` 整批会因 junction symlink 打崩共享 runner。逐文件跑 〔《安装运行测试》§5.2 + MEMORY〕 |
@@ -392,7 +392,7 @@ curl -s --noproxy 127.0.0.1 --max-time 2 http://127.0.0.1:18443/health || echo "
 - **卸载范围（与 install-host / install-vm / setup 对称）**：
   - 宿主：常驻隧道守护进程（按记录 PID 精确 kill，另精确清理 bootstrap 期遗留的 `ssh -L 18443` 转发进程）；`plugins/cache/winvm/`、`plugins/marketplaces/winvm/`、`connectors/skills/connector-winvm/`（移入 `~/.workbuddy/winvm-trash/<时间戳>/`，可恢复）；`installed_plugins.json` 的 `winvm-bridge@winvm` 条目、各 `connectors/<account>/mcp.json` 的 `connector:winvm` / `connector:winvm-a2a`、`settings.json` 沙箱白名单条目（改动前均留 `*.winvm-bak.<时间戳>` 备份）；shell profile PATH 注入（`shell-init.sh` 行 + `.bashrc`/`.profile` 标记块）；`~/.workbuddy/winvm/` 下插件标记文件（`side.json` / `vm-conn.json` / `shell-init.sh` / `tunnel.state.json` / `tunnel.pid` / `tunnel.log` / `known_hosts`，目录本身保留）。
   - VM：计划任务 `WinVMBridge.Service`（`schtasks /End` + `/Delete`）；vm-service node 进程树与 `start-hidden.ps1` 包装进程（按 `C:\WinVMBridge` **命令行特征**识别并 `taskkill /T /F`，不按可执行文件路径——服务 node 与 WorkBuddy 自带 MCP node 共用同一 node.exe）；`C:/WinVMBridge/` 整目录；指向 `shared-skills` 的 Agent 技能 junction；VM 用户 PATH 中 `C:\WinVMBridge\delivery` 条目；VM 侧 `side.json` 标记。
-- **VM 侧逻辑全部走 .ps1 推送**：卸载器生成临时 `winvm-un.ps1`，`scp` 到 VM 后 `powershell -File` 执行（远端默认 shell 为 Git-Bash/MSYS，内联 PowerShell 会被路径转换破坏——铁律，勿内联）。
+- **VM 侧逻辑全部走 .ps1 推送**：卸载器生成临时 `winvm-un.ps1`，`scp` 到 VM 后 `powershell -File` 执行（内联 PowerShell 会被远端默认壳吞改——Git-Bash 路径转换/cmd.exe 不认 POSIX——铁律勿内联；该通道与默认壳无关，cmd.exe 直用）。
 - **幂等可重跑**：`--apply` 可重复执行；已清理项自动 `[SKIP]`。VM 连接信息解析链：`--vm-host/--vm-user/--vm-ssh-port` > 环境变量 `WINVM_VM_*` > `~/.workbuddy/winvm/vm-conn.json` > 项目 `.env`（`VM_HOST`/`VM_USER`/`VM_SSH_PORT`，只读）。
 - **回滚**：宿主删除物在 `~/.workbuddy/winvm-trash/<时间戳>/`；注册文件备份 `*.winvm-bak.<时间戳>` 与原文件同目录。
 - **重装**：卸载核验全 PASS 后直接 `node delivery/bootstrap.mjs all` → `node delivery/setup.mjs --apply`（bootstrap env 对已存在 `.env` 只备份不覆盖；SSH 免密保留可复用）。

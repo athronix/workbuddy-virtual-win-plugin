@@ -5,7 +5,7 @@
 > **2026-10-27 回环实测（run1）**：按本文 U0~U4 拆除 → deploy-prompts Step 3~5 重装 → 三探针 38/38 全绿；
 > 实测揪出并修复两处镜像不对称（U-1 全局 mcp.json 不清、U-2 tunnel-autostart.json 残留，见 §9 v1.1）。
 > 证据：`qa/evidence/uninstall-pre-run3.log`（16 项）、`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）、`qa/real-test-2026-10-27-run1.md`（拆除 19/19 + 重装回绿）
-> 更新：2026-10-29（v1.7：I-6.4 修复随 V1.4.8 入包；示例值升 V1.4.8）
+> 更新：2026-10-30（v1.9：undeploy 侧复盘收编——I-6.7 KEEP 误报修复入码、U5 删密钥子流程/rm 禁令/决策导航、U0 落点动态口径）
 > 上游：`delivery/uninstall.mjs`（双端一键卸载器，本文件的判据真源）、`docs/deploy/deploy-strategy.md` §6（回滚与清理）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/deploy-prompts.md`（部署 Prompt 总集）——本文件是它的**逆向镜像**
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可把双端部署**干净拆除**，或为清场重装（`--wipe`）做准备
@@ -85,11 +85,12 @@ VM 侧免密通道需**仍然可用**（`ssh User@$VM_HOST whoami` 成功）—�
 
 ### 2.4 宿主工具路径（鸿蒙沙箱必须绝对路径）
 
-| 用途 | 路径 |
+| 用途 | 路径（R5：**自动探测，勿硬编码**——不同鸿蒙宿主机路径不同） |
 |---|---|
-| node | `/data/storage/el1/bundle/libs/arm64/node/bin/node` |
-| python3 | `/data/service/hnp/bin/python3` |
-| git | `/storage/Users/currentUser/.harmonybrew/opt/git/bin/git` |
+| node | `command -v node`，回退候选 `/data/storage/el1/bundle/libs/arm64/node/bin/node`、`/data/service/hnp/bin/node` |
+| python3 | `command -v python3`，回退候选 `/data/service/hnp/bin/python3`、`/data/storage/el1/bundle/libs/arm64/python/bin/python3` |
+| git | `/storage/Users/currentUser/.harmonybrew/opt/git/bin/git`（本机）或 `command -v git` |
+| ssh/scp | 一律经重试封装 `vmssh()/vmscp()`（三试+2s 间隔，R4 桥接抖动），判据不变只加韧性 |
 
 ---
 
@@ -114,6 +115,9 @@ VM 侧免密通道需**仍然可用**（`ssh User@$VM_HOST whoami` 成功）—�
 
 ────────────────────────────────────────
 U0 · 拆除前置检查（只读）
+  【执行协议】（与 deploy 侧同规）P-1 缺信息/通道失效原因不明 → 问用户不猜；
+    P-2 免密通道已失效=可自动化重建（deploy Step 1），先报告取得审批再做；
+    需 VM 密码/VM 内管理员操作=人工卡点，给精确方法请用户完成后通知继续。
   0.1 免密通道仍在（卸载器 VM 相位依赖它）：
       ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
           -o NumberOfPasswordPrompts=0 User@$VM_HOST whoami
@@ -373,6 +377,8 @@ ssh User@172.16.100.2 'powershell -NoProfile -Command "Get-ScheduledTask -TaskNa
 | 2026-10-27 | v1.0 | 首版：作为 `deploy-prompts.md` 的逆向镜像。结构对齐部署文档（使用方式/变量表/总 Prompt U1~U5/分步 Prompt/核验速查/排错/存留项/清场重装衔接/变更记录）。拆除清单取自 `delivery/uninstall.mjs` 头注（§2.3 逐条镜像安装体系 17 落点）；核验判据取自真机 `qa/evidence/uninstall-pre-run3.log`（16 项）与 `qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）的 POST-CLEANUP VERIFICATION；强调三条设计红线（镜像拆除不越界、宿主删除移入 trash 可回滚、OS 级配置与 SSH 密钥永不触碰）+ 独立复核防假 PASS + 一号多用密钥坑 + `--wipe` 清场重装衔接（保留密钥） |
 | 2026-10-27 | v1.1 | **回环实测（run1，`qa/real-test-2026-10-27-run1.md`）驱动修订**：U0~U4 拆除→Step 3~5 重装→三探针 38/38 全绿。揪出并修复 `uninstall.mjs` 两处镜像不对称——**U-1 全局 `~/.workbuddy/mcp.json` 的 winvm/winvm-a2a 键不清**（install-host 全局注册面，disabledTools 落点；新增 `cleanGlobalMcpJson`+核验行）、**U-2 `tunnel-autostart.json` 不在 markers**（会话自启标记残留=拆后重开 WB 会 ensure 死隧道；补入 markers+核验行）。落点表 17→**18 项**、核验清单口径改「全 PASS 零 FAIL，动态 16→19 项」；§8 补反复清场 `--vm-host` 兜底（vm-conn.json 首轮即删）；排错表补 TUNNEL EADDRINUSE 瞬态与 ps-bridge 换代抖动（E7/E8 首跑 FAIL 复跑稳）两条。⚠ 修复晚于 V1.4.4 打包 → 包内 uninstall.mjs 仍旧版（ISSUES I-6.3；用户裁定：随下迭代收编，pack V7 硬断言钉死「包内 uninstall 必含 cleanGlobalMcpJson」） |
 | 2026-10-29 | v1.5 | 配套口径：§5 速查的 zip/三元组校验指向 sidecar+包内 MANIFEST（deploy-prompts v2.1 同款，不硬编码逐版本值） |
+| 2026-10-30 | v1.9 | **undeploy 侧复盘收编（G1~G6，`docs/deploy/undeploy.prompt.to-be-improved.md`）**：代码面 I-6.7 修复——uninstall.mjs KEEP 断言对「本就不存在的 C:/WinVMWorkspace」误判 FAIL→EXIT=1（与自报 0 failure 矛盾），改判 never existed [SKIP]=PASS；文档面——U0 基线加连接器落点动态口径（账户级注册可漂移，以 uninstall.mjs 实际发现+find 为准）；U5 重写：**rm shim 禁令**（宿主删文件一律 node fs/trash）、**删密钥子流程**（公钥留底→备份私钥→先清 VM 残留→两处 authorized_keys 按行精确删→最后删私钥→此后只能密码通道收尾）、AskUserQuestion 三连决策导航；`undeploy.prompt` 升 v2.1。 |
+| 2026-10-30 | v1.8 | **新宿主机复盘收编（迭代12/V1.4.9 配套）**：`undeploy.prompt` 升 v2.0（自动探测 NODE/PY、vmssh/vmscp 重试、执行协议 P-1~P-4）；母本同步。代码面 R8 根除（卸载 VM 相位本就走 .ps1 推送通道，清理段 `rm -f`→EncodedCommand Remove-Item）后，**拆除对远端默认 shell 完全中立**（cmd.exe/Git-Bash/pwsh 均可），排错口径更新。 |
 | 2026-10-29 | v1.7 | I-6.4 修复随 V1.4.8 入包；排错表已含白名单口径与 vmcheck UTF-8 说明（v1.6 加） |
 | 2026-10-29 | v1.4 | **`.prompt` 入包裁定落地（迭代9/V1.4.6）**：`undeploy.prompt` 并入 `OVERALL_DOCS`+`PACKAGE_REQUIRED` 断言，随 V1.4.6 分发；README §5.4 增卸载四步（DRY-RUN 安全阀→apply→19 项核验+独立复核→U5 存留项逐项问） |
 | 2026-10-29 | v1.3 | **纯 Prompt 脚本抽面+二次回环**：新增 `docs/deploy/undeploy.prompt`（本文 §3 + 运行期注入变量的独立可粘贴脚本，v1.0）；与 deploy.prompt 同日真机往返验证=拆除 19/19 全 PASS + 独立复核（000/GLOBAL_MCP_CLEAN/VM 五连 False/False/0/Running/True）零残留 + 重装 38/38（`qa/real-test-2026-10-29-run1.md`）。脚本自纠：U4.2 VM 复核禁止内联 `-Command`（`$null` 被本地 bash 展开→ParserError，血泪坑重现于新脚本撰写当场）→ 改临时 .ps1+scp+`-File` 并内置警示；PKG_ROOT 双布局 ls MANIFEST 判定。是否入包=下迭代统一裁定 |

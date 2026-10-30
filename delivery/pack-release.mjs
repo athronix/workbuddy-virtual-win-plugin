@@ -530,6 +530,26 @@ function verifyPackages(dest, version) {
       console.log(`  ${hit5 ? '\u2713' : '\u2717'} ${label}`);
     }
   }
+  // V10（V1.4.9 起，I-6.5/I-6.6 防回归，2026-10-30 新宿主机复盘）：
+  // 包内 setup.mjs 必含 buildVmInstallPs1（.ps1 跨壳安装通道）且**不得**回退含
+  // `set -o pipefail`（Git-Bash 专属旧形=cmd.exe 默认壳 Step3 必败，R8）；
+  // 包内 prepare-vm.mjs 必含 npmmirror zip 兜底（winget 空壳/MSI 1603 双坑，R7）。
+  {
+    const setupFp = join(dest, 'overall', 'delivery', 'setup.mjs');
+    const sTxt = existsSync(setupFp) ? readFileSync(setupFp, 'utf8') : '';
+    const hit6 = sTxt.includes('buildVmInstallPs1') && !sTxt.includes('set -o pipefail');
+    results.push({ label: 'V10 setup.mjs 跨壳安装通道(buildVmInstallPs1, 无 pipefail)', ok: hit6, status: hit6 ? 0 : 1, tail: '' });
+    console.log(`  ${hit6 ? '\u2713' : '\u2717'} V10 setup.mjs 跨壳安装通道(buildVmInstallPs1, 无 pipefail)`);
+    const prepFp = join(dest, 'overall', 'delivery', 'prepare-vm.mjs');
+    const hit7 = existsSync(prepFp) && readFileSync(prepFp, 'utf8').includes('cdn.npmmirror.com/binaries/node');
+    results.push({ label: 'V10 prepare-vm 含 npmmirror zip 兜底', ok: hit7, status: hit7 ? 0 : 1, tail: '' });
+    console.log(`  ${hit7 ? '\u2713' : '\u2717'} V10 prepare-vm 含 npmmirror zip 兜底`);
+    // I-6.7（KEEP 断言误报修复）：包内 uninstall 必含 never existed 特征串
+    const unFp = join(dest, 'overall', 'delivery', 'uninstall.mjs');
+    const hit8 = existsSync(unFp) && readFileSync(unFp, 'utf8').includes('never existed');
+    results.push({ label: 'V10 uninstall 含 KEEP 误报修复(never existed)', ok: hit8, status: hit8 ? 0 : 1, tail: '' });
+    console.log(`  ${hit8 ? '\u2713' : '\u2717'} V10 uninstall 含 KEEP 误报修复(never existed)`);
+  }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
   if (existsSync(capPkg)) {

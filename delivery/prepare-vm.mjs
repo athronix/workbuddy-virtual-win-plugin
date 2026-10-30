@@ -31,6 +31,11 @@ import { spawnSync } from 'node:child_process';
 
 /* ----------------------------- 纯函数：探测计划 ----------------------------- */
 
+/** DB-3 zip 兜底所用的 Node LTS 版本（cdn.npmmirror.com 镜像；升版=改这一处）。
+ *  2026-10-30 R7 复盘：MSI per-user 装 1603、winget 经 ssh=MSIX 空壳 ⇒ zip+镜像 是唯一
+ *  免管理员可自动化通道（本次实跑 v24.21.0 验证）。 */
+export const NODE_ZIP_VER = '24.21.0';
+
 /**
  * 生成「只读探测」脚本（check 相位用）：逐项打印当前态，零副作用。
  * @param {{servicePort:number, vmDeployDir:string, ensureNode:boolean, sshPort:number}} cfg
@@ -148,19 +153,46 @@ export function buildPrepareVmApplyPs1(cfg) {
     '  } catch { Write-Output ("[DB-6] DEFENDER_FAILED: " + $_.Exception.Message) }',
     '} else { Write-Output "[DB-6][SKIP] not admin; Defender needs elevation (or run tools/add-defender-exclusions.ps1 as admin)" }',
     '',
-    '# ---- DB-3 Node >= 18 (optional, winget silent) ----',
+    '# ---- DB-3 Node >= 18 (optional; winget -> zip fallback) ----',
     ensureNode
       ? [
         '  $node = Get-Command node -ErrorAction SilentlyContinue',
         '  if ($node) { Write-Output ("[DB-3] node present " + (node -v) + " [SKIP]") }',
-        '  elseif ($isAdmin -and (Get-Command winget -ErrorAction SilentlyContinue)) {',
-        '    Write-Output "[DB-3] node missing; winget install OpenJS.NodeJS.LTS (silent)..."',
+        '  elseif (Get-Command winget -ErrorAction SilentlyContinue) {',
+        // 注意（R7 实测坑）：winget 经 ssh 非交互会话可能是 MSIX alias 空壳
+        // （--version 输出空且 exit 0）⇒ 拿到命令名不等于能用，失败自动落 zip 兜底。
+        '    Write-Output "[DB-3] node missing; try winget install OpenJS.NodeJS.LTS (silent)..."',
         '    winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements --silent 2>&1 | Select-Object -Last 3',
-        '    Write-Output "[DB-3] winget node install issued; re-login or check PATH (may need a NEW ssh session to pick up system PATH)"',
-        '  } elseif (-not $isAdmin) { Write-Output "[DB-3][MANUAL] node missing and not admin; install Node >= 18 with SYSTEM PATH (INSTALL-GUIDE 1.3)" }',
-        '  else { Write-Output "[DB-3][MANUAL] node missing and winget unavailable; install Node >= 18 (INSTALL-GUIDE 1.3)" }',
+        '    $machinePath = [Environment]::GetEnvironmentVariable("Path","Machine")',
+        '    $env:Path = $machinePath + ";" + [Environment]::GetEnvironmentVariable("Path","User")',
+        '    if (Get-Command node -ErrorAction SilentlyContinue) { Write-Output ("[DB-3] winget OK " + (node -v)) }',
+        '    else { Write-Output "[DB-3] winget had no effect (MSIX alias empty-shell over ssh?); falling back to zip install" }',
+        '  }',
+        '  if (-not (Get-Command node -ErrorAction SilentlyContinue)) {',
+        // zip + 国内镜像兜底（R7 复盘验证方案）：用户作用域、免管理员、绕开 MSI 1603 与 winget 空壳。
+        `    $ver = '${NODE_ZIP_VER}'`,
+        '    $zipUrl = "https://cdn.npmmirror.com/binaries/node/v" + $ver + "/node-v" + $ver + "-win-x64.zip"',
+        '    $dst = Join-Path $env:LOCALAPPDATA "nodejs"',
+        '    $tmp = Join-Path $env:TEMP "node.zip"',
+        '    Write-Output ("[DB-3] zip install node v" + $ver + " (user scope, no admin needed)...")',
+        '    try {',
+        '      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12',
+        '      Invoke-WebRequest -Uri $zipUrl -OutFile $tmp -UseBasicParsing -TimeoutSec 600',
+        '      if (Test-Path $dst) { Remove-Item $dst -Recurse -Force }',
+        '      Expand-Archive -Path $tmp -DestinationPath ($dst + "-tmp") -Force',
+        '      $inner = Get-ChildItem ($dst + "-tmp") -Directory | Select-Object -First 1',
+        '      Move-Item $inner.FullName $dst -Force',
+        '      Remove-Item ($dst + "-tmp") -Recurse -Force -ErrorAction SilentlyContinue',
+        '      Remove-Item $tmp -Force -ErrorAction SilentlyContinue',
+        '      $userPath = [Environment]::GetEnvironmentVariable("Path","User")',
+        '      if (($userPath -split ";") -notcontains $dst) { [Environment]::SetEnvironmentVariable("Path", ($userPath + ";" + $dst), "User") }',
+        '      $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")',
+        '      if (Get-Command node -ErrorAction SilentlyContinue) { Write-Output ("[DB-3] zip install OK " + (node -v)) }',
+        '      else { Write-Output "[DB-3][MANUAL] zip install ran but node still not on PATH; open a NEW ssh session or re-check PATH" }',
+        '    } catch { Write-Output ("[DB-3][MANUAL] zip install FAILED: " + $_.Exception.Message + " -- install Node >= 18 manually (INSTALL-GUIDE 1.3)") }',
+        '  }',
       ]
-      : ['  Write-Output "[DB-3] node provisioning not requested (pass --ensure-node to enable winget install)"'],
+      : ['  Write-Output "[DB-3] node provisioning not requested (pass --ensure-node to enable winget/zip install)"'],
     '',
     'Write-Output "PREPARE_VM_DONE"',
   ];

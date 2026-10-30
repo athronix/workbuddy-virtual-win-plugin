@@ -1,35 +1,87 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v1.1）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v2.0）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
-文档母本：docs/deploy/deploy-prompts.md §3（本脚本自 V1.4.6 起随发布包分发）
+文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
+v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
+  新增 Step 0 前置检查（VM 密码/OpenSSH/虚拟机电源/防火墙），PY/NODE 改自动探测，
+  ssh 操作统一重试封装；R8 根除：安装链已改 cmd.exe 兼容（.ps1 铁律通道），
+  **不再要求 Git-Bash 默认 shell**；固化「AI 自主执行 + 人工卡点」与「缺信息问用户、
+  缺环境审批后补齐」两条执行协议。
 ========================================================================
 
 【运行期注入（执行前设置；密码只走环境变量，禁止落文件）】
-  export VM_HOST=172.16.100.2                 # Windows VM IP
-  export VM_USER=User                          # VM 账户（Administrators 组成员）
+  export VM_HOST=<VM 的 IP>                    # ⚠ 未知 → 问用户（见执行协议 P-1）
+  export VM_USER=User                          # VM 账户（建议 Administrators 组成员）
   export VM_SSH_PORT=22
-  export WINVM_SSH_PASSWORD=***            # ⚠ 仅 Step 1（从零建免密）需要；免密已在则跳过 Step 1
+  export WINVM_SSH_PASSWORD=***            # ⚠ 仅 Step 1（从零建免密）需要；免密已在则跳过
   export DEPLOY_ROOT=~/winvm-deploy
-  # 包根=含 MANIFEST.txt 与 delivery/ 的目录。两种布局二选一：
-  #   a) 按下方 Step 2.2 解压到 overall-root → 包根=$DEPLOY_ROOT/overall-root/overall（zip 内含顶层 overall/）
-  #   b) 本机既有布局（overall-root 即解平后的包根）→ 包根=$DEPLOY_ROOT/overall-root
-  export PKG_ROOT=~/winvm-deploy/overall-root        # 执行前用 ls $PKG_ROOT/MANIFEST.txt 判定，不对就换另一值
-  export NODE=/data/storage/el1/bundle/libs/arm64/node/bin/node    # 必须绝对路径
-  export PY=/data/service/hnp/bin/python3
-  export RELEASE_TAG=V1.4.8                    # ⚠ 以 releases/latest API 现解为准：curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name（校验值=旁挂 sidecar+包内 MANIFEST，见 README §5.4）
-  export ZIP=winvm-overall-V1.4.8.zip
+  # 包根=含 MANIFEST.txt 与 delivery/ 的目录。两种布局二选一（ls 判定，不对就换另一值）：
+  #   a) zip 内含顶层 overall/ → 包根=$DEPLOY_ROOT/overall-root/overall
+  #   b) 解平布局            → 包根=$DEPLOY_ROOT/overall-root
+  export PKG_ROOT=~/winvm-deploy/overall-root
+  # NODE/PY 自动探测（多候选回退，R5：不同鸿蒙宿主机路径不同，勿硬编码）：
+  export NODE="$(command -v node || true)"
+  for c in /data/storage/el1/bundle/libs/arm64/node/bin/node /data/service/hnp/bin/node; do
+    [ -x "$c" ] && NODE=$c; done
+  export PY="$(command -v python3 || true)"
+  for c in /data/service/hnp/bin/python3 /data/storage/el1/bundle/libs/arm64/python/bin/python3; do
+    [ -x "$c" ] && PY=$c; done
+  echo "NODE=$NODE PY=$PY"                     # 判据：两者非空且 -x 可执行；取不到 → 问用户
+  export RELEASE_TAG=V1.4.9                    # ⚠ 示例值——以 releases/latest API 现解为准：
+    # curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name
+    # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
+  export ZIP=winvm-overall-V1.4.9.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
-────────────────────────────────────────
-你是 WinVM Bridge 的部署执行者。请从零完成本项目的双端安装：严格按 Step 1→5 顺序执行
-（免密通道已存在且 Release 包已在本地时可从 Step 2/3 起），每一步用「判据」自检；
-任何判据不通过就立即停下并报告（现象 / 根因 / 证据 / 建议），不要跳步硬推，
-不要用「应该可以」代替实测。
+  # SSH 重试封装（R4：桥接链路偶发抖动，所有 ssh/scp 一律经它；判据不变、只加韧性）：
+  vmssh()  { for i in 1 2 3; do ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 \
+              -p $VM_SSH_PORT $VM_USER@$VM_HOST "$@" && return 0; sleep 2; done; return 1; }
+  vmscp()  { for i in 1 2 3; do scp -P $VM_SSH_PORT -o ConnectTimeout=10 -o BatchMode=yes \
+              "$@" && return 0; sleep 2; done; return 1; }
 
-【安全红线】
-  - 密码只走运行期环境变量 WINVM_SSH_PASSWORD；禁止写入任何文件、禁止提交、禁止日志回显。
-  - 不要为了让密码登录通过而把 VM 的 LimitBlankPasswordUse 改成 0（等于局域网免密登录管理员）。
+────────────────────────────────────────
+【执行协议】
+  P-1 缺信息/信息错 → 停下问用户：VM IP、账号、密码、要不要用既有免密通道等，
+      一律请用户现给（密码只接受环境变量注入方式），不要猜测、不要用默认值硬试。
+  P-2 环境缺失/配置有误 → 分级处置：
+      a) 可自动化（本项目脚本已覆盖：VM 运行时 node/codebuddy 缺失=prepare-vm --ensure-node、
+         防火墙规则、sshd 启动型、睡眠策略等）→ **先向用户报告发现与将执行的动作，取得
+         审批后**自动跑；跑完回报逐项结果。
+      b) 必须用户辅助（需 VM 内管理员操作：装 OpenSSH Server、UAC 提权类）→ 给出
+         **精确到命令**的补齐方法（见 Step 0 各项"修复方法"），请用户完成后通知你继续。
+  P-3 AI 自主推进：Step 0→6 的探测、执行、重试、验证由你完成并汇报；仅以下人工卡点暂停：
+      ① 需要 VM 密码（机密，不可猜）② 需 VM 内管理员操作 ③ 方案需用户拍板。
+  P-4 每一步用「判据」自检；任何判据不过 → 立即停下报告（现象/根因/证据/建议），
+      不跳步硬推，不用"应该可以"代替实测。长任务（deploy-vm apply、下载）用后台
+      耐心任务方式跑，避免会话超时截断。
+
+────────────────────────────────────────
+Step 0 · 前置检查（开工前逐项确认；不满足按 P-2 处置）
+  0.1 ⚠ 提醒用户：给 VM 的 Windows 账户设置**非空密码**。
+      空密码既不安全，又让 sshd 免密通道建立复杂化（空密码被两层串联拦截：
+      OpenSSH PermitEmptyPasswords 默认 no + LSA LimitBlankPasswordUse=1，只改一层必败）。
+      判据：Step 1.2 密码通道自检能过；过不了先确认密码非空。
+  0.2 ⚠ 提醒用户：VM 需已安装并启动 OpenSSH Server。安装/启动方法（VM 内管理员 PowerShell）：
+        Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+        Start-Service sshd
+        Set-Service sshd -StartupType Automatic
+      （或 设置 → 可选功能 → 添加"OpenSSH 服务器"。）
+      判据（宿主直连探测）：vmssh whoami 可达；或 TCP 探测 22 端口开放。
+      ⚠ 默认 shell **保持 cmd.exe 即可**（Windows OpenSSH 出厂默认）：V1.4.9 起安装链
+      全走跨壳通道（.ps1 推送 / powershell -EncodedCommand），无需改 DefaultShell，
+      也无需安装 Git for Windows（R8 已根除，复盘旧案"apply 失败 183 次"不再可能复现）。
+  0.3 ⚠ 提醒用户：虚拟机管理端设置 **电源"从不"自动暂停** + **开机自启**，
+      避免 VM 后台睡眠导致隧道黑洞/服务假死（宿主侧另有 prepare-vm DB-5 兜底 powercfg，
+      但 hypervisor 层暂停必须用户在虚拟机管理界面设置）。
+  0.4 防火墙（R3 坑：规则 Profile 与网卡 Profile 不匹配 = sshd 在跑、端口在听、连接超时）：
+      诊断（VM 内 PowerShell）：
+        Get-NetConnectionProfile | Select InterfaceAlias, NetworkCategory
+        Get-NetFirewallRule -Name OpenSSH-Server-In-TCP | Select Name, Enabled, Profile
+      若 NetworkCategory=Public 而规则 Profile=Private → 修复（VM 内**管理员** PowerShell）：
+        Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Profile Any
+      本项目自建规则（prepare-vm DB-2）默认全 Profile，无此问题。
+  0.5 ssh/scp 偶发一两次失败 → 属桥接抖动，用 vmssh/vmscp 重试面（上方），非配置错误。
 
 ────────────────────────────────────────
 Step 1 · 密码登录 → 建立免密通道（已免密可跳过，判据 1.5 复核即可）
@@ -43,26 +95,26 @@ Step 1 · 密码登录 → 建立免密通道（已免密可跳过，判据 1.5 
         -o PreferredAuthentications=password -o NumberOfPasswordPrompts=1 \
         -p $VM_SSH_PORT $VM_USER@$VM_HOST "echo PASSWORD_AUTH_OK"
       判据：输出 PASSWORD_AUTH_OK。
-      若 Permission denied → 先区分密码错/空密码（空密码=两层串联拦截：OpenSSH
-      PermitEmptyPasswords 默认 no + LSA LimitBlankPasswordUse=1）→ 停下请用户设非空密码。
+      若 Permission denied → 按 0.1 区分密码错/空密码 → 停下请用户设非空密码。
   1.3 生成宿主密钥（已存在则跳过；⚠ 若 id_ed25519 兼 GitHub 推送凭据，先备份再动）：
       [ -f ~/.ssh/id_ed25519 ] || ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
-  1.4 写公钥到 VM 两处并收紧 ACL：
+      （正解长期=两把密钥分开：GitHub 用 id_ed25519_github。）
+  1.4 写公钥到 VM 两处并收紧 ACL（首选自动化：cd $PKG_ROOT &&
+      $NODE delivery/bootstrap.mjs trust —— 已内置跨壳 EncodedCommand 形态 +
+      两处 authorized_keys + icacls SID ACL + 幂等去重；一次性密码交互）：
       - C:/Users/$VM_USER/.ssh/authorized_keys
       - C:/ProgramData/ssh/administrators_authorized_keys（Administrators 组成员只认这个）
-      - 对后者：icacls <file> /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F'
-      ⚠ 公钥含空格与 +/，禁止内联拼进 ssh 命令；base64 传参，由远端 .ps1 解码。
-      ⚠ 远端逻辑一律写 .ps1 → scp → powershell -NoProfile -ExecutionPolicy Bypass -File；
-        禁止内联 powershell -Command（本地 bash 会展开 $_ 导致 ParserError）。
-      ⚠ 追加而非覆盖：已存在则去重跳过，绝不覆盖他人 key。
+      ⚠ 手工兜底同纪律：公钥含空格与 +/，禁止内联拼进 ssh 命令（base64 传参）；
+        远端逻辑一律 .ps1 → scp → powershell -File，禁止内联 powershell -Command
+        （本地 bash 会展开 $_ 致 ParserError）。追加不覆盖。
   1.5 判据（免密）：
-      ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
+      vmssh whoami 即 ssh -o BatchMode=yes -o PreferredAuthentications=publickey \
           -o NumberOfPasswordPrompts=0 -p $VM_SSH_PORT $VM_USER@$VM_HOST whoami
       → 输出用户名且退出码 0。
 
 ────────────────────────────────────────
-Step 2 · 获取 Release 并三重校验（包已在 $DEPLOY_ROOT/overall-root 可跳下载，直接 2.3 校验）
-  2.1 下载（用绝对 URL，不要 releases/latest；github.com 本网段有抖动）：
+Step 2 · 获取 Release 并三重校验（包已在本地可跳下载，直接 2.3 校验）
+  2.1 下载（用绝对 URL；github.com 本网段有抖动，重试面已在）：
       mkdir -p $DEPLOY_ROOT/pkg
       BASE=https://github.com/$REPO/releases/download/$RELEASE_TAG
       curl -fsSL --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 \
@@ -73,42 +125,46 @@ Step 2 · 获取 Release 并三重校验（包已在 $DEPLOY_ROOT/overall-root �
   2.2 解压（zip 内含顶层 overall/）：
       mkdir -p $DEPLOY_ROOT/overall-root
       unzip -q -o $DEPLOY_ROOT/pkg/$ZIP -d $DEPLOY_ROOT/overall-root
-      包根 = $PKG_ROOT
+      包根 = $PKG_ROOT（按开头 ls MANIFEST.txt 判定法核实）
   2.3 包内完整性：
       cd $PKG_ROOT && $PY qa/deploy-probes/verify-manifest.py .
       判据②：RESULT: PASS（逐文件 sha256 + files/bytes 计数 + total-sha256 复算 + 无多余/缺失；
             已安装态包根下 .env 与 delivery/winvm-plugin(.cmd) 为安装体系运行期自写产物，
             V1.4.8 起探针白名单豁免——旧包内探针在此场景会假 FAIL，见 ISSUES I-6.4）
-      判据③：README.md / MANIFEST.txt / delivery/install-host.mjs / delivery/deploy-vm.mjs 均在；
-              V1.4.5 起包内自带 docs/deploy/ 三篇（本文母本的出处）可交叉核对。
+      判据③：README.md / MANIFEST.txt / delivery/install-host.mjs / delivery/deploy-vm.mjs
+              / delivery/bootstrap.mjs / delivery/prepare-vm.mjs 均在；
+              包内自带 docs/deploy/ 五件（三篇总集+两 .prompt）可交叉核对。
 
 ────────────────────────────────────────
 Step 3 · 部署 VM-service（用免密通道）
-  3.0 运行时前置自检（**硬门禁：缺一即中止，安装器不会代装**）：
+  3.0 运行时前置自检（**硬门禁**）：
       cd $PKG_ROOT
-      scp qa/deploy-probes/vm-env-check.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vm-env-check.ps1
-      ssh $VM_USER@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vm-env-check.ps1'
+      vmscp qa/deploy-probes/vm-env-check.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vm-env-check.ps1
+      vmssh 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vm-env-check.ps1'
       判据：ENV_PRECHECK=PASS 且 BLOCKERS=none（NODE_OK / NPM_FOUND / CLI_OK 全 true）。
-      缺失按序补齐（前一项是后一项前提）：
-        - node<18 或无 node：有 nvm → `nvm install 24.21.0 && nvm use 24.21.0`；
-          无 nvm → 官方 MSI 静默装（需管理员 + 桌面会话）。
-          ⚠ 不要用 winget：经 ssh 非交互会话是 MSIX alias 空壳（--version 输出空且 exit 0）。
-        - 无 npm：随 Node 一起装，不要单独补。
-        - 无 codebuddy：`npm i -g @tencent-ai/codebuddy-code@latest`（无需提权；latest 不锁版本）。
-          ⚠ nvm 切版本会使全局 CLI 失效 → 换版本后必须重装。
-        - AUTH_VERDICT=installed-unverified → VM 内交互式跑一次 `codebuddy` 完成登录。
-      自动化（只补 CLI，已装则短路）：探针加 `-Fix`。
-  3.1 准备 .env：
+      BLOCKERS 非空 → 按 P-2a 审批后自动补齐（一条命令）：
+      cd $PKG_ROOT && $NODE delivery/bootstrap.mjs prepare-vm --apply --ensure-node
+        （DB-1 sshd 启动型/DB-2 防火墙/DB-5 关睡眠/DB-6 Defender/DB-3 node——
+         winget 首选、**zip+npmmirror 镜像兜底**（R7：MSI per-user 1603、winget 经
+         ssh=MSIX 空壳，zip 免管理员）→ 装完重跑 3.0 探针确认 BLOCKERS=none）
+      仍缺 codebuddy → vmssh 'npm i -g @tencent-ai/codebuddy-code@latest'（无需提权；
+        ⚠ nvm 切版本会孤儿化全局 CLI → 换版本后必重装）
+      AUTH_VERDICT=installed-unverified → 属 P-2b：请用户在 VM 内交互式跑一次
+        `codebuddy` 完成登录（结构性不可脚本化，DB-4），完成后通知你继续。
+  3.1 准备 .env（八字段逐项核）：
       cd $PKG_ROOT && cp -n .env.example .env
-      确认 VM_HOST=$VM_HOST / VM_USER=$VM_USER / VM_SSH_PORT=$VM_SSH_PORT /
-      VM_DEPLOY_DIR=C:/WinVMBridge / WINVM_SERVICE_PORT=18443 /
-      WINVM_VM_PROVIDER=workbuddy / WINVM_WORKBUDDY_CLI=codebuddy / WINVM_DRY_RUN=0
+      确认（不符即改，改前把现值贴给用户）：
+        VM_HOST / VM_USER / VM_SSH_PORT / VM_DEPLOY_DIR=C:/WinVMBridge /
+        WINVM_SERVICE_PORT=18443 / WINVM_VM_PROVIDER=workbuddy /
+        WINVM_WORKBUDDY_CLI=codebuddy / WINVM_DRY_RUN=0
   3.2 先规划再执行（--skip-build 必须加：发布包不含 src/tsc，dist 指纹在 MANIFEST）：
-      $NODE delivery/deploy-vm.mjs --skip-build --env=.env
-      $NODE delivery/deploy-vm.mjs --apply --skip-build --env=.env
+      $NODE delivery/deploy-vm.mjs --skip-build --env=.env          # DRY-RUN 看清单
+      $NODE delivery/deploy-vm.mjs --apply --skip-build --env=.env  # 长任务，耐心等（VM 冷机可达 6min）
+      ⚠ V1.4.9 起本步与远端默认 shell（cmd.exe/Git-Bash/pwsh）无关——安装载荷走
+        .ps1 推送通道；无需预设 Git-Bash（R8 根除）。
   3.3 判据（VM 本机探针一次取全）：
-      scp qa/deploy-probes/vmcheck.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vmcheck.ps1
-      ssh $VM_USER@$VM_HOST 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vmcheck.ps1'
+      vmscp qa/deploy-probes/vmcheck.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vmcheck.ps1
+      vmssh 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vmcheck.ps1'
       要求：task_state=Running、listen_addr=127.0.0.1、listen_count=1、side_json=true、
             bridge_dir=true、health_http=200、health_body.ok=true
 
@@ -139,19 +195,24 @@ Step 5 · 全维度测试并出报告
 
 ────────────────────────────────────────
 Step 6 交付引导（不参与部署判据，但决定任务通道路由正确）
-  6.1 skill 就位判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在 且
+  6.1 skill 就位判据（连接器内为准，R11 修正；hos-win-skill 用户级副本任一供入亦可）：
       ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l == 8
+      且 connector-winvm/ 内含 hos-win-skill 与 winvm-orchestrator。
   6.2 通道三铁律：①风险优先（L2/L3 一律 a2a.delegate）②步骤定界（1~2 步可穷举走 MCP 直调）
       ③先探后定（L0 读能力取事实；遇 DELEGATION_REQUIRED 立即转委派不重试）。
   6.3 告知用户：不要让助手 ssh 进 VM 裸跑 PowerShell（绕过审批卡与审计回执）。
 
 【排错速查】
-- 密码拒绝 → 区分密码错/空密码（两层串联拦截）；首选设非空密码。
+- 密码拒绝 → 区分密码错/空密码（两层串联拦截，见 0.1）；首选设非空密码。
 - 公钥无效 → Administrators 成员必须写 C:/ProgramData/ssh/administrators_authorized_keys（icacls 用 SID）。
+- sshd 在跑端口在听但连不上（超时）→ 防火墙 Profile 不匹配（见 0.4，管理员 PS 一条命令修）。
+- 偶发 ssh/scp 一两次失败 → 桥接抖动，vmssh/vmscp 重试面内自愈，非缺陷。
 - 部署报「✅ 完成」但服务没起 → .env WINVM_DRY_RUN 是否 =1。
 - 下载 (28) connect timeout → --retry-all-errors -C - 重试（链路抖动非封禁）。
-- 隧道 TCP 通但 HTTP 黑洞 → tunnel status 看 ownerMatch/stateStale，kill 旧 pid 后 ensure。
+- 隧道 TCP 通但 HTTP 黑洞 → tunnel status 看 ownerMatch/stateStale，kill 旧 pid 后 ensure；
+  先排查 VM 是否被 hypervisor 暂停（见 0.3）。
 - tools/list 见高危工具 → 正常（原始面恒列全 54），闸门在宿主 mcp.json disabledTools。
 - vmcheck 输出解析炸（invalid start byte）→ 旧探针 GBK 双坑（PS5.1 Content 解码+控制台码页）；V1.4.8 起探针已修（UTF-8 直读），旧包内用字节容错解码兜底。
 - a2a.delegate 报 goal 必填 → 传 {"goal":"自然语言"}；无 /a2a/health 路由。
+- Step3 apply 报「cd C:/WinVMBridge 找不到路径」反复失败 → 旧版（≤V1.4.8）Git-Bash 隐藏前置坑（R8）；升级包（≥V1.4.9）已根除，或临时按旧法设 DefaultShell=Git-Bash 兜底。
 ========================================================================

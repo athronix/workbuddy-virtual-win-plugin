@@ -148,8 +148,8 @@ export function buildPlan(cfg) {
     if (cfg.vmHost) {
       steps.push({
         phase: 'VM',
-        description: `部署 VM 侧（scp 产物 → ssh ${cfg.vmUser}@${cfg.vmHost} 运行 install-vm.mjs，provider=${cfg.vmProvider}）[${mode}]`,
-        command: `tar -czf ${VM_ARCHIVE} delivery skills packages/*/dist package.json && scp -P ${cfg.vmSshPort} ${VM_ARCHIVE} ${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir} && ssh ${cfg.vmUser}@${cfg.vmHost} "${vmInstallCommand(cfg)}"`,
+        description: `部署 VM 侧（scp 产物 → [.ps1 push] ${cfg.vmUser}@${cfg.vmHost} 运行 install-vm.mjs，provider=${cfg.vmProvider}；与远端默认 shell 无关）[${mode}]`,
+        command: `tar -czf ${VM_ARCHIVE} delivery skills packages/*/dist package.json && scp -P ${cfg.vmSshPort} ${VM_ARCHIVE} ${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir} && [.ps1 push] powershell -File <vm-install.ps1>`,
         apply: !cfg.dryRun,
       });
     } else {
@@ -312,7 +312,9 @@ async function deployQaProbes(cfg, log) {
 /**
  * 部署收尾：在 VM 的 dev-and-qa/ 写 MANIFEST-deploy-<日期>.txt（留痕）。
  * 「按日期子目录 + MANIFEST」防膨胀规则的一部分；失败仅告警不阻断部署主干。
- * ⚠ 同 vmInstallCommand：日期由宿主端求值拼入（MSYS `$(...)` 陷阱，见上注释）。
+ * ⚠ 同 buildVmInstallPs1：日期由宿主端求值拼入（跨壳安全：远端不求值 `$(date)`）。
+ * 写通道（2026-10-30 R8 根除批）：旧实现先试 ssh 内联 `cat > <file>`（Git-Bash 专属，
+ * cmd.exe 默认壳必败后静默走 scp 回退），现直接用 scp 临时文件（唯一跨壳可靠通道）。
  * @returns {{ok:boolean, manifestPath:string, out:string}}
  */
 async function writeDeployManifest(cfg, log) {
@@ -325,35 +327,23 @@ async function writeDeployManifest(cfg, log) {
     probes: QA_PROBE_FILES.map((f) => `${VM_DEVQA_DIR}/probes/${f}`),
   });
   const manifestPath = `${cfg.vmDeployDir}/${VM_DEVQA_DIR}/MANIFEST-deploy-${dateStr}.txt`;
-  const cmd = `cat > ${manifestPath} && echo MANIFEST_WRITTEN`;
-  const r = await run(
-    'ssh',
-    ['-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`, cmd],
-    { timeoutMs: 60_000 },
-  );
-  // stdin 需写入远端文件：spawn 无 input 通道时经 bash heredoc 不可靠，改用 tar 免引号：
-  // 直接把内容经 ssh stdin 传入远端 cat（run() 支持? 不支持 → 改用 scp 临时文件，最稳）
-  if (!r.ok || !r.out.includes('MANIFEST_WRITTEN')) {
-    // 回退通道：写本地临时文件 → scp → ssh mv（MSYS 路径需 C:/ 形式）
-    const tmpLocal = join(ROOT, VM_ARCHIVE.replace('.tgz', '.manifest.tmp'));
-    try {
-      writeFileSync(tmpLocal, manifestBody, 'utf8');
-      const scpR = await run(
-        'scp',
-        ['-P', String(cfg.vmSshPort), tmpLocal, `${cfg.vmUser}@${cfg.vmHost}:${manifestPath}`],
-        { timeoutMs: 60_000 },
-      );
-      if (scpR.ok) {
-        log(`   ✅ 部署 MANIFEST 已写入（scp 通道）${manifestPath}`);
-        return { ok: true, manifestPath, out: scpR.out };
-      }
-      log(`   ⚠️ 部署 MANIFEST 写入失败（不阻断）：scp ${scpR.out.slice(0, 160)}`);
-      return { ok: false, manifestPath, out: scpR.out };
-    } finally {
-      try { rmSync(tmpLocal, { force: true }); } catch { /* noop */ }
+  const tmpLocal = join(ROOT, VM_ARCHIVE.replace('.tgz', '.manifest.tmp'));
+  try {
+    writeFileSync(tmpLocal, manifestBody, 'utf8');
+    const scpR = await run(
+      'scp',
+      ['-P', String(cfg.vmSshPort), tmpLocal, `${cfg.vmUser}@${cfg.vmHost}:${manifestPath}`],
+      { timeoutMs: 60_000 },
+    );
+    if (scpR.ok) {
+      log(`   ✅ 部署 MANIFEST 已写入（scp 通道）${manifestPath}`);
+      return { ok: true, manifestPath, out: scpR.out };
     }
+    log(`   ⚠️ 部署 MANIFEST 写入失败（不阻断）：scp ${scpR.out.slice(0, 160)}`);
+    return { ok: false, manifestPath, out: scpR.out };
+  } finally {
+    try { rmSync(tmpLocal, { force: true }); } catch { /* noop */ }
   }
-  return { ok: true, manifestPath, out: r.out };
 }
 
 /**
@@ -530,43 +520,64 @@ export function resolveVmCli(cfg) {
   return cfg.workbuddyCli;
 }
 
-/** VM 侧安装命令（dist 已随包分发，故跳过依赖安装与构建）
+/** VM 侧安装脚本（.ps1 载荷；dist 已随包分发，故跳过依赖安装与构建）
  *
- * 引号修复（首跑 VM 相位超时共因之一）：原实现把 node -e 嵌在外层双引号里
- * （`... node -e "require('fs').rmSync(...)" ...`），内层双引号会把外层引用截断，
- * rmSync 段脱离引号后极易被远端 shell 二次解析。改为**单引号包 JS、JS 内用双引号**：
- * 远端 Git-Bash 对单引号内内容不做任何展开，node 收到的即字面 JS。
- * 同时把 install-vm 输出经 `| tee install-vm-run.log` 持久化到 VM（set -o pipefail
- * 保证 node 退出码穿透管道），即使 ssh 会话被超时杀掉，逐步计时打点仍可在 VM 上回查。
- * 目录治理（2026-09-23）：日志从部署根收口进 dev-and-qa/logs/<日期>/。
- * ⚠ MSYS 陷阱（实测复现）：ssh 命令串里的 `\$(date +%F)` 到达远端 Git-Bash 后报
- *   「syntax error near unexpected token '('」——反斜杠经 MSYS argv 处理被吞、`$(` 裸奔。
- *   故日期目录**不在 shell 串里求值**：由 deployVm 把宿主端算好的日期串拼进路径
- *   （宿主/VM 同为 GMT+8 且部署窗口为秒级，跨日漂移风险可忽略；单测锁定路径形状）。 */
-export function vmInstallCommand(cfg, dateStr) {
+ * ⚠ R8 根除重构（2026-10-30，新鸿蒙宿主机复盘 deploy.prompt.to-be-improved.md）：
+ *   旧实现 `vmInstallCommand` 是 **Git-Bash 专属语法**（pipefail/mkdir -p/
+ *   `node -e '单引号 JS'`/tee 管道），在 VM sshd 默认 shell = cmd.exe（Windows OpenSSH 出厂默认）
+ *   下必败：`cd C:/WinVMBridge` 报「找不到路径」反复失败，此前部署成功全靠人工把
+ *   DefaultShell 改成 Git-Bash 这一**隐藏前置**。现改走项目铁律通道
+ *   （build .ps1 → scp → `powershell -NoProfile -ExecutionPolicy Bypass -File`），
+ *   该通道与远端默认 shell **无关**（cmd/bash/pwsh 均直接支持），R8 自此根除，
+ *   且**不再要求**用户改 sshd DefaultShell。
+ *
+ * 保留的既有语义：
+ *  - 目录治理（2026-09-23）：日志收口 dev-and-qa/logs/<日期>/，由宿主端算好日期拼入
+ *    （不在远端求值 $(date)，规避 MSYS `$(` 陷阱——跨壳同样成立：PowerShell 也不认 `$(date +%F)`）。
+ *  - `Tee-Object` 持久化 install-vm 输出（=旧 `tee` 语义），ssh 会话被超时杀掉仍可回查。
+ *  - 批14 策略闸执法透传：仅 on/off 传 `--policy-gate-wiring`，空/shadow ⇒ 不注入（逐字节旧形态护栏）。
+ *  - 完成哨兵 VM_INSTALL_DONE / 失败 VM_INSTALL_FAILED exit=N（上层 ok 判定=退出码 ∧ 哨兵，防假成功）。
+ *  载荷 ASCII-only（铁律），tar = Windows 10+ 自带 tar.exe（bsdtar），PowerShell 调用无路径转换问题。 */
+export function buildVmInstallPs1(cfg, dateStr) {
   const d = dateStr ?? new Date().toISOString().slice(0, 10);
-  // 批14：策略闸执法灰度跨部署持久化透传（值已过 resolveConfig 白名单化，仅 off/shadow/on；
-  // 空或 shadow ⇒ 不传=产物逐字节旧形态；MSYS 陷阱锁兼容：无 $()）。
   const wiringArg =
     cfg.policyGateWiring === 'on' || cfg.policyGateWiring === 'off'
       ? `--policy-gate-wiring ${cfg.policyGateWiring} `
       : '';
-  return (
-    `set -o pipefail; cd ${cfg.vmDeployDir} && mkdir -p ${VM_DEVQA_DIR}/logs/${d} && ` +
-    `tar -xzf ${VM_ARCHIVE} && ` +
-    `node -e 'require("fs").rmSync("${VM_ARCHIVE}",{force:true})' && ` +
+  const lines = [
+    "$ErrorActionPreference = 'Stop'",
+    `Set-Location -LiteralPath '${cfg.vmDeployDir}'`,
+    `$logDir = Join-Path (Join-Path '${VM_DEVQA_DIR}' 'logs') '${d}'`,
+    'New-Item -ItemType Directory -Force -Path $logDir | Out-Null',
+    `$log = Join-Path $logDir 'install-vm-run.log'`,
+    `tar -xzf '${VM_ARCHIVE}'`,
+    'if ($LASTEXITCODE -ne 0) { Write-Output ("VM_TAR_FAILED exit=" + $LASTEXITCODE); exit 1 }',
+    `Remove-Item -LiteralPath '${VM_ARCHIVE}' -Force -ErrorAction SilentlyContinue`,
+    "$ErrorActionPreference = 'Continue'",
     `node delivery/install-vm.mjs --skip-install --skip-build ` +
-    `${wiringArg}` +
-    `--provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)} 2>&1 | tee ${VM_DEVQA_DIR}/logs/${d}/install-vm-run.log`
-  );
+      `${wiringArg}` +
+      `--provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)} 2>&1 | Tee-Object -FilePath $log`,
+    'if ($LASTEXITCODE -eq 0) { Write-Output "VM_INSTALL_DONE"; exit 0 }',
+    'Write-Output ("VM_INSTALL_FAILED exit=" + $LASTEXITCODE)',
+    'exit 1',
+    '',
+  ];
+  return lines.join('\r\n');
 }
 
-/** VM 侧卸载命令（与安装对称；--yes 即真正移入回收站） */
-export function vmUninstallCommand(cfg, { dryRun = false } = {}) {
-  return (
-    `cd ${cfg.vmDeployDir} && node delivery/install-vm.mjs --uninstall ` +
-    `${dryRun ? '--dry-run' : '--yes'} --provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)}`
-  );
+/** VM 侧卸载脚本（与安装对称的 .ps1 载荷；--yes 即真正移入回收站） */
+export function buildVmUninstallPs1(cfg, { dryRun = false } = {}) {
+  const lines = [
+    "$ErrorActionPreference = 'Continue'",
+    `Set-Location -LiteralPath '${cfg.vmDeployDir}'`,
+    `node delivery/install-vm.mjs --uninstall ` +
+      `${dryRun ? '--dry-run' : '--yes'} --provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)}`,
+    'if ($LASTEXITCODE -eq 0) { Write-Output "VM_UNINSTALL_DONE"; exit 0 }',
+    'Write-Output ("VM_UNINSTALL_FAILED exit=" + $LASTEXITCODE)',
+    'exit 1',
+    '',
+  ];
+  return lines.join('\r\n');
 }
 
 /** 生成卸载执行计划（纯函数，便于单测） */
@@ -589,8 +600,8 @@ export function buildUninstallPlan(cfg) {
     if (cfg.vmHost) {
       steps.push({
         phase: 'VM-UNINSTALL',
-        description: `卸载 VM 侧服务（ssh ${cfg.vmUser}@${cfg.vmHost} 运行 install-vm.mjs --uninstall）[${mode}]`,
-        command: `ssh -p ${cfg.vmSshPort} ${cfg.vmUser}@${cfg.vmHost} "${vmUninstallCommand(cfg, { dryRun: cfg.dryRun })}"`,
+        description: `卸载 VM 侧服务（[.ps1 push] ${cfg.vmUser}@${cfg.vmHost} 运行 install-vm.mjs --uninstall，与远端默认 shell 无关）[${mode}]`,
+        command: `[.ps1 push] ssh -p ${cfg.vmSshPort} ${cfg.vmUser}@${cfg.vmHost} powershell -File <vm-uninstall.ps1>`,
         apply: !cfg.dryRun,
       });
     } else {
@@ -640,38 +651,41 @@ export async function deployVm(cfg) {
   );
   if (!cp.ok) return { ok: false, code: cp.code, out: `传输产物失败：${cp.out.slice(0, 300)}` };
 
-  const r = await run(
-    'ssh',
-    ['-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`, vmInstallCommand(cfg)],
-    // run4/run5 取证（逐步计时）：VM 相位冷机实测 317~377s，自检最多 3×~75s 后最坏 ~500s+，
-    // 且 powershell.exe 进程创建延迟逐次波动。按实测证据放宽到 600s。
-    { timeoutMs: 600_000 },
-  );
+  // R8 根除（2026-10-30）：安装走 .ps1 铁律通道，不再依赖远端默认 shell 是 Git-Bash。
+  // run4/run5 取证（逐步计时）：VM 相位冷机实测 317~377s，自检最多 3×~75s 后最坏 ~500s+，
+  // 且 powershell.exe 进程创建延迟逐次波动。按实测证据放宽到 600s。
+  const r = await runRemotePs1(cfg, buildVmInstallPs1(cfg), { timeoutMs: 600_000 });
   try {
     rmSync(join(ROOT, VM_ARCHIVE), { force: true });
   } catch {
     /* 清理失败不影响部署结果 */
   }
-  return r;
+  if (!r.ok) return r;
+  // 防假成功：哨兵必须出现（退出码 0 但缺哨兵=旧 .ps1 残留等异常态）
+  return { ok: r.out.includes('VM_INSTALL_DONE'), code: r.code, out: r.out };
 }
 
 /**
- * VM 侧卸载分发：仅经 ssh 在 VM 内运行 install-vm.mjs --uninstall（VM_HOST 已可达）。
- * 与 deployVm 对称，但卸载不需要打包/传输产物。
+ * VM 侧卸载分发：经 .ps1 铁律通道在 VM 内运行 install-vm.mjs --uninstall（VM_HOST 已可达）。
+ * 与 deployVm 对称，但卸载不需要打包/传输产物。R8 根除：同样不再依赖远端默认 shell。
  */
 export async function deployVmUninstall(cfg) {
   if (!cfg.vmHost) return { ok: false, code: -1, out: 'VM_HOST 未配置' };
-  return run(
-    'ssh',
-    ['-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`, vmUninstallCommand(cfg, { dryRun: cfg.dryRun })],
-    { timeoutMs: 300_000 },
-  );
+  const r = await runRemotePs1(cfg, buildVmUninstallPs1(cfg, { dryRun: cfg.dryRun }), { timeoutMs: 300_000 });
+  if (!r.ok) return r;
+  return { ok: r.out.includes('VM_UNINSTALL_DONE'), code: r.code, out: r.out };
 }
 
 /* ----------------------------- 远端 PowerShell 铁律辅助（.ps1 推送） -----------------------------
- * 项目铁律：勿 ssh 内联 PowerShell（VM 远端默认 shell = Git-Bash/MSYS，会做路径转换与
- * 变量吞改：/End → C:/.../End、$_ → /usr/bin/bash）。凡远端 PowerShell 逻辑一律写 .ps1
- * → scp → `powershell -File`。VM-START 相位与 uninstall.mjs 均用此通道。 */
+ * 项目铁律：凡远端 PowerShell 逻辑一律写 .ps1 → scp → `powershell -File`。
+ * 缘由（双壳两坑，实测在册）：远端默认 shell 可能是 Git-Bash/MSYS 或 cmd.exe——
+ *   · Git-Bash：`/End` → C:/.../End 路径转换、`$_` 被吞（旧拓扑默认壳，MEMORY「关键坑」）；
+ *   · cmd.exe ：Windows OpenSSH **出厂默认**，不认识 POSIX 语法（R8：旧 vmInstallCommand
+ *     的 pipefail/`mkdir -p` 在此必败，复盘 deploy.prompt.to-be-improved.md）。
+ * `.ps1 → scp → powershell -File` 通道与默认 shell 无关（cmd/bash/pwsh 均直接支持），
+ * 是唯一「零前置」形态；VM-START/VM-INSTALL/卸载相位均用此通道。
+ * 例外（双壳可移植的裸命令）：单 token 原生 exe 调用（whoami/netstat/sc/node/…，
+ * 无 `$`、无 `/` 前缀参数、无重定向管道语义差）可 ssh 内联，见 winvm-plugin.mjs psRemote 注释。 */
 
 /**
  * 把 .ps1 内容推送到 VM 并以 `powershell -NoProfile -ExecutionPolicy Bypass -File` 执行。
@@ -704,8 +718,10 @@ export async function runRemotePs1(cfg, ps1Body, { timeoutMs = 120_000, log = (m
       ],
       { timeoutMs },
     );
-    // 清理远端与本地临时脚本（best-effort）
-    await run('ssh', ['-p', String(cfg.vmSshPort), sshTarget, `rm -f ${remoteName}`], { timeoutMs: 30_000 });
+    // 清理远端与本地临时脚本（best-effort）。
+    // 跨壳删除（R8 批）：`rm -f` 是 Git-Bash 专属、cmd.exe 不认——统一走 powershell Remove-Item
+    // （裸 exe + 连字符参数，cmd/bash/pwsh 三壳均可移植）。
+    await run('ssh', ['-p', String(cfg.vmSshPort), sshTarget, `powershell -NoProfile -Command "Remove-Item -LiteralPath '${remoteName}' -Force -ErrorAction SilentlyContinue"`], { timeoutMs: 30_000 });
     return r;
   } finally {
     try { rmSync(localWritten, { force: true }); } catch { /* noop */ }

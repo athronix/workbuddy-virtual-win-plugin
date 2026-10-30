@@ -234,8 +234,8 @@ node delivery/winvm-plugin.mjs tunnel ensure
 
 | 脚本 | 用途 | 结构 |
 |---|---|---|
-| `docs/deploy/deploy.prompt` | **从零部署**（密码建免密 → 取包三重校验 → VM-service → 宿主插件+隧道 → 全维度测试 → 交付引导） | 运行期注入变量段 + Step 1→6 判据 + 排错速查 |
-| `docs/deploy/undeploy.prompt` | **镜像拆除**（只删安装体系自己放的东西；OS 级与 SSH 密钥默认不动；删除物入 trash 可回滚） | 运行期注入变量段 + U0→U5 判据（DRY-RUN 先行 / POST-CLEANUP 全 PASS + 独立复核防假 PASS / 存留项逐项问用户）+ 排错速查 |
+| `docs/deploy/deploy.prompt`（v2.0） | **从零部署**（前置检查 → 密码建免密 → 取包三重校验 → VM-service → 宿主插件+隧道 → 全维度测试 → 交付引导） | 运行期注入变量段（NODE/PY 自动探测）+ 执行协议 P-1~P-4 + Step 0 前置五项（VM 非空密码/OpenSSH 安装法/虚拟机电源/防火墙 Profile/桥接重试）+ Step 1→6 判据 + 排错速查 |
+| `docs/deploy/undeploy.prompt`（v2.0） | **镜像拆除**（只删安装体系自己放的东西；OS 级与 SSH 密钥默认不动；删除物入 trash 可回滚） | 运行期注入变量段（自动探测+重试封装）+ 执行协议 + U0→U5 判据（DRY-RUN 先行 / POST-CLEANUP 全 PASS + 独立复核防假 PASS / 存留项逐项问用户）+ 排错速查 |
 
 **安装步骤**：
 
@@ -244,7 +244,8 @@ node delivery/winvm-plugin.mjs tunnel ensure
    - `VM_HOST` / `VM_USER` / `VM_SSH_PORT`：Windows VM 的 SSH 可达信息；
    - `WINVM_SSH_PASSWORD`：**仅**从零建免密通道（Step 1）时需要——只走环境变量，禁止写入文件/提交/日志回显；免密已建好则整段跳过 Step 1；
    - `DEPLOY_ROOT` / `PKG_ROOT`：部署工作目录与包根（`ls $PKG_ROOT/MANIFEST.txt` 判定布局，不对就按注释换值）；
-   - `NODE` / `PY`：宿主运行时**绝对路径**（鸿蒙沙箱场景必须绝对路径）；
+   - `NODE` / `PY`：宿主运行时绝对路径（鸿蒙沙箱必须绝对路径）——v2.0 起脚本自带**多候选自动探测**，一般无需手改；
+   - **Step 0 前置检查**（v2.0 新增，脚本内自带头部提醒）：VM Windows 账户设非空密码、VM 装好并启动 OpenSSH Server（sshd 默认 shell 保持出厂 cmd.exe 即可，V1.4.9 起无需 Git-Bash）、虚拟机管理端设"从不"自动暂停+开机自启、防火墙 Profile 匹配；执行协议=缺信息问用户、环境缺件审批后自动补齐（prepare-vm --ensure-node）或给方法请辅助；
    - `RELEASE_TAG` / `ZIP` / `REPO`：下载面参数（包已在本地可跳下载校验段）；
    - `WINVM_DRY_RUN=0`：⚠ 必须为 0——`=1` 会把 `--apply` 降级为 dry-run（假成功）。
 3. **整段复制全文**粘贴给 WorkBuddy 新会话发送；等它按 Step 1→5 跑完并给出三探针结果（mcp 20/20 + a2a 5/5 + example 13/13）与健康/连接/FRESH/disabledTools=8 判据。
@@ -256,7 +257,7 @@ node delivery/winvm-plugin.mjs tunnel ensure
 3. 完成后看 POST-CLEANUP 核验清单全 `[PASS]`（条目随运行态动态 16~19 项）+ 独立复核（18443 拒连、全局 `~/.workbuddy/mcp.json` 无 winvm 键、VM 目录/计划任务 absent、sshd 存活）。
 4. 存留项（SSH 密钥、`C:/WinVMWorkspace`、trash、下载物）按脚本 U5 **逐项征询后处置**——想彻底清或准备 `--wipe` 清场重装，看脚本 §8 衔接说明（拆除阶段保留密钥与下载物，重装从 Step 2 起即可）。
 
-> 两份脚本的"母本"是 `docs/deploy/deploy-prompts.md` / `undeploy-prompts.md` 总集的 §3（含分步 Prompt 与更多论证细节）；脚本已于 2026-10-29 真机回环验证（拆除 19/19 + 重装 38/38，见 `qa/real-test-2026-10-29-run1.md`），V1.4.6 起随发布包分发。
+> 两份脚本的"母本"是 `docs/deploy/deploy-prompts.md` / `undeploy-prompts.md` 总集的 §3（含分步 Prompt 与更多论证细节）；脚本历经四轮真机回环（10-27~29）+ 新宿主机复盘收编（v2.0，10-30），V1.4.6 起随发布包分发。
 >
 > **校验值权威源口径**：文档不硬编码逐版本 zip sha / MANIFEST 三元组（`MANIFEST-sidecar-authoritative`）——下载后以 release 旁挂 `.zip.sha256` 做 `sha256sum -c`，解包后以包内 `MANIFEST.txt` 头七行为准跑 `verify-manifest.py`；`RELEASE_TAG` 以 releases/latest API 现解为准。V1.4.7 起打包面 V8 断言机械化钉死此口径。
 
@@ -390,7 +391,7 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 | `docs/deploy/deploy-strategy.md` | **部署策略 v2（从零安装，权威）**：六步可行性+变量表+Step 3.0 运行时前置+§2.1-B 空密码预案+§5.0 遇困决策协议+Step 6 交付引导+缺口台账（§9.1）与实测记录 |
 | `docs/deploy/deploy-prompts.md` | **部署 Prompt 总集**：变量确认表+总 Prompt（一键粘贴）+分步 P1~P6+验收速查+§8 异常处置协议 |
 | `docs/deploy/undeploy-prompts.md` | **卸载 Prompt 总集（deploy-prompts 逆向镜像，现 v1.4；回环实测→I-6.3 修复已入 V1.4.5 包）**：十八落点镜像清单+总 Prompt U0~U5（DRY-RUN 先行/POST-CLEANUP 核验/存留项逐项问用户）+`--wipe` 清场重装衔接 |
-| `docs/deploy/deploy.prompt` / `undeploy.prompt` | **纯 Prompt 一键粘贴脚本**（总集 §3 的独立脚本版+运行期注入变量；10-29 真机回环双向验证：拆 19/19+装 38/38；**V1.4.6 起随发布包分发**，配置与用法见本文 §5.4） |
+| `docs/deploy/deploy.prompt` / `undeploy.prompt` | **纯 Prompt 一键粘贴脚本（现各 v2.0）**：总集 §3 独立脚本版+运行期注入（自动探测）+执行协议+Step 0 前置检查；四轮真机回环+新宿主机复盘收编；**V1.4.6 起随发布包分发**，配置与用法见本文 §5.4 |
 | `docs/04-ops/OPS-OVERVIEW.md` | 运维权威手册：部署/运行机制综述+配置逐键穷举+坑速查 |
 | `docs/RELEASE-NOTES.md` | **Release Notes（演进链/能力面/已知限制，权威）**；旧 `V1.0.0-release-notes.md` 已冻结并移至 `docs/archive/legacy-release-notes-V1.0.0.md` |
 | `docs/05-peripherals/DEPLOYMENT.md` | 部署指南（含 §1.7 分发跟批闭环、策略闸执法切换） |

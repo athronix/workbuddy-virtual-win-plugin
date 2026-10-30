@@ -960,7 +960,15 @@ function cmdUninstall(side, vm, withVm) {
     if (withVm) {
       console.log('\n同时卸载 VM 侧...');
       try {
-        const out = sshExec(vm, `cd "${vmPathsForSsh(vm)}" && node delivery/install-vm.mjs --uninstall --yes --provider ${vm.provider || 'workbuddy'} --cli ${vm.cli || 'codebuddy'}`);
+        // R8 根除批（2026-10-30）：旧形 `cd "<dir>" && node …` 依赖远端 shell 语义
+        // （cmd 跨驱动器需 `cd /d`、Git-Bash 又走 MSYS 路径）——统一改 EncodedCommand
+        // PowerShell（Set-Location + &node），单 token 跨壳（cmd/bash/pwsh）可移植。
+        const dir = vmPathsForSsh(vm);
+        const ps =
+          `$ErrorActionPreference='Stop'; Set-Location -LiteralPath '${dir.replace(/'/g, "''")}'; ` +
+          `& node delivery/install-vm.mjs --uninstall --yes --provider ${vm.provider || 'workbuddy'} --cli ${vm.cli || 'codebuddy'}`;
+        const encoded = Buffer.from(ps, 'utf16le').toString('base64');
+        const out = sshExec(vm, `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`);
         console.log(out);
       } catch (e) {
         console.error(`VM 卸载失败：${e.message}`);

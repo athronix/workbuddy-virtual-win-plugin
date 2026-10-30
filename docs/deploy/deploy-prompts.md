@@ -2,7 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
-> 更新：2026-10-29（v2.3：I-6.4 修复随 V1.4.8 入包收编；pack V9 三探针断言；示例值升 V1.4.8）
+> 更新：2026-10-30（v2.4：新宿主机实跑复盘收编——新增 Step 0 前置检查（VM 密码/OpenSSH 安装法/虚拟机电源/防火墙 Profile）、NODE/PY 自动探测、ssh 重试封装、执行协议 P-1/P-2；R8 根除：安装链 cmd.exe 兼容化（.ps1/EncodedCommand 跨壳），不再要求 Git-Bash 默认 shell）
 > 上游：`docs/deploy/deploy-strategy.md`（论证与实测记录）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/undeploy-prompts.md`（卸载 Prompt 总集，本文件的逆向镜像；清场重装 `--wipe` 前置拆除见彼文 §8）
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可从零驱动双端安装
@@ -21,6 +21,7 @@
 
 **前置**：宿主侧需有 `ssh` / `scp` / `unzip` / `sha256sum` / `curl` / `node`；
 VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥ 18。
+**sshd 默认 shell 保持 cmd.exe 即可（V1.4.9 起无需 Git-Bash，R8 根除）**；VM 内其他项见 §3 Step 0 前置检查。
 
 ---
 
@@ -48,8 +49,8 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 |---|---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 同左 | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | 解析到 `V1.4.2` | latest 跳转页 | ☐ |
-| `RELEASE_TAG` | `V1.4.8`（**示例值——以 `releases/latest` API 现解为准**，见 `RELEASE_URL` 行与 deploy.prompt 注入段指引） | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
-| `ZIP_NAME` | `winvm-overall-<RELEASE_TAG>.zip`（示例 V1.4.8） | 随 latest 现解（旁挂 91 B sidecar 现取现验） | 分发单元 | ☐ |
+| `RELEASE_TAG` | `V1.4.9`（**示例值——以 `releases/latest` API 现解为准**，见 `RELEASE_URL` 行与 deploy.prompt 注入段指引） | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
+| `ZIP_NAME` | `winvm-overall-<RELEASE_TAG>.zip`（示例 V1.4.9） | 随 latest 现解（旁挂 91 B sidecar 现取现验） | 分发单元 | ☐ |
 | `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：以 release 旁挂 `winvm-overall-<TAG>.zip.sha256` 为准，`sha256sum -c` 当场验 | V1.4.6 回环实测一致 | 整包校验值（取包时现取现验，永不陈旧） | ☐ |
 | `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：以**包内 `MANIFEST.txt` 头七行**为准，`$PY qa/deploy-probes/verify-manifest.py .` 复算即验 | V1.4.6=881/7606427/`2562a598…`（历史样例） | MANIFEST 三元组（Step 2.3 判据②的输入源=包内文件，非本文档） | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 同左 | 宿主解压根 | ☐ |
@@ -126,7 +127,7 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
   VM_DEPLOY_DIR=C:/WinVMBridge   VM_WORKSPACE=C:/WinVMWorkspace
   SERVICE_PORT=18443（仅回环 127.0.0.1）
   PROVIDER=workbuddy   WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.8   ZIP=winvm-overall-V1.4.8.zip
+  RELEASE_TAG=V1.4.9   ZIP=winvm-overall-V1.4.9.zip
   REPO=athronix/workbuddy-virtual-win-plugin
   DEPLOY_ROOT=~/winvm-deploy   PKG_ROOT=~/winvm-deploy/overall-root/overall
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
@@ -134,6 +135,35 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 【安全红线】
   - 密码只走运行期环境变量 WINVM_SSH_PASSWORD；禁止写入任何文件、禁止提交、禁止日志回显。
   - 不要为了让密码登录通过而把 VM 的 LimitBlankPasswordUse 改成 0（等于局域网免密登录管理员）。
+
+────────────────────────────────────────
+Step 0 · 前置检查（开工前逐项确认；不满足即按执行协议处置）
+  【执行协议】P-1 缺信息/信息错（VM IP、账号、密码）→ 停下问用户，不猜不硬试；
+    P-2 环境缺失：可自动化项（prepare-vm --ensure-node 覆盖 node/codebuddy/防火墙/
+    睡眠/sshd 启动型）→ **报告发现+将执行动作，取得用户审批后**自动跑并回报；
+    必须人工项（VM 内管理员操作、codebuddy 登录）→ 给精确到命令的方法，
+    请用户完成后通知继续；P-3 其余步骤 AI 自主推进并汇报，仅三类人工卡点暂停
+    （①VM 密码 ②VM 内管理员操作 ③方案拍板）。
+  0.1 提醒用户为 VM Windows 账户设**非空密码**：空密码不安全，且被两层串联拦截
+      （PermitEmptyPasswords=no + LimitBlankPasswordUse=1）使免密通道建立复杂化。
+  0.2 提醒用户安装并启动 OpenSSH Server（VM 内管理员 PowerShell）：
+        Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+        Start-Service sshd
+        Set-Service sshd -StartupType Automatic
+      （或 设置→可选功能→OpenSSH 服务器。）判据：宿主 TCP 探测 22 开放 / vmssh whoami 可达。
+      ⚠ **默认 shell 保持 cmd.exe（出厂默认）即可**——V1.4.9 起安装链全走跨壳通道
+      （.ps1 推送 / powershell -EncodedCommand），无需改 DefaultShell、无需装 Git for
+      Windows（复盘旧案 R8"apply 失败 183 次"自此根除）。
+  0.3 提醒用户在虚拟机管理端设置：电源策略**"从不"自动暂停** + **开机自启**，
+      避免 VM 后台睡眠导致隧道黑洞/服务假死（宿主侧 prepare-vm DB-5 只兜底 guest 内 powercfg，
+      hypervisor 层暂停必须用户在虚拟机管理界面设置）。
+  0.4 防火墙 Profile 匹配（R3 坑：sshd 在跑端口在听但连接超时=Public/Private 不匹配）：
+      诊断（VM PS）：Get-NetConnectionProfile | Select InterfaceAlias, NetworkCategory
+                   Get-NetFirewallRule -Name OpenSSH-Server-In-TCP | Select Name, Enabled, Profile
+      修复（VM **管理员** PS）：Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Profile Any
+      本项目自建规则（prepare-vm DB-2）默认全 Profile，无此问题。
+  0.5 ssh/scp 偶发一两次失败=桥接抖动（R4）：所有远端操作包重试循环
+      （vmssh()/vmscp() 三试+sleep 2s；deploy.prompt v2.0 已内置），非配置错误。
 
 ────────────────────────────────────────
 Step 1 · 密码登录 → 建立免密通道
@@ -195,8 +225,13 @@ Step 3 · 部署 VM-service（用免密通道）
         - 无 npm：随 Node 一起装，不要单独补。
         - 无 codebuddy：`npm i -g @tencent-ai/codebuddy-code@latest`（写用户目录，无需提权；默认 latest 不锁版本）。
           ⚠ nvm 切版本会使全局 CLI 失效 → 换版本后必须重装。
-        - AUTH_VERDICT=installed-unverified → VM 内交互式跑一次 `codebuddy` 完成登录。
-      自动化（只补 CLI，已装则短路）：探针加 `-Fix`。
+        - AUTH_VERDICT=installed-unverified → 属人工项：请用户在 VM 内交互式跑一次
+          `codebuddy` 完成登录（DB-4 结构性不可脚本化），完成后通知继续。
+      自动化（审批后一条命令补齐 node/codebuddy/防火墙/睡眠/sshd 启动型）：
+        cd $PKG_ROOT && $NODE delivery/bootstrap.mjs prepare-vm --apply --ensure-node
+        （DB-3 node：winget 首选→失败自动落 **zip+cdn.npmmirror.com 镜像**兜底
+         （R7 复盘：MSI per-user 1603、winget 经 ssh=MSIX 空壳；zip 免管理员）；
+         只补 CLI 时探针加 `-Fix` 亦可。装完重跑 3.0 确认 BLOCKERS=none。）
   3.1 准备 .env：
       cd $PKG_ROOT && cp -n .env.example .env
       确认 VM_HOST/VM_USER/VM_SSH_PORT/VM_DEPLOY_DIR/WINVM_SERVICE_PORT
@@ -243,8 +278,9 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
   6.1 加载 skill（顺序不能反）：
       @skill:hos-win-skill         # 仓库第 8 Skill（host-only，VM 不分发）；宿主可用户级或连接器目录供入
       由它带入 winvm-orchestrator    # 连接器 7 个 winvm-* skill 之一
-      判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；
-            ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l == 7
+      判据（R11 修正，V1.4.3 起包与 HEAD 均=8）：
+            ls ~/.workbuddy/connectors/skills/connector-winvm/ | wc -l == 8
+            且目录内含 hos-win-skill 与 winvm-orchestrator；宿主用户级 ~/.workbuddy/skills/hos-win-skill/SKILL.md 任一供入亦可
   6.2 通道路由三条铁律（优先级从高到低）：
       ① 风险优先：L2/L3（service.configure/process.terminate/registry.write/winget.uninstall/
          file.delete/link.manage/appops.gui.produce/power.control）一律 a2a.delegate；
@@ -315,7 +351,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 
 ```text
 从 GitHub Release 取 WinVM Bridge 分发包并做三层校验。
-  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.8  ZIP=winvm-overall-V1.4.8.zip
+  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.9  ZIP=winvm-overall-V1.4.9.zip
 1) 用绝对 URL（不要 releases/latest）下载 zip 与 .zip.sha256 到 ~/winvm-deploy/pkg/，
    带 --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 --retry-all-errors -C -。
    判据①：sha256sum -c 通过。
@@ -388,7 +424,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 部署已通过，现在进入交付引导：让用户能正确下发 Windows 任务。
 1) 加载 @skill:hos-win-skill（host-only：VM 侧不分发；宿主侧用户级 ~/.workbuddy/skills/ 或连接器目录
    任一供入即可——V1.4.3 起各包/HEAD 安装连接器=8 含之；历史 V1.4.2 包=7 时靠用户级副本），由它带入 winvm-orchestrator。
-   判据：ls ~/.workbuddy/skills/hos-win-skill/SKILL.md 存在；connector-winvm 目录数按安装源=包 7 / HEAD 8。
+   判据：connector-winvm 目录数=8（V1.4.3 起包与 HEAD 均 8，含 hos-win；历史 V1.4.2 包=7）；hos-win-skill 用户级或连接器内任一供入即可。
 2) 向用户复述通道三铁律：风险优先（L2/L3 必走 a2a.delegate）／步骤定界（1~2 步可穷举走 MCP 直调）
    ／先探后定（先 L0 读能力取事实，遇 DELEGATION_REQUIRED 立即转委派）。
 3) 给 3 个可直接粘贴的示范（覆盖两条通道）：
@@ -453,7 +489,12 @@ $PY qa/deploy-probes/a2a-probe.py
 | preflight 报 `vm-npm` 失败 | 有 node 无 npm（安装残缺） | 重装完整 Node 发行版，不要单独补 npm |
 | preflight 报 `vm-agent-cli` 失败 | VM 内 `codebuddy --version` 非 0 | `npm i -g @tencent-ai/codebuddy-code@latest`；或临时切 `workbuddy-deterministic` 先通链路（**须用户同意**） |
 | 装完 codebuddy 又「找不到命令」 | `nvm use` 切了 Node 版本，全局包在旧 prefix | 当前版本重装 CLI；核对 `npm config get prefix` |
-| 想用 `winget` 装 Node | ssh 非交互会话 MSIX alias 空壳（`--version` 空、exit 0） | 改 nvm 或 MSI；winget 仅桌面会话可用 |
+| 想用 `winget` 装 Node | ssh 非交互会话 MSIX alias 空壳（`--version` 空、exit 0） | `prepare-vm --ensure-node` 的 zip+npmmirror 兜底（V1.4.9 起内置）；或 nvm/MSI |
+| sshd 在跑、端口在听，但宿主连不上（超时） | 防火墙规则 Profile 与网卡 Profile 不匹配（规则=Private，网卡=Public） | VM 管理员 PS：`Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Profile Any`（Step 0.4） |
+| Step3 apply 报「cd C:/WinVMBridge 找不到路径」反复失败 | ≤V1.4.8 安装载荷为 Git-Bash 专属语法而 sshd 默认 shell=cmd.exe（R8 隐藏前置） | V1.4.9 起已根除（.ps1/EncodedCommand 跨壳通道）；旧包临时兜底=VM 管理员 PS 设 `HKLM:\SOFTWARE\OpenSSH` DefaultShell=Git-Bash 后重启 sshd |
+| Node MSI 静默装报 1603 / `Start-Process` 报 MissingArgument | per-user 不支持该机 MSI 形态 / PS 引号塌缩 | zip+镜像方案（prepare-vm DB-3 兜底）或 schtasks 拉起脱离 SSH 会话 |
+| 偶发 ssh/scp 一两次失败 | 桥接链路抖动 | 重试封装（vmssh/vmscp 三试）内自愈；不要当配置错误排查 |
+| VM 一段时间后隧道黑洞/服务无响应 | hypervisor 自动暂停/睡眠 | Step 0.3：虚拟机设"从不"自动暂停+开机自启 |
 | 远端 `ParserError` / 乱码 | 内联 `-Command` 被本地 bash 展开 `$_` | 写 `.ps1` → `scp` → `powershell -File`；ASCII 载荷 |
 | `--check-fresh` 报 MISSING/多余 | 缓存白名单与 integrity 面不同源 | 两处名单同名同源（SECURITY-GOVERNANCE §9.2） |
 | 会话里看不到 `winvm__*` 工具 | 连接器配置在**新会话**才注入 | 重跑 `install-host` 后新开会话 |
@@ -474,9 +515,10 @@ $PY qa/deploy-probes/a2a-probe.py
 |---|---|---|---|
 | 1 | ~~是否发布 V1.4.3~~ | **已裁决并执行（10-26 用户批准）**：V1.4.3 已上架（G-1 修复入包+V5 断言），清场重装 run2 复验非账户零污染 | ✅ 关闭 |
 | 2 | ~~G-2 MANIFEST 无消费者~~ | **已收编**：`delivery/verify-release.mjs`（四判据+V5）随包分发，Step 2 判据二入口 | ✅ 关闭 |
-| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / latest 现解，示例 `V1.4.8`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
+| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / latest 现解，示例 `V1.4.9`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
 | 4 | **VM 密码管理方式** | 当前经 `WINVM_SSH_PASSWORD` 运行期注入，未落任何文件 | 用户：确认是否维持该方式 |
 | 5 | ~~G-3 deploy-probes 不进包~~ | **已收编**：V1.4.3 包内 `qa/deploy-probes/` 6 件 + `delivery/tools/diagnose-connectors.mjs`（PACKAGE_REQUIRED 必存断言兜底），纯 Release 安装链零仓库依赖 | ✅ 关闭 |
+| 6 | ~~VM 默认 shell=Git-Bash 隐藏前置~~ | **已根除（V1.4.9/迭代12）**：安装/拆除/探针全部远端命令改跨壳通道（cmd.exe 兼容），sshd 保持出厂默认即可；新宿主机复盘 R8 落账 ISSUES I-6.5 | ✅ 关闭 |
 
 ---
 
@@ -559,6 +601,7 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
 | 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |
+| 2026-10-30 | v2.4 | **新宿主机复盘收编（迭代12/V1.4.9）**：`deploy.prompt` 升 v2.0——新增 Step 0 前置检查（0.1 VM 非空密码提醒/0.2 OpenSSH Server 安装启动方法/0.3 虚拟机电源"从不暂停+自动开机"/0.4 防火墙 Profile 诊断修复/0.5 桥接抖动重试），执行协议 P-1~P-3（缺信息问用户；可自动化项**审批后**补齐、人工项给精确方法），NODE/PY 自动探测多候选回退（R5），vmssh/vmscp 重试封装（R4），Step 6.1 判据改连接器目录=8 为准（R11）；母本同步 Step 0/执行协议/排错 +6 行。代码面=I-6.5 R8 根除：vmInstallCommand（Git-Bash 专属）→ buildVmInstallPs1（.ps1 铁律通道），bootstrap trust/marker、uninstall 清理、winvm-plugin 卸载远程段全改跨壳形态；prepare-vm DB-3 增 zip+npmmirror 兜底（R7）。**sshd 默认 shell 不再要求 Git-Bash，cmd.exe 出厂默认可直装** |
 | 2026-10-29 | v2.3 | **I-6.4 入包+V9 断言（迭代11/V1.4.8）**：run2 抓出的探针双缺陷修复随本迭代入包（V9 机械化核验包内 verify-manifest/verify-release/vmcheck 三特征）；§2.2 RELEASE_TAG/ZIP 示例值升 V1.4.8；§5 速查包完整性行改指包内 MANIFEST（sha 自指彻底不写） |
 | 2026-10-29 | v2.1 | **文档自指根除（迭代10/V1.4.7）**：§2.2 `ZIP_SHA256`/`PKG 三元组`不再硬编码逐版本值→改「现取现验：旁挂 sidecar + 包内 MANIFEST.txt 头七行，verify-manifest 复算即验」（标记 `MANIFEST-sidecar-authoritative`）——从此**包内快照与仓库正文口径一致、永不过期**（此前每包内文档恒落后一版的结构性陈旧被根除，非再订正一次而是取消硬编码）；`RELEASE_TAG` 行标注示例值+latest 现解为准；pack-release 新增 **V8 断言**（包内两篇部署文档必含该标记，缺失 fail-loud 拒产包=口径倒退机械化封堵） |
 | 2026-10-29 | v2.0 | **迭代9 · V1.4.6 版本引用同步**：§2.2/总 Prompt/§5 速查升 V1.4.6（zip `dc417bf2…`/2,846,225 B/三元组 881/7606427/`2562a598…`，匿名回环三向一致）；清场重装=包内 uninstall 实弹 19/19+独立复核零残留+setup 七相位+38/38。⚠ **结构性口径**：V1.4.6 包内快照的本文版本表仍写 V1.4.5——zip sha 自指（打包在同步前，同步后订正属仓库面，再重打会再次自指），**包的权威校验值以包内 `MANIFEST.txt` 与旁挂 `.zip.sha256` 为准**（verify-manifest/verify-release 即读它） |

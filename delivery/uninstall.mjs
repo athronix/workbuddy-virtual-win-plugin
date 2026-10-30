@@ -806,7 +806,10 @@ function runVmPhase(vm, { apply, purgeWorkspace }) {
   process.stdout.write(output);
 
   // Cleanup the remote helper script (best effort).
-  spawnSync('ssh', ['-p', sshPort, '-o', 'ConnectTimeout=10', sshTarget, `rm -f ${VM_REMOTE_PS1}`], { encoding: 'utf8' });
+  // Cross-shell cleanup (R8 fix 2026-10-30): `rm -f` is Git-Bash-only and fails on the
+  // cmd.exe default shell; use powershell Remove-Item (bare exe + dash args = portable).
+  const enc = Buffer.from(`Remove-Item -LiteralPath '${VM_REMOTE_PS1}' -Force -ErrorAction SilentlyContinue`, 'utf16le').toString('base64');
+  spawnSync('ssh', ['-p', sshPort, '-o', 'ConnectTimeout=10', sshTarget, `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${enc}`], { encoding: 'utf8' });
 
   const ok = run.status === 0 && (!apply || output.includes('VM_CLEANUP_DONE'));
   return { ok, output };
@@ -895,7 +898,12 @@ async function printVerification(hostRoot, home, vm, purgeWorkspace, executed) {
       // The authoritative check is the passwordless "whoami" row above.
       rows.push(['VM authorized_keys presence (info only; keys are never touched)', true, get('AUTH_KEYS')]);
       if (!purgeWorkspace) {
-        rows.push(['VM C:/WinVMWorkspace kept (default)', get('WORKSPACE_DIR') === 'True', get('WORKSPACE_DIR')]);
+        // KEEP 断言容错（R1/G1，2026-10-30 新宿主机复盘 I-6.7）：C:/WinVMWorkspace 由
+        // GUI/生产线运行期才创建——本环境可能从未存在。卸载器无 --purge-workspace 时
+        // **从不删它**，故"不存在"只能是"本就不存在"而非"被误删"：判 PASS 并标注 SKIP，
+        // 不得计入 FAIL（否则 EXIT=1 与 "0 failure(s)" 自相矛盾=误报）。
+        const wsKept = get('WORKSPACE_DIR') === 'True';
+        rows.push([`VM C:/WinVMWorkspace kept${wsKept ? ' (default)' : ' — entity never existed, nothing to keep [SKIP]'}`, true, wsKept]);
       } else {
         rows.push(['VM C:/WinVMWorkspace purged (--purge-workspace)', get('WORKSPACE_DIR') === 'False', get('WORKSPACE_DIR')]);
       }
