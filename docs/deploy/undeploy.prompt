@@ -1,10 +1,14 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.1）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.2）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、
   执行协议 P-1/P-2（缺信息问用户；可自动化项审批后补齐、人工项给精确方法）；
   R8 根除后拆除链与远端默认 shell（cmd.exe/Git-Bash/pwsh）无关，无需任何 shell 前置。
+v2.2 要点：undeploy 侧复盘 G1~G6 深化（`undeploy.prompt.to-be-improved.md`）——U2/U4 补
+  **旧包（≤V1.4.8）kept 误报兼容判据**（G1）；U5 删密钥子流程内附**经真机验证的
+  vm-rmkey.ps1 完整脚本**（G3：两处各按行精确删、他人密钥无损）+ VM 残留清单与清理
+  时机（G4 顺序约束前置化）+ 决策采集用 AskUserQuestion 三连（G6）。
 ========================================================================
 
 【运行期注入（执行前设置；密码只走环境变量，禁止落文件）】
@@ -81,6 +85,11 @@ U2 · 宿主相位 + U3 · VM 相位（同一次 --apply 完成）
       （V1.4.9 起 VM 相位与远端默认 shell 无关：载荷走 .ps1 推送 + EncodedCommand 清理，
         cmd.exe/Git-Bash/pwsh 均可——无需任何 shell 前置。）
   2.3 判据：退出码 0；"APPLY complete" 且核验清单全 [PASS]（见 U4）。
+      ⚠ 旧包兼容（G1，≤V1.4.8 已知误报 I-6.7）：若 EXIT=1 且唯一 [FAIL] 是
+        "C:/WinVMWorkspace kept (observed: False)"、而末尾自报 "0 failure(s)"——
+        为**保留项断言误报**（工作区本就不存在≠被误删，拆除器从不删它），非真实失败：
+        核对 U0 基线 WORKSPACE_DIR=False 后**以 U4 独立复核为准**继续，勿因该退出码停下重拆。
+        V1.4.9 起该误报已修（判 "never existed [SKIP]"=PASS、EXIT 与 failure 计数一致）。
 
 ────────────────────────────────────────
 U4 · 拆除核验（清单动态生成，判据=全 [PASS] 零 [FAIL]，不数固定条数）
@@ -107,18 +116,41 @@ U4 · 拆除核验（清单动态生成，判据=全 [PASS] 零 [FAIL]，不数�
   4.3 判据：4.1 全 [PASS] + 4.2 全部指向"已拆除"。任一不符 → 停并给失败四元组。
 
 ────────────────────────────────────────
-U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得自行清理；一次 AskUserQuestion 三连收集）
+U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得自行清理）
+  决策采集：一次 AskUserQuestion 三连——①SSH 密钥（留/删）②trash 回滚源（留/删）
+  ③下载物（留/删）；各项默认=留。选"删密钥"→ 走 5.1 子流程；选"删 trash"→ 5.2；
+  选"保留下载物"→ 不动 ~/winvm-deploy/。
   ⚠ 本宿主删文件**勿依赖 rm**（部分鸿蒙宿主 rm 被运行时 shim 替换且可能损坏=bad interpreter）：
      统一用 $NODE -e 'require("fs").unlinkSync(...)' / rmSync 或 trash 机制。
   5.1 SSH 密钥/免密通道：**默认保留**（重装要复用）。用户选"删除"时按子流程：
       a) 先抓待删公钥留底：cat ~/.ssh/id_ed25519.pub > ~/wbtmp/hostkey.pub
          （删私钥前先备份 id_ed25519* 到 ~/wbtmp/ssh-backup/ 作可逆安全网）；
       b) **先清 VM 残留**（探针/辅助脚本，此时通道仍在）——删私钥即刻断 publickey；
-      c) 推 vm-rmkey.ps1（读 hostkey.pub 逐行比对）从**两处**各精确删该行：
+      c) 造 vm-rmkey.ps1（下方模板，**2026-10-30 真机验证**：两处各精确删 1 行、
+         他人密钥无损、免密通道无恙）→ vmscp → vmssh `powershell -File` 执行，
+         判据=每处输出 `REMOVED=1 FROM <路径>`（REMOVED=0 也算幂等达成，标注即可）：
          ~\.ssh\authorized_keys 与 C:\ProgramData\ssh\administrators_authorized_keys
-         （追加式双写 ⇒ 删除也要双写位；按行匹配删，⚠ 勿整文件清空误伤他人密钥）；
-      d) 最后删 host 私钥（node fs）；此后登 VM 只能走**密码通道**（需用户密码），
-         提前确认密码可用；
+         （追加式双写 ⇒ 删除也要双写位；按行匹配删，⚠ 勿整文件清空误伤他人密钥）：
+         cat > ~/wbtmp/vm-rmkey.ps1 <<'RMKEY'
+         $ErrorActionPreference = 'SilentlyContinue'
+         $pub = (Get-Content (Join-Path $env:USERPROFILE 'hostkey.pub') -Raw).Trim()
+         foreach ($f in @((Join-Path $env:USERPROFILE '.ssh\authorized_keys'), 'C:\ProgramData\ssh\administrators_authorized_keys')) {
+           if (Test-Path $f) {
+             $a = @(Get-Content $f)
+             $k = @($a | Where-Object { $_.Trim() -ne $pub })
+             $d = $a.Count - $k.Count
+             if ($d -gt 0) { Set-Content -Path $f -Value $k -Encoding ASCII }
+             Write-Output ('REMOVED=' + $d + ' FROM ' + $f)
+           } else { Write-Output ('ABSENT ' + $f) }
+         }
+         RMKEY
+         （bash heredoc 结束标记须**顶格**——落盘执行时去掉本节缩进原样写入；本 Prompt 的缩进仅为阅读排版）
+      d) VM 残留清理（G4 顺序：此时 publickey 仍在，一次清完）：部署/拆除期 scp 到
+         C:/Users/$VM_USER/ 的辅助件（vmcheck.ps1 / vm-env-check.ps1 / vm-recheck.ps1 /
+         cb*.ps1 / hostkey.pub / vm-rmkey.ps1 等）经 .ps1 通道 Remove-Item 清掉——
+         **先清残留、最后删私钥**（删私钥即刻断 publickey，此后登 VM 只能走密码通道，
+         需提前向用户确认密码可用；AskUserQuestion 索取，只走环境变量不落盘）；
+      e) 删 host 私钥（node fs，见上方 rm 禁令）；备份 ~/wbtmp/ssh-backup/ 是否销毁问用户。
       ⚠ id_ed25519 可能一号多用（兼 GitHub 推送凭据）——删前确认，长期正解两把密钥分开。
   5.2 trash 目录 ~/.workbuddy/winvm-trash/：回滚来源，用户确认"不再需要"后才清
       （$NODE -e 'fs.rmSync(dir,{recursive:true})'，勿 rm -rf）。
@@ -128,6 +160,8 @@ U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得�
 
 【排错速查】
 - "--apply 说拆完了但 18443 还在听" → 查 WINVM_DRY_RUN 是否 =1。
+- "--apply 报 EXIT=1 但自报 0 failure(s) 且唯一 FAIL=workspace kept" → 旧包（≤V1.4.8）已知误报（I-6.7/G1），核对 U0 基线后以 U4 独立复核为准；V1.4.9 起已修。
+- 删私钥后 ssh 报 Permission denied → 预期内（publickey 通道断）；按 U5 顺序应先清 VM 残留再删私钥，来不及则用密码通道收尾（askpass+环境变量）。
 - VM 相位 ssh 拒绝/超时 → 免密已失效（U0 判据没真过），先重建再拆；偶发一次失败先用 vmssh 重试面（R4）。
 - 远端 ParserError/乱码 → .ps1 + powershell -File + ASCII 载荷（卸载器已内置，手工兜底同纪律）。
 - 隧道想 pkill -f → 禁止；只按 tunnel.pid 记录的 PID 精确 kill。

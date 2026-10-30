@@ -5,7 +5,7 @@
 > **2026-10-27 回环实测（run1）**：按本文 U0~U4 拆除 → deploy-prompts Step 3~5 重装 → 三探针 38/38 全绿；
 > 实测揪出并修复两处镜像不对称（U-1 全局 mcp.json 不清、U-2 tunnel-autostart.json 残留，见 §9 v1.1）。
 > 证据：`qa/evidence/uninstall-pre-run3.log`（16 项）、`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）、`qa/real-test-2026-10-27-run1.md`（拆除 19/19 + 重装回绿）
-> 更新：2026-10-30（v1.9：undeploy 侧复盘收编——I-6.7 KEEP 误报修复入码、U5 删密钥子流程/rm 禁令/决策导航、U0 落点动态口径）
+> 更新：2026-10-30（v2.0：复盘 G1~G6 **深化收编**——`undeploy.prompt` 升 v2.2：U2 补旧包 kept 误报兼容判据、U5 删密钥子流程内附真机验证的 vm-rmkey.ps1 完整模板+VM 残留清理时机（先清残留后删私钥）+排错 +2 行；母本 §3/§4 同步）
 > 上游：`delivery/uninstall.mjs`（双端一键卸载器，本文件的判据真源）、`docs/deploy/deploy-strategy.md` §6（回滚与清理）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/deploy-prompts.md`（部署 Prompt 总集）——本文件是它的**逆向镜像**
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可把双端部署**干净拆除**，或为清场重装（`--wipe`）做准备
@@ -144,6 +144,9 @@ U2 · 宿主相位：执行拆除（--apply）
         两键（winvm/winvm-a2a，10-27 回环补齐） → 删 settings.json 追加项
       → 去 PATH/shell profile 段 → 删 ~/.workbuddy/winvm 标记文件（含 tunnel-autostart.json）。
   2.3 判据：退出码 0；"APPLY complete" 且核验清单全 [PASS]（见 U4）。
+      ⚠ 旧包（≤V1.4.8）兼容：EXIT=1 且唯一 [FAIL]="workspace kept (observed: False)"
+        而自报 "0 failure(s)" = 已知保留项断言误报（I-6.7，V1.4.9 已修）——核对 U0 基线
+        WORKSPACE_DIR=False 后以 U4 独立复核为准继续，勿停下重拆。
 
 ────────────────────────────────────────
 U3 · VM 相位：随同 --apply 一并完成（同一次调用）
@@ -189,8 +192,14 @@ U4 · 拆除核验（POST-CLEANUP 清单全 [PASS]；清单按运行态动态生
       修复后 19 项——**判据永远是"全 [PASS] 零 [FAIL]"，不是固定条数**。
 
 ────────────────────────────────────────
-U5 · 存留项处置（卸载器**按设计不动**，逐项问用户）
-  5.1 SSH 密钥与免密通道：uninstall 永不删。彻底告别才单独清（见 §7，⚠ 注意 id_ed25519 一号多用坑）。
+U5 · 存留项处置（卸载器**按设计不动**，逐项问用户；AskUserQuestion 三连：密钥/trash/下载物，默认留）
+  ⚠ 宿主删文件勿依赖 rm（部分鸿蒙宿主 rm=损坏 shim）：一律 $NODE fs.unlinkSync/rmSync 或 trash。
+  5.1 SSH 密钥与免密通道：uninstall 永不删。用户选删时按子流程（完整脚本模板见
+      `docs/deploy/undeploy.prompt` v2.2 U5.1，含 2026-10-30 真机验证的 vm-rmkey.ps1：
+      注入假密钥→两处各精确删 1 行 REMOVED=1→他人密钥无损→免密通道无恙）：
+      a) 公钥留底 hostkey.pub + 私钥备份 ssh-backup/；b) **先清 VM 残留**（publickey 断前）；
+      c) vm-rmkey.ps1 两处按行精确删；d) 清 VM 辅助件；e) 最后删 host 私钥——
+      此后登 VM 只能密码通道（提前向用户确认密码可用）。⚠ id_ed25519 一号多用坑。
   5.2 运行态目录 `~/.workbuddy/winvm/`（目录本身保留；卸载后应只剩与本项目无关的历史子目录如
       `nonaccount-mcp-trash-*`，标记文件含 tunnel-autostart.json 已全清）、trash 目录（可回滚来源，用户确认后可清）。
   5.3 下载物 `~/winvm-deploy/`（pkg zip + overall-root 解包）：非部署产物，属获取阶段，按需手动清。
@@ -271,9 +280,12 @@ U5 · 存留项处置（卸载器**按设计不动**，逐项问用户）
 
 ```text
 拆除完成后，处理卸载器按设计**刻意保留**的存留物——每一项都要用户点头才做，不得自行清理。
-1) SSH 密钥/免密通道：uninstall 永不删。仅"彻底告别"才清：
-   - VM：只删本项目那一条 key（C:\ProgramData\ssh\administrators_authorized_keys 去行 + 重建 ACL），保留他人 key
-   - 宿主：删 ~/.ssh/id_ed25519{,.pub}；从 ~/.ssh/known_hosts 去掉 VM 行
+1) SSH 密钥/免密通道：uninstall 永不删。仅"彻底告别"才清（子流程与 vm-rmkey.ps1 实测模板见
+   `docs/deploy/undeploy.prompt` v2.2；顺序=留底备份→先清 VM 残留→两处按行精确删→删私钥）：
+   - VM：只删本项目那一条 key（两处：~\.ssh\authorized_keys 与
+     C:\ProgramData\ssh\administrators_authorized_keys 按行匹配删，勿整文件清空），保留他人 key
+   - 宿主：删 ~/.ssh/id_ed25519{,.pub}（node fs，勿 rm）；从 ~/.ssh/known_hosts 去掉 VM 行
+   - 删私钥即刻断 publickey——VM 残留必须在此之前清完；此后登 VM 只能密码通道
    ⚠ 血泪坑：id_ed25519 常**一号多用**（既是 VM 免密又是 GitHub 推送凭据）。删前先确认它不是推送密钥；
      若是，改用独立文件 id_ed25519_github（chmod 600）+ GIT_SSH_COMMAND 指定，长期正解是两把密钥分开。
 2) 运行态目录 ~/.workbuddy/winvm/（目录本身保留）、~/.workbuddy/winvm-trash/<时间戳>/（回滚来源；用户确认后才清）。
@@ -377,6 +389,7 @@ ssh User@172.16.100.2 'powershell -NoProfile -Command "Get-ScheduledTask -TaskNa
 | 2026-10-27 | v1.0 | 首版：作为 `deploy-prompts.md` 的逆向镜像。结构对齐部署文档（使用方式/变量表/总 Prompt U1~U5/分步 Prompt/核验速查/排错/存留项/清场重装衔接/变更记录）。拆除清单取自 `delivery/uninstall.mjs` 头注（§2.3 逐条镜像安装体系 17 落点）；核验判据取自真机 `qa/evidence/uninstall-pre-run3.log`（16 项）与 `qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）的 POST-CLEANUP VERIFICATION；强调三条设计红线（镜像拆除不越界、宿主删除移入 trash 可回滚、OS 级配置与 SSH 密钥永不触碰）+ 独立复核防假 PASS + 一号多用密钥坑 + `--wipe` 清场重装衔接（保留密钥） |
 | 2026-10-27 | v1.1 | **回环实测（run1，`qa/real-test-2026-10-27-run1.md`）驱动修订**：U0~U4 拆除→Step 3~5 重装→三探针 38/38 全绿。揪出并修复 `uninstall.mjs` 两处镜像不对称——**U-1 全局 `~/.workbuddy/mcp.json` 的 winvm/winvm-a2a 键不清**（install-host 全局注册面，disabledTools 落点；新增 `cleanGlobalMcpJson`+核验行）、**U-2 `tunnel-autostart.json` 不在 markers**（会话自启标记残留=拆后重开 WB 会 ensure 死隧道；补入 markers+核验行）。落点表 17→**18 项**、核验清单口径改「全 PASS 零 FAIL，动态 16→19 项」；§8 补反复清场 `--vm-host` 兜底（vm-conn.json 首轮即删）；排错表补 TUNNEL EADDRINUSE 瞬态与 ps-bridge 换代抖动（E7/E8 首跑 FAIL 复跑稳）两条。⚠ 修复晚于 V1.4.4 打包 → 包内 uninstall.mjs 仍旧版（ISSUES I-6.3；用户裁定：随下迭代收编，pack V7 硬断言钉死「包内 uninstall 必含 cleanGlobalMcpJson」） |
 | 2026-10-29 | v1.5 | 配套口径：§5 速查的 zip/三元组校验指向 sidecar+包内 MANIFEST（deploy-prompts v2.1 同款，不硬编码逐版本值） |
+| 2026-10-30 | v2.0 | **复盘 G1~G6 深化（`undeploy.prompt` v2.2）**：U2.3 判据补**旧包（≤V1.4.8）kept 误报兼容面**（EXIT=1+唯一 FAIL=workspace kept+自报 0 failure=已知误报 I-6.7，核对 U0 基线后以 U4 独立复核为准，勿停下重拆）；U5 重构：AskUserQuestion 三连决策采集（密钥/trash/下载物，默认留）+删密钥子流程**内附完整 vm-rmkey.ps1 模板**（2026-10-30 真机验证：注入假密钥→两处各精确删 1 行 REMOVED=1→他人密钥无损→免密通道无恙；heredoc 结束标记顶格注记）+**残留清理时机前置化**（G4：publickey 断前一次清完 VM 辅助件，删私钥后只能密码通道收尾需提前确认）；排错 +2 行（kept 误报/删私钥断连预期）。 |
 | 2026-10-30 | v1.9 | **undeploy 侧复盘收编（G1~G6，`docs/deploy/undeploy.prompt.to-be-improved.md`）**：代码面 I-6.7 修复——uninstall.mjs KEEP 断言对「本就不存在的 C:/WinVMWorkspace」误判 FAIL→EXIT=1（与自报 0 failure 矛盾），改判 never existed [SKIP]=PASS；文档面——U0 基线加连接器落点动态口径（账户级注册可漂移，以 uninstall.mjs 实际发现+find 为准）；U5 重写：**rm shim 禁令**（宿主删文件一律 node fs/trash）、**删密钥子流程**（公钥留底→备份私钥→先清 VM 残留→两处 authorized_keys 按行精确删→最后删私钥→此后只能密码通道收尾）、AskUserQuestion 三连决策导航；`undeploy.prompt` 升 v2.1。 |
 | 2026-10-30 | v1.8 | **新宿主机复盘收编（迭代12/V1.4.9 配套）**：`undeploy.prompt` 升 v2.0（自动探测 NODE/PY、vmssh/vmscp 重试、执行协议 P-1~P-4）；母本同步。代码面 R8 根除（卸载 VM 相位本就走 .ps1 推送通道，清理段 `rm -f`→EncodedCommand Remove-Item）后，**拆除对远端默认 shell 完全中立**（cmd.exe/Git-Bash/pwsh 均可），排错口径更新。 |
 | 2026-10-29 | v1.7 | I-6.4 修复随 V1.4.8 入包；排错表已含白名单口径与 vmcheck UTF-8 说明（v1.6 加） |
