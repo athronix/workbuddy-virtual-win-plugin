@@ -1,0 +1,36 @@
+
+== pack-release V1.4.9 @ aae81ab ==
+· 组装 host/（install-host 闭包）
+· 组装 vm/（deploy-vm 闭包）
+· 组装 overall/（整体包 = host ∪ vm ∪ 编排与文档）
+· 包内验证（V2 host 闭包 / V3 vm 闭包 / V4 能力计数）
+  ✓ V1 host 必存文件
+  ✓ V1 vm 必存文件
+  ✓ V1 overall 必存文件
+  ✓ V2 host 闭包 dry-run（exit 0）
+  ✓ V3 vm 闭包 dry-run（exit 0）
+  ✓ V5 host install-host 含 NON_ACCOUNT_DIRS
+  ✓ V5 overall install-host 含 NON_ACCOUNT_DIRS
+  ✓ V6 vm gui.ps1 含键鼠修复(cbSize)
+  ✓ V6 overall gui.ps1 含键鼠修复(cbSize)
+  ✓ V7 overall uninstall 含全局 mcp 对称清理(cleanGlobalMcpJson)
+  ✓ V8 deploy/deploy-strategy.md 含权威校验源口径
+  ✓ V8 deploy/deploy-prompts.md 含权威校验源口径
+  ✓ V9 verify-manifest 含运行期白名单
+  ✓ V9 verify-release 含运行期白名单
+  ✓ V9 vmcheck 含 UTF-8 解码修复
+  ✓ V10 setup.mjs 跨壳安装通道(buildVmInstallPs1, 无 pipefail)
+  ✓ V10 prepare-vm 含 npmmirror zip 兜底
+  ✓ V10 uninstall 含 KEEP 误报修复(never existed)
+  ✓ V4 能力计数=54（exit 0）
+· 生成 overall zip + sha256 旁挂（GitHub Release 分发单元）
+
+✓ 发布包已生成：release/V1.4.9
+  host    848 文件 / 6744K / sha256 cc9c627af5094b76…
+  vm      345 文件 / 2859K / sha256 d16c68cf62f7f2ef…
+  overall 881 文件 / 7475K / sha256 aed571afef8cd0f2…
+  overall-zip release/V1.4.9/winvm-overall-V1.4.9.zip / 2799K / sha256 6221c7037c6542a2…  旁挂 release/V1.4.9/winvm-overall-V1.4.9.zip.sha256  →上架：node delivery/publish-release.mjs --tag V1.4.9 --zip release/V1.4.9/winvm-overall-V1.4.9.zip [--apply]
+  证据：qa/release/V1.4.9-pack.txt
+
+下一步：cd release/V1.4.9/overall && bash deploy-all.sh --wipe   （清空历史部署后整体重装；bash 显式解释防 hmdfs 丢执行位）
+
