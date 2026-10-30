@@ -42,3 +42,11 @@
 - 用户令「需要完善都完善发布一下」→ 唯一可完善项（包内文档快照自指陈旧）**根除**：校验面取消逐版本硬编码，改权威源口径 `MANIFEST-sidecar-authoritative`（sidecar+包内 MANIFEST 现取现验；RELEASE_TAG=latest 现解+示例值）；pack 新增 **V8 断言**（包内部署文档必含标记）。
 - 发布链全绿：先 commit（edd7e78）后 pack（V1–V8，V8 首战）→ tag V1.4.7@edd7e78 → 上架 latest=V1.4.7 → 匿名回环三向一致（`a5ac52b7…`）+解包核验包内三篇=同步版含权威口径（根除实证，V1.4.7 起包内文档永不陈旧）→ 清场重装 19/19+独立复核零残留+38/38。
 - **当前线上=V1.4.7**；断言面 V1–V8；缺陷台账迭代1–10 全闭环。
+
+
+## 追加（10-30）：迭代12 · V1.4.9 —— R8 根除版（新宿主机双复盘收编）
+- 用户交来新宿鸿蒙宿主机 deploy/undeploy 双复盘（to-be-improved 两文档）+4 前置建议+2 过程协议。
+- **I-6.5（P1）R8 根除**：VM 远端命令全收口跨壳通道（.ps1 铁律 / EncodedCommand），cmd.exe 出厂默认壳直装，Git-Bash 隐藏前置根除；I-6.6 DB-3 zip+npmmirror 兜底；I-6.7 uninstall KEEP 断言误报修复。
+- deploy.prompt v2.0 / undeploy.prompt v2.1：Step 0 前置检查五项（非空密码/OpenSSH 安装启动法/虚拟机"从不暂停+自动开机"/防火墙 Profile/桥接重试）+ 执行协议 P-1~P-4 + NODE/PY 自动探测 + vmssh/vmscp 重试 + 删密钥子流程 + rm 禁令 + Step 6.1 路径修正；母本与 INSTALL-GUIDE/README 同步。
+- pack **V10 三断言**首战；run4（cmd.exe 实弹拆除 19/19 rc=0→apply 一次过→38/38）+ 发布态清场重装双验证。
+- **当前线上=V1.4.9**（tag@aae81ab，zip `6221c703…`）；断言面 V1–V10；缺陷台账 I-6.1~6.7+G-1/2/3+R8 全闭环。
