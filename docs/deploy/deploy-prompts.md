@@ -2,7 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
-> 更新：2026-10-30（v2.4：新宿主机实跑复盘收编——新增 Step 0 前置检查（VM 密码/OpenSSH 安装法/虚拟机电源/防火墙 Profile）、NODE/PY 自动探测、ssh 重试封装、执行协议 P-1/P-2；R8 根除：安装链 cmd.exe 兼容化（.ps1/EncodedCommand 跨壳），不再要求 Git-Bash 默认 shell）
+> 更新：2026-10-30（v2.5：V1.4.9 发布闭环（run4 cmd.exe 实弹+发布态清场重装双验证）；复盘收编详见 v2.4 行——新增 Step 0 前置检查（VM 密码/OpenSSH 安装法/虚拟机电源/防火墙 Profile）、NODE/PY 自动探测、ssh 重试封装、执行协议 P-1/P-2；R8 根除：安装链 cmd.exe 兼容化（.ps1/EncodedCommand 跨壳），不再要求 Git-Bash 默认 shell）
 > 上游：`docs/deploy/deploy-strategy.md`（论证与实测记录）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/undeploy-prompts.md`（卸载 Prompt 总集，本文件的逆向镜像；清场重装 `--wipe` 前置拆除见彼文 §8）
 > 用途：把本文档的 Prompt 块粘给 WorkBuddy（鸿蒙宿主），即可从零驱动双端安装
@@ -601,6 +601,7 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
 | 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |
+| 2026-10-30 | v2.5 | **V1.4.9 发布闭环**：run4（VM 默认壳=cmd.exe 实弹：拆除 19/19 rc=0→新 .ps1 通道 apply 一次过→38/38，`qa/real-test-2026-10-30-run4.md`）；打包 @aae81ab V1–V10 全绿→上架 latest=V1.4.9→匿名回环三向一致（`6221c703…`）→发布态清场重装 19/19+38/38 双验证；§2.2 示例值=V1.4.9 |
 | 2026-10-30 | v2.4 | **新宿主机复盘收编（迭代12/V1.4.9）**：`deploy.prompt` 升 v2.0——新增 Step 0 前置检查（0.1 VM 非空密码提醒/0.2 OpenSSH Server 安装启动方法/0.3 虚拟机电源"从不暂停+自动开机"/0.4 防火墙 Profile 诊断修复/0.5 桥接抖动重试），执行协议 P-1~P-3（缺信息问用户；可自动化项**审批后**补齐、人工项给精确方法），NODE/PY 自动探测多候选回退（R5），vmssh/vmscp 重试封装（R4），Step 6.1 判据改连接器目录=8 为准（R11）；母本同步 Step 0/执行协议/排错 +6 行。代码面=I-6.5 R8 根除：vmInstallCommand（Git-Bash 专属）→ buildVmInstallPs1（.ps1 铁律通道），bootstrap trust/marker、uninstall 清理、winvm-plugin 卸载远程段全改跨壳形态；prepare-vm DB-3 增 zip+npmmirror 兜底（R7）。**sshd 默认 shell 不再要求 Git-Bash，cmd.exe 出厂默认可直装** |
 | 2026-10-29 | v2.3 | **I-6.4 入包+V9 断言（迭代11/V1.4.8）**：run2 抓出的探针双缺陷修复随本迭代入包（V9 机械化核验包内 verify-manifest/verify-release/vmcheck 三特征）；§2.2 RELEASE_TAG/ZIP 示例值升 V1.4.8；§5 速查包完整性行改指包内 MANIFEST（sha 自指彻底不写） |
 | 2026-10-29 | v2.1 | **文档自指根除（迭代10/V1.4.7）**：§2.2 `ZIP_SHA256`/`PKG 三元组`不再硬编码逐版本值→改「现取现验：旁挂 sidecar + 包内 MANIFEST.txt 头七行，verify-manifest 复算即验」（标记 `MANIFEST-sidecar-authoritative`）——从此**包内快照与仓库正文口径一致、永不过期**（此前每包内文档恒落后一版的结构性陈旧被根除，非再订正一次而是取消硬编码）；`RELEASE_TAG` 行标注示例值+latest 现解为准；pack-release 新增 **V8 断言**（包内两篇部署文档必含该标记，缺失 fail-loud 拒产包=口径倒退机械化封堵） |
