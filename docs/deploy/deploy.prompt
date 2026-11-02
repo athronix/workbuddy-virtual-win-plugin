@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v2.0.2 · 示例版本引用升 V1.4.11+E7 瞬态口径修正注记；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.0.3 · prompt-verify 实跑收编：NODE/PY 探测改「首个通过冒烟者」+包根 ls 判定+0.4 通道注记（D1/D4/D5）；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -19,18 +19,25 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
   #   a) zip 内含顶层 overall/ → 包根=$DEPLOY_ROOT/overall-root/overall
   #   b) 解平布局            → 包根=$DEPLOY_ROOT/overall-root
   export PKG_ROOT=~/winvm-deploy/overall-root
-  # NODE/PY 自动探测（多候选回退，R5：不同鸿蒙宿主机路径不同，勿硬编码）：
-  export NODE="$(command -v node || true)"
-  for c in /data/storage/el1/bundle/libs/arm64/node/bin/node /data/service/hnp/bin/node; do
-    [ -x "$c" ] && NODE=$c; done
-  export PY="$(command -v python3 || true)"
-  for c in /data/service/hnp/bin/python3 /data/storage/el1/bundle/libs/arm64/python/bin/python3; do
-    [ -x "$c" ] && PY=$c; done
-  echo "NODE=$NODE PY=$PY"                     # 判据：两者非空且 -x 可执行；取不到 → 问用户
-  export RELEASE_TAG=V1.4.11                   # ⚠ 示例值——以 releases/latest API 现解为准：
+  # NODE/PY 自动探测（D1 修复，prompt-verify 2026-11-02：首个「能跑冒烟」的候选即用、命中即 break——
+  # 仅 -x 不足以证明解释器健康：部分宿主 /data/service/hnp/bin/node 执行 .mjs 文件即 V8 ENOMEM 崩，
+  # 而 -e 内联可用；旧循环「后验覆盖」恒选中末位候选，故必须带 .mjs 冒烟门禁）：
+  export NODE=""
+  _ns() { mkdir -p "$HOME/wbtmp" 2>/dev/null
+          printf 'console.log("NODE_SMOKE_OK")\n' > "$HOME/wbtmp/.node-smoke.mjs" 2>/dev/null || return 1
+          [ "$("$1" "$HOME/wbtmp/.node-smoke.mjs" 2>/dev/null)" = "NODE_SMOKE_OK" ]; }
+  for c in "$(command -v node 2>/dev/null || true)" /data/storage/el1/bundle/libs/arm64/node/bin/node /data/service/hnp/bin/node; do
+    [ -n "$c" ] && [ -x "$c" ] && _ns "$c" && { NODE=$c; break; }
+  done
+  export PY=""
+  for c in "$(command -v python3 2>/dev/null || true)" /data/service/hnp/bin/python3 /data/storage/el1/bundle/libs/arm64/python/bin/python3; do
+    [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
+  done
+  echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
+  export RELEASE_TAG=V1.4.12                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.11.zip
+  export ZIP=winvm-overall-V1.4.12.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
@@ -75,7 +82,7 @@ Step 0 · 前置检查（开工前逐项确认；不满足按 P-2 处置）
       避免 VM 后台睡眠导致隧道黑洞/服务假死（宿主侧另有 prepare-vm DB-5 兜底 powercfg，
       但 hypervisor 层暂停必须用户在虚拟机管理界面设置）。
   0.4 防火墙（R3 坑：规则 Profile 与网卡 Profile 不匹配 = sshd 在跑、端口在听、连接超时）：
-      诊断（VM 内 PowerShell）：
+      诊断（VM 内 PowerShell；宿主远程执行按铁律=写 .ps1 → vmscp → vmssh `powershell -File`，勿内联）：
         Get-NetConnectionProfile | Select InterfaceAlias, NetworkCategory
         Get-NetFirewallRule -Name OpenSSH-Server-In-TCP | Select Name, Enabled, Profile
       若 NetworkCategory=Public 而规则 Profile=Private → 修复（VM 内**管理员** PowerShell）：
@@ -114,6 +121,8 @@ Step 1 · 密码登录 → 建立免密通道（已免密可跳过，判据 1.5 
 
 ────────────────────────────────────────
 Step 2 · 获取 Release 并三重校验（包已在本地可跳下载，直接 2.3 校验）
+  2.0 本地包根判定（D5 机械化）：ls $PKG_ROOT/MANIFEST.txt $PKG_ROOT/delivery 两者命中
+      → 跳过 2.1/2.2 下载，直入 2.3 校验；否则走下载路径。
   2.1 下载（用绝对 URL；github.com 本网段有抖动，重试面已在）：
       mkdir -p $DEPLOY_ROOT/pkg
       BASE=https://github.com/$REPO/releases/download/$RELEASE_TAG
@@ -218,4 +227,5 @@ Step 6 交付引导（不参与部署判据，但决定任务通道路由正确�
 - vmcheck 输出解析炸（invalid start byte）→ 旧探针 GBK 双坑（PS5.1 Content 解码+控制台码页）；V1.4.8 起探针已修（UTF-8 直读），旧包内用字节容错解码兜底。
 - a2a.delegate 报 goal 必填 → 传 {"goal":"自然语言"}；无 /a2a/health 路由。
 - Step3 apply 报「cd C:/WinVMBridge 找不到路径」反复失败 → 旧版（≤V1.4.8）Git-Bash 隐藏前置坑（R8）；升级包（≥V1.4.9）已根除，或临时按旧法设 DefaultShell=Git-Bash 兜底。
+- 隧道段报 V8 FATAL / errno=12（ENOMEM）→ 当前 $NODE 选中了脆弱解释器（部分宿主 hnp node 执行 .mjs 即崩、-e 却正常）：v3.0.3 探测循环已带 .mjs 冒烟门禁自动避开；旧版临时解法=手动 export NODE 指向 bundle node 后重跑 `winvm-plugin.mjs tunnel ensure`。
 ========================================================================

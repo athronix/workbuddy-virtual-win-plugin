@@ -53,7 +53,7 @@
 |---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | latest 跳转链接 | ☐ |
-| `RELEASE_TAG` | `V1.4.11`（示例值——**以 latest API 现解为准**；2026-11-02 上架；历史 run 用 `V1.4.10`/`V1.4.9`） | 发布标签 | ☐ |
+| `RELEASE_TAG` | `V1.4.12`（示例值——**以 latest API 现解为准**；2026-11-02 上架；历史 run 用 `V1.4.11`/`V1.4.10`） | 发布标签 | ☐ |
 | `ZIP_NAME` | `winvm-overall-V1.4.3.zip` | 分发单元（V1.4.3 起含 delivery/tools/ + qa/deploy-probes/ + verify-release.mjs） | ☐ |
 | `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：release 旁挂 `.zip.sha256` 现取现验（`sha256sum -c`）；V1.4.6 回环样例 `dc417bf2…` | 整包校验值 | ☐ |
 | `PKG_FILES` / `PKG_BYTES` / `PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：包内 `MANIFEST.txt` 头七行为权威，verify-manifest/verify-release 复算即验；历史样例 V1.4.6=881/7606427/`2562a598…`、V1.4.5=879/7580107/`88fd11c1…` | MANIFEST 三元组（重装核对用） | ☐ |
@@ -762,7 +762,7 @@ node delivery/uninstall.mjs --apply --purge-workspace   # 连工作区一起清�
 
 【环境常量】VM_HOST=172.16.100.2  VM_USER=User  VM_SSH_PORT=22  SERVICE_PORT=18443
   VM_DEPLOY_DIR=C:/WinVMBridge  PROVIDER=workbuddy  WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.11  ZIP=winvm-overall-V1.4.11.zip
+  RELEASE_TAG=V1.4.12  ZIP=winvm-overall-V1.4.12.zip
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
             python3=/data/service/hnp/bin/python3；有 ssh/scp/unzip/sha256sum/curl；无 sshpass
 【安全红线】不要把密码写进任何文件/提交；不要在日志里回显密码。
@@ -904,6 +904,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-27 | v3.0 | **卸载 Prompt 总集立项**：新增 `docs/deploy/undeploy-prompts.md` v1.0（deploy-prompts 的逆向镜像：§2.3 十七落点镜像清单 + U0~U5 总 Prompt + POST-CLEANUP 核验 + 存留项决策表 + `--wipe` 清场重装衔接）；§6 回滚与清理加 Prompt 版指针；deploy-prompts 头注加对偶行 |
 | 2026-10-27 | v3.1 | **undeploy⇄deploy 回环实测（run1）**：拆除 19/19 + 重装 38/38 全绿；抓出并修复 `uninstall.mjs` 两处镜像不对称（全局 mcp.json / tunnel-autostart，ISSUES I-6.3）；`undeploy-prompts.md` 升 v1.1（十八落点、动态 16→19 核验口径、--vm-host 兜底、排错补 2 条瞬态）。详见 `qa/real-test-2026-10-27-run1.md` |
 | 2026-10-27 | v3.2 | **版本引用同步 V1.4.4 + 裁定落地**：§0.5-B RELEASE_TAG/ZIP_SHA256/PKG 三元组升 V1.4.4（**补 v2.9 漏网**——变更行宣称"默认升 V1.4.4"但 §0.5 表与 §7 Prompt 未同步，10-27 回环核对 deploy-prompts 时发现同款陈旧）；§7 总 Prompt 版本行同步；I-6.3 用户裁定（不补发、下迭代收编）+ pack-release **V7 硬断言**（包内 uninstall 必含 cleanGlobalMcpJson，正反例验证：V1.4.4 旧包=拒产/HEAD=过） |
+| 2026-11-02 | v3.13 | **prompt-verify 实跑收编（迭代14/V1.4.12）**：QA 按两份智能体安装脚本完整往返全绿（19/19→38/38 首跑含 E7 直接 PASS）；D1 探测冒烟门禁（pack V11c 断言）+D2~D5 体验收编；§0.5-B 示例值升 V1.4.12；断言面 V1–V11（V11 三特征）。 |
 | 2026-11-02 | v3.12 | **run5 双缺陷收编（迭代13 顺延 V1.4.11）**：I-6.9 看门狗忙态误杀（P1；历轮 E7"瞬态"口径证伪，修复=忙期不 ping 不重启+判别性单测+VM 热更实弹 104.5s 全过）；I-6.10 setup TUNNEL 假败（探窗 20s+EADDRINUSE 端口持有判复用）；§0.5-B 示例值升 V1.4.11 |
 | 2026-11-02 | v3.11 | **智能体安装脚本裁定（迭代13/V1.4.10）**：用户裁定两 .prompt=本项目智能体安装脚本、必须随发布包打包发布；pack **V11 断言**（包内 .prompt 必含最新深化特征，滞后=拒产包）；§0.5-B 示例值升 V1.4.10；断言面 V1–V11 |
 | 2026-10-30 | v3.10 | **迭代12 闭环**：run4 cmd.exe 默认壳实弹全绿（拆除 rc=0 19/19+新通道 apply 一次过+38/38）→ pack @aae81ab V1–V10 全绿 → 上架 latest=V1.4.9 → 匿名回环三向一致+五特征解包核验 → 发布态清场重装 19/19+38/38。当前线上=V1.4.9 |

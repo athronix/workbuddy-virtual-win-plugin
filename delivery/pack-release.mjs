@@ -557,9 +557,15 @@ function verifyPackages(dest, version) {
   //   「随每迭代收敛」从口头纪律升级为机械化必达。
   {
     const dpFp = join(dest, 'overall', 'docs', 'deploy', 'deploy.prompt');
-    const hit9 = existsSync(dpFp) && readFileSync(dpFp, 'utf8').includes('Step 0 · 前置检查');
+    const dTxt = existsSync(dpFp) ? readFileSync(dpFp, 'utf8') : '';
+    const hit9 = dTxt.includes('Step 0 · 前置检查');
     results.push({ label: 'V11 deploy.prompt 含 Step 0 前置检查（智能体安装脚本深化面）', ok: hit9, status: hit9 ? 0 : 1, tail: '' });
     console.log(`  ${hit9 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 Step 0 前置检查（智能体安装脚本深化面）`);
+    // V11c（prompt-verify D1 收编，2026-11-02）：探测循环必带 .mjs 冒烟门禁（NODE_SMOKE_OK 特征）——
+    // 「末位候选覆盖」选中脆弱 node 致隧道段 V8 ENOMEM 的实弹教训机械化入断言面。
+    const hit11 = dTxt.includes('NODE_SMOKE_OK');
+    results.push({ label: 'V11 deploy.prompt 含 NODE 探测冒烟门禁（D1 深化面）', ok: hit11, status: hit11 ? 0 : 1, tail: '' });
+    console.log(`  ${hit11 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 NODE 探测冒烟门禁（D1 深化面）`);
     const upFp = join(dest, 'overall', 'docs', 'deploy', 'undeploy.prompt');
     const uTxt = existsSync(upFp) ? readFileSync(upFp, 'utf8') : '';
     const hit10 = uTxt.includes('RMKEY') && uTxt.includes('旧包兼容');

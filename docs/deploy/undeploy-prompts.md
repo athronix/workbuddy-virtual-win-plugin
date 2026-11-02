@@ -5,6 +5,7 @@
 > **2026-10-27 回环实测（run1）**：按本文 U0~U4 拆除 → deploy-prompts Step 3~5 重装 → 三探针 38/38 全绿；
 > 实测揪出并修复两处镜像不对称（U-1 全局 mcp.json 不清、U-2 tunnel-autostart.json 残留，见 §9 v1.1）。
 > 证据：`qa/evidence/uninstall-pre-run3.log`（16 项）、`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）、`qa/real-test-2026-10-27-run1.md`（拆除 19/19 + 重装回绿）
+> 更新：2026-11-02（v2.3：prompt-verify 实跑收编 D1~D3——探测冒烟门禁/@() 计数/WARN 说明；undeploy.prompt 升 v2.3）
 > 更新：2026-11-02（v2.2：run5 E7 瞬态口径证伪修正入 §6；迭代13 顺延 V1.4.11）
 > 更新：2026-11-02（v2.1：定位升格=本项目的**智能体安装脚本**、必须随发布包发布；pack V11 断言核验包内深化面；示例值升 V1.4.10）
 > 更新：2026-10-30（v2.0：复盘 G1~G6 **深化收编**——`undeploy.prompt` 升 v2.2：U2 补旧包 kept 误报兼容判据、U5 删密钥子流程内附真机验证的 vm-rmkey.ps1 完整模板+VM 残留清理时机（先清残留后删私钥）+排错 +2 行；母本 §3/§4 同步）
@@ -391,6 +392,7 @@ ssh User@172.16.100.2 'powershell -NoProfile -Command "Get-ScheduledTask -TaskNa
 | 2026-10-27 | v1.0 | 首版：作为 `deploy-prompts.md` 的逆向镜像。结构对齐部署文档（使用方式/变量表/总 Prompt U1~U5/分步 Prompt/核验速查/排错/存留项/清场重装衔接/变更记录）。拆除清单取自 `delivery/uninstall.mjs` 头注（§2.3 逐条镜像安装体系 17 落点）；核验判据取自真机 `qa/evidence/uninstall-pre-run3.log`（16 项）与 `qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）的 POST-CLEANUP VERIFICATION；强调三条设计红线（镜像拆除不越界、宿主删除移入 trash 可回滚、OS 级配置与 SSH 密钥永不触碰）+ 独立复核防假 PASS + 一号多用密钥坑 + `--wipe` 清场重装衔接（保留密钥） |
 | 2026-10-27 | v1.1 | **回环实测（run1，`qa/real-test-2026-10-27-run1.md`）驱动修订**：U0~U4 拆除→Step 3~5 重装→三探针 38/38 全绿。揪出并修复 `uninstall.mjs` 两处镜像不对称——**U-1 全局 `~/.workbuddy/mcp.json` 的 winvm/winvm-a2a 键不清**（install-host 全局注册面，disabledTools 落点；新增 `cleanGlobalMcpJson`+核验行）、**U-2 `tunnel-autostart.json` 不在 markers**（会话自启标记残留=拆后重开 WB 会 ensure 死隧道；补入 markers+核验行）。落点表 17→**18 项**、核验清单口径改「全 PASS 零 FAIL，动态 16→19 项」；§8 补反复清场 `--vm-host` 兜底（vm-conn.json 首轮即删）；排错表补 TUNNEL EADDRINUSE 瞬态与 ps-bridge 换代抖动（E7/E8 首跑 FAIL 复跑稳）两条。⚠ 修复晚于 V1.4.4 打包 → 包内 uninstall.mjs 仍旧版（ISSUES I-6.3；用户裁定：随下迭代收编，pack V7 硬断言钉死「包内 uninstall 必含 cleanGlobalMcpJson」） |
 | 2026-10-29 | v1.5 | 配套口径：§5 速查的 zip/三元组校验指向 sidecar+包内 MANIFEST（deploy-prompts v2.1 同款，不硬编码逐版本值） |
+| 2026-11-02 | v2.3 | **prompt-verify 实跑收编（迭代14/V1.4.12 配套）**：D1 NODE 探测冒烟门禁（与 deploy v2.8 同批，undeploy.prompt v2.3）；D2 U4.2 VM 五点复测 printf 模板 `(Get-NetTCPConnection...).Count`→`@(...).Count`（PS5.1 单对象 .Count=$null，在装态核验会拿空值）；D3 U2.3 补良性 WARN 说明（tunnel.state.json ENOENT=daemon 自清竞态，勿停顿）。往返实测=清理 19/19 rc=0→重装 38/38 首跑全绿。 |
 | 2026-11-02 | v2.2 | run5 口径修正入 §6：E7 HEARTBEAT_TIMEOUT 非瞬态=看门狗忙态误杀真缺陷（I-6.9，V1.4.11 修复）——"复跑即稳"勿再放行 |
 | 2026-11-02 | v2.1 | **智能体安装脚本裁定落地（迭代13/V1.4.10）**：与 deploy-prompts v2.6 同批——定位入册（README/包 README/母本）、pack V11 特征断言（包内 undeploy.prompt 必含 RMKEY+旧包兼容=v2.2 深化面必达，滞后拒产包）；V1.4.9 包内 v2.1→本次 v2.2 的收敛由 V11 强制完成 |
 | 2026-10-30 | v2.0 | **复盘 G1~G6 深化（`undeploy.prompt` v2.2）**：U2.3 判据补**旧包（≤V1.4.8）kept 误报兼容面**（EXIT=1+唯一 FAIL=workspace kept+自报 0 failure=已知误报 I-6.7，核对 U0 基线后以 U4 独立复核为准，勿停下重拆）；U5 重构：AskUserQuestion 三连决策采集（密钥/trash/下载物，默认留）+删密钥子流程**内附完整 vm-rmkey.ps1 模板**（2026-10-30 真机验证：注入假密钥→两处各精确删 1 行 REMOVED=1→他人密钥无损→免密通道无恙；heredoc 结束标记顶格注记）+**残留清理时机前置化**（G4：publickey 断前一次清完 VM 辅助件，删私钥后只能密码通道收尾需提前确认）；排错 +2 行（kept 误报/删私钥断连预期）。 |

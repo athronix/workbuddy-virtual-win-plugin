@@ -324,3 +324,14 @@
 | 发布态清场重装（--wipe 铁律） | 包内 uninstall 实弹 **19/19 零 FAIL rc=0**+独立复核（000/GLOBAL_MCP_CLEAN）→ setup 七相位 rc=0 → **mcp 20/20 + a2a 5/5 + example 首跑即 13/13 = 38/38**（E7 瞬态口径自此退役）→ FRESH、disabledTools=8、连接器 8 skill、health=200。报告 `qa/real-test-2026-11-02-run5.md`+证据 `qa/evidence/run5-v1411-20261102/`（10 件） |
 
 **结论：迭代 13 关闭。当前线上版本=V1.4.11。发布链断言面=V1–V11。缺陷台账（I-6.1~I-6.10+G-1/2/3+R8）全部闭环入包。两 .prompt 定位=智能体安装脚本、随包必发已由 V11 机械化保障。**
+
+
+## 迭代14 · V1.4.12（2026-11-02，prompt-verify 实跑收编版——开账即关）
+
+> 状态：**已关闭**。动因=用户令「在本机测试验证最新 undeploy.prompt / deploy.prompt」。QA（software-company 团队）以两脚本**原文为操作文档**完整往返：清理 U0→U5（19/19 PASS rc=0，G1 兼容判据在 V1.4.11 正确未触发，U4 独立复核 VM 五点逐位一致）→ 重装 Step 0→6（**三探针首跑 38/38 全绿；E7 首跑直接 PASS=I-6.9 修复口径二次实证**；vmcheck 七判据全符；R8 跨壳通道 cmd.exe 下零失败）。结论=**YES-with-nits**（两脚本可直接作为智能体安装脚本交付）。报告 `qa/real-test-2026-11-02-run6-prompt-verify.md`，原始日志 `~/wbtmp/prompt-verify-20261102/`。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.11** | P2（脚本面·误导级 D1） | **NODE/PY 探测循环「末位候选覆盖」选中脆弱解释器**：旧循环对所有 `-x` 候选逐个覆盖赋值，恒取末位=`/data/service/hnp/bin/node`（symlink 宿主）——该二进制在本宿主内存压力下**执行 .mjs 文件即 V8 FATAL errno=12**（`-e` 内联正常；bundle node 同文件正常），连锁 install-host 尾步 spawn(process.execPath) 拉不起隧道 daemon（V8 FATAL）。文档自带手动 tunnel ensure 兜底未阻断流程。修复=两 .prompt 探测改「**首个通过冒烟门禁者即用**」（node=`.mjs` 文件执行回显 NODE_SMOKE_OK；py=`-c print(1)`；命中即 break），排错速查 +1 行（errno=12→脆弱 node 判据与临时解法），pack 增 **V11c 特征断言**（包内 deploy.prompt 必含 NODE_SMOKE_OK），正反例=HEAD PASS / V1.4.11 包内 FAIL 拦截滞后。 | 已修复（deploy.prompt v3.0.3 / undeploy.prompt v2.3 同构）；随 V1.4.12 入包 |
+| **I-6.12** | P3（体验级 D2~D5） | D2=undeploy U4.2 VM 五点复测模板 `(Get-NetTCPConnection...).Count` 在**有监听单对象**时输出空行（PS5.1 单对象 .Count=$null；本次拆后无监听恰好=0 未暴露）→ 改 `@(...).Count`。D3=apply 偶发 `[WARN] tunnel.state.json ENOENT`（daemon 自清竞态，良性）→ U2.3 补说明防智能体误停顿。D4=deploy 0.4 防火墙诊断是 VM 内 PS 未注明远程执行需 .ps1 通道包装 → 补注。D5=Step 2 本地包根判定机械化（`ls $PKG_ROOT/MANIFEST.txt $PKG_ROOT/delivery`）。另：本轮批量脚本发现并**修复 deploy-prompts.md 头部 v2.5/v2.6 两行曾被转义换行破坏的拼接残留**（10-30/11-02 两次 `
+` 事故的未清面；纪律再确认：python 普通串写含 `\n` 的替换文本必须复查落盘）。 | 已收编（两 .prompt+母本 v2.8/v2.3） |

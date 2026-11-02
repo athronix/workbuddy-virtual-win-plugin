@@ -9,6 +9,8 @@ v2.2 要点：undeploy 侧复盘 G1~G6 深化（`undeploy.prompt.to-be-improved.
   **旧包（≤V1.4.8）kept 误报兼容判据**（G1）；U5 删密钥子流程内附**经真机验证的
   vm-rmkey.ps1 完整脚本**（G3：两处各按行精确删、他人密钥无损）+ VM 残留清单与清理
   时机（G4 顺序约束前置化）+ 决策采集用 AskUserQuestion 三连（G6）。
+v2.3 要点：prompt-verify 实跑收编（2026-11-02）——D1 NODE/PY 探测冒烟门禁（与 deploy v3.0.3 同构）；
+  D2 U4.2 端口计数 @() 包裹（PS5.1 单对象 .Count 陷阱）；D3 U2.3 良性 WARN 说明。
 ========================================================================
 
 【运行期注入（执行前设置；密码只走环境变量，禁止落文件）】
@@ -17,14 +19,21 @@ v2.2 要点：undeploy 侧复盘 G1~G6 深化（`undeploy.prompt.to-be-improved.
   export VM_SSH_PORT=22
   # 包根=含 MANIFEST.txt 与 delivery/ 的目录（ls 判定；另一种可能是 .../overall-root/overall）
   export PKG_ROOT=~/winvm-deploy/overall-root
-  # NODE/PY 自动探测（多候选回退，R5：不同鸿蒙宿主机路径不同，勿硬编码）：
-  export NODE="$(command -v node || true)"
-  for c in /data/storage/el1/bundle/libs/arm64/node/bin/node /data/service/hnp/bin/node; do
-    [ -x "$c" ] && NODE=$c; done
-  export PY="$(command -v python3 || true)"
-  for c in /data/service/hnp/bin/python3 /data/storage/el1/bundle/libs/arm64/python/bin/python3; do
-    [ -x "$c" ] && PY=$c; done
-  echo "NODE=$NODE PY=$PY"                     # 判据：两者非空且可执行；取不到 → 问用户
+  # NODE/PY 自动探测（D1 修复，prompt-verify 2026-11-02：首个「能跑冒烟」的候选即用、命中即 break——
+  # 仅 -x 不足以证明解释器健康：部分宿主 /data/service/hnp/bin/node 执行 .mjs 文件即 V8 ENOMEM 崩，
+  # 而 -e 内联可用；旧循环「后验覆盖」恒选中末位候选，故必须带 .mjs 冒烟门禁）：
+  export NODE=""
+  _ns() { mkdir -p "$HOME/wbtmp" 2>/dev/null
+          printf 'console.log("NODE_SMOKE_OK")\n' > "$HOME/wbtmp/.node-smoke.mjs" 2>/dev/null || return 1
+          [ "$("$1" "$HOME/wbtmp/.node-smoke.mjs" 2>/dev/null)" = "NODE_SMOKE_OK" ]; }
+  for c in "$(command -v node 2>/dev/null || true)" /data/storage/el1/bundle/libs/arm64/node/bin/node /data/service/hnp/bin/node; do
+    [ -n "$c" ] && [ -x "$c" ] && _ns "$c" && { NODE=$c; break; }
+  done
+  export PY=""
+  for c in "$(command -v python3 2>/dev/null || true)" /data/service/hnp/bin/python3 /data/storage/el1/bundle/libs/arm64/python/bin/python3; do
+    [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
+  done
+  echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 会把 --apply 降级成 dry-run（假拆）
   # export WINVM_SSH_PASSWORD=***             # 仅免密通道已失效、需重建时才注入；拆除本身不需要密码
   # SSH 重试封装（R4：桥接抖动；判据不变、只加韧性）：
@@ -90,6 +99,8 @@ U2 · 宿主相位 + U3 · VM 相位（同一次 --apply 完成）
         为**保留项断言误报**（工作区本就不存在≠被误删，拆除器从不删它），非真实失败：
         核对 U0 基线 WORKSPACE_DIR=False 后**以 U4 独立复核为准**继续，勿因该退出码停下重拆。
         V1.4.9 起该误报已修（判 "never existed [SKIP]"=PASS、EXIT 与 failure 计数一致）。
+      （良性噪音 D3：apply 偶发 [WARN] tunnel.state.json ENOENT=daemon 自清与拆除器竞态，
+        核验清单仍全 [PASS]、不影响 rc——无需处置勿停顿。）
 
 ────────────────────────────────────────
 U4 · 拆除核验（清单动态生成，判据=全 [PASS] 零 [FAIL]，不数固定条数）
@@ -109,7 +120,7 @@ U4 · 拆除核验（清单动态生成，判据=全 [PASS] 零 [FAIL]，不数�
       $NODE -e "const j=require(process.env.HOME+'/.workbuddy/mcp.json');const k=Object.keys(j.mcpServers||{}).filter(x=>/winvm/i.test(x));console.log(k.length?('LEFT:'+k):'GLOBAL_MCP_CLEAN')" → 期望 GLOBAL_MCP_CLEAN
       VM 复核（⚠ 禁止内联 -Command 含 $：$null/$_ 会被本地 bash 展开→ParserError；
         用 printf 造临时 .ps1 → vmscp → powershell -File；该通道与远端默认 shell 无关）：
-      printf 'Test-Path C:\\WinVMBridge\r\n$null -ne (Get-ScheduledTask -TaskName WinVMBridge.Service -ErrorAction SilentlyContinue)\r\n(Get-NetTCPConnection -LocalPort 18443 -State Listen -ErrorAction SilentlyContinue).Count\r\n(Get-Service sshd).Status\r\nTest-Path C:\\WinVMWorkspace\r\n' > ~/wbtmp/vm-recheck.ps1
+      printf 'Test-Path C:\\WinVMBridge\r\n$null -ne (Get-ScheduledTask -TaskName WinVMBridge.Service -ErrorAction SilentlyContinue)\r\n@(Get-NetTCPConnection -LocalPort 18443 -State Listen -ErrorAction SilentlyContinue).Count\r\n(Get-Service sshd).Status\r\nTest-Path C:\\WinVMWorkspace\r\n' > ~/wbtmp/vm-recheck.ps1
       vmscp ~/wbtmp/vm-recheck.ps1 $VM_USER@$VM_HOST:C:/Users/$VM_USER/vm-recheck.ps1
       vmssh 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vm-recheck.ps1'
       → 期望依次：False / False / 0 / Running / True（工作区默认保留）
