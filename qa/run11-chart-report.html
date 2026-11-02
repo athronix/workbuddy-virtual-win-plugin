@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>run11 分步计时图表报告 · V1.4.16 双脚本往返</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  body { font-family: "PingFang SC","Microsoft YaHei",-apple-system,sans-serif; background:#f6f7f9; color:#1f2328; margin:0; padding:24px; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: #57606a; margin-bottom: 20px; }
+  .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+  .card { background:#fff; border:1px solid #e3e6ea; border-radius:10px; padding:14px 16px; }
+  .card .k { font-size:12px; color:#57606a; }
+  .card .v { font-size:26px; font-weight:600; margin-top:4px; }
+  .card .v.ok { color:#1a7f37; }
+  .panel { background:#fff; border:1px solid #e3e6ea; border-radius:10px; padding:18px 20px; margin-bottom:20px; }
+  .panel h2 { font-size:15px; font-weight:600; margin:0 0 4px; }
+  .panel .note { font-size:12px; color:#57606a; margin:0 0 12px; }
+  .legend { display:flex; flex-wrap:wrap; gap:16px; font-size:12px; color:#57606a; margin-bottom:8px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  .h-box { position:relative; width:100%; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid #eceff2; }
+  th { color:#57606a; font-weight:600; }
+  .tag { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+  .t0 { background:#dcf5e5; color:#1a7f37; } .t1 { background:#fff1d6; color:#9a6700; }
+  .t2 { background:#e3ecf7; color:#335d9e; } .t3 { background:#fde8e3; color:#b3452a; }
+  .flex { display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+  .share-legend { font-size:12.5px; line-height:2; color:#3a4149; }
+  code { background:#f0f2f5; padding:0 4px; border-radius:4px; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>run11 分步计时往返测试 · 图表报告</h1>
+  <div class="sub">包=V1.4.16（undeploy.prompt v2.4 + deploy.prompt v3.0.5，与仓库逐字节一致）｜场景=干净往返（无脏注入）｜2026-11-02（UTC）｜数据源 <code>qa/evidence/run11-20261102-timings.csv</code>（36 有效步 + 3 QA 脚手架重试行）</div>
+
+  <div class="cards">
+    <div class="card"><div class="k">有效总步时</div><div class="v">408s</div></div>
+    <div class="card"><div class="k">探针链占比</div><div class="v">35.5%</div></div>
+    <div class="card"><div class="k">产品缺陷 / 阻断</div><div class="v ok">0 / 0</div></div>
+    <div class="card"><div class="k">探针终态</div><div class="v ok">38/38</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>每步耗时（&gt;0s 的 21 步，降序）</h2>
+    <p class="note">蓝=deploy（Phase B）步骤，绿=undeploy（Phase A）步骤。重试 3 步均标注（QA 脚手架自纠后完成）。</p>
+    <div class="legend">
+      <span><span class="dot" style="background:#185FA5;"></span>B · deploy</span>
+      <span><span class="dot" style="background:#0F6E56;"></span>A · undeploy</span>
+    </div>
+    <div class="h-box" style="height:620px;"><canvas id="cSteps" role="img" aria-label="各步骤耗时横向条形图，最长为 deploy-vm apply 125 秒">步骤耗时条形图</canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>耗时构成（Top 步 vs 其余 16 步）</h2>
+    <div class="flex">
+      <div class="h-box" style="width:240px; height:240px;"><canvas id="cShare" role="img" aria-label="耗时构成环形图">耗时构成环形图</canvas></div>
+      <div class="share-legend">
+        <div><span class="dot" style="background:#185FA5;"></span>3.2a deploy-vm --apply — 125s（30.6%）</div>
+        <div><span class="dot" style="background:#378ADD;"></span>5.3 example-probe（13 项）— 90s（22.1%）</div>
+        <div><span class="dot" style="background:#5DCAA5;"></span>5.2 a2a-probe（E4 委派长调用）— 34s（8.3%）</div>
+        <div><span class="dot" style="background:#97C459;"></span>3.0 运行时前置门禁 — 26s（6.4%）</div>
+        <div><span class="dot" style="background:#BA7517;"></span>5.1 mcp-probe + U2.1 undeploy apply — 各 21s</div>
+        <div><span class="dot" style="background:#8b949e;"></span>其余 15 步合计 — 91s（22.3%）</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>轮次基线对比（run8 / run10 / run11）</h2>
+    <p class="note">口径注：run8、run10 为墙钟总时长（含 agent 动作间隙），run11 为纯步内累计计时（36 步相加），数量级一致。run10 无分步口径，探针链缺项。</p>
+    <div class="legend">
+      <span><span class="dot" style="background:#85B7EB;"></span>run8（v3.0.3 · 干净）</span>
+      <span><span class="dot" style="background:#EF9F27;"></span>run10（v3.0.5 · 脏场景）</span>
+      <span><span class="dot" style="background:#185FA5;"></span>run11（v3.0.5 · 干净 · 逐步计时）</span>
+    </div>
+    <div class="h-box" style="height:260px;"><canvas id="cTrend" role="img" aria-label="三轮在总时长、VM-START apply、探针链三个维度的分组条形图">轮次基线对比图</canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>问题记录（12 条，全部非产品缺陷）</h2>
+    <table>
+      <tr><th style="width:90px;">分级</th><th>内容</th><th style="width:180px;">归因 / 处置</th></tr>
+      <tr><td><span class="tag t0">阻断 0</span></td><td>—</td><td>—</td></tr>
+      <tr><td><span class="tag t1">误导 3</span></td><td>U0.3 基线（helper 未 source env）｜U4.1 复核（相对路径 × 计时器 cd 冲突）｜0.4 防火墙（<code>$_</code> 被本地 bash 先展开）</td><td>QA 脚手架自纠重试；第 3 条反向印证脚本「禁内联含 $ 远端 PS」红线有效</td></tr>
+      <tr><td><span class="tag t2">噪音 4</span></td><td>宿主 getcwd 警告｜D3 tunnel.state.json ENOENT [WARN]｜powercfg GBK 乱码｜connector-states ⚠×2</td><td>全部被脚本既有注记预言（含 V1.4.16 O-1 降噪注行），无需处置</td></tr>
+      <tr><td><span class="tag t3">观察 1</span></td><td>探针链 145s vs run8 97s（+48s：llmSession 冷启窗口拖慢 E4/E7 首批，无超时零复跑）</td><td>非缺陷；候选优化=E4/E7 前 warm-up 或趋势观察（已入 ISSUES 迭代16 收口表）</td></tr>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>终态矩阵（全实测）</h2>
+    <table>
+      <tr><th>项</th><th>值</th><th>项</th><th>值</th></tr>
+      <tr><td>三探针</td><td>20/20 + 5/5 + 13/13 = 38/38</td><td>check-fresh</td><td>FRESH（187 文件 SHA 全一致）</td></tr>
+      <tr><td>disabledTools</td><td>8（全局 mcp.json）</td><td>隧道</td><td>RUNNING / healthy / ownerMatch / !stale</td></tr>
+      <tr><td>health</td><td>200（定稿复测在位）</td><td>连接器 skill</td><td>8（含 hos-win-skill + winvm-orchestrator）</td></tr>
+      <tr><td>VM 服务</td><td>task=Running / listen=1@127.0.0.1 / 会话 interactive healthy</td><td>存留项</td><td>密钥 / trash / 下载物 / 工作区全保留</td></tr>
+    </table>
+  </div>
+
+  <div class="sub">结论：<b>可交付</b>。产品脚本零缺陷零阻断，run8→run11 连续四轮（含脏场景 run10）均「完全按两份智能体安装脚本一次顺利完成」。</div>
+</div>
+
+<script>
+const steps=[
+ ['B 3.2a deploy-vm apply',125,'#185FA5'],['B 5.3 example-probe',90,'#378ADD'],['B 5.2 a2a-probe',34,'#5DCAA5'],
+ ['B 3.0 env 门禁',26,'#97C459'],['B 5.1 mcp-probe',21,'#185FA5'],['A U2.1 undeploy apply',21,'#0F6E56'],
+ ['A U0.3 基线（重试后）',18,'#0F6E56'],['B 3.3 vmcheck',18,'#185FA5'],['A U1 DRY-RUN',14,'#0F6E56'],
+ ['B 0.4 防火墙（重试后）',10,'#185FA5'],['A U4.2 独立复核',9,'#0F6E56'],['B 0.2 sshd 探测',4,'#185FA5'],
+ ['B 0.5 重试面确认',3,'#185FA5'],['B 4.1 install-host',3,'#185FA5'],['B 0.3 电源佐证',3,'#185FA5'],
+ ['A U5 存留项',2,'#0F6E56'],['B 4.4 health',2,'#185FA5'],['B 1.5 免密复核',2,'#185FA5'],
+ ['B 2.3 三重校验',1,'#185FA5'],['B 3.2d dry-run',1,'#185FA5'],['A U0.1 whoami',1,'#0F6E56']];
+new Chart(document.getElementById('cSteps'),{type:'bar',
+ data:{labels:steps.map(s=>s[0]),datasets:[{data:steps.map(s=>s[1]),backgroundColor:steps.map(s=>s[2]),borderRadius:3,barPercentage:0.72}]},
+ options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+' s'}}},
+ scales:{x:{ticks:{callback:v=>v+'s'},title:{display:true,text:'耗时（秒）'}},y:{ticks:{font:{size:11}},grid:{display:false}}}}});
+new Chart(document.getElementById('cShare'),{type:'doughnut',
+ data:{labels:['apply 125s','example 90s','a2a 34s','门禁 26s','并列 21s','其余 91s'],
+ datasets:[{data:[125,90,34,26,21,91],backgroundColor:['#185FA5','#378ADD','#5DCAA5','#97C459','#BA7517','#8b949e'],borderWidth:1,borderColor:'#fff'}]},
+ options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.label+'（'+Math.round(c.parsed/408*100)+'%）'}}}}});
+new Chart(document.getElementById('cTrend'),{type:'bar',
+ data:{labels:['总时长/总步时','VM-START apply（3.2a）','三探针链'],
+ datasets:[
+  {label:'run8',data:[515,48,97],backgroundColor:'#85B7EB',borderRadius:3},
+  {label:'run10',data:[600,127,null],backgroundColor:'#EF9F27',borderRadius:3},
+  {label:'run11',data:[408,125,145],backgroundColor:'#185FA5',borderRadius:3}]},
+ options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':c.parsed.y+'s')}}},
+ scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>v+'s'}}}}});
+</script>
+</body>
+</html>
