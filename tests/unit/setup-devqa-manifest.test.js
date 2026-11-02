@@ -15,6 +15,7 @@ const ROOT = join(__dirname, '..', '..');
 const {
   buildVmInstallPs1,
   buildVmUninstallPs1,
+  buildVmStartPs1,
   buildDeployManifest,
   VM_ARCHIVE,
   QA_PROBE_FILES,
@@ -55,6 +56,24 @@ test('R8 锁：buildVmUninstallPs1 同样零 bash 专属语法 + ASCII', () => {
     assert.ok(!ps.includes(t), `uninstall .ps1 载荷不得含 bash 专属片段 ${JSON.stringify(t)}`);
   }
   assert.ok(!/[^\x00-\x7F]/.test(ps), 'uninstall .ps1 必须 ASCII');
+});
+
+test('I-6.15b 锁：buildVmStartPs1 命令行签名清扫（不依赖端口）+ 僵尸显形哨兵 + ASCII', () => {
+  const ps = buildVmStartPs1({ servicePort: 18443 });
+  // 签名清扫必须存在且覆盖四类指纹（run7 实弹：start-hidden/游离实例不绑端口，端口反查全盲）
+  assert.ok(ps.includes('Get-CimInstance Win32_Process'), '须按 Win32_Process 命令行扫描');
+  assert.ok(/CommandLine -match 'WinVMBridge\|start-hidden\|vm-service\|ps-bridge'/.test(ps), '四类签名');
+  assert.ok(ps.includes('VM_START_SWEEP'), '清扫显形哨兵');
+  assert.ok(ps.includes('VM_START_ZOMBIE_PID'), '僵尸显形哨兵（用户态不可杀形态）');
+  // 既有语义保持：/End → 端口反查 → /Run → 成功哨兵
+  assert.ok(ps.includes('schtasks /End') && ps.includes('schtasks /Run') && ps.includes('VM_START_TRIGGERED'));
+  // 跨壳锁同样适用 + ASCII
+  for (const t of BASH_ONLY_TOKENS) {
+    assert.ok(!ps.includes(t), `vmstart .ps1 载荷不得含 bash 专属片段 ${JSON.stringify(t)}`);
+  }
+  assert.ok(!/[^\x00-\x7F]/.test(ps), 'vmstart .ps1 必须 ASCII');
+  // 端口值透传
+  assert.ok(ps.includes('$Port = 18443'), 'servicePort 透传');
 });
 
 /* ================= 安装 .ps1 形状 ================= */

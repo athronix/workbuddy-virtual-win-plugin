@@ -346,3 +346,15 @@
 | **I-6.14** | P2（能力执行面） | **服务端盘扫族 120s 能力闸=I-6.13 只修客户端面之延伸**（run7 现场③）：E7 首跑不再被掐线、拿到结构化应答 `EXECUTION_TIMEOUT` durationMs=120081——恰等于 `definitions.ts` cleanup.analyze `timeoutMs:120_000`；半冷盘扫（VM 重装后首轮）必触，暖态 62~105s 侥幸。同 I-6.9/I-6.13 阈值临界族第三例（教训链=判据窗必须带实测耗时带余量，逐层对齐）。修复=`storage.cleanup.analyze/space.analyze/search.query` timeoutMs **120_000→300_000**（对齐 archive.manage 既有 300s 档；看门狗忙态守卫 I-6.9 已覆盖在途长调用，提闸安全）+example-probe E7_TIMEOUT 300→**330** 保持客户端>服务端余量；契约 52/52+计数钉 54 不变（timeoutMs 无测试钉，形状不动）。文档面=deploy.prompt 5.3 排错注记区分 `EXC timed out`（客户端旧窗）vs `EXECUTION_TIMEOUT≈120000`（服务端旧闸）。 | 已修复（HEAD）；随 V1.4.13 入包 |
 | **I-6.15** | P2（判据可达性/观察） | **run7 现场①②两形态**：(a) 会话漂移——schtasks 包装器退出后 task_state=Ready 而服务成游离实例，且落 Session 0 时 GUI 能力报 SESSION_UNAVAILABLE（mcp A3/C5 FAIL）；/End+/Run 重触发落交互会话即愈（run7 实测 20/20 转 PASS）。(b) 首实例僵而不绑（8K 工作集、不可杀、420s 未监听）——start-hidden 端口自清对"无端口可反查"形态盲区；文档内置重跑指引有效（复跑 127s rc=0）。处置=(a) 收编入 deploy.prompt 3.3 **兜底判据行**（Ready+listen=1+200=等价可继续勿重跑；SESSION_UNAVAILABLE→/End+/Run）+排错表；(b) 根治（VM-START 前按命令行 WinVMBridge 扫进程先行清理）列**观察项**，偶发率待更多 run 数据。**发布态补强（V1.4.13 --wipe 复验现场，同夜）**：僵尸 node（PID 16332，8K 工作集、无子进程、不绑端口）经**管理员 PS 三式强杀全部免疫**——taskkill /F（GBK 报错=没有此任务的实例）、.NET Process.Kill、Win32_Process.Terminate 均无效，连锁 uninstall VM 相位 3 FAIL rc=1（且占文件锁使 C:\WinVMBridge 删不净）；**终极解=VM 内 `shutdown /r /t 5 /f` 重启 guest**（实测 ~60s sshd 恢复、僵尸随进程表清空）→ 重启后照常 uninstall 19/19 rc=0 → setup rc=0 → 38/38。已入 deploy.prompt v3.0.5 排错段+undeploy v2.4 排错段（含 FAIL 特征串=WinVMBridge absent observed:True）。 | (a) 已收编（v3.0.4/v3.0.5）；(b) 观察项在册+应急路径成文 |
 | **N4/N5** | P3/P4 | N4=undeploy.prompt L2 标题 v2.2 漏 bump（内容与要点段均 v2.3）已修；N5=环境噪音（getcwd 警告/GBK 乱码不影响判据字段/95 历史 winvm-bak 不回收=设计）记录不处置。另 run7 留**滞后面引用**：包根 V1.4.12 探针尚无 I-6.13 形参（I-6.13 系 pack 后修复）→ 本轮 Step 5 按任务书用仓库 HEAD 探针，V1.4.13 起包内自愈。 | 已收编 |
+
+## 迭代16 · V1.4.15（2026-11-02，VM-START 签名清扫根治版——开账即关）
+
+> 状态：**已关闭**。动因=用户令「连续 run8/9/10 直到完全按两 .prompt 高效顺利完成」。按 I-6.15(b) 观察项的根治候选本轮直接产品化：**run7 实测两类拖慢往返的形态（420s 首跑超时、僵尸残留连锁拆除 3 FAIL）根因都是 VM-START 只按端口反查、对不绑端口的包装器/游离实例全盲**。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.16** | P2 | **VM-START 命令行签名清扫**：`buildVmStartPs1` 在 /End+端口反查后增 Win32_Process 命令行扫描（`WinVMBridge\|start-hidden\|vm-service\|ps-bridge`，排除 svchost/conhost）逐个 Terminate，显形 `VM_START_SWEEP PID=`；残留 <100KB 工作集的不可杀形态显形 `VM_START_ZOMBIE_PID=`（不假装能杀，暴露给排错面=重启 guest 路径）。真机双验证：①载荷过 VM PS 解析器+实跑 `VM_START_TRIGGERED` 且服务重启后 health=200；②签名查询对活体精确命中（3 实例=包装器139MB/node 86MB/ps1 bridge 188MB，僵尸阈值 100KB 零误伤）。单测 `setup-devqa-manifest` +1 锁（签名正则/两哨兵/既有语义/bash 零出现/ASCII/端口透传，12/12）。undeploy 排错面（v2.4 重启三步）保持为兜底。 | 已落地（HEAD）；随 V1.4.15 入包；run8/9/10 实测验证连续往返效率 |
+
+### 迭代16 收口（V1.4.15 发布链闭环，11-02）
+
+> run8/9/10 连续往返实测见 `qa/` 对应 run 报告；**结论与版本回填以收口时实际数据为准**。

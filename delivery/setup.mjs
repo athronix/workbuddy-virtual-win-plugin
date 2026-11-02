@@ -729,8 +729,13 @@ export async function runRemotePs1(cfg, ps1Body, { timeoutMs = 120_000, log = (m
 }
 
 /**
- * VM-START 相位的 .ps1：结束旧实例 → 强杀残留端口进程 → schtasks /run。
+ * VM-START 相位的 .ps1：结束旧实例 → 端口反查强杀 → **命令行签名清扫**（I-6.15b 根治）→ schtasks /run。
  * 与原内联 restartRemote 命令语义一致，改为 .ps1 推送执行（铁律）。
+ * I-6.15b（run7/run8 实弹）：start-hidden 包装器与游离 vm-service 实例**不绑端口**，
+ * 端口反查对其全盲 → 首实例僵而不绑（420s 未监听）且退化成用户态三式强杀全免疫的僵尸
+ * （8K 工作集、无子进程，唯重启 guest 可清）。故 /End 后按命令行签名
+ * （WinVMBridge|start-hidden|vm-service|ps-bridge）清扫残留，不依赖端口；
+ * 僵尸形态无法用户态清除时显形 VM_START_ZOMBIE_PID 供判据面暴露，交排错路径处置。
  */
 export function buildVmStartPs1(cfg) {
   const lines = [
@@ -741,6 +746,16 @@ export function buildVmStartPs1(cfg) {
     'Start-Sleep -Seconds 1',
     '$p = (Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique',
     'if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }',
+    '$sig = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {',
+    "  $_.CommandLine -match 'WinVMBridge|start-hidden|vm-service|ps-bridge' -and $_.Name -notmatch '^(svchost|conhost)' })",
+    'if ($sig.Count -gt 0) {',
+    '  foreach ($s in $sig) { Write-Output ("VM_START_SWEEP PID=" + $s.ProcessId + " NAME=" + $s.Name) }',
+    '  $sig | ForEach-Object { $null = $_.Terminate() }',
+    '  Start-Sleep -Seconds 2',
+    '  $z = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {',
+    "    $_.CommandLine -match 'WinVMBridge|start-hidden' -and $_.WorkingSetSize -lt 100KB })",
+    '  foreach ($zz in $z) { Write-Output ("VM_START_ZOMBIE_PID=" + $zz.ProcessId) }',
+    '}',
     'Start-Sleep -Seconds 1',
     '$null = schtasks /Run /TN $TaskName 2> $null',
     'if ($LASTEXITCODE -eq 0) { Write-Output "VM_START_TRIGGERED" }',
