@@ -6,10 +6,11 @@
 
 ## 0. 取证设计（如何做到"实弹"）
 
-run8 的覆盖空洞=现场太干净（$sig.Count=0，SWEEP 分支不触发）。本轮：
-1. run9-A（队友）undeploy 前注入诱饵；其 `cmd /c start /min` 宿主 cmd.exe 命令行无签名串，**对签名面天然免疫**（诱饵形态缺陷，非产品缺陷，但导致 A 侧"诱饵被签名扫掉"口径失实，已在过程中回正）。
-2. 本人接管后重注入**签名匹配形态**诱饵（powershell -Command 含 WinVMBridge-decoy 字样，PID 5592/2292，不占端口）；另注入 node/decoy 对（6508/9552）因 ssh 会话 Job Object 随通道退出被系统回收（消亡原因记录备查，非 SWEEP 所为）。
-3. undeploy apply 完成后 VM 复核 SIGCOUNT 基线；deploy 全程照脚本原文执行；**apply 后验诱饵存活 + 1:1 同构复现 VM-START 签名清扫段抓 stdout 与错误**。
+run8 的覆盖空洞=现场太干净（$sig.Count=0，SWEEP 分支不触发）——**本轮该空洞已被推翻，见附录 C**。诱饵在场（归因按附录 C 修正）：
+1. **qa4 正式诱饵**（18:32:18，第二拍）：`Invoke-CimMethod Win32_Process Create` 派生 powershell.exe，存活进程命令行自带签名串（"Start-Sleep 900 # WinVMBridge-decoy-A/B"，PID 5592/2292，WS≈76MB）→ 完美命中匹配面；qa4 第一拍（18:31，Start-Process 形态，PID 13208/5284）被 sshd 会话 Job Object 回收。`cmd /c start /min` 免疫形态（4752/7580）归属双方记录不一、已不可考，对判定无影响（两侧观测面均未匹配签名）。
+2. 本人接管后注入 node/decoy 对（6508/9552，Start-Process 形态）同样随通道被 Job Object 回收（= N-9b 的 qa3 侧独立复现）；本人 presweep-inject.log（18:35）SIGCOUNT=7 **含 qa4 诱饵 5592/2292**。
+3. deploy 全程照脚本原文执行；**apply 后验诱饵存活 + 1:1 同构复现 VM-START 签名清扫段抓 stdout 与错误**。
+   ⚠ 本人原 §0 曾判读"18:30 SIGCOUNT=0 → 真路无目标、显形 0 行属预期"——**该判读错误**（静态快照误推动态窗口：qa4 诱饵 18:32:18 才注入，TTL 存活窗完整覆盖本人轨 apply 18:37:33→18:39:20）。修正后 D-R9-1/2 升级为**产品真路实弹证据**（详附录 C/qa4 附录 B.2）。
 
 ## 1. 双向总表
 
@@ -19,7 +20,7 @@ run8 的覆盖空洞=现场太干净（$sig.Count=0，SWEEP 分支不触发）�
 | U0~U1（含诱饵在场）| dry 正常；PRE 端口/任务在 | PASS |
 | U2/3 apply | **rc=0，19/19 [PASS]**（18:30:00）| PASS |
 | U4 独立复核 | 000 / GLOBAL_MCP_CLEAN / VM False,False,0,Running,True | PASS |
-| 诱饵去向复核（本人）| A 侧 cmd 宿主 4752/7580 从未匹配签名（其消亡=start 目标被 undeploy taskkill 后自然退出）；undeploy 相位清理靠 taskkill/端口反查（有效层），**非** v2.4 卖点签名清扫 | 口径修正 |
+| 诱饵去向复核（本人，经附录 C 修正）| 4752/7580（cmd 宿主形态）从未匹配签名（归属双方记录不一、不可考，不影响判定）；**正式诱饵=qa4 18:32:18 CIM Create 派生 5592/2292，undeploy 相位后依然在场**（存活窗 18:32:20→18:47:20）→ undeploy 清理靠 taskkill/端口反查（有效层），**非** v2.4 卖点签名清扫；"cmd 宿主对签名免疫"作为方法论结论保留 | 口径修正 |
 
 ### Phase B · deploy v3.0.5（本人，18:33~18:48）
 | 步/判据 | 期望 | 实际 | 结论 |
@@ -45,14 +46,15 @@ run8 的覆盖空洞=现场太干净（$sig.Count=0，SWEEP 分支不触发）�
 ## 2. SWEEP 实弹结论：**I-6.16 = NOT-EFFECTIVE（两个阻断级子缺陷）**
 
 ### D-R9-1【阻断·修复本体无效】签名清扫杀不掉任何进程
-1:1 同构复现 VM-START 清扫段（manual-sweep.log）实证：
+**产品真路实证（轨2=本人，修正后升级）**：本人 apply（18:37:33→18:39:20）处于 5592/2292 存活窗内、且本人 presweep-inject.log（18:35）观测到二者匹配签名（SIGCOUNT=7）——apply 后 verify1（≈18:41）Get-Process 复核 **两者 ALIVE**、日志 SWEEP 0 行。轨1（qa4，18:35:04→18:37:07）同样真路复现（phaseB-sweep.log）。即：**有目标、一枪未杀、零显形**，非仅复现。
+1:1 同构复现 VM-START 清扫段（manual-sweep.log，18:43）定位根因：
 - 匹配面**正常**：显形 5 行 `VM_START_SWEEP PID=…`（含诱饵 5592/2292 与当时在册服务进程）
 - 执行面**全灭**：`$sig | ForEach-Object { $null = $_.Terminate() }` 对每个目标抛 **`MethodNotFound`（CimInstance 无 Terminate() 方法）**——PS 5.1 `Get-CimInstance` 返回 CimInstance，不携带 WMI legacy 的 Terminate 方法（需 `Invoke-CimMethod -MethodName Kill` 或 `Get-WmiObject(...).Terminate()`）；`$null =` 又把异常吞进错误流。
 - 实弹后果：deploy apply 期间诱饵未被清（apply 后 Get-Process 5592/2292 ALIVE 为铁证）；复现时 5 次 Terminate 全抛错、进程全部存活（含服务本体）——**该分支是自欺清扫：打条（且打不到日志）+杀 0 个**。
 - 为何部署仍成功：残留实例不占 18443；真正的韧性来自**其它层**（install-vm killServiceProcess 的端口反查 Stop-Process、start-hidden 的自清理预杀、undeploy 的 taskkill）——run7 420s 痛点在 run8/run9 不复现系多层冗余，不是 I-6.16 的功劳。
 
 ### D-R9-2【阻断·判据不可达】SWEEP/ZOMBIE 哨兵成功路径永不进日志
-deploy-vm.mjs L139-151：`ps.out` 仅在失败分支被 slice(0,300) 打印，成功路径**整体丢弃**（连 VM_START_TRIGGERED 都不显示）。任务书/脚本读者按"日志里 grep VM_START_SWEEP"取证必然为 0——**run8 当时把 grep=0 判读为"设计预期（现场干净未触发）"不完整**，真实根因是即便触发也不显形。修正 run8 的 §2 nit 结论。
+deploy-vm.mjs L139-151：`ps.out` 仅在失败分支被 slice(0,300) 打印，成功路径**整体丢弃**（连 VM_START_TRIGGERED 都不显示）。任务书/脚本读者按"日志里 grep VM_START_SWEEP"取证必然为 0。**真路实证**：轨1/轨2 两次 apply 均有匹配诱饵在场（D-R9-1 段），日志仍零显形——判据结构性不可达，与现场干净与否无关。据此**修正 run8 报告 §2**：当时把 grep=0 判读为"设计预期（现场干净未触发）"不完整，真实根因是即便触发也不显形。
 
 ### 对 run7 两大痛点的再判读
 - 痛点①（VM-START 首跑 420s）：本轮诱饵在场仍一次过 107s → 现象层面不复现，但**归因应修正**=端口反查+start-hidden 自清理层兜住，I-6.16 签名清扫层从未生效。
@@ -136,3 +138,16 @@ C:\WinVMBridge\vm-decoy1.ps1=False。VM 侧辅助件已被 qa3 cleanup 回收（
 qa4 D7 = 合并版 D-R9-1；qa4 D8 = D-R9-2；qa4 D9 = N-9b；qa4 O-1 = N-9a；qa4 D10（cmd 宿主签名免疫）
 =合并版 §0.1 首条（归因已修正）。qa3 独有的 D-R9-3（docs 能力叙事误导）qa4 侧无异议附议。
 **双侧合并判定维持：NO（I-6.16 承诺未兑现）；run10 复验判据=「apply 后诱饵 GONE + 日志显形 SWEEP 行」双绿。**
+
+────────────────────────────────────────────────────────────────────────
+## 附录 C · qa3（合并版/B 轨2 作者）对 qa4 异议的复核回执（19:0x，software-qa-engineer-3）
+
+对 qa4 的四点异议逐条复核，**全部成立**，本人已按此修订正文（§0、§1 Phase A 表、§2 D-R9-1/2）：
+
+1. **5592/2292 归属**：复核本人 inject-decoys.ps1——脚本内无 "WinVMBridge-decoy" 串、注入 PID=6508/9552。二者命令行（"Start-Sleep 900 # WinVMBridge-decoy-A/B"）系 qa4 18:32:18 第二拍 CIM Create 产物。**本人正文原 §0.2 把 5592/2292 记为"本人重注入"有误，已修正**；4752/7580 归属因现场交错已不可考，双方记录均降为存疑（不影响判定）。
+2. **"SWEEP 无目标"判读撤销**：本人 18:30:2x SIGCOUNT=0 为**注入前静态快照**（qa4 诱饵 18:32:18 才诞生），本人据此发出的"deploy 侧 SWEEP 将无目标、预期显形 0 行"消息属误判——本人自己 18:35 presweep-inject.log（SIGCOUNT=7 含 5592/2292）即反证。修正后 D-R9-1/2 证据等级从"同构复现+存活推定"升级为**产品真路实弹**（轨1、轨2 双重复现），判定强度上升，对报告是利好。
+3. **C1 口径**：接受——qa4 取证链（逐字节同源 repro 2 行显形+MethodNotFound×2、差分对照 Invoke-CimMethod Terminate RC=0、Stop-Process 秒杀同目标=非免疫型僵尸、L753 纯 API 形态断裂定位）自洽且与本人 manual-sweep.log/verify1/cleanup 输出互证；"标注修正"要求撤销，改为本人正文自纠（附录 C 即为回执）。
+4. **6508/9552 补录**：本人 apply 后无针对这两个 PID 的专门 Get-Process 记录；最近接观测=18:41 verify1.ps1 四 PID 表中 **6508 GONE / 9552 GONE**（其消亡发生在 18:35 注入后至 18:41 复查间，Start-Process 经 ssh 会话起、符合 N-9b Job Object 回收特征；时点无法区分是否恰被轨2 VM-START 扫到——但因 Terminate 全抛 MethodNotFound，产品路径杀 0 个，GONE 归因 Job Object/父通道退出，非 SWEEP）。按 qa4 建议以 5592/2292 链为主，此段仅作备查。
+5. **并行冲突报备（共同承担）**：run9 任务书按 Phase 串行设计，实际执行中 #13（qa4）与 #14（qa3）在**同一 VM 上交错各跑一轮完整 deploy-vm apply + Step5 全量探针**（轨1 18:34:12→18:45:25 / 轨2 18:37:33→18:48:58，重叠约 8 分钟）。两轨各自全绿但现场互踩（如 vmcheck.ps1 被对侧 cleanup 删除需重推、SIGCOUNT 快照互相污染——正是第 2 条误判的操作性根源）。双方均向 team-lead 报备：终态以 18:53-18:58 快照为准（health=200、listen=1、task=Running、三体在位、诱饵全清、现场无损）。后续 run10 建议主理人对同 VM 双 agent 明确串行化或现场所有权交接协议。
+
+**编号对照**（并入 qa4 B.5）：D-R9-1=qa4 D7；D-R9-2=qa4 D8；N-9b=qa4 D9；N-9a=qa4 O-1；D-R9-3=qa3 独有、qa4 附议。合并判定维持 **NO**；run10 双判据不变。
