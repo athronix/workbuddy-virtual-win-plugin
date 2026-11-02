@@ -1,0 +1,39 @@
+
+== pack-release V1.4.13 @ 0eb12f0 ==
+· 组装 host/（install-host 闭包）
+· 组装 vm/（deploy-vm 闭包）
+· 组装 overall/（整体包 = host ∪ vm ∪ 编排与文档）
+· 包内验证（V2 host 闭包 / V3 vm 闭包 / V4 能力计数）
+  ✓ V1 host 必存文件
+  ✓ V1 vm 必存文件
+  ✓ V1 overall 必存文件
+  ✓ V2 host 闭包 dry-run（exit 0）
+  ✓ V3 vm 闭包 dry-run（exit 0）
+  ✓ V5 host install-host 含 NON_ACCOUNT_DIRS
+  ✓ V5 overall install-host 含 NON_ACCOUNT_DIRS
+  ✓ V6 vm gui.ps1 含键鼠修复(cbSize)
+  ✓ V6 overall gui.ps1 含键鼠修复(cbSize)
+  ✓ V7 overall uninstall 含全局 mcp 对称清理(cleanGlobalMcpJson)
+  ✓ V8 deploy/deploy-strategy.md 含权威校验源口径
+  ✓ V8 deploy/deploy-prompts.md 含权威校验源口径
+  ✓ V9 verify-manifest 含运行期白名单
+  ✓ V9 verify-release 含运行期白名单
+  ✓ V9 vmcheck 含 UTF-8 解码修复
+  ✓ V10 setup.mjs 跨壳安装通道(buildVmInstallPs1, 无 pipefail)
+  ✓ V10 prepare-vm 含 npmmirror zip 兜底
+  ✓ V10 uninstall 含 KEEP 误报修复(never existed)
+  ✓ V11 deploy.prompt 含 Step 0 前置检查（智能体安装脚本深化面）
+  ✓ V11 deploy.prompt 含 NODE 探测冒烟门禁（D1 深化面）
+  ✓ V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）
+  ✓ V4 能力计数=54（exit 0）
+· 生成 overall zip + sha256 旁挂（GitHub Release 分发单元）
+
+✓ 发布包已生成：release/V1.4.13
+  host    848 文件 / 6753K / sha256 198fcf0b4581c469…
+  vm      345 文件 / 2864K / sha256 2a0e711e69eb2690…
+  overall 881 文件 / 7521K / sha256 48ba6ab0b3da786f…
+  overall-zip release/V1.4.13/winvm-overall-V1.4.13.zip / 2820K / sha256 cfeeee88cf1c9294…  旁挂 release/V1.4.13/winvm-overall-V1.4.13.zip.sha256  →上架：node delivery/publish-release.mjs --tag V1.4.13 --zip release/V1.4.13/winvm-overall-V1.4.13.zip [--apply]
+  证据：qa/release/V1.4.13-pack.txt
+
+下一步：cd release/V1.4.13/overall && bash deploy-all.sh --wipe   （清空历史部署后整体重装；bash 显式解释防 hmdfs 丢执行位）
+
