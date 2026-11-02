@@ -35,7 +35,7 @@ except Exception as e:
     sys.exit(2)
 
 results = []
-E7_TIMEOUT = 300  # I-6.13：cleanup.analyze 冷态扫描 ≥120s（旧 120s 固定窗首跑即掐线假 FAIL），暖态单发实测 62~85s——300s 窗覆盖两者带余量
+E7_TIMEOUT = 330  # I-6.13+I-6.14：服务端能力闸 300s（V1.4.13 起盘扫族 120→300s），客户端窗必须 > 之保留余量（冷态实测带：暖 62~85s / 冷触闸 120.08s 时代证据见 run6/run7）
 
 
 def rec(name, ok, detail=""):

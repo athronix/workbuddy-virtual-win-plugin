@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.2）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.3 · run6 收编 D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、

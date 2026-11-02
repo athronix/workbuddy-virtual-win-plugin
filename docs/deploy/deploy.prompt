@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.0.3 · prompt-verify 实跑收编：NODE/PY 探测改「首个通过冒烟者」+包根 ls 判定+0.4 通道注记（D1/D4/D5）；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.0.4 · run7 复验收编：3.3 会话兜底判据（N1）+E7 排错口径区分服务端闸（N3）；前版=run6 收编 D1/D4/D5 探测冒烟+包根 ls+通道注记；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -34,10 +34,10 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
     [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
   done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
-  export RELEASE_TAG=V1.4.12                   # ⚠ 示例值——以 releases/latest API 现解为准：
+  export RELEASE_TAG=V1.4.13                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.12.zip
+  export ZIP=winvm-overall-V1.4.13.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
@@ -176,6 +176,10 @@ Step 3 · 部署 VM-service（用免密通道）
       vmssh 'powershell -NoProfile -ExecutionPolicy Bypass -File C:/Users/'$VM_USER'/vmcheck.ps1'
       要求：task_state=Running、listen_addr=127.0.0.1、listen_count=1、side_json=true、
             bridge_dir=true、health_http=200、health_body.ok=true
+      兜底判据（N1，run7 实测）：schtasks 包装器退出后 task_state 可显示 Ready 而服务以游离实例
+        存活——此时 listen_count=1 且 health_http=200 即等价可继续（勿因 Ready 停下重跑）；
+        若该实例落 Session 0 导致 GUI 能力报 SESSION_UNAVAILABLE（mcp A3/C5 类），
+        VM 管理员通道 schtasks /End + /Run 重触发使其落交互会话即可（run7 实测转 PASS）。
 
 ────────────────────────────────────────
 Step 4 · 安装宿主插件 + 隧道
@@ -201,6 +205,10 @@ Step 5 · 全维度测试并出报告
         注：E7 cleanup.analyze 偶发 HEARTBEAT_TIMEOUT 曾被判"冷启动瞬态"——run5 定性实为
         看门狗忙态误杀真缺陷（I-6.9，V1.4.11 起修复=忙期不 ping 不重启）；旧包（≤V1.4.10）
         长调用 >45s 必现，复跑因缓存热而 <45s 侥幸过，非真自愈，见 ISSUES I-6.9）
+      （⚠ 区分两种 E7 超时形态（N3/I-6.14，run7 定性）：`EXC timed out`=客户端窗掐线（≤V1.4.12
+        探针 120s 硬窗，V1.4.13 包内探针已 330s）；`EXECUTION_TIMEOUT` 且 durationMs≈120000=
+        服务端能力闸（≤V1.4.12 盘扫族 120s，冷/半冷盘扫必触）——V1.4.13 起族内 300s 不再复现，
+        旧包遇之复跑即暖过（缓存效应，非缺陷自愈假象：根因见 ISSUES I-6.14）。
   判据：三个脚本 RESULT: PASS（20/20 + 5/5 + 13/13）
   5.4 出报告 qa/real-test-<日期>-run<N>.md：健康/连接/功能抽样/失败四元组四张表 +
       「可交付 / 有阻塞」明确结论。
@@ -227,5 +235,7 @@ Step 6 交付引导（不参与部署判据，但决定任务通道路由正确�
 - vmcheck 输出解析炸（invalid start byte）→ 旧探针 GBK 双坑（PS5.1 Content 解码+控制台码页）；V1.4.8 起探针已修（UTF-8 直读），旧包内用字节容错解码兜底。
 - a2a.delegate 报 goal 必填 → 传 {"goal":"自然语言"}；无 /a2a/health 路由。
 - Step3 apply 报「cd C:/WinVMBridge 找不到路径」反复失败 → 旧版（≤V1.4.8）Git-Bash 隐藏前置坑（R8）；升级包（≥V1.4.9）已根除，或临时按旧法设 DefaultShell=Git-Bash 兜底。
+- VM 服务首跑 420s 未监听+旧实例杀不掉（taskkill 报"没有此任务的实例"）→ run7 N2 形态：start-hidden
+  端口自清对僵而不绑实例盲区；按文档重跑本脚本即可（复跑 127s 成功），根治列观察项（ISSUES I-6.15）。
 - 隧道段报 V8 FATAL / errno=12（ENOMEM）→ 当前 $NODE 选中了脆弱解释器（部分宿主 hnp node 执行 .mjs 即崩、-e 却正常）：v3.0.3 探测循环已带 .mjs 冒烟门禁自动避开；旧版临时解法=手动 export NODE 指向 bundle node 后重跑 `winvm-plugin.mjs tunnel ensure`。
 ========================================================================
