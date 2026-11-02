@@ -38,3 +38,6 @@
 
 下一步：cd release/V1.4.15/overall && bash deploy-all.sh --wipe   （清空历史部署后整体重装；bash 显式解释防 hmdfs 丢执行位）
 
+
+# 补记：zip=620c77c932dce201…/2890933B/881 files/total-sha256=1405a790…
+# 勘误：commit 5440bd1+1 信息中预写的 c1a1310b 系笔误，实际指纹以本行为准（证据链=本文件+MANIFEST）。
