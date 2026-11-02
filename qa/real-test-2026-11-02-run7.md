@@ -105,3 +105,14 @@
 另版本横幅漏 bump（N4）为纯文案。两份 .prompt 的判据面本身**无一出现与实际相悖的假 PASS**，本轮全部 FAIL 均可被文档既有或建议的兜底路径在 2 步内收敛——脚本可用性判定为真机成立。
 
 （第 2 测试轮上限内收敛：Phase A 无返工；Phase B 的重跑/重触发均为文档指引内的操作，非修复轮次。剩余未修项已按 N1~N3 清单化，不再扩环。）
+
+
+---
+
+## 附 · 发布态复验与 V1.4.14 上架（主理人收口，同夜）
+
+- **V1.4.13 发布态 --wipe**：包根匿名解包（三向 sha `cfeeee88…`）→ 首拆遇 **僵尸 node（PID 16332，8K 工作集/无子/不绑端口）三式强杀全免疫**（管理员 taskkill /F、Process.Kill、CIM Terminate）→ uninstall rc=1 三 FAIL → **VM 内 `shutdown /r /t 5 /f` 重启 guest**（~60s sshd 恢复）→ 复拆 **19/19 PASS rc=0** + 独立复核 000/GLOBAL_MCP_CLEAN → setup rc=0「部署全部完成」→ **38/38 全绿**（E7 首跑直接 PASS=包内 300s 服务端闸+330s 探针窗双修复面发布态实证）。
+- 应急路径成文=**deploy.prompt v3.0.5**（排错段+僵尸特征）/ **undeploy.prompt v2.4**（FAIL 特征串→重启→复拆三步）；pack **V11d** 断言（包内 deploy.prompt 必含 shutdown /r 应急行；正反例 HEAD PASS / V1.4.13 包内 FAIL 拦截滞后）。
+- **V1.4.14**（纯文档/脚本面，运行码与 V1.4.13 diff -rq 机械证一致，免 --wipe 重跑=同 V1.4.12 先例）：先 commit（f660e2a）后 pack（V1–V11 全绿、V11d 首战）→ tag V1.4.14@f660e2a → publish → latest API=V1.4.14 → 匿名回环三向 sha 一致（`5ccd8acf…`/881/7706110/`bbdc464b…`），解包两 .prompt 与仓库逐字节一致（v3.0.5/v2.4，shutdown /r 在册）。
+- V1.4.14 宿主缓存切换（install-host rc=0）：FRESH、disabledTools=8、隧道 RUNNING/healthy、连接器 8 skill、health=200。
+- **当前线上=V1.4.14；两轮 dogfooding（run6/run7）+一次发布态复验全部闭环，缺陷台账 I-6.1~6.15+G-1/2/3+R8 无悬挂项（I-6.15b 观察项在册=VM-START 前扫描先行清理的根治候选，待频次数据）。**
