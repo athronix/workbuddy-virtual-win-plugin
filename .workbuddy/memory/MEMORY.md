@@ -20,7 +20,7 @@
 
 ## 口径与纪律
 - 测试基线权威=`qa/p3-batch-sweep/` 最新 gate-*.txt 汇总行（现 2280 GREEN；文档禁硬编码）。门禁 `npm run gate`。
-- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3 / … / 迭代11=V1.4.8 / 迭代12=V1.4.9 R8 根除版（I-6.5/6.6/6.7），均开账即关）；每迭代 --wipe 重验；完成必 push origin。**V1.4.9=当前线上**（10-30 迭代12 R8 根除版：VM 远端命令全跨壳化=cmd.exe 出厂默认可直装、DB-3 zip+npmmirror 兜底、I-6.7 KEEP 误报修复、deploy.prompt v2.0/undeploy v2.1=Step 0 前置五项+执行协议 P-1~P-4；zip `6221c703…`、tag@aae81ab、881/7654431/`aed571af…`；run4 cmd.exe 实弹+发布态清场重装双验证 19/19 rc=0+38/38）。发布链断言面=**V1–V10**（V10=包内 setup 含 buildVmInstallPs1 且无 pipefail 字面+prepare-vm npmmirror+uninstall never existed）。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
+- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3 / … / 迭代11=V1.4.8 / 迭代12=V1.4.9 R8 根除版（I-6.5/6.6/6.7）/ 迭代13=V1.4.11 智能体安装脚本裁定+I-6.9/6.10（V1.4.10 在途被取代），均开账即关）；每迭代 --wipe 重验；完成必 push origin。**V1.4.11=当前线上**（11-02 迭代13：智能体安装脚本裁定（pack V11 内容断言=两 .prompt 深化面逐迭代必达入包）+ run5 双缺陷修复=I-6.9(P1) 看门狗忙态误杀（shouldProbeStaleHeartbeat 守卫，历轮 E7"瞬态"口径证伪）/I-6.10 setup TUNNEL 假败（20s 探窗+EADDRINUSE 判复用）；zip `ddd8a3db…`、tag@0a01b15、881/7681227/`2e64d9c3…`；发布链断言面=**V1–V11**（V11=包内两 .prompt 深化特征）；run5 清场重装 rc=0+38/38 首跑即稳。V1.4.10=在途上架版已被取代。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
 - 文档：导航权威 `.dev/docs-index.md`；归档 `docs/archive/{changes,audit,test}`+legacy-*（10-26 两次归位：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes；铠大师中文名保留——活引用+契约锚点）；**qa/ 保原位**（setup/pack-release 活引用）；改路径前先查活引用。证据每轮一份 real-test-<date>-runN.md；FAIL 四元组；裁决落档再引用。⚠ hmdfs `core.ignorecase=true`：git mv 改大小写**磁盘名可能不变**（ISSUES.md 案，10-26 两步 rename 实修），大小写敏感 glob/脚本会踩空。
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
