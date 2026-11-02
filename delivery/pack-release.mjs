@@ -566,6 +566,10 @@ function verifyPackages(dest, version) {
     const hit11 = dTxt.includes('NODE_SMOKE_OK');
     results.push({ label: 'V11 deploy.prompt 含 NODE 探测冒烟门禁（D1 深化面）', ok: hit11, status: hit11 ? 0 : 1, tail: '' });
     console.log(`  ${hit11 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 NODE 探测冒烟门禁（D1 深化面）`);
+    // V11d（V1.4.13 发布态补强，run7b）：僵尸 node 免疫强杀→VM 重启应急行必在包内排错面。
+    const hit12 = dTxt.includes('shutdown /r');
+    results.push({ label: 'V11 deploy.prompt 含僵尸实例 VM 重启应急行（I-6.15b 深化面）', ok: hit12, status: hit12 ? 0 : 1, tail: '' });
+    console.log(`  ${hit12 ? '\u2713' : '\u2717'} V11 deploy.prompt 含僵尸实例 VM 重启应急行（I-6.15b 深化面）`);
     const upFp = join(dest, 'overall', 'docs', 'deploy', 'undeploy.prompt');
     const uTxt = existsSync(upFp) ? readFileSync(upFp, 'utf8') : '';
     const hit10 = uTxt.includes('RMKEY') && uTxt.includes('旧包兼容');

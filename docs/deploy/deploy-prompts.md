@@ -2,6 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
+> 更新：2026-11-02（v3.0：V1.4.13 发布态复验补强——僵尸 node 免疫三式强杀→VM 重启终极解入排错（I-6.15b 实弹）；deploy.prompt v3.0.5；随 V1.4.14 入包（V11d 断言））
 > 更新：2026-11-02（v2.9：run7 复验收编——N1 会话兜底判据+N3 服务端 120s 闸提 300s（I-6.14）+N2 观察（I-6.15）；deploy.prompt v3.0.4；示例值升 V1.4.13）
 > 更新：2026-11-02（v2.8：prompt-verify 实跑往返收编 D1~D5——NODE/PY 探测冒烟门禁（deploy.prompt v3.0.3/undeploy v2.3）、pack V11c 断言；示例值升 V1.4.12）
 > 更新：2026-11-02（v2.7：run5 揪出 I-6.9 看门狗忙态误杀（P1，历轮 E7"瞬态"口径证伪）+I-6.10 TUNNEL 假败收编迭代13；版本顺延 V1.4.11；E7 排错口径修正入 deploy.prompt v2.0.2）
@@ -53,8 +54,8 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 |---|---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 同左 | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | 解析到 `V1.4.2` | latest 跳转页 | ☐ |
-| `RELEASE_TAG` | `V1.4.13`（**示例值——以 `releases/latest` API 现解为准**，见 `RELEASE_URL` 行与 deploy.prompt 注入段指引） | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
-| `ZIP_NAME` | `winvm-overall-<RELEASE_TAG>.zip`（示例 V1.4.13） | 随 latest 现解（旁挂 91 B sidecar 现取现验） | 分发单元 | ☐ |
+| `RELEASE_TAG` | `V1.4.14`（**示例值——以 `releases/latest` API 现解为准**，见 `RELEASE_URL` 行与 deploy.prompt 注入段指引） | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
+| `ZIP_NAME` | `winvm-overall-<RELEASE_TAG>.zip`（示例 V1.4.14） | 随 latest 现解（旁挂 91 B sidecar 现取现验） | 分发单元 | ☐ |
 | `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：以 release 旁挂 `winvm-overall-<TAG>.zip.sha256` 为准，`sha256sum -c` 当场验 | V1.4.6 回环实测一致 | 整包校验值（取包时现取现验，永不陈旧） | ☐ |
 | `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：以**包内 `MANIFEST.txt` 头七行**为准，`$PY qa/deploy-probes/verify-manifest.py .` 复算即验 | V1.4.6=881/7606427/`2562a598…`（历史样例） | MANIFEST 三元组（Step 2.3 判据②的输入源=包内文件，非本文档） | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 同左 | 宿主解压根 | ☐ |
@@ -131,7 +132,7 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
   VM_DEPLOY_DIR=C:/WinVMBridge   VM_WORKSPACE=C:/WinVMWorkspace
   SERVICE_PORT=18443（仅回环 127.0.0.1）
   PROVIDER=workbuddy   WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.13   ZIP=winvm-overall-V1.4.13.zip
+  RELEASE_TAG=V1.4.14   ZIP=winvm-overall-V1.4.14.zip
   REPO=athronix/workbuddy-virtual-win-plugin
   DEPLOY_ROOT=~/winvm-deploy   PKG_ROOT=~/winvm-deploy/overall-root/overall
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
@@ -355,7 +356,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 
 ```text
 从 GitHub Release 取 WinVM Bridge 分发包并做三层校验。
-  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.13  ZIP=winvm-overall-V1.4.13.zip
+  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.14  ZIP=winvm-overall-V1.4.14.zip
 1) 用绝对 URL（不要 releases/latest）下载 zip 与 .zip.sha256 到 ~/winvm-deploy/pkg/，
    带 --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 --retry-all-errors -C -。
    判据①：sha256sum -c 通过。
@@ -519,7 +520,7 @@ $PY qa/deploy-probes/a2a-probe.py
 |---|---|---|---|
 | 1 | ~~是否发布 V1.4.3~~ | **已裁决并执行（10-26 用户批准）**：V1.4.3 已上架（G-1 修复入包+V5 断言），清场重装 run2 复验非账户零污染 | ✅ 关闭 |
 | 2 | ~~G-2 MANIFEST 无消费者~~ | **已收编**：`delivery/verify-release.mjs`（四判据+V5）随包分发，Step 2 判据二入口 | ✅ 关闭 |
-| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / latest 现解，示例 `V1.4.13`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
+| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / latest 现解，示例 `V1.4.14`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
 | 4 | **VM 密码管理方式** | 当前经 `WINVM_SSH_PASSWORD` 运行期注入，未落任何文件 | 用户：确认是否维持该方式 |
 | 5 | ~~G-3 deploy-probes 不进包~~ | **已收编**：V1.4.3 包内 `qa/deploy-probes/` 6 件 + `delivery/tools/diagnose-connectors.mjs`（PACKAGE_REQUIRED 必存断言兜底），纯 Release 安装链零仓库依赖 | ✅ 关闭 |
 | 6 | ~~VM 默认 shell=Git-Bash 隐藏前置~~ | **已根除（V1.4.9/迭代12）**：安装/拆除/探针全部远端命令改跨壳通道（cmd.exe 兼容），sshd 保持出厂默认即可；新宿主机复盘 R8 落账 ISSUES I-6.5 | ✅ 关闭 |
@@ -605,6 +606,7 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
 | 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |
+| 2026-11-02 | v3.0 | **V1.4.13 发布态复验补强（迭代15 追加/V1.4.14）**：清场重装 --wipe 时抓到僵尸 node 完整形态学证据（8K 工作集/无子/不绑端口/**管理员三式强杀免疫**：taskkill /F+Process.Kill+CIM Terminate 全灭；连锁 uninstall rc=1 三 FAIL+目录删不净）→ 终极解=VM 内 shutdown /r 重启 guest（~60s sshd 恢复）→ uninstall/setup 双全绿；应急路径成文入 deploy.prompt v3.0.5 + undeploy v2.4 排错段，pack 增 **V11d 断言**（包内 deploy.prompt 必含 shutdown /r 应急行）。V1.4.14=纯文档/脚本面版本（运行码=V1.4.13 逐字节同）。 |
 | 2026-11-02 | v2.9 | **run7 第二轮复验收编（迭代15/V1.4.13）**：D1~D5 五修复面真机全部 FIXED-VERIFIED（探测冒烟 3 次稳定选中健康 node、@() 计数、WARN 说明、防火墙通道注记、包根 ls）；新收编 **I-6.14（N3，P2）**=服务端盘扫族 120s 能力闸（E7 半冷 120.08s 恰触 EXECUTION_TIMEOUT；I-6.13 只修客户端面之延伸）——cleanup.analyze/space.analyze/search.query timeoutMs 120_000→300_000（对齐 archive.manage 既有档；契约 52/52）+探针 E7_TIMEOUT 300→330 保持客户端>服务端余量；**I-6.15（N1，P2 判据可达性）**=schtasks 包装器退出后 task_state=Ready+游离实例可存活（GUI 落 Session 0 报 SESSION_UNAVAILABLE）→ deploy.prompt 3.3 加兜底判据行（Ready+listen=1+200=等价可继续；/End+/Run 重触发落交互会话）+排错 +1 行（N2=首实例僵而不绑 420s 超时，文档重跑指引有效，列观察）；undeploy.prompt 标题 v2.2→v2.3（N4）。 |
 | 2026-11-02 | v2.8 | **prompt-verify 实跑收编（迭代14/V1.4.12）**：QA 按两份智能体安装脚本原文完整往返（清理 19/19 rc=0→重装 38/38 首跑全绿，E7 首跑直接 PASS=I-6.9 口径二次实证）；结论 YES-with-nits，偏差收编=**D1（误导级）**NODE/PY 探测「末位候选覆盖」选中脆弱 hnp node（.mjs 执行 V8 ENOMEM）→ 改「首个通过 .mjs/-c 冒烟门禁者即用」（deploy.prompt v3.0.3/undeploy v2.3 同构）+排错 +1 行+pack **V11c** 特征断言（NODE_SMOKE_OK）；D4 0.4 防火墙诊断注明远程 .ps1 通道；D5 Step 2 增包根 ls 机械判定；undeploy 侧 D2 @() 计数/D3 WARN 说明。顺带修复本文头部 v2.5/v2.6 行曾被脚本转义换行破坏的拼接（批量 Edit 纪律再犯案例留痕 ISSUES 迭代14）。 |
 | 2026-11-02 | v2.7 | **run5 双缺陷收编**：I-6.9（P1）ps-bridge 看门狗忙态误杀在途长调用——历轮"E7 冷启动瞬态复跑即稳"口径被证伪（实为缓存冷热跨 45s 阈值的临界侥幸）；修复=watchdog 忙态守卫（pendingCount>0 不 ping 不重启，纯函数判据+判别性单测 p6-d16×3+VM 热更实弹 E7×3 最长 104.5s 全过）；I-6.10（P2）setup 清场重装 TUNNEL 相位假败（ensure 后 2s 探窗必空→误回落 EADDRINUSE 计败）——放宽 20s+端口持有则判复用。版本顺延 **V1.4.11**（V1.4.10 为在途上架版）。deploy.prompt v2.0.2 E7 口径注记。 |

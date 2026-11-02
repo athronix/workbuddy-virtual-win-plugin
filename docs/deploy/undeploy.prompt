@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.3 · run6 收编 D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.4 · run6 收编 D1 探测冒烟/D2 @() 计数/D3 WARN 说明；v2.4=僵尸实例 VM 重启应急路径入排错，V1.4.13 发布态实弹）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、
@@ -172,6 +172,10 @@ U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得�
 【排错速查】
 - "--apply 说拆完了但 18443 还在听" → 查 WINVM_DRY_RUN 是否 =1。
 - "--apply 报 EXIT=1 但自报 0 failure(s) 且唯一 FAIL=workspace kept" → 旧包（≤V1.4.8）已知误报（I-6.7/G1），核对 U0 基线后以 U4 独立复核为准；V1.4.9 起已修。
+- apply rc=1 且 VM FAIL=C:/WinVMBridge absent（observed: True）+no vm-service process（observed: True）
+  → VM 残留僵尸 node（8K 工作集、免疫 taskkill /F/Process.Kill/CIM Terminate——V1.4.13 发布态实弹）：
+  VM 内 `shutdown /r /t 5 /f` 重启 guest（~60s sshd 恢复）→ 再跑一次 $NODE delivery/uninstall.mjs --apply
+  即 19/19 rc=0（本轮实测路径）。
 - 删私钥后 ssh 报 Permission denied → 预期内（publickey 通道断）；按 U5 顺序应先清 VM 残留再删私钥，来不及则用密码通道收尾（askpass+环境变量）。
 - VM 相位 ssh 拒绝/超时 → 免密已失效（U0 判据没真过），先重建再拆；偶发一次失败先用 vmssh 重试面（R4）。
 - 远端 ParserError/乱码 → .ps1 + powershell -File + ASCII 载荷（卸载器已内置，手工兜底同纪律）。
