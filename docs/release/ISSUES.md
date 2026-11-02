@@ -358,3 +358,4 @@
 ### 迭代16 收口（V1.4.15 发布链闭环，11-02）
 
 > run8/9/10 连续往返实测见 `qa/` 对应 run 报告；**结论与版本回填以收口时实际数据为准**。
+> **run8 实证（qa/real-test-2026-11-02-run8.md）**：完全按两脚本一次过、零跳步/零重跑——拆除净 13s（run7：3 FAIL+VM 重启 ~60s）、VM-START 首跑 48s 一次过（run7：420s rc=1+复跑 127s）、38/38 E7 首跑 PASS、全程 8m35s。I-6.16 一次过维度 FIXED-VERIFIED；SWEEP/ZOMBIE 显形分支因现场干净未覆盖（$sig.Count=0 不打印=设计预期），脏场景实弹列 run9。run8 nits×2（体验/观察）：install-host 自检两 ⚠ 平台账户态噪声易误读（降噪文案=后续 .prompt 深化面）；SWEEP 显形覆盖待 run9。
