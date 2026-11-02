@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v2.0）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v2.0.1 · 示例版本引用升 V1.4.10；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -27,10 +27,10 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
   for c in /data/service/hnp/bin/python3 /data/storage/el1/bundle/libs/arm64/python/bin/python3; do
     [ -x "$c" ] && PY=$c; done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空且 -x 可执行；取不到 → 问用户
-  export RELEASE_TAG=V1.4.9                    # ⚠ 示例值——以 releases/latest API 现解为准：
+  export RELEASE_TAG=V1.4.10                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.9.zip
+  export ZIP=winvm-overall-V1.4.10.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 

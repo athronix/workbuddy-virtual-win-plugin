@@ -230,7 +230,7 @@ node delivery/winvm-plugin.mjs tunnel ensure
 
 ### 5.4 用 `.prompt` 一键安装 / 卸载（推荐：整段粘贴给 WorkBuddy）
 
-发布包（V1.4.6 起）与仓库均自带两份**纯 Prompt 脚本**——把「总 Prompt + 运行期环境变量」抽成可整段复制的独立文件，粘给 WorkBuddy（鸿蒙宿主）新会话即可自动执行，每一步自带判据、任一判据不过立即停下报告（现象/根因/证据/建议），不会跳步硬推：
+发布包（V1.4.6 起）与仓库均自带两份**智能体安装脚本**（本项目定位：安装/卸载的标准交付物，必须随发布包打包发布，pack V11 断言核验其深化内容）——把「总 Prompt + 运行期环境变量」抽成可整段复制的独立文件，粘给 WorkBuddy（鸿蒙宿主）新会话即可自动执行，每一步自带判据、任一判据不过立即停下报告（现象/根因/证据/建议），不会跳步硬推：
 
 | 脚本 | 用途 | 结构 |
 |---|---|---|
@@ -391,7 +391,7 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 | `docs/deploy/deploy-strategy.md` | **部署策略 v2（从零安装，权威）**：六步可行性+变量表+Step 3.0 运行时前置+§2.1-B 空密码预案+§5.0 遇困决策协议+Step 6 交付引导+缺口台账（§9.1）与实测记录 |
 | `docs/deploy/deploy-prompts.md` | **部署 Prompt 总集**：变量确认表+总 Prompt（一键粘贴）+分步 P1~P6+验收速查+§8 异常处置协议 |
 | `docs/deploy/undeploy-prompts.md` | **卸载 Prompt 总集（deploy-prompts 逆向镜像，现 v2.0；回环实测→I-6.3/6.7 修复入包；存留项 AskUserQuestion 三连决策+删密钥子流程附实测脚本）**：十八落点镜像清单+总 Prompt U0~U5（DRY-RUN 先行/POST-CLEANUP 核验/独立复核防假 PASS）+`--wipe` 清场重装衔接 |
-| `docs/deploy/deploy.prompt`（v2.0）/ `undeploy.prompt`（v2.2） | **纯 Prompt 一键粘贴脚本**：总集 §3 独立脚本版+运行期注入（自动探测）+执行协议+Step 0 前置检查（undeploy 侧=U5 决策三连+删密钥实测模板+旧包误报兼容）；多轮真机回环+新宿主机双复盘收编；**V1.4.6 起随发布包分发**，配置与用法见本文 §5.4 |
+| `docs/deploy/deploy.prompt`（v2.0）/ `undeploy.prompt`（v2.2） | **本项目的智能体安装脚本**（用户裁定 2026-11-02：必须随发布包打包发布，pack V11 特征断言机械化钉死）：总集 §3 独立脚本版+运行期注入（自动探测）+执行协议+Step 0 前置检查（undeploy 侧=U5 决策三连+删密钥实测模板+旧包误报兼容）；多轮真机回环+新宿主机双复盘收编；V1.4.6 起随包分发、**V1.4.10 起深化面入 V11 断言**，配置与用法见本文 §5.4 |
 | `docs/04-ops/OPS-OVERVIEW.md` | 运维权威手册：部署/运行机制综述+配置逐键穷举+坑速查 |
 | `docs/RELEASE-NOTES.md` | **Release Notes（演进链/能力面/已知限制，权威）**；旧 `V1.0.0-release-notes.md` 已冻结并移至 `docs/archive/legacy-release-notes-V1.0.0.md` |
 | `docs/05-peripherals/DEPLOYMENT.md` | 部署指南（含 §1.7 分发跟批闭环、策略闸执法切换） |

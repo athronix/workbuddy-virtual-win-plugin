@@ -299,3 +299,13 @@
 | 发布态清场重装（--wipe 铁律） | 包根切 V1.4.9（v148-backup 留旧）：包内 uninstall 实弹 19/19 零 FAIL rc=0 + 独立复核（000/GLOBAL_MCP_CLEAN）→ setup 七相位 rc=0（HEALTH ✅）→ **mcp 20/20 + a2a 5/5 + example 首跑 12/13（E7 冷态）复跑 13/13 = 38/38** → FRESH、disabledTools=8、连接器 8 skill、VM cbSize×4、health=200 |
 
 **结论：迭代 12 关闭。当前线上版本=V1.4.9。发布链断言面=V1–V10。缺陷台账（I-6.1~I-6.7+G-1/2/3+R8）全部闭环入包。**
+
+
+## 迭代13 · V1.4.10（2026-11-02，智能体安装脚本裁定落地版——开账）
+
+> 状态：**进行中**。动因=用户裁定「deploy.prompt 和 undeploy.prompt 属于本项目的**智能体安装脚本**，必须随发布包一起打包发布」。文件存在性自 V1.4.6 已在包面（OVERALL_DOCS+PACKAGE_REQUIRED），本迭代把该裁定**升级为机械化必达**：深化内容（非仅文件在）逐迭代必达入包，杜绝"文档批不入包、随下迭代自然收敛"的口头纪律滞后面（实例=V1.4.9 包内 undeploy.prompt 仍 v2.1、仓库已 v2.2）。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.8** | P3（流程） | 发布包内 .prompt **深化面滞后**：V1.4.9 包内 undeploy.prompt=v2.1（10-30 晚仓库已升 v2.2=删密钥实测模板+旧包误报兼容判据），因"纯文档批不入包随下迭代收敛"惯例未强制。用户裁定升格定位=智能体安装脚本必随包发布 → 处置=**pack V11 特征断言**（包内 deploy.prompt 必含「Step 0 · 前置检查」、undeploy.prompt 必含 RMKEY+旧包兼容——断言内容非仅存在性），滞后=fail-loud 拒产包；正反例：V1.4.9 包内 v2.1 判 FAIL/HEAD v2.2 判 PASS。定位入册=README §5.4/包 README 生成文案/两母本变更记录（deploy-prompts v2.6/undeploy-prompts v2.1/strategy v3.11）。 | 已落地（HEAD）；随本版 pack V1.4.10 入包收敛 v2.2 |
+

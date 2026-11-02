@@ -24,6 +24,7 @@
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
 ## backlog（P2）
+- **11-02 用户裁定（永久规则）**：`docs/deploy/{deploy,undeploy}.prompt` = 本项目**智能体安装脚本**，必须随发布包打包发布且**深化内容逐迭代必达入包**（pack **V11 特征断言**：包内 deploy.prompt 含「Step 0 · 前置检查」、undeploy.prompt 含 RMKEY+旧包兼容）。今后任何对两 .prompt 的改动=发布面改动，**勿再记「文档批不入包随下迭代收敛」**——直接随下一 pack 走，V11 当场拦截滞后。
 - **复盘文档归档处置（10-30）**：`docs/deploy/{deploy,undeploy}.prompt.to-be-improved.md`（新宿主机双复盘）已入库=ISSUES 迭代12 引用锚点；后续整理归档（docs/archive/）注意活引用。
 - **I-6.4 探针面双缺陷（10-29 第三轮往返 run2 发现并已修 HEAD）**：D-1 verify-manifest.py/verify-release.mjs 对**已装态包根**假 FAIL（安装体系运行期自写产物 `.env`/`delivery/winvm-plugin(.cmd)` 被判多余——前两轮 Step 2.3 从未在此场景跑，本轮按 .prompt 直跑路径首触）；修复=runtime 白名单三条+四场景回归（含 canary 负例仍 FAIL=检出力未削）。D-2 vmcheck.ps1 GBK 双坑（PS5.1 Content 无 charset JSON 按 GBK 解码+重定向 stdout 控制台码页）→ RawContentStream 显式 UTF-8+`[Console]::OutputEncoding=UTF8`，**探针 ASCII-only 二次坐实**。**10-29 随 V1.4.8 入包关闭（迭代11）**：pack V9 三探针断言首战+正反例；第四轮 run3 包内修复双首验通过。教训留册：**探针判据要跑遍已装态/纯净态两场景**；.prompt 往返验证已连续 4 轮=发布态装机路径的固定回归面。
 - ~~`.prompt` 纯脚本入包与否~~ → **10-29 用户裁定并入包（迭代9/V1.4.6）**：OVERALL_DOCS+PACKAGE_REQUIRED 收编两脚本；README §5.4 配置用法说明。时序教训沿用：**pack 前一切文档改动先 commit**（V1.4.5 superseded-it1 案）。

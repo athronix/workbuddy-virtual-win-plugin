@@ -550,6 +550,22 @@ function verifyPackages(dest, version) {
     results.push({ label: 'V10 uninstall 含 KEEP 误报修复(never existed)', ok: hit8, status: hit8 ? 0 : 1, tail: '' });
     console.log(`  ${hit8 ? '\u2713' : '\u2717'} V10 uninstall 含 KEEP 误报修复(never existed)`);
   }
+  // V11（V1.4.10 起，2026-11-02 用户裁定）：两份 .prompt = 本项目的**智能体安装脚本**，
+  // 必须随发布包分发且为最新深化面——断言包内特征内容（非仅文件存在）：
+  //   deploy.prompt 含 Step 0 前置检查（v2.0 深面）；undeploy.prompt 含 RMKEY 删密钥
+  //   实测模板与旧包 kept 误报兼容判据（v2.2 深面）。滞后深化批未入包 = fail-loud 拒产包，
+  //   「随每迭代收敛」从口头纪律升级为机械化必达。
+  {
+    const dpFp = join(dest, 'overall', 'docs', 'deploy', 'deploy.prompt');
+    const hit9 = existsSync(dpFp) && readFileSync(dpFp, 'utf8').includes('Step 0 · 前置检查');
+    results.push({ label: 'V11 deploy.prompt 含 Step 0 前置检查（智能体安装脚本深化面）', ok: hit9, status: hit9 ? 0 : 1, tail: '' });
+    console.log(`  ${hit9 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 Step 0 前置检查（智能体安装脚本深化面）`);
+    const upFp = join(dest, 'overall', 'docs', 'deploy', 'undeploy.prompt');
+    const uTxt = existsSync(upFp) ? readFileSync(upFp, 'utf8') : '';
+    const hit10 = uTxt.includes('RMKEY') && uTxt.includes('旧包兼容');
+    results.push({ label: 'V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）', ok: hit10, status: hit10 ? 0 : 1, tail: '' });
+    console.log(`  ${hit10 ? '\u2713' : '\u2717'} V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）`);
+  }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
   if (existsSync(capPkg)) {
@@ -675,8 +691,8 @@ function main() {
       '- host 包与 vm 包的全部条目（并集，共享同一闭包）',
       '- `delivery/bootstrap.mjs` / `prepare-vm.mjs`：环境自检 + SSH 信任 + env 生成（备环境）',
       '- `delivery/uninstall.mjs`：双端清场（回收站可恢复）',
-      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账 / **deploy/ 五件**（部署策略 deploy-strategy + 部署 Prompt 总集 deploy-prompts + 卸载 Prompt 总集 undeploy-prompts + **一键粘贴脚本 deploy.prompt / undeploy.prompt**——整段复制给 WorkBuddy 即可安装/卸载，用法见下方「快速部署/卸载」）',
-      '## 快速部署/卸载（零仓库）',
+      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账 / **deploy/ 五件**（部署策略 deploy-strategy + 部署 Prompt 总集 deploy-prompts + 卸载 Prompt 总集 undeploy-prompts + **deploy.prompt / undeploy.prompt = 本项目的智能体安装脚本**（整段复制给 WorkBuddy 即可安装/卸载；随包必发、内容必为最新深化面，pack V11 断言机械化钉死），用法见下方「快速部署/卸载」）',
+      '## 快速部署/卸载（零仓库 · 智能体安装脚本）',
       '1. 解压本包 → 解出目录即包根（含 `MANIFEST.txt` 与 `delivery/`）。',
       '2. 打开 `docs/deploy/deploy.prompt`，先把【运行期注入】段里的 `VM_HOST` / `VM_USER` / `PKG_ROOT`（=包根绝对路径）等按实际环境改好。',
       '3. 整段复制粘贴给 WorkBuddy（鸿蒙宿主）新会话，即按 Step 1→6 自动部署，每步带判据自检。',
