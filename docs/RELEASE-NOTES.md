@@ -1,4 +1,4 @@
-# WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4.0 → V1.4.2 → … → V1.4.10 → V1.4.11 → V1.4.12 → V1.4.13 → V1.4.14 · 2026-11-02 同步）
+# WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4.0 → V1.4.2 → … → V1.4.10 → V1.4.11 → V1.4.12 → V1.4.13 → V1.4.14 → V1.4.15 → V1.4.16 · 2026-11-02 同步）
 
 > 本文取代 `V1.0.0-release-notes.md` 的"演进路线"职能（后者已加冻结头注留痕）。**权威口径**：里程碑链来自 git log + `docs/archive/changes/` 各批 notes + 两份终版台账（`docs/archive/audit/2026-10-12-full-audit.md`、`docs/archive/audit/2026-10-14-full-audit.md`），数字均实测登记值。
 
@@ -40,6 +40,8 @@
 | V1.4.12（11-02） | prompt-verify 实跑收编（智能体安装脚本 dogfooding 版） | QA 按两 `.prompt` 原文完整往返：清理 19/19 rc=0 → 重装 **38/38 首跑全绿（E7 首跑直接 PASS=I-6.9 二次实证）**；结论 YES-with-nits。收编 **I-6.11（D1）**：NODE/PY 探测「末位候选覆盖」选中脆弱 hnp node（.mjs 执行 V8 ENOMEM）→ 改「首个通过冒烟门禁者即用」+pack **V11c** 断言（deploy.prompt 必含 NODE_SMOKE_OK）；I-6.12（D2~D5）@() 计数/WARN 说明/防火墙通道注记/包根 ls 判定；清场重装收口再抓 **I-6.13（探针面）**=example 客户端 120s 硬窗 vs 冷态 E7 ≥120s 越窗假 FAIL（服务端 ok=true，暖态单发实测 85.4s/62.0s），E7 独立 300s 窗修复后同冷盘 13/13 首验。deploy.prompt v3.0.3 / undeploy.prompt v2.3，母本 v2.8/v2.3/v3.13；报告 `qa/real-test-2026-11-02-run6-prompt-verify.md` |
 | V1.4.13（11-02） | run7 第二轮复验收编（盘扫族服务端闸修复版） | QA 以 v3.0.3/v2.3 原文再往返：**D1~D5 修复面全部 FIXED-VERIFIED**、终态 38/38、隧道一次自起（D1 连锁收益）。收编 **I-6.14（N3）**=服务端盘扫族 120s 能力闸（E7 半冷 120.08s 恰触 EXECUTION_TIMEOUT=I-6.13 只修客户端面之延伸，阈值临界族第三例）→ cleanup.analyze/space.analyze/search.query timeoutMs 120_000→300_000+探针 E7_TIMEOUT 330s 余量；**I-6.15（N1/N2）**=会话兜底判据入 3.3（task_state=Ready 游离实例可存活/GUI 落 Session 0 重触发即愈）+僵尸实例列观察；N4 undeploy 标题修。deploy.prompt v3.0.4/undeploy v2.3；报告 `qa/real-test-2026-11-02-run7.md` |
 | V1.4.14（11-02） | 发布态复验补强（僵尸应急成文版·纯文档/脚本面） | V1.4.13 --wipe 复验现场抓到**僵尸 node 完整形态学**：8K 工作集/无子进程/不绑端口+**管理员三式强杀全免疫**（taskkill /F、Process.Kill、CIM Terminate）→ uninstall rc=1 三 FAIL；终极解=VM 内 `shutdown /r /t 5 /f` 重启 guest（~60s 恢复）→ 复拆 19/19 rc=0→setup rc=0→**38/38**。应急路径成文=deploy.prompt v3.0.5/undeploy v2.4 排错段+pack **V11d** 断言（包内必含 shutdown /r 应急行）。运行码与 V1.4.13 逐字节同 |
+| V1.4.15（11-02） | VM-START 命令行签名清扫根治版（I-6.16） | run7 两类拖慢形态同根因=端口反查对不绑端口残留全盲 → `/End` 后按签名清扫+SWEEP/ZOMBIE 双显形哨兵；run8 完全按 v2.4/v3.0.5 一次过=拆 13s/START 首跑 48s/38/38/全程 8m35s |
+| V1.4.16（11-02） | run9 脏场景实弹修复版（I-6.17·P1） | run9 判定 NO→同夜修复再实弹转绿：D7=CMSL 对象无 .Terminate()（PS5.1 MethodNotFound 静默空转=清扫只报告不杀，I-6.16 根治未闭环）→ Invoke-CimMethod -InputObject（修复后 WMI 诱饵实弹 KILLED）；D8=VM-START 成功路径吞日志→forwardVmStartEvidence helper 双调用点（setup/deploy-vm）转印哨兵进日志（E2E SWEEP 行可见+诱饵 KILLED+health200）；O-1 install-host states ⚠ 降噪；D9 环境事实=sshd job object 回收通道后代（注入配方改 WMI Create）。单测 +2 锁。报告 `qa/real-test-2026-11-02-run9.md` |
 
 ## 三、已知限制（如实，2026-10-15 批11~14 后态）
 

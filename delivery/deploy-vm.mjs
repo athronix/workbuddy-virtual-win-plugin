@@ -28,6 +28,7 @@ import {
   deployVmUninstall,
   runRemotePs1,
   buildVmStartPs1,
+  forwardVmStartEvidence,
   deployQaProbes,
   waitForRemotePort,
 } from './setup.mjs';
@@ -147,6 +148,8 @@ async function main() {
     process.exitCode = 1;
     return;
   }
+  // D8/I-6.17：成功路径转印清扫证据行（deploy-vm 独立入口与 setup 七相位同口径，勿只修一侧）。
+  forwardVmStartEvidence(ps.out, log);
   const up = await waitForRemotePort(cfg, 420_000);
   if (up) log(`[VM-START] ✅ VM 服务已监听 127.0.0.1:${cfg.servicePort}`);
   else { log(`❌ 420s 内未监听到端口。可手动在 VM 内 schtasks /run /tn ${'WinVMBridge.Service'} 后重跑本脚本。`); process.exitCode = 1; return; }

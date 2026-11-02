@@ -65,6 +65,10 @@ test('I-6.15b 锁：buildVmStartPs1 命令行签名清扫（不依赖端口）+ 
   assert.ok(/CommandLine -match 'WinVMBridge\|start-hidden\|vm-service\|ps-bridge'/.test(ps), '四类签名');
   assert.ok(ps.includes('VM_START_SWEEP'), '清扫显形哨兵');
   assert.ok(ps.includes('VM_START_ZOMBIE_PID'), '僵尸显形哨兵（用户态不可杀形态）');
+  // D7/I-6.17（run9 实弹锁）：击杀必须是 Invoke-CimMethod -InputObject（CMSL 对象无 .Terminate() 方法，
+  // 旧写法 MethodNotFound 静默空转=只报告不杀）；并锁死旧写法不得回潮。
+  assert.ok(ps.includes('Invoke-CimMethod -InputObject $_ -MethodName Terminate'), '击杀走 Invoke-CimMethod');
+  assert.ok(!ps.includes('$_.Terminate()'), 'CMSL .Terminate() 旧坑不得回潮');
   // 既有语义保持：/End → 端口反查 → /Run → 成功哨兵
   assert.ok(ps.includes('schtasks /End') && ps.includes('schtasks /Run') && ps.includes('VM_START_TRIGGERED'));
   // 跨壳锁同样适用 + ASCII

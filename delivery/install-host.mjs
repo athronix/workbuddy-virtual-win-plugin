@@ -1463,6 +1463,12 @@ export function runConnectorSelfCheck(home, dryRun) {
     console.log(`连接器自检 : ${report.ok ? '注册面就位 ✓' : `发现 ${failures.length} 项必需缺失 ✗`}（exit=${r.status}）`);
     for (const f of failures) console.log(`  ✗ ${f}`);
     for (const w of warnings) console.log(`  ⚠ ${w}`);
+    // O-1 降噪（run8/run9 复观）：states 类 ⚠ 属平台账户态（首次连接器页信任操作才落盘），
+    // 与安装成败无关——注册面 ✓ + 下方 H1 断言通过即可继续，勿当告警处置。
+    if (warnings.some((w) => String(w).includes('connector-states'))) {
+      console.log('  （注：connector-states 类 ⚠ = 平台账户态噪声——注册面 ✓ 且 H1 断言通过即可继续；'
+        + '条目由连接器页首次「信任+启用」时由平台写入，安装器不越俎代庖。）');
+    }
     console.log('  若新会话 ToolSearch 找不到 winvm__* / a2a.* 工具：');
     console.log('    ① WorkBuddy 连接器页确认 winvm / winvm-a2a 已「信任 + 启用」；');
     console.log('    ② 重开一个新会话（旧会话永不热注入，属平台会话生命周期预期行为）；');

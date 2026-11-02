@@ -750,7 +750,10 @@ export function buildVmStartPs1(cfg) {
     "  $_.CommandLine -match 'WinVMBridge|start-hidden|vm-service|ps-bridge' -and $_.Name -notmatch '^(svchost|conhost)' })",
     'if ($sig.Count -gt 0) {',
     '  foreach ($s in $sig) { Write-Output ("VM_START_SWEEP PID=" + $s.ProcessId + " NAME=" + $s.Name) }',
-    '  $sig | ForEach-Object { $null = $_.Terminate() }',
+    // D7/I-6.17（run9 实弹）：PS5.1 的 Get-CimInstance 返回 CMSL 对象，**.Terminate() 属旧
+    // Get-WmiObject 时代方法、在 CMSL 上不存在**（MethodNotFound，EAP=Continue 下静默空转=
+    // 只报告不击杀）。正解=Invoke-CimMethod -InputObject（run9 差分对照实测 RC=0 有效击杀）。
+    '  $sig | ForEach-Object { $null = Invoke-CimMethod -InputObject $_ -MethodName Terminate }',
     '  Start-Sleep -Seconds 2',
     '  $z = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {',
     "    $_.CommandLine -match 'WinVMBridge|start-hidden' -and $_.WorkingSetSize -lt 100KB })",
@@ -763,6 +766,16 @@ export function buildVmStartPs1(cfg) {
     '',
   ];
   return lines.join('\r\n');
+}
+
+/**
+ * D8/I-6.17：VM-START 成功后把清扫证据行转印进部署日志（runRemotePs1 成功路径不回显
+ * 远端 stdout；哨兵显形≠动作生效的历史教训——日志必须自证）。deploy-vm/setup 两个调用点共用。
+ */
+export function forwardVmStartEvidence(out, log) {
+  for (const line of String(out || '').split(/\r?\n/)) {
+    if (line.includes('VM_START_SWEEP') || line.includes('VM_START_ZOMBIE_PID')) log(`   [VM-START] ${line.trim()}`);
+  }
 }
 
 /**
@@ -1247,6 +1260,9 @@ async function main() {
         continue;
       }
       log(`   VM 服务已触发重启（kill 残留 → schtasks /run /tn ${SERVICE_TASK_NAME}），等待端口监听（最长 420s）...`);
+      // D8/I-6.17（run9 取证缺陷）：runRemotePs1 成功路径不回显远端 stdout——SWEEP/ZOMBIE 哨兵
+      // 在部署日志里不可见（uninstall 侧自行转印造成"不对称错觉"）。转印清扫证据链。
+      forwardVmStartEvidence(r.out, log);
       const up = await waitForRemotePort(cfg, 420_000);
       if (up) {
         log(`   ✅ VM 服务已监听 127.0.0.1:${cfg.servicePort}（启动完成）`);

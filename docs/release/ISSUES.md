@@ -358,4 +358,8 @@
 ### 迭代16 收口（V1.4.15 发布链闭环，11-02）
 
 > run8/9/10 连续往返实测见 `qa/` 对应 run 报告；**结论与版本回填以收口时实际数据为准**。
-> **run8 实证（qa/real-test-2026-11-02-run8.md）**：完全按两脚本一次过、零跳步/零重跑——拆除净 13s（run7：3 FAIL+VM 重启 ~60s）、VM-START 首跑 48s 一次过（run7：420s rc=1+复跑 127s）、38/38 E7 首跑 PASS、全程 8m35s。I-6.16 一次过维度 FIXED-VERIFIED；SWEEP/ZOMBIE 显形分支因现场干净未覆盖（$sig.Count=0 不打印=设计预期），脏场景实弹列 run9。run8 nits×2（体验/观察）：install-host 自检两 ⚠ 平台账户态噪声易误读（降噪文案=后续 .prompt 深化面）；SWEEP 显形覆盖待 run9。
+> **run8 实证（qa/real-test-2026-11-02-run8.md）**：完全按两脚本一次过、零跳步/零重跑——拆除净 13s（run7：3 FAIL+VM 重启 ~60s）、VM-START 首跑 48s 一次过（run7：420s rc=1+复跑 127s）、38/38 E7 首跑 PASS、全程 8m35s。I-6.16 一次过维度 FIXED-VERIFIED。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.17** | **P1（清扫功能空转）** | **run9 脏场景实弹揪出 SWEEP 击杀失效**（判定 NO 的根项，=D7+D8 双缺陷）：**D7**=`buildVmStartPs1` 清扫行 `$_.Terminate()` 在 PS5.1 下 MethodNotFound——`Get-CimInstance` 返回 CMSL 对象，`.Terminate()` 属旧 `Get-WmiObject` 时代方法（EAP=Continue 静默空转=**只报告不击杀**；run9 诱饵 SWEEP 后仍 ALIVE 至 TTL 自然退出实证）。**若真残留绑死 18443，run7 N2 型 420s 等待仍会复现=I-6.16 声称的"根治"实际未闭环**。修复=`Invoke-CimMethod -InputObject $_ -MethodName Terminate`（run9 差分对照实测 RC=0 有效击杀）。**D8**=runRemotePs1 成功路径不回显远端 stdout → SWEEP/ZOMBIE 哨兵在部署日志恒不可见（取证盲区+uninstall 侧自转印造成不对称错觉）；修复=抽出 `forwardVmStartEvidence` helper，**setup 七相位与 deploy-vm 两个调用点同口径转印**（qa-3 差分发现 deploy-vm 同吞，已并修；E2E=deploy-vm --apply 日志显形 `[VM-START] VM_START_SWEEP PID=4524`+诱饵 KILLED+隧道 health 200）。**修复后主理人真机实弹**：WMI 注入诱饵（PID 14152，77MB）→跑逐字节同源修复载荷→`VM_START_SWEEP PID=14152` 显形+**DECOY_AFTER=KILLED**（击杀兑现）→服务本体三签名进程无损、health=200/54 能力、经隧道宿主侧 200——**FIXED-VERIFIED**。单测锁 +2 断言（Invoke-CimMethod 在位+旧写法不得回潮，12/12）。教训入 MEMORY：**PS5.1 CIM 对象方法面≠WMI 时代；"哨兵显形"不等于"动作生效"，脏场景差分实弹是监管类逻辑的唯一验收形态**。另 D9（测试方法事实）=Windows OpenSSH sshd 以 job object 回收通道全部后代（Start-Process 注入 10s 内被杀），脏注入须 WMI Win32_Process Create 派生（run10 复用配方）；O-1=install-host connector-states ⚠ 平台账户态噪声降噪注行已加（run8/9 两报）。 | 已修复（HEAD）；随 V1.4.16 入包；run10 脏场景全程复验 |

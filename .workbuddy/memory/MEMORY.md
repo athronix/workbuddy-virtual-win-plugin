@@ -14,7 +14,7 @@
 - - 版本升版批**必须 grep 全仓旧 tag 清点同步面**（10-27 案：v2.9 变更行宣称"RELEASE_TAG 升 V1.4.4"但 strategy §0.5-B/§7 与 deploy-prompts §2.2 仍写 V1.4.3——声称≠已改；pack V7 断言同款思路=机械化替代人肉声称）。
 - **探针"瞬态"口径必须可证伪**（I-6.9 案，11-02）：凡"首跑 FAIL 复跑即稳"要给机制解释——机制若含**阈值临界**（如 45s 心跳 vs 46s 冷/39s 热）即确定性缺陷，禁当噪声放行；忙/死判别=看门狗类监管的第一性义务（busy 期心跳/应答双停是单线程执行体常态）。同款教训第二例（I-6.13，11-02）：**客户端超时窗贴能力耗时跑=假 FAIL**（探针 120s 硬窗 vs 冷态 E7 ≥120s 越窗，服务端 ok=true、暖态实测 85.4s/62.0s）——判据窗必须带实测耗时带余量。
 - 搜索假阴性：**Grep 工具与 `git grep` 都漏过** →清点用文件系统 `grep -rn` 交叉；仓库清点 `git ls-files`。
-- provider=workbuddy **禁批量 tasks/cancel**（真机红线）。ssh `cmd &` 脱管、schtasks 拖死通道→轮询 /health。VM-START bind EACCES=socket 未 drain→清持有者+等待重试。
+- provider=workbuddy **禁批量 tasks/cancel**（真机红线）。ssh `cmd &` 脱管、schtasks 拖死通道→轮询 /health。VM-START bind EACCES=socket 未 drain→清持有者+等待重试。**PS5.1 CIM 方法面≠WMI 时代**（I-6.17 run9 实弹）：Get-CimInstance 的 CMSL 对象无 .Terminate()（MethodNotFound+EAP=Continue 静默空转=只报告不杀），击杀须 Invoke-CimMethod -InputObject；监管逻辑验收=脏场景差分实弹（显形≠生效）。**Windows OpenSSH sshd=job object 管会话**：ssh 通道 Start-Process 后代随通道关闭 ~10s 全回收，跨会话存活须 WMI Win32_Process Create 派生。
 - 沙箱路径：git/node/python3 全路径（`.harmonybrew/opt/git` / `el1/bundle/libs/arm64/node` / `/data/service/hnp`）；/tmp 只读→`$HOME/wbtmp`；rm shim 坏→fs.unlinkSync；getcwd 异常→绝对路径。
 - 隧道黑洞判据 ping 100% 丢；tunnel-daemon.mjs + HOURLY watchdog `aaa87da4`。版本指纹>uptime。改源必即 tsc -b；守卫经 dist 消费；**注释文本也是守卫输入面**。spawn 必挂 exit+error。GitHub 与 VM **两把密钥**（id_ed25519_github）。PS5.1 Sort-Object 裸键失效。GUI 依赖 LogonTrigger 已登录会话，锁屏不可解。
 
