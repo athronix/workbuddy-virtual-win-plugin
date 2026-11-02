@@ -55,12 +55,14 @@ class Mcp:
         txt = raw.strip()
         return json.loads(txt) if txt else {}
 
-    def rpc(self, method, params=None):
+    def rpc(self, method, params=None, timeout=120):
+        # I-6.13：透传 timeout——长耗时能力（如冷盘 cleanup.analyze 实测 >120s）需要更宽的客户端窗，
+        # 否则 socket 先于服务端应答被掐（EXC timed out 假 FAIL），服务端其实 ok=true 正常完成。
         self.sid += 1
         payload = {"jsonrpc": "2.0", "id": self.sid, "method": method}
         if params is not None:
             payload["params"] = params
-        return self._post(payload)
+        return self._post(payload, timeout=timeout)
 
     def notify(self, method, params=None):
         payload = {"jsonrpc": "2.0", "method": method}

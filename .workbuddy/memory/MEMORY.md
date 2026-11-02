@@ -12,7 +12,7 @@
 - **空密码网络登录=两层串联**（PermitEmptyPasswords 默认 no + LimitBlankPasswordUse=1），只改一层必败；两层同改后建好免密**立即回滚**（deploy-strategy §2.1-B）。
 - **大文档多轮 Edit 必静默缩水/回退（10-26 两次）**：改前 `git show HEAD:` 留基线；批量改动=一次性脚本+每处 assert count==1+不匹配整体拒写；写后立即 `wc -l`+锚点 grep+扫控制字符（python 普通串写 Win 路径 `\n\v` 会转义！）；commit 前后各核一次。
 - - 版本升版批**必须 grep 全仓旧 tag 清点同步面**（10-27 案：v2.9 变更行宣称"RELEASE_TAG 升 V1.4.4"但 strategy §0.5-B/§7 与 deploy-prompts §2.2 仍写 V1.4.3——声称≠已改；pack V7 断言同款思路=机械化替代人肉声称）。
-- **探针"瞬态"口径必须可证伪**（I-6.9 案，11-02）：凡"首跑 FAIL 复跑即稳"要给机制解释——机制若含**阈值临界**（如 45s 心跳 vs 46s 冷/39s 热）即确定性缺陷，禁当噪声放行；忙/死判别=看门狗类监管的第一性义务（busy 期心跳/应答双停是单线程执行体常态）。
+- **探针"瞬态"口径必须可证伪**（I-6.9 案，11-02）：凡"首跑 FAIL 复跑即稳"要给机制解释——机制若含**阈值临界**（如 45s 心跳 vs 46s 冷/39s 热）即确定性缺陷，禁当噪声放行；忙/死判别=看门狗类监管的第一性义务（busy 期心跳/应答双停是单线程执行体常态）。同款教训第二例（I-6.13，11-02）：**客户端超时窗贴能力耗时跑=假 FAIL**（探针 120s 硬窗 vs 冷盘 E7 实测 187.7s，服务端 ok=true）——判据窗必须带实测耗时带余量。
 - 搜索假阴性：**Grep 工具与 `git grep` 都漏过** →清点用文件系统 `grep -rn` 交叉；仓库清点 `git ls-files`。
 - provider=workbuddy **禁批量 tasks/cancel**（真机红线）。ssh `cmd &` 脱管、schtasks 拖死通道→轮询 /health。VM-START bind EACCES=socket 未 drain→清持有者+等待重试。
 - 沙箱路径：git/node/python3 全路径（`.harmonybrew/opt/git` / `el1/bundle/libs/arm64/node` / `/data/service/hnp`）；/tmp 只读→`$HOME/wbtmp`；rm shim 坏→fs.unlinkSync；getcwd 异常→绝对路径。
@@ -20,11 +20,12 @@
 
 ## 口径与纪律
 - 测试基线权威=`qa/p3-batch-sweep/` 最新 gate-*.txt 汇总行（现 2280 GREEN；文档禁硬编码）。门禁 `npm run gate`。
-- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3 / … / 迭代11=V1.4.8 / 迭代12=V1.4.9 R8 根除版（I-6.5/6.6/6.7）/ 迭代13=V1.4.11 智能体安装脚本裁定+I-6.9/6.10（V1.4.10 在途被取代），均开账即关）；每迭代 --wipe 重验；完成必 push origin。**V1.4.11=当前线上**（11-02 迭代13：智能体安装脚本裁定（pack V11 内容断言=两 .prompt 深化面逐迭代必达入包）+ run5 双缺陷修复=I-6.9(P1) 看门狗忙态误杀（shouldProbeStaleHeartbeat 守卫，历轮 E7"瞬态"口径证伪）/I-6.10 setup TUNNEL 假败（20s 探窗+EADDRINUSE 判复用）；zip `ddd8a3db…`、tag@0a01b15、881/7681227/`2e64d9c3…`；发布链断言面=**V1–V11**（V11=包内两 .prompt 深化特征）；run5 清场重装 rc=0+38/38 首跑即稳。V1.4.10=在途上架版已被取代。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
+- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3 / … / 迭代11=V1.4.8 / 迭代12=V1.4.9 R8 根除版（I-6.5/6.6/6.7）/ 迭代13=V1.4.11 智能体安装脚本裁定+I-6.9/6.10（V1.4.10 在途被取代）/ 迭代14=V1.4.12 prompt-verify 实跑收编（I-6.11/6.12/6.13），均开账即关）；每迭代 --wipe 重验；完成必 push origin。**V1.4.12=当前线上**（11-02 迭代14=prompt-verify dogfooding 收编版：QA 按两 .prompt 原文完整往返 YES-with-nits→I-6.11 NODE 探测冒烟门禁（pack **V11c** 断言 NODE_SMOKE_OK；脆弱 hnp node 执行 .mjs V8 ENOMEM）+I-6.12 D2~D5+I-6.13 探针 E7 300s 窗（冷盘 187.7s vs 120s 硬窗假 FAIL；教训=判据窗贴能力耗时跑，与 I-6.9 阈值临界同族）；deploy.prompt v3.0.3/undeploy v2.3 入包逐字节一致；zip `b65992db…`、tag@7696240、881/7692893/`789c9ab4…`；发布链断言面=**V1–V11**（V11 三特征）；发布态清场重装 19/19+setup rc=0+38/38（修探针窗后冷盘首验）。运行码同 V1.4.11。V1.4.11/V1.4.10 已被取代。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
 - 文档：导航权威 `.dev/docs-index.md`；归档 `docs/archive/{changes,audit,test}`+legacy-*（10-26 两次归位：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes；铠大师中文名保留——活引用+契约锚点）；**qa/ 保原位**（setup/pack-release 活引用）；改路径前先查活引用。证据每轮一份 real-test-<date>-runN.md；FAIL 四元组；裁决落档再引用。⚠ hmdfs `core.ignorecase=true`：git mv 改大小写**磁盘名可能不变**（ISSUES.md 案，10-26 两步 rename 实修），大小写敏感 glob/脚本会踩空。
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
 ## backlog（P2）
+- **脆弱 node 坑（11-02 D1/I-6.11）**：本宿主 `/data/service/hnp/bin/node` 执行 .mjs 文件在内存压力下 V8 ENOMEM 崩（`-e` 正常）；探测解释器**必须冒烟门禁**（跑 .mjs 回显）不能只看 -x。deploy/undeploy.prompt v3.0.3/v2.3 已内置。
 - **11-02 用户裁定（永久规则）**：`docs/deploy/{deploy,undeploy}.prompt` = 本项目**智能体安装脚本**，必须随发布包打包发布且**深化内容逐迭代必达入包**（pack **V11 特征断言**：包内 deploy.prompt 含「Step 0 · 前置检查」、undeploy.prompt 含 RMKEY+旧包兼容）。今后任何对两 .prompt 的改动=发布面改动，**勿再记「文档批不入包随下迭代收敛」**——直接随下一 pack 走，V11 当场拦截滞后。
 - **复盘文档归档处置（10-30）**：`docs/deploy/{deploy,undeploy}.prompt.to-be-improved.md`（新宿主机双复盘）已入库=ISSUES 迭代12 引用锚点；后续整理归档（docs/archive/）注意活引用。
 - **I-6.4 探针面双缺陷（10-29 第三轮往返 run2 发现并已修 HEAD）**：D-1 verify-manifest.py/verify-release.mjs 对**已装态包根**假 FAIL（安装体系运行期自写产物 `.env`/`delivery/winvm-plugin(.cmd)` 被判多余——前两轮 Step 2.3 从未在此场景跑，本轮按 .prompt 直跑路径首触）；修复=runtime 白名单三条+四场景回归（含 canary 负例仍 FAIL=检出力未削）。D-2 vmcheck.ps1 GBK 双坑（PS5.1 Content 无 charset JSON 按 GBK 解码+重定向 stdout 控制台码页）→ RawContentStream 显式 UTF-8+`[Console]::OutputEncoding=UTF8`，**探针 ASCII-only 二次坐实**。**10-29 随 V1.4.8 入包关闭（迭代11）**：pack V9 三探针断言首战+正反例；第四轮 run3 包内修复双首验通过。教训留册：**探针判据要跑遍已装态/纯净态两场景**；.prompt 往返验证已连续 4 轮=发布态装机路径的固定回归面。

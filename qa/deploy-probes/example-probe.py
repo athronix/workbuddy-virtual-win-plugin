@@ -35,6 +35,7 @@ except Exception as e:
     sys.exit(2)
 
 results = []
+E7_TIMEOUT = 300  # I-6.13：cleanup.analyze 冷盘全量扫描实测 85~187s，客户端窗必须 > 之（旧 120s 固定窗=首跑假 FAIL 根因）
 
 
 def rec(name, ok, detail=""):
@@ -42,9 +43,9 @@ def rec(name, ok, detail=""):
     print(("[PASS] " if ok else "[FAIL] ") + name + ("  :: " + detail if detail else ""))
 
 
-def call(tool, arguments, label):
+def call(tool, arguments, label, timeout=120):
     try:
-        r = cli.rpc("tools/call", {"name": tool, "arguments": arguments})
+        r = cli.rpc("tools/call", {"name": tool, "arguments": arguments}, timeout=timeout)
         if r.get("error"):
             rec(label, False, "ERR " + str(r["error"])[:120])
             return
@@ -68,7 +69,7 @@ call("gui.screen.capture", {}, "E3c gui.screen.capture")
 call("system.service.list", {}, "E5 system.service.list")
 # ---- 2026-10-27 Step 6.3 全矩阵补测新增（保持只读/零副作用口径）----
 # E7 清理建议分析（cleanup.analyze：仅分析不删，L0）
-call("storage.cleanup.analyze", {"topLargeFiles": 5}, "E7 storage.cleanup.analyze")
+call("storage.cleanup.analyze", {"topLargeFiles": 5}, "E7 storage.cleanup.analyze", timeout=E7_TIMEOUT)
 # E8 事件日志（排障场景 S5 只读面）
 call("system.eventlog.query", {"logName": "System", "maxEvents": 5, "level": "Error"}, "E8 system.eventlog.query")
 # E9 文件搜索（跨端取文件链 S9 第一环，只读）
