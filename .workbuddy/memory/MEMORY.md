@@ -12,7 +12,7 @@
 - **空密码网络登录=两层串联**（PermitEmptyPasswords 默认 no + LimitBlankPasswordUse=1），只改一层必败；两层同改后建好免密**立即回滚**（deploy-strategy §2.1-B）。
 - **大文档多轮 Edit 必静默缩水/回退（10-26 两次）**：改前 `git show HEAD:` 留基线；批量改动=一次性脚本+每处 assert count==1+不匹配整体拒写；写后立即 `wc -l`+锚点 grep+扫控制字符（python 普通串写 Win 路径 `\n\v` 会转义！）；commit 前后各核一次。
 - - 版本升版批**必须 grep 全仓旧 tag 清点同步面**（10-27 案：v2.9 变更行宣称"RELEASE_TAG 升 V1.4.4"但 strategy §0.5-B/§7 与 deploy-prompts §2.2 仍写 V1.4.3——声称≠已改；pack V7 断言同款思路=机械化替代人肉声称）。
-- **探针"瞬态"口径必须可证伪**（I-6.9 案，11-02）：凡"首跑 FAIL 复跑即稳"要给机制解释——机制若含**阈值临界**（如 45s 心跳 vs 46s 冷/39s 热）即确定性缺陷，禁当噪声放行；忙/死判别=看门狗类监管的第一性义务（busy 期心跳/应答双停是单线程执行体常态）。同款教训第二例（I-6.13，11-02）：**客户端超时窗贴能力耗时跑=假 FAIL**（探针 120s 硬窗 vs 冷盘 E7 实测 187.7s，服务端 ok=true）——判据窗必须带实测耗时带余量。
+- **探针"瞬态"口径必须可证伪**（I-6.9 案，11-02）：凡"首跑 FAIL 复跑即稳"要给机制解释——机制若含**阈值临界**（如 45s 心跳 vs 46s 冷/39s 热）即确定性缺陷，禁当噪声放行；忙/死判别=看门狗类监管的第一性义务（busy 期心跳/应答双停是单线程执行体常态）。同款教训第二例（I-6.13，11-02）：**客户端超时窗贴能力耗时跑=假 FAIL**（探针 120s 硬窗 vs 冷态 E7 ≥120s 越窗，服务端 ok=true、暖态实测 85.4s/62.0s）——判据窗必须带实测耗时带余量。
 - 搜索假阴性：**Grep 工具与 `git grep` 都漏过** →清点用文件系统 `grep -rn` 交叉；仓库清点 `git ls-files`。
 - provider=workbuddy **禁批量 tasks/cancel**（真机红线）。ssh `cmd &` 脱管、schtasks 拖死通道→轮询 /health。VM-START bind EACCES=socket 未 drain→清持有者+等待重试。
 - 沙箱路径：git/node/python3 全路径（`.harmonybrew/opt/git` / `el1/bundle/libs/arm64/node` / `/data/service/hnp`）；/tmp 只读→`$HOME/wbtmp`；rm shim 坏→fs.unlinkSync；getcwd 异常→绝对路径。
@@ -20,7 +20,7 @@
 
 ## 口径与纪律
 - 测试基线权威=`qa/p3-batch-sweep/` 最新 gate-*.txt 汇总行（现 2280 GREEN；文档禁硬编码）。门禁 `npm run gate`。
-- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3 / … / 迭代11=V1.4.8 / 迭代12=V1.4.9 R8 根除版（I-6.5/6.6/6.7）/ 迭代13=V1.4.11 智能体安装脚本裁定+I-6.9/6.10（V1.4.10 在途被取代）/ 迭代14=V1.4.12 prompt-verify 实跑收编（I-6.11/6.12/6.13），均开账即关）；每迭代 --wipe 重验；完成必 push origin。**V1.4.12=当前线上**（11-02 迭代14=prompt-verify dogfooding 收编版：QA 按两 .prompt 原文完整往返 YES-with-nits→I-6.11 NODE 探测冒烟门禁（pack **V11c** 断言 NODE_SMOKE_OK；脆弱 hnp node 执行 .mjs V8 ENOMEM）+I-6.12 D2~D5+I-6.13 探针 E7 300s 窗（冷盘 187.7s vs 120s 硬窗假 FAIL；教训=判据窗贴能力耗时跑，与 I-6.9 阈值临界同族）；deploy.prompt v3.0.3/undeploy v2.3 入包逐字节一致；zip `b65992db…`、tag@7696240、881/7692893/`789c9ab4…`；发布链断言面=**V1–V11**（V11 三特征）；发布态清场重装 19/19+setup rc=0+38/38（修探针窗后冷盘首验）。运行码同 V1.4.11。V1.4.11/V1.4.10 已被取代。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
+- 发布：旧包 `release/V<ver>.superseded-itN`；台账 `docs/release/ISSUES.md`（迭代6=V1.4.3 / … / 迭代11=V1.4.8 / 迭代12=V1.4.9 R8 根除版（I-6.5/6.6/6.7）/ 迭代13=V1.4.11 智能体安装脚本裁定+I-6.9/6.10（V1.4.10 在途被取代）/ 迭代14=V1.4.12 prompt-verify 实跑收编（I-6.11/6.12/6.13），均开账即关）；每迭代 --wipe 重验；完成必 push origin。**V1.4.12=当前线上**（11-02 迭代14=prompt-verify dogfooding 收编版：QA 按两 .prompt 原文完整往返 YES-with-nits→I-6.11 NODE 探测冒烟门禁（pack **V11c** 断言 NODE_SMOKE_OK；脆弱 hnp node 执行 .mjs V8 ENOMEM）+I-6.12 D2~D5+I-6.13 探针 E7 300s 窗（冷态 ≥120s vs 120s 硬窗假 FAIL；教训=判据窗贴能力耗时跑，与 I-6.9 阈值临界同族）；deploy.prompt v3.0.3/undeploy v2.3 入包逐字节一致；zip `b65992db…`、tag@7696240、881/7692893/`789c9ab4…`；发布链断言面=**V1–V11**（V11 三特征）；发布态清场重装 19/19+setup rc=0+38/38（修探针窗后冷盘首验）。运行码同 V1.4.11。V1.4.11/V1.4.10 已被取代。发布探针判据面=包内 verify-release.mjs --expect-nonaccount-guard。
 - 文档：导航权威 `.dev/docs-index.md`；归档 `docs/archive/{changes,audit,test}`+legacy-*（10-26 两次归位：OPS-OVERVIEW/INSTALL-VERIFY/根 overview/V1.0.0 notes；铠大师中文名保留——活引用+契约锚点）；**qa/ 保原位**（setup/pack-release 活引用）；改路径前先查活引用。证据每轮一份 real-test-<date>-runN.md；FAIL 四元组；裁决落档再引用。⚠ hmdfs `core.ignorecase=true`：git mv 改大小写**磁盘名可能不变**（ISSUES.md 案，10-26 两步 rename 实修），大小写敏感 glob/脚本会踩空。
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 

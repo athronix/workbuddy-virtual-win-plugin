@@ -106,4 +106,4 @@
 
 - QA 往返后走 V1.4.12 发布链：先 commit（`7696240`）→ pack **V1–V11 全绿（V11c 冒烟门禁断言首战）** → tag V1.4.12 → publish → latest API=V1.4.12 → 匿名回环三向 sha 一致（`b65992db…`/881/7692893/`789c9ab4…`），解包两 .prompt 与仓库逐字节一致；包面差异 vs V1.4.11=**仅文档/清单 10 文件**（运行码逐字节同）。
 - 发布态清场重装：包内 uninstall 19/19 rc=0（health=000）→ setup 七相位 rc=0 → mcp 20/20 + a2a 5/5 → **example-probe 首跑 12/13：E7 `EXC timed out`**。
-- 定性=**I-6.13（探针面判据缺陷，非产品缺陷）**：服务端 E7 两次单发 ok=true（85.4s/62.0s，restarts=0），客户端 `Mcp.rpc` 硬编码 120s 窗被冷盘 187.7s 越窗掐线——与历轮"E7 瞬态"误判同源（窗贴耗时跑）。修复=rpc/call 增 timeout 形参 + E7 独立 300s 窗；**修复后同一冷盘现场整跑 13/13 rc=0 首验**。终态矩阵=FRESH、disabledTools=8、连接器 8 skill、health=200 全绿。
+- 定性=**I-6.13（探针面判据缺陷，非产品缺陷）**：服务端 E7 两次单发 ok=true（85.4s/62.0s，restarts=0），客户端 `Mcp.rpc` 硬编码 120s 窗被冷态越窗掐线（服务端实际 ≥120s；暖态单发实测 durationMs=85260/61930）——与历轮"E7 瞬态"误判同源（窗贴耗时跑）。修复=rpc/call 增 timeout 形参 + E7 独立 300s 窗；**修复后同一冷盘现场整跑 13/13 rc=0 首验**。终态矩阵=FRESH、disabledTools=8、连接器 8 skill、health=200 全绿。
