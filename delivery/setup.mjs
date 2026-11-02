@@ -921,9 +921,11 @@ async function runTunnelPhase(cfg) {
     const elapsedMs = Date.now() - t0;
     const st = await pluginTunnelStatus(cfg);
     // OBS-1：daemon 自报 healthy 仅作信息，就绪判据=后端 /health 打通。
-    // ensure 刚返回时后端可能仍在起（VM-START 紧随其后），r.ok 时给一次短重试窗口。
+    // I-6.10（2026-11-02 run5）：清场重装时 VM-START 刚触发、VM 服务冷启动要 ~30s，
+    // 单发+1×2s 的旧窗口必然探空 → 误回落自建 → EADDRINUSE 假败（rc=1 而 HEALTH 相位
+    // 随后 200）。ensure 成功返回后给 **20s 退避窗口**反复探测（服务预热期容忍）。
     let httpOk = await probeTunnelHttp(port);
-    if (!httpOk && r.ok) {
+    for (let i = 0; !httpOk && r.ok && i < 10; i++) {
       await sleep(2_000);
       httpOk = await probeTunnelHttp(port);
     }
@@ -971,6 +973,12 @@ async function runTunnelPhase(cfg) {
       log(`   ${fwdOk ? '✅' : '⚠️'} 回落隧道${fwdOk ? '已打通 /health（VM 服务可达，回落有效）' : '已建立但暂未探通 /health（HEALTH 相位将继续验证）'}`);
       return { ok: true, reused: false, pid: null, elapsedMs: 0, handle };
     } catch (e) {
+      // I-6.10 容错：EADDRINUSE=daemon 正持端口（上方 ensure 窗口未探通多因 VM 服务
+      // 冷启动慢）。此时不再判死——端口已有持有者，连通性交 HEALTH 相位端到端验证。
+      if (/EADDRINUSE/i.test(e.message) && (await checkTcpOpen(port))) {
+        log(`   ⚠️ 回落自建撞 EADDRINUSE（端口由常驻 daemon 持有，ensure 窗口内后端未热）→ 视为复用，连通性由 [HEALTH] 相位端到端验证`);
+        return { ok: true, reused: true, pid: null, elapsedMs: 0 };
+      }
       log(`   ❌ ssh2 隧道启动失败：${e.message}`);
       return { ok: false, reused: false, pid: null, elapsedMs: 0 };
     }

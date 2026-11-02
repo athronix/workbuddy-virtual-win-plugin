@@ -137,6 +137,27 @@ export class PsBridge {
   /** 自愈退避窗口（毫秒）：两次自愈尝试之间的最小间隔 */
   private static readonly HEAL_BACKOFF_MS = 3_000;
 
+  /**
+   * D16（2026-11-02 run5 取证，I-6.9）看门狗忙态守卫判据（纯函数，单测钉死）：
+   * 心跳陈旧时，**有在途调用 ⇒ 不探测、不重启**。
+   *
+   * 病灶：ps-bridge.ps1 单线程，长同步调用（实测 storage.cleanup.analyze ~46s）期间
+   * 主循环阻塞——既发不出心跳，也无法应答任何消息（含看门狗 ping）。旧 watchdog 在
+   * 心跳超 45s 后 ping 不通即 restart()，**杀死正在干活的桥**：E7 报
+   * PSBRIDGE_HEARTBEAT_TIMEOUT（"被看门狗误杀"）、并发的 E8 撞重启窗报
+   * PSBRIDGE_EXITED，且调用越接近阈值越必现（run1~4 的"E7 首跑瞬态复跑即稳"实为
+   * 46s/39s 的临界侥幸）。
+   *
+   * 现语义：心跳陈旧只分两种——
+   *   pending>0（忙）：假阳性源，直接放过；在途调用有 per-call timeoutMs 兜底摘除，
+   *     摘除后若桥真挂死，下一拍（pending=0）的 ping 探测照常判死重启，自愈不失明。
+   *   pending=0（idle 且心跳陈旧）：真异常嫌疑，ping 确证后才 restart（旧路径不变）。
+   * @param pendingCount 在途调用数（PsBridge.pendingCount）
+   */
+  static shouldProbeStaleHeartbeat(pendingCount: number): boolean {
+    return pendingCount <= 0;
+  }
+
   constructor(opts: PsBridgeOptions = {}) {
     // 默认指向包内 psmod 目录旁的 ps-bridge.ps1
     this.scriptPath = opts.scriptPath ?? defaultScriptPath();
@@ -243,8 +264,12 @@ export class PsBridge {
    * 现语义：
    *   - `stopped` / `restarting` 才早退（显式停止或重启进行中，不打扰）；
    *   - 进程不 running → 尝试**带退避的自愈**（spawnAndReady）；
-   *   - 进程 running 但心跳超时 → 先 ping 探测，ping 通仅刷新时间戳（空闲不发心跳属正常），
-   *     ping 不通才判定僵死并重启。
+   *   - 进程 running 但心跳超时：
+   *       · pending>0（D16 忙态守卫，I-6.9）→ 不探测不重启——单线程桥在长同步调用期
+   *         无法回环心跳也无法应答 ping，此态 ping-判死 = 误杀；等在途调用被自身
+   *         per-call 超时收口后（pending=0）再判，自愈不失明只延后；
+   *       · pending=0（idle 且心跳陈旧）→ 先 ping 探测，ping 通仅刷新时间戳（空闲不发
+   *         心跳属正常），ping 不通才判定真僵死并重启。
    */
   private async watchdog(): Promise<void> {
     if (this.restarting || this.stopped) return;
@@ -256,6 +281,10 @@ export class PsBridge {
     }
 
     if (Date.now() - this.lastHeartbeatAtMs <= this.heartbeatTimeoutMs) return;
+    // D16（I-6.9）忙态守卫：有在途调用时心跳陈旧属正常（单线程桥阻塞期无法回环心跳，
+    // ping 同样排入队列得不到应答），此时 ping-判死 = 误杀干活中的桥。放行给
+    // per-call 超时兜底；pending 归零后再走真僵死判定。
+    if (!PsBridge.shouldProbeStaleHeartbeat(this.pending.size)) return;
     try {
       const res = await this.rawCall('__meta', 'ping', {}, 5_000);
       if (res.ok) {

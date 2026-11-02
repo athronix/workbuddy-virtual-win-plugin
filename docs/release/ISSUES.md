@@ -301,11 +301,14 @@
 **结论：迭代 12 关闭。当前线上版本=V1.4.9。发布链断言面=V1–V10。缺陷台账（I-6.1~I-6.7+G-1/2/3+R8）全部闭环入包。**
 
 
-## 迭代13 · V1.4.10（2026-11-02，智能体安装脚本裁定落地版——开账）
+## 迭代13 · V1.4.11（2026-11-02，智能体安装脚本裁定落地 + 看门狗忙态误杀修复版——开账）
 
-> 状态：**进行中**。动因=用户裁定「deploy.prompt 和 undeploy.prompt 属于本项目的**智能体安装脚本**，必须随发布包一起打包发布」。文件存在性自 V1.4.6 已在包面（OVERALL_DOCS+PACKAGE_REQUIRED），本迭代把该裁定**升级为机械化必达**：深化内容（非仅文件在）逐迭代必达入包，杜绝"文档批不入包、随下迭代自然收敛"的口头纪律滞后面（实例=V1.4.9 包内 undeploy.prompt 仍 v2.1、仓库已 v2.2）。
+> 状态：**进行中**。动因=用户裁定「deploy.prompt 和 undeploy.prompt 属于本项目的**智能体安装脚本**，必须随发布包一起打包发布」。文件存在性自 V1.4.6 已在包面（OVERALL_DOCS+PACKAGE_REQUIRED），本迭代把该裁定**升级为机械化必达**：深化内容（非仅文件在）逐迭代必达入包，杜绝"文档批不入包、随下迭代自然收敛"的口头纪律滞后面（实例=V1.4.9 包内 undeploy.prompt 仍 v2.1、仓库已 v2.2）。发布链推进中 run5 又揪出两真缺陷（I-6.9 看门狗忙态误杀=历轮"E7 瞬态"口径被证伪；I-6.10 setup 清场重装 TUNNEL 假败），一并收编本迭代 → 版本升 **V1.4.11**。
 
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
-| **I-6.8** | P3（流程） | 发布包内 .prompt **深化面滞后**：V1.4.9 包内 undeploy.prompt=v2.1（10-30 晚仓库已升 v2.2=删密钥实测模板+旧包误报兼容判据），因"纯文档批不入包随下迭代收敛"惯例未强制。用户裁定升格定位=智能体安装脚本必随包发布 → 处置=**pack V11 特征断言**（包内 deploy.prompt 必含「Step 0 · 前置检查」、undeploy.prompt 必含 RMKEY+旧包兼容——断言内容非仅存在性），滞后=fail-loud 拒产包；正反例：V1.4.9 包内 v2.1 判 FAIL/HEAD v2.2 判 PASS。定位入册=README §5.4/包 README 生成文案/两母本变更记录（deploy-prompts v2.6/undeploy-prompts v2.1/strategy v3.11）。 | 已落地（HEAD）；随本版 pack V1.4.10 入包收敛 v2.2 |
+| **I-6.8** | P3（流程） | 发布包内 .prompt **深化面滞后**：V1.4.9 包内 undeploy.prompt=v2.1（10-30 晚仓库已升 v2.2=删密钥实测模板+旧包误报兼容判据），因"纯文档批不入包随下迭代收敛"惯例未强制。用户裁定升格定位=智能体安装脚本必随包发布 → 处置=**pack V11 特征断言**（包内 deploy.prompt 必含「Step 0 · 前置检查」、undeploy.prompt 必含 RMKEY+旧包兼容——断言内容非仅存在性），滞后=fail-loud 拒产包；正反例：V1.4.9 包内 v2.1 判 FAIL/HEAD v2.2 判 PASS。定位入册=README §5.4/包 README 生成文案/两母本变更记录（deploy-prompts v2.6/undeploy-prompts v2.1/strategy v3.11）。 | 已落地（HEAD）；随本版 pack V1.4.11 入包收敛 v2.2（中途 V1.4.10 已先行上架，验证期揪出 I-6.9/I-6.10 → 版本顺延 V1.4.11，V1.4.10 成在途版不撤回） |
 
+
+| **I-6.9** | **P1（能力执行面）** | **ps-bridge 看门狗忙态误杀在途长调用**（run5 清场重装实弹连败两轮定性；**证伪历轮"E7 冷启动瞬态、复跑即稳"口径**）。机制：ps-bridge.ps1 单线程，长同步调用（storage.cleanup.analyze 真机实测 45~105s）期间主循环阻塞——既发不出心跳也无法应答任何消息（含看门狗 ping）；TS 侧 watchdog 心跳超 45s → rawCall(ping,5s) 排入同一 stdin 队列必超时 → `restart()` **杀死正在干活的桥**：当事调用收 PSBRIDGE_HEARTBEAT_TIMEOUT（"正在重启"）、并发调用撞重启窗收 PSBRIDGE_EXITED（双份启动 banner 即换代指纹）。run1~4"复跑即稳"实为磁盘缓存热后 39s<45s 阈值的**临界侥幸**，非自愈；run5 冷目录 46~105s 必越界即连败。修复=watchdog 心跳陈旧时先查 pendingCount：**忙(>0)⇒ 不 ping 不重启**（假阳性源；在途调用有 per-call 超时兜底，归零后真死照判）；idle(=0) 且心跳陈旧且 ping 无应答 ⇒ restart（旧语义原样=真僵死检出力不削弱）。新增纯函数判据 `PsBridge.shouldProbeStaleHeartbeat`+单测 `p6-d16-psbridge-busy-guard.test.js` 3 例（判据/忙态集成不复活杀/**判别性**：dist 模拟旧行为→test2 必翻转 FAIL+HEARTBEAT_TIMEOUT 复现、test3 恒 PASS=检出力保持）；**VM 热更实弹**：修复 dist scp 入 C:\WinVMBridge+VM-START 后 E7×3（104.5s/63.2s/67.7s 全 >45s 旧必死区）+E8×3 连发全 ok=true、health restarts=0、example 13/13 一次过。 | 已修复（HEAD·dist+src 同源）；随 V1.4.11 入包；**教训入册：探针"瞬态"口径必须可证伪——凡"复跑即稳"要给机制解释，机制含阈值临界即算确定性缺陷** |
+| **I-6.10** | P2（部署链体验） | **setup 清场重装 TUNNEL 相位假败**（run5 复现）：daemon-aware 路径在 `tunnel ensure` 成功返回后仅 1×2s 探测窗口——清场重装时 VM-START 刚触发、VM 服务冷启动 ~30s，窗口必探空 → 误回落自建 ssh2 → `EADDRINUSE`（daemon 正持端口）→ 相位记失败 → **setup rc=1「部署完成但有 1 个步骤失败」**，而 HEALTH 相位 32.7s 后 /health 200 全通=假败（历轮 V1.4.4~V1.4.10 run 亦出现过 EADDRINUSE 瞬态注记，本轮定性为判据缺陷非环境噪声）。修复=①ensure 成功后探测窗放宽 **10×2s=20s**（容忍 VM 冷启动预热）；②回落 ssh2 撞 EADDRINUSE **且端口确被持有** ⇒ 判"复用成功"交 HEALTH 端到端验证（不再计失败）。 | 已修复（HEAD）；随 V1.4.11 入包；run5 复验=重装段待发布态 --wipe 重跑 |

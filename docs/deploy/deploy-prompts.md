@@ -2,6 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
+> 更新：2026-11-02（v2.7：run5 揪出 I-6.9 看门狗忙态误杀（P1，历轮 E7"瞬态"口径证伪）+I-6.10 TUNNEL 假败收编迭代13；版本顺延 V1.4.11；E7 排错口径修正入 deploy.prompt v2.0.2）
 > 更新：2026-11-02（v2.6：两 .prompt 定位为智能体安装脚本+pack V11 深化面断言；示例值升 V1.4.10）（run4 cmd.exe 实弹+发布态清场重装双验证）；复盘收编详见 v2.4 行——新增 Step 0 前置检查（VM 密码/OpenSSH 安装法/虚拟机电源/防火墙 Profile）、NODE/PY 自动探测、ssh 重试封装、执行协议 P-1/P-2；R8 根除：安装链 cmd.exe 兼容化（.ps1/EncodedCommand 跨壳），不再要求 Git-Bash 默认 shell）
 > 上游：`docs/deploy/deploy-strategy.md`（论证与实测记录）、`docs/INSTALL-GUIDE.md`（逐项细节）
 > 对偶：`docs/deploy/undeploy-prompts.md`（卸载 Prompt 总集，本文件的逆向镜像；清场重装 `--wipe` 前置拆除见彼文 §8）
@@ -49,8 +50,8 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 |---|---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 同左 | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | 解析到 `V1.4.2` | latest 跳转页 | ☐ |
-| `RELEASE_TAG` | `V1.4.10`（**示例值——以 `releases/latest` API 现解为准**，见 `RELEASE_URL` 行与 deploy.prompt 注入段指引） | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
-| `ZIP_NAME` | `winvm-overall-<RELEASE_TAG>.zip`（示例 V1.4.10） | 随 latest 现解（旁挂 91 B sidecar 现取现验） | 分发单元 | ☐ |
+| `RELEASE_TAG` | `V1.4.11`（**示例值——以 `releases/latest` API 现解为准**，见 `RELEASE_URL` 行与 deploy.prompt 注入段指引） | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
+| `ZIP_NAME` | `winvm-overall-<RELEASE_TAG>.zip`（示例 V1.4.11） | 随 latest 现解（旁挂 91 B sidecar 现取现验） | 分发单元 | ☐ |
 | `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：以 release 旁挂 `winvm-overall-<TAG>.zip.sha256` 为准，`sha256sum -c` 当场验 | V1.4.6 回环实测一致 | 整包校验值（取包时现取现验，永不陈旧） | ☐ |
 | `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：以**包内 `MANIFEST.txt` 头七行**为准，`$PY qa/deploy-probes/verify-manifest.py .` 复算即验 | V1.4.6=881/7606427/`2562a598…`（历史样例） | MANIFEST 三元组（Step 2.3 判据②的输入源=包内文件，非本文档） | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 同左 | 宿主解压根 | ☐ |
@@ -127,7 +128,7 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
   VM_DEPLOY_DIR=C:/WinVMBridge   VM_WORKSPACE=C:/WinVMWorkspace
   SERVICE_PORT=18443（仅回环 127.0.0.1）
   PROVIDER=workbuddy   WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.10   ZIP=winvm-overall-V1.4.10.zip
+  RELEASE_TAG=V1.4.11   ZIP=winvm-overall-V1.4.11.zip
   REPO=athronix/workbuddy-virtual-win-plugin
   DEPLOY_ROOT=~/winvm-deploy   PKG_ROOT=~/winvm-deploy/overall-root/overall
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
@@ -351,7 +352,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 
 ```text
 从 GitHub Release 取 WinVM Bridge 分发包并做三层校验。
-  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.10  ZIP=winvm-overall-V1.4.10.zip
+  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.11  ZIP=winvm-overall-V1.4.11.zip
 1) 用绝对 URL（不要 releases/latest）下载 zip 与 .zip.sha256 到 ~/winvm-deploy/pkg/，
    带 --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 --retry-all-errors -C -。
    判据①：sha256sum -c 通过。
@@ -515,7 +516,7 @@ $PY qa/deploy-probes/a2a-probe.py
 |---|---|---|---|
 | 1 | ~~是否发布 V1.4.3~~ | **已裁决并执行（10-26 用户批准）**：V1.4.3 已上架（G-1 修复入包+V5 断言），清场重装 run2 复验非账户零污染 | ✅ 关闭 |
 | 2 | ~~G-2 MANIFEST 无消费者~~ | **已收编**：`delivery/verify-release.mjs`（四判据+V5）随包分发，Step 2 判据二入口 | ✅ 关闭 |
-| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / latest 现解，示例 `V1.4.10`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
+| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / latest 现解，示例 `V1.4.11`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
 | 4 | **VM 密码管理方式** | 当前经 `WINVM_SSH_PASSWORD` 运行期注入，未落任何文件 | 用户：确认是否维持该方式 |
 | 5 | ~~G-3 deploy-probes 不进包~~ | **已收编**：V1.4.3 包内 `qa/deploy-probes/` 6 件 + `delivery/tools/diagnose-connectors.mjs`（PACKAGE_REQUIRED 必存断言兜底），纯 Release 安装链零仓库依赖 | ✅ 关闭 |
 | 6 | ~~VM 默认 shell=Git-Bash 隐藏前置~~ | **已根除（V1.4.9/迭代12）**：安装/拆除/探针全部远端命令改跨壳通道（cmd.exe 兼容），sshd 保持出厂默认即可；新宿主机复盘 R8 落账 ISSUES I-6.5 | ✅ 关闭 |
@@ -601,6 +602,7 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
 | 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |
+| 2026-11-02 | v2.7 | **run5 双缺陷收编**：I-6.9（P1）ps-bridge 看门狗忙态误杀在途长调用——历轮"E7 冷启动瞬态复跑即稳"口径被证伪（实为缓存冷热跨 45s 阈值的临界侥幸）；修复=watchdog 忙态守卫（pendingCount>0 不 ping 不重启，纯函数判据+判别性单测 p6-d16×3+VM 热更实弹 E7×3 最长 104.5s 全过）；I-6.10（P2）setup 清场重装 TUNNEL 相位假败（ensure 后 2s 探窗必空→误回落 EADDRINUSE 计败）——放宽 20s+端口持有则判复用。版本顺延 **V1.4.11**（V1.4.10 为在途上架版）。deploy.prompt v2.0.2 E7 口径注记。 |
 | 2026-11-02 | v2.6 | **智能体安装脚本裁定落地（迭代13/V1.4.10）**：用户裁定 `deploy.prompt`/`undeploy.prompt` = 本项目的**智能体安装脚本**，属标准交付物、**必须随发布包打包发布**；pack-release 新增 **V11 断言**（包内 deploy.prompt 必含「Step 0 · 前置检查」特征、undeploy.prompt 必含 RMKEY 删密钥模板+旧包误报兼容特征——深化内容随每迭代必达入包，机械化取代「随下迭代自然收敛」口头纪律）；README §5.4/包 README 定位措辞同步。正反例：V1.4.9 包内 undeploy v2.1 判 FAIL=V11 首战即可拦截滞后 |
 | 2026-10-30 | v2.5 | **V1.4.9 发布闭环**：run4（VM 默认壳=cmd.exe 实弹：拆除 19/19 rc=0→新 .ps1 通道 apply 一次过→38/38，`qa/real-test-2026-10-30-run4.md`）；打包 @aae81ab V1–V10 全绿→上架 latest=V1.4.9→匿名回环三向一致（`6221c703…`）→发布态清场重装 19/19+38/38 双验证；§2.2 示例值=V1.4.9 |
 | 2026-10-30 | v2.4 | **新宿主机复盘收编（迭代12/V1.4.9）**：`deploy.prompt` 升 v2.0——新增 Step 0 前置检查（0.1 VM 非空密码提醒/0.2 OpenSSH Server 安装启动方法/0.3 虚拟机电源"从不暂停+自动开机"/0.4 防火墙 Profile 诊断修复/0.5 桥接抖动重试），执行协议 P-1~P-3（缺信息问用户；可自动化项**审批后**补齐、人工项给精确方法），NODE/PY 自动探测多候选回退（R5），vmssh/vmscp 重试封装（R4），Step 6.1 判据改连接器目录=8 为准（R11）；母本同步 Step 0/执行协议/排错 +6 行。代码面=I-6.5 R8 根除：vmInstallCommand（Git-Bash 专属）→ buildVmInstallPs1（.ps1 铁律通道），bootstrap trust/marker、uninstall 清理、winvm-plugin 卸载远程段全改跨壳形态；prepare-vm DB-3 增 zip+npmmirror 兜底（R7）。**sshd 默认 shell 不再要求 Git-Bash，cmd.exe 出厂默认可直装** |

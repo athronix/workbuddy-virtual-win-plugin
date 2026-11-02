@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v2.0.1 · 示例版本引用升 V1.4.10；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v2.0.2 · 示例版本引用升 V1.4.11+E7 瞬态口径修正注记；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -27,10 +27,10 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
   for c in /data/service/hnp/bin/python3 /data/storage/el1/bundle/libs/arm64/python/bin/python3; do
     [ -x "$c" ] && PY=$c; done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空且 -x 可执行；取不到 → 问用户
-  export RELEASE_TAG=V1.4.10                   # ⚠ 示例值——以 releases/latest API 现解为准：
+  export RELEASE_TAG=V1.4.11                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.10.zip
+  export ZIP=winvm-overall-V1.4.11.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
@@ -188,7 +188,10 @@ Step 5 · 全维度测试并出报告
   5.2 A2A 面 5 项：$PY qa/deploy-probes/a2a-probe.py
   5.3 示例能力 13 项：$PY qa/deploy-probes/example-probe.py
       （⚠ 首跑若 E7/E8 报 PSBRIDGE_EXITED=重装窗口 ps-bridge 换代瞬态，复跑即稳；
-        稳定复现才按 ISSUES 排查。E11=键鼠防回归钉，必真跑）
+        稳定复现才按 ISSUES 排查。E11=键鼠防回归钉，必真跑。
+        注：E7 cleanup.analyze 偶发 HEARTBEAT_TIMEOUT 曾被判"冷启动瞬态"——run5 定性实为
+        看门狗忙态误杀真缺陷（I-6.9，V1.4.11 起修复=忙期不 ping 不重启）；旧包（≤V1.4.10）
+        长调用 >45s 必现，复跑因缓存热而 <45s 侥幸过，非真自愈，见 ISSUES I-6.9）
   判据：三个脚本 RESULT: PASS（20/20 + 5/5 + 13/13）
   5.4 出报告 qa/real-test-<日期>-run<N>.md：健康/连接/功能抽样/失败四元组四张表 +
       「可交付 / 有阻塞」明确结论。
