@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.0.6 · run11 分步计时复盘产品化：新增【执行者避坑清单】X-1~X-5（会话态 source/路径纪律/本地侧 $_ 展开/良性噪音放行表/探针冷启带宽）；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.0.7 · run12 条款验证轮回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -34,10 +34,10 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
     [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
   done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
-  export RELEASE_TAG=V1.4.17                   # ⚠ 示例值——以 releases/latest API 现解为准：
+  export RELEASE_TAG=V1.4.18                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.17.zip
+  export ZIP=winvm-overall-V1.4.18.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
@@ -65,9 +65,14 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
       ② apply 中 `[WARN] tunnel.state.json ENOENT`（daemon 自清竞态，U2.3/核验仍全 PASS）；
       ③ ssh 输出中文呈 GBK 乱码（VM 控制台码页；判据字段均 ASCII 不受影响）；
       ④ install-host 的 connector-states ⚠×2（平台账户态噪声；注册面 ✓ + H1 过即可继续）。
-  X-5 探针冷启带宽：刚完成重装即跑 Step 5=llmSession/ps-bridge 冷启窗口，三探针链实测
-      ~145s（热态 ~97s）；E4/E7 首批偏慢属预期，只要无超时零复跑即正常——效率评估用
-      此带宽，勿误判为回归。
+      ⚠ 噪音捕获纪律（D-2，run12 实证）：判据字段做命令替换捕获（`$(…)`）时勿让 stderr 卷入——
+        getcwd 等宿主警告会撕裂取值行；一律 `2>/dev/null` 或先落盘再摘 ASCII 字段。
+  X-6 辅助脚本用 bash 全路径（D-1，run12 实证）：本宿主 `/bin/bash` 可能=损坏 shim
+      （bad interpreter，与 /bin rm 同源）；自造 .sh 的 shebang 与调用一律用实际可用 bash
+      （`command -v bash` 探测，如 /data/storage/el1/bundle/libs/arm64/bash/bin/bash）。
+  X-5 探针冷启带宽（run12 深冷实测后上修）：热态链 ~97s／常规冷 ~145s／**完整往返后即刻
+      测=深冷可达 ~250s**（llmSession 仍 starting，E7 单发 178s 级）。判据以**零超时
+      零复跑**为准，勿按单一数值误判回归；效率评估按档位取值。
 
 ────────────────────────────────────────
 【执行协议】

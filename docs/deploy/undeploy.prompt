@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.5 · run11 复盘产品化：【执行者避坑清单】X-1~X-4 入册（与 deploy v3.0.6 同规）；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.6 · run12 回写：X-4 噪音捕获纪律/X-6 bash 全路径（与 deploy v3.0.7 同规）；v2.5=run11 复盘产品化 X-1~X-4；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、
@@ -52,6 +52,10 @@ v2.3 要点：prompt-verify 实跑收编（2026-11-02）——D1 NODE/PY 探测�
   X-4 良性噪音放行表：①宿主 getcwd 警告 ②apply `[WARN] tunnel.state.json ENOENT`（见 U2.3
       注记，核验全 PASS 即过）③ssh 中文 GBK 乱码（判据字段 ASCII）④install/卸载输出里的
       connector-states ⚠ 平台账户态噪声（注册面 ✓ 即过）——出现登记后继续，勿处置勿停顿。
+      ⚠ 噪音捕获纪律（D-2）：判据字段捕获用 2>/dev/null 或先落盘再摘 ASCII 字段，
+        防 getcwd 警告经 2>&1 卷入撕裂记录行（run12 实证）。
+  X-6 辅助脚本 bash 全路径（D-1）：本宿主 /bin/bash 可能=损坏 shim（bad interpreter），
+      shebang 与调用用 command -v bash 探测到的实际路径。
 
 ────────────────────────────────────────
 【执行协议】（与 deploy.prompt 同规）

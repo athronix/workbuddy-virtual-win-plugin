@@ -1,4 +1,4 @@
-# WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4.0 → V1.4.2 → … → V1.4.10 → V1.4.11 → V1.4.12 → V1.4.13 → V1.4.14 → V1.4.15 → V1.4.16 · 2026-11-02 同步）
+# WinVM Bridge · Release Notes（演进链 V1.0.0 → V1.4.0 → V1.4.2 → … → V1.4.10 → V1.4.11 → V1.4.12 → V1.4.13 → V1.4.14 → V1.4.15 → V1.4.16 → V1.4.17 → V1.4.18 · 2026-11-03 同步）
 
 > 本文取代 `V1.0.0-release-notes.md` 的"演进路线"职能（后者已加冻结头注留痕）。**权威口径**：里程碑链来自 git log + `docs/archive/changes/` 各批 notes + 两份终版台账（`docs/archive/audit/2026-10-12-full-audit.md`、`docs/archive/audit/2026-10-14-full-audit.md`），数字均实测登记值。
 
@@ -42,6 +42,8 @@
 | V1.4.14（11-02） | 发布态复验补强（僵尸应急成文版·纯文档/脚本面） | V1.4.13 --wipe 复验现场抓到**僵尸 node 完整形态学**：8K 工作集/无子进程/不绑端口+**管理员三式强杀全免疫**（taskkill /F、Process.Kill、CIM Terminate）→ uninstall rc=1 三 FAIL；终极解=VM 内 `shutdown /r /t 5 /f` 重启 guest（~60s 恢复）→ 复拆 19/19 rc=0→setup rc=0→**38/38**。应急路径成文=deploy.prompt v3.0.5/undeploy v2.4 排错段+pack **V11d** 断言（包内必含 shutdown /r 应急行）。运行码与 V1.4.13 逐字节同 |
 | V1.4.15（11-02） | VM-START 命令行签名清扫根治版（I-6.16） | run7 两类拖慢形态同根因=端口反查对不绑端口残留全盲 → `/End` 后按签名清扫+SWEEP/ZOMBIE 双显形哨兵；run8 完全按 v2.4/v3.0.5 一次过=拆 13s/START 首跑 48s/38/38/全程 8m35s |
 | V1.4.16（11-02） | run9 脏场景实弹修复版（I-6.17·P1） | run9 判定 NO→同夜修复再实弹转绿：D7=CMSL 对象无 .Terminate()（PS5.1 MethodNotFound 静默空转=清扫只报告不杀，I-6.16 根治未闭环）→ Invoke-CimMethod -InputObject（修复后 WMI 诱饵实弹 KILLED）；D8=VM-START 成功路径吞日志→forwardVmStartEvidence helper 双调用点（setup/deploy-vm）转印哨兵进日志（E2E SWEEP 行可见+诱饵 KILLED+health200）；O-1 install-host states ⚠ 降噪；D9 环境事实=sshd job object 回收通道后代（注入配方改 WMI Create）。单测 +2 锁。报告 `qa/real-test-2026-11-02-run9.md` |
+| V1.4.17（11-03） | run11 坑产品化（执行者避坑清单版） | 3 执行者返工（会话态/相对路径/本地 `$_`）+4 噪音+冷启带宽 → 两 .prompt【执行者避坑清单】X-1~X-5（deploy v3.0.6/undeploy v2.5）+pack V11e；X-1 姿势机械化验证。run12 验证轮判据=零复发 |
+| V1.4.18（11-03） | run12 条款验证回写版 | run12=YES-with-nits：**X-1~X-3 零复发实锤**（39 步 RETRY=0，38/38 全绿）、X-4 四噪音全放行零停顿；回写 D-3 深冷带宽三档（~250s）+D-2 噪音捕获纪律+D-1 X-6 bash 全路径（/bin/bash=损坏 shim）→ deploy v3.0.7/undeploy v2.6。总步时 550s 基线。报告 `qa/real-test-2026-11-03-run12.md` |
 
 ## 三、已知限制（如实，2026-10-15 批11~14 后态）
 
