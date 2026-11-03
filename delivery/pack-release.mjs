@@ -570,6 +570,10 @@ function verifyPackages(dest, version) {
     const hit12 = dTxt.includes('shutdown /r');
     results.push({ label: 'V11 deploy.prompt 含僵尸实例 VM 重启应急行（I-6.15b 深化面）', ok: hit12, status: hit12 ? 0 : 1, tail: '' });
     console.log(`  ${hit12 ? '\u2713' : '\u2717'} V11 deploy.prompt 含僵尸实例 VM 重启应急行（I-6.15b 深化面）`);
+    // V11e（V1.4.17，run11 分步计时复盘）：执行者避坑清单必达包内（X-1 source 会话态/X-4 噪音表）。
+    const hit13 = dTxt.includes('执行者避坑清单') && dTxt.includes('source ~/wbtmp/env.sh');
+    results.push({ label: 'V11 deploy.prompt 含执行者避坑清单（run11 X 条款深化面）', ok: hit13, status: hit13 ? 0 : 1, tail: '' });
+    console.log(`  ${hit13 ? '\u2713' : '\u2717'} V11 deploy.prompt 含执行者避坑清单（run11 X 条款深化面）`);
     const upFp = join(dest, 'overall', 'docs', 'deploy', 'undeploy.prompt');
     const uTxt = existsSync(upFp) ? readFileSync(upFp, 'utf8') : '';
     const hit10 = uTxt.includes('RMKEY') && uTxt.includes('旧包兼容');

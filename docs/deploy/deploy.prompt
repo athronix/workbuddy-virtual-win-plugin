@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.0.5 · 发布态复验补强：僵尸实例免疫三式→VM 重启终极解入排错（I-6.15b）；v3.0.4=run7 复验收编：3.3 会话兜底判据（N1）+E7 排错口径区分服务端闸（N3）；前版=run6 收编 D1/D4/D5 探测冒烟+包根 ls+通道注记；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.0.6 · run11 分步计时复盘产品化：新增【执行者避坑清单】X-1~X-5（会话态 source/路径纪律/本地侧 $_ 展开/良性噪音放行表/探针冷启带宽）；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -34,10 +34,10 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
     [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
   done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
-  export RELEASE_TAG=V1.4.16                   # ⚠ 示例值——以 releases/latest API 现解为准：
+  export RELEASE_TAG=V1.4.17                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.16.zip
+  export ZIP=winvm-overall-V1.4.17.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
@@ -46,6 +46,28 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
               -p $VM_SSH_PORT $VM_USER@$VM_HOST "$@" && return 0; sleep 2; done; return 1; }
   vmscp()  { for i in 1 2 3; do scp -P $VM_SSH_PORT -o ConnectTimeout=10 -o BatchMode=yes \
               "$@" && return 0; sleep 2; done; return 1; }
+
+────────────────────────────────────────
+【执行者避坑清单】（run11 分步计时实测复盘产品化——三类返工坑与四条良性噪音在此集中，照做即零返工）
+  X-1 会话态不持久：执行者（WorkBuddy）的每次 shell 调用是全新 shell——上一段 source/export 的
+      变量与 vmssh/vmscp 函数在下一次调用里**不存在**（run11 U0.3 即栽于此：VM 段报
+      command not found 返工 18s）。正解=第一步把上方【运行期注入】整段（含函数定义）
+      落盘 `~/wbtmp/env.sh`，此后**每条**用到它们的命令开头一律：
+        source ~/wbtmp/env.sh && <原命令>
+  X-2 路径纪律：步骤脚本/日志/判据命令**全部用绝对路径**（$PKG_ROOT、$HOME/wbtmp 展开后），
+      勿依赖上一条命令的 cd 残留（run11 U4.1：cd 与计时器冲突致相对路径读不到 log，返工）。
+  X-3 本地侧展开同禁：脚本红线「勿 ssh 内联含 $ 的 PowerShell」在**本地同样成立**——
+      命令串用双引号时 `$_`/`$p` 会先被本地 bash 展开成怪值再上远端（run11 0.4：本地展开
+      后的 $_ 变路径、远端 ParserError，返工 25s）。正解=PS 载荷一律单引号 heredoc 写
+      .ps1 → vmscp → `vmssh powershell -File`（短片段用 EncodedCommand，同样零本地展开面）。
+  X-4 良性噪音放行表（出现=预期内，登记后继续，勿停顿勿处置）：
+      ① 宿主 shell-init/chdir getcwd 警告（鸿蒙沙箱固有）；
+      ② apply 中 `[WARN] tunnel.state.json ENOENT`（daemon 自清竞态，U2.3/核验仍全 PASS）；
+      ③ ssh 输出中文呈 GBK 乱码（VM 控制台码页；判据字段均 ASCII 不受影响）；
+      ④ install-host 的 connector-states ⚠×2（平台账户态噪声；注册面 ✓ + H1 过即可继续）。
+  X-5 探针冷启带宽：刚完成重装即跑 Step 5=llmSession/ps-bridge 冷启窗口，三探针链实测
+      ~145s（热态 ~97s）；E4/E7 首批偏慢属预期，只要无超时零复跑即正常——效率评估用
+      此带宽，勿误判为回归。
 
 ────────────────────────────────────────
 【执行协议】

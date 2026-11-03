@@ -5,6 +5,7 @@
 > **2026-10-27 回环实测（run1）**：按本文 U0~U4 拆除 → deploy-prompts Step 3~5 重装 → 三探针 38/38 全绿；
 > 实测揪出并修复两处镜像不对称（U-1 全局 mcp.json 不清、U-2 tunnel-autostart.json 残留，见 §9 v1.1）。
 > 证据：`qa/evidence/uninstall-pre-run3.log`（16 项）、`qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）、`qa/real-test-2026-10-27-run1.md`（拆除 19/19 + 重装回绿）
+> 更新：2026-11-03（v2.6：run11 坑产品化——undeploy.prompt 升 v2.5（避坑清单 X-1~X-4 入册，与 deploy v3.0.6 同规））
 > 更新：2026-11-02（v2.5：V1.4.13 发布态补强——僵尸 node VM 重启应急路径入排错；undeploy.prompt 升 v2.4）
 > 更新：2026-11-02（v2.4：run7 复验 D1~D3 全兑现 FIXED-VERIFIED；undeploy.prompt 标题 v2.2 漏 bump 修正=N4）
 > 更新：2026-11-02（v2.3：prompt-verify 实跑收编 D1~D3——探测冒烟门禁/@() 计数/WARN 说明；undeploy.prompt 升 v2.3）
@@ -394,6 +395,7 @@ ssh User@172.16.100.2 'powershell -NoProfile -Command "Get-ScheduledTask -TaskNa
 | 2026-10-27 | v1.0 | 首版：作为 `deploy-prompts.md` 的逆向镜像。结构对齐部署文档（使用方式/变量表/总 Prompt U1~U5/分步 Prompt/核验速查/排错/存留项/清场重装衔接/变更记录）。拆除清单取自 `delivery/uninstall.mjs` 头注（§2.3 逐条镜像安装体系 17 落点）；核验判据取自真机 `qa/evidence/uninstall-pre-run3.log`（16 项）与 `qa/evidence/cleanup-20261026/uninstall-apply-*.log`（17 项）的 POST-CLEANUP VERIFICATION；强调三条设计红线（镜像拆除不越界、宿主删除移入 trash 可回滚、OS 级配置与 SSH 密钥永不触碰）+ 独立复核防假 PASS + 一号多用密钥坑 + `--wipe` 清场重装衔接（保留密钥） |
 | 2026-10-27 | v1.1 | **回环实测（run1，`qa/real-test-2026-10-27-run1.md`）驱动修订**：U0~U4 拆除→Step 3~5 重装→三探针 38/38 全绿。揪出并修复 `uninstall.mjs` 两处镜像不对称——**U-1 全局 `~/.workbuddy/mcp.json` 的 winvm/winvm-a2a 键不清**（install-host 全局注册面，disabledTools 落点；新增 `cleanGlobalMcpJson`+核验行）、**U-2 `tunnel-autostart.json` 不在 markers**（会话自启标记残留=拆后重开 WB 会 ensure 死隧道；补入 markers+核验行）。落点表 17→**18 项**、核验清单口径改「全 PASS 零 FAIL，动态 16→19 项」；§8 补反复清场 `--vm-host` 兜底（vm-conn.json 首轮即删）；排错表补 TUNNEL EADDRINUSE 瞬态与 ps-bridge 换代抖动（E7/E8 首跑 FAIL 复跑稳）两条。⚠ 修复晚于 V1.4.4 打包 → 包内 uninstall.mjs 仍旧版（ISSUES I-6.3；用户裁定：随下迭代收编，pack V7 硬断言钉死「包内 uninstall 必含 cleanGlobalMcpJson」） |
 | 2026-10-29 | v1.5 | 配套口径：§5 速查的 zip/三元组校验指向 sidecar+包内 MANIFEST（deploy-prompts v2.1 同款，不硬编码逐版本值） |
+| 2026-11-03 | v2.6 | **run11 坑产品化（迭代17/V1.4.17 配套）**：undeploy.prompt v2.5 增【执行者避坑清单】X-1~X-4（source 会话态/绝对路径/本地 `$_` 展开/噪音放行表）——run11 三条执行者返工（U0.3/U4.1 计时器冲突/0.4 类）与四噪音在产品文档层集中收口，run12 验证零复发。 |
 | 2026-11-02 | v2.5 | **V1.4.13 发布态复验补强**：拆除 apply 遇僵尸 node（三式强杀免疫实弹取证）→ VM 内 shutdown /r 重启（~60s 恢复）→ 复拆 19/19 rc=0；应急行入 undeploy.prompt v2.4 排错段（FAIL 特征串+重启+复拆三步）。 |
 | 2026-11-02 | v2.4 | run7 第二轮复验：D1/D2/D3 修复面逐项 FIXED-VERIFIED（探测块循环内 hnp node 被冒烟拒绝 3 次稳定、U4 模板照抄输出 0、WARN 说明与日志逐字吻合）；N4=undeploy.prompt L2 标题漏 bump（内容 v2.3 标题仍 v2.2）已修。 |
 | 2026-11-02 | v2.3 | **prompt-verify 实跑收编（迭代14/V1.4.12 配套）**：D1 NODE 探测冒烟门禁（与 deploy v2.8 同批，undeploy.prompt v2.3）；D2 U4.2 VM 五点复测 printf 模板 `(Get-NetTCPConnection...).Count`→`@(...).Count`（PS5.1 单对象 .Count=$null，在装态核验会拿空值）；D3 U2.3 补良性 WARN 说明（tunnel.state.json ENOENT=daemon 自清竞态，勿停顿）。往返实测=清理 19/19 rc=0→重装 38/38 首跑全绿。 |

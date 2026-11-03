@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.4 · run6 收编 D1 探测冒烟/D2 @() 计数/D3 WARN 说明；v2.4=僵尸实例 VM 重启应急路径入排错，V1.4.13 发布态实弹）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.5 · run11 复盘产品化：【执行者避坑清单】X-1~X-4 入册（与 deploy v3.0.6 同规）；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、
@@ -41,6 +41,17 @@ v2.3 要点：prompt-verify 实跑收编（2026-11-02）——D1 NODE/PY 探测�
               -p $VM_SSH_PORT $VM_USER@$VM_HOST "$@" && return 0; sleep 2; done; return 1; }
   vmscp()  { for i in 1 2 3; do scp -P $VM_SSH_PORT -o ConnectTimeout=10 -o BatchMode=yes \
               "$@" && return 0; sleep 2; done; return 1; }
+
+────────────────────────────────────────
+【执行者避坑清单】（run11 实测复盘产品化，与 deploy.prompt v3.0.6 同规）
+  X-1 会话态不持久：vmssh/vmscp 与 export 变量在下一次 shell 调用里不存在——每条用到它们的
+      命令开头先 `source ~/wbtmp/env.sh`（run11 U0.3 返工案例）。
+  X-2 路径纪律：判据命令与日志一律绝对路径，勿依赖上一条命令的 cd 残留（run11 U4.1 返工案例）。
+  X-3 本地侧展开同禁：双引号命令串里的 `$_` 会先被本地 bash 展开（run11 0.4 类坑在 U4.2 的
+      VM 五点复测同样会踩）——PS 载荷走单引号 heredoc 写 .ps1 → vmscp → `powershell -File`。
+  X-4 良性噪音放行表：①宿主 getcwd 警告 ②apply `[WARN] tunnel.state.json ENOENT`（见 U2.3
+      注记，核验全 PASS 即过）③ssh 中文 GBK 乱码（判据字段 ASCII）④install/卸载输出里的
+      connector-states ⚠ 平台账户态噪声（注册面 ✓ 即过）——出现登记后继续，勿处置勿停顿。
 
 ────────────────────────────────────────
 【执行协议】（与 deploy.prompt 同规）
