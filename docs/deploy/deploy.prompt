@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.0.7 · run12 条款验证轮回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.1.0 · 取包源切 gitee 镜像（主）+GitHub（fallback）；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -34,10 +34,11 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
     [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
   done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
-  export RELEASE_TAG=V1.4.18                   # ⚠ 示例值——以 releases/latest API 现解为准：
-    # curl -fsSL https://api.github.com/repos/athronix/workbuddy-virtual-win-plugin/releases/latest | grep tag_name
+  export RELEASE_TAG=V1.4.19                   # ⚠ 示例值——以 releases/latest API 现解为准：
+    # curl -fsSL "https://gitee.com/api/v5/repos/athronix/workbuddy-virtual-win-plugin/releases/latest" | grep tag_name
+    #   （gitee 与 github 双端镜像发同 tag 同 zip；gitee 端不可达时回退 api.github.com 同型命令）
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.18.zip
+  export ZIP=winvm-overall-V1.4.19.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
@@ -150,14 +151,23 @@ Step 1 · 密码登录 → 建立免密通道（已免密可跳过，判据 1.5 
 Step 2 · 获取 Release 并三重校验（包已在本地可跳下载，直接 2.3 校验）
   2.0 本地包根判定（D5 机械化）：ls $PKG_ROOT/MANIFEST.txt $PKG_ROOT/delivery 两者命中
       → 跳过 2.1/2.2 下载，直入 2.3 校验；否则走下载路径。
-  2.1 下载（用绝对 URL；github.com 本网段有抖动，重试面已在）：
+  2.1 下载（主源=gitee 镜像，国内宿主稳定；github 为 fallback）：
       mkdir -p $DEPLOY_ROOT/pkg
-      BASE=https://github.com/$REPO/releases/download/$RELEASE_TAG
-      curl -fsSL --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 \
-           --retry-all-errors -C - -o $DEPLOY_ROOT/pkg/$ZIP $BASE/$ZIP
-      curl -fsSL --connect-timeout 20 --max-time 120 --retry 5 --retry-delay 3 \
-           --retry-all-errors -o $DEPLOY_ROOT/pkg/$ZIP.sha256 $BASE/$ZIP.sha256
-      判据①：sha256sum -c $DEPLOY_ROOT/pkg/$ZIP.sha256 → OK
+      BASE_GITEE=https://gitee.com/$REPO/releases/download/$RELEASE_TAG
+      BASE_GH=https://github.com/$REPO/releases/download/$RELEASE_TAG
+      # ⚠ gitee 附件经 302→foruda 临时签名 URL（一次性），勿用 -C - 断点续传，失败即整文件重试；
+      #   sidecar 内容文件名=相对 zip 名，判据①必须在 pkg 目录内跑。
+      curl -fsSL --connect-timeout 20 --max-time 900 --retry 4 --retry-delay 3 \
+           --retry-all-errors -o $DEPLOY_ROOT/pkg/$ZIP $BASE_GITEE/$ZIP \
+        || curl -fsSL --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 \
+           --retry-all-errors -C - -o $DEPLOY_ROOT/pkg/$ZIP $BASE_GH/$ZIP
+      curl -fsSL --connect-timeout 20 --max-time 120 --retry 4 --retry-delay 3 \
+           --retry-all-errors -o $DEPLOY_ROOT/pkg/$ZIP.sha256 $BASE_GITEE/$ZIP.sha256 \
+        || curl -fsSL --connect-timeout 20 --max-time 120 --retry 4 --retry-all-errors \
+           -o $DEPLOY_ROOT/pkg/$ZIP.sha256 $BASE_GH/$ZIP.sha256
+      判据①：cd $DEPLOY_ROOT/pkg && sha256sum -c $ZIP.sha256 → OK
+      （双源同 tag 同 sha——gitee 镜像由 publish-release.mjs --mirror-gitee 自动维护；
+        若两侧内容不一致属事故，停并按 ISSUES 上报）
   2.2 解压（zip 内含顶层 overall/）：
       mkdir -p $DEPLOY_ROOT/overall-root
       unzip -q -o $DEPLOY_ROOT/pkg/$ZIP -d $DEPLOY_ROOT/overall-root
@@ -255,7 +265,7 @@ Step 6 交付引导（不参与部署判据，但决定任务通道路由正确�
 - sshd 在跑端口在听但连不上（超时）→ 防火墙 Profile 不匹配（见 0.4，管理员 PS 一条命令修）。
 - 偶发 ssh/scp 一两次失败 → 桥接抖动，vmssh/vmscp 重试面内自愈，非缺陷。
 - 部署报「✅ 完成」但服务没起 → .env WINVM_DRY_RUN 是否 =1。
-- 下载 (28) connect timeout → --retry-all-errors -C - 重试（链路抖动非封禁）。
+- 下载 (28) connect timeout → 2.1 已 gitee 主源+github fallback+重试面；单源全挂再检查网络，勿手改 URL 形态（gitee 下载须跟随 302，curl -L 已在默认行为）。
 - 隧道 TCP 通但 HTTP 黑洞 → tunnel status 看 ownerMatch/stateStale，kill 旧 pid 后 ensure；
   先排查 VM 是否被 hypervisor 暂停（见 0.3）。
 - tools/list 见高危工具 → 正常（原始面恒列全 54），闸门在宿主 mcp.json disabledTools。

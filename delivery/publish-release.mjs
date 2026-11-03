@@ -33,7 +33,7 @@ export const API = 'https://api.github.com';
 
 /* ------------------------------ 参数 ------------------------------ */
 function parseArgs(argv) {
-  const out = { tag: null, zip: null, repo: null, notes: null, apply: false, token: null, help: false };
+  const out = { tag: null, zip: null, repo: null, notes: null, apply: false, token: null, mirrorGitee: false, giteeToken: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--tag': out.tag = argv[++i]; break;
@@ -42,15 +42,52 @@ function parseArgs(argv) {
       case '--notes': out.notes = argv[++i]; break;
       case '--apply': out.apply = true; break;
       case '--token': out.token = argv[++i]; break;
+      case '--mirror-gitee': out.mirrorGitee = true; break;
+      case '--gitee-token': out.giteeToken = argv[++i]; break;
       case '--help': case '-h': out.help = true; break;
       default: console.error(`未知参数：${argv[i]}`); printUsage(); process.exit(2);
     }
   }
   return out;
 }
+
+/* ------------------------------ Gitee 镜像（deploy.prompt v3.1.0 取包主源） ------------------------------ */
+
+export const GITEE_API = 'https://gitee.com/api/v5';
+
+/** gitee 令牌解析（与 GitHub 侧同纪律：值绝不打印）：env GITEE_ACCESS_TOKEN → --gitee-token。 */
+export function resolveGiteeToken(opts = {}) {
+  const env = opts.env ?? process.env;
+  if (env.GITEE_ACCESS_TOKEN && String(env.GITEE_ACCESS_TOKEN).trim()) return { token: String(env.GITEE_ACCESS_TOKEN).trim(), source: 'GITEE_ACCESS_TOKEN' };
+  if (opts.tokenArg && String(opts.tokenArg).trim()) return { token: String(opts.tokenArg).trim(), source: '--gitee-token' };
+  return { token: null, source: 'none' };
+}
+
+/**
+ * gitee 镜像计划（纯函数，单测覆盖）：与 GitHub 端对称的幂等语义——
+ * release 不存在→创建；同名附件已存在→先删后传（gitee attach_files 无 upsert）。
+ * @returns {{createRelease:boolean, deletes:{id:number|string,name:string}[], uploads:string[]}}
+ */
+export function giteeMirrorPlan({ hasRelease, assetNames, existingAssetNames }) {
+  const norm = (x) => String(x).toLowerCase();
+  const existing = new Map((existingAssetNames ?? []).map((n) => [norm(n), n]));
+  const deletes = [];
+  const uploads = [];
+  for (const a of assetNames ?? []) {
+    const hit = existing.get(norm(a));
+    if (hit !== undefined) deletes.push({ name: hit, id: hit });
+    uploads.push(a);
+  }
+  return { createRelease: !hasRelease, deletes, uploads };
+}
+
+export function giteeDownloadUrl({ repo, tag, assetName }) {
+  return `https://gitee.com/${repo}/releases/download/${tag}/${assetName}`;
+}
 function printUsage() {
   console.log([
-    '用法：node delivery/publish-release.mjs --tag Vx.y.z --zip <overall.zip> [--repo owner/name] [--notes <text>] [--apply] [--token <tok>]',
+    '用法：node delivery/publish-release.mjs --tag Vx.y.z --zip <overall.zip> [--repo owner/name] [--notes <text>] [--apply] [--token <tok>] [--mirror-gitee] [--gitee-token <tok>]',
+    '  --mirror-gitee：GitHub 成功后镜像同步 gitee Release（deploy.prompt v3.1.0 取包主源；令牌=GITEE_ACCESS_TOKEN/`--gitee-token`；要求 tag 已 git push gitee）；',
     '  默认 dry-run（零写操作）；--apply 才真正创建/上传 GitHub Release 资产。',
     '  token 解析顺序：GH_TOKEN env → --token → ~/.config/gh/hosts.yml（oauth_token，绝不打印）。',
   ].join('\n'));
@@ -224,6 +261,94 @@ async function ghFetch(url, token, init = {}) {
 }
 
 /**
+ * Gitee 镜像发布（deploy.prompt v3.1.0 起取包主源=gitee，国内宿主稳定）。
+ * 语义与 GitHub 端对称：dry-run 只出计划零写；--apply 才建 release/传附件。
+ * 差异点（真机实测沉淀，勿"优化"掉）：
+ *  - POST /releases 必带 target_commitish（缺=422）；PATCH 类接口必带 name（缺=400）。
+ *  - 附件端点= /releases/{id}/attach_files（multipart 字段 file+access_token，201 成功）；
+ *    无 upsert ⇒ 同名先 GET attach_files 列表、DELETE 旧、再 POST。
+ *  - 下载 URL 302→foruda 一次性签名 ⇒ 消费型，验证下载必须整文件，不可 -C -。
+ * @returns {Promise<number>} 0=成功（或 dry-run）；1=写失败；2=前置缺项
+ */
+async function mirrorToGitee({ repo, tag, assets, notes, apply, giteeToken, fetchImpl = fetch }) {
+  const dry = !apply;
+  console.log(`\n== gitee 镜像（${dry ? 'DRY-RUN：零写操作' : 'APPLY：真实镜像发布'}）==`);
+  if (!giteeToken) {
+    console.error('✗ --mirror-gitee 需要 gitee 令牌：GITEE_ACCESS_TOKEN env 或 --gitee-token（值不打印）');
+    return 2;
+  }
+  const api = GITEE_API;
+  const q = (o) => { const p = new URLSearchParams({ access_token: giteeToken, ...o }); return p; };
+  const gj = async (path, init = {}) => {
+    const res = await fetchImpl(`${api}${path}`, init);
+    let body = null;
+    try { body = await res.json(); } catch { /* 非 JSON */ }
+    return { status: res.status, body };
+  };
+  // 1) tag 存在性预检（gitee release 依赖已推送的 git tag——本函数不负责推 tag）。
+  const tags = await gj(`/repos/${repo}/tags`);
+  const tagNames = (tags.status === 200 && Array.isArray(tags.body) ? tags.body : []).map((x) => x && x.name);
+  if (!tagNames.includes(tag)) {
+    console.error(`✗ gitee 端无 tag ${tag}（先 git push gitee ${tag}；本脚本不建 tag）`);
+    return 2;
+  }
+  // 2) release 查询（按 tag）。
+  const rel = await gj(`/repos/${repo}/releases/tags/${tag}?` + q().toString());
+  const hasRelease = rel.status === 200 && rel.body && rel.body.id;
+  // 3) 既有附件列表（同端点 body.assets 在部分响应缺省 ⇒ 再打 attach_files 列表端点兜底）。
+  let existingAssets = (hasRelease && Array.isArray(rel.body.assets)) ? rel.body.assets : [];
+  if (hasRelease && existingAssets.length === 0) {
+    const al = await gj(`/repos/${repo}/releases/${rel.body.id}/attach_files?` + q().toString());
+    if (al.status === 200 && Array.isArray(al.body)) existingAssets = al.body;
+  }
+  const plan = giteeMirrorPlan({ hasRelease, assetNames: assets.map((a) => a.name), existingAssetNames: existingAssets.map((a) => a.name) });
+  for (const s of (plan.createRelease ? ['POST /releases（tag=' + tag + '）'] : [`复用 release id=${rel.body.id}`])) console.log(`  计划   : ${s}`);
+  for (const d of plan.deletes) console.log(`  计划   : 删同名旧附件 ${d.name}`);
+  for (const u of plan.uploads) console.log(`  计划   : 上传 ${u} → ${giteeDownloadUrl({ repo, tag, assetName: u })}`);
+  if (dry) { console.log('✓ gitee DRY-RUN 完成（零写）。'); return 0; }
+
+  let releaseId = hasRelease ? rel.body.id : null;
+  if (plan.createRelease) {
+    const created = await gj('/repos/' + repo + '/releases', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: q({ tag_name: tag, name: tag, target_commitish: 'main', body: notes ?? `WinVM Bridge ${tag} overall 发布包（gitee 镜像 · 与 GitHub Release 同 zip 同 sha）` }).toString(),
+    });
+    if ((created.status === 201 || created.status === 200) && created.body && created.body.id) {
+      releaseId = created.body.id;
+      console.log(`  ✓ gitee release 已创建：id=${releaseId}`);
+    } else {
+      console.error(`✗ gitee release 创建失败（HTTP ${created.status}）：${JSON.stringify(created.body).slice(0, 300)}`);
+      return 1;
+    }
+  }
+  // 4) 同名旧附件先删（gitee 删除端点参数形态：DELETE /releases/{rid}/attach_files/{id}）。
+  for (const d of plan.deletes) {
+    const old = existingAssets.find((a) => a.name === d.name);
+    if (!old || old.id == null) continue;
+    const del = await gj(`/repos/${repo}/releases/${releaseId}/attach_files/${old.id}?` + q().toString(), { method: 'DELETE' });
+    if (del.status >= 400) { console.error(`✗ 删旧附件失败 ${d.name}（HTTP ${del.status}）`); return 1; }
+    console.log(`  ✓ 旧同名附件已删：${d.name}`);
+  }
+  // 5) 逐附件上传（multipart）。
+  for (const a of assets) {
+    const buf = readFileSync(a.path);
+    const fd = new FormData();
+    fd.append('access_token', giteeToken);
+    fd.append('file', new Blob([buf], { type: a.contentType }), a.name);
+    const up = await gj(`/repos/${repo}/releases/${releaseId}/attach_files`, { method: 'POST', body: fd });
+    if ((up.status === 201 || up.status === 200) && up.body && (up.body.id || up.body.download_url || up.body.browser_download_url)) {
+      console.log(`  ✓ gitee 上传成功：${a.name}（asset id=${up.body.id}）`);
+    } else {
+      console.error(`✗ gitee 上传失败 ${a.name}（HTTP ${up.status}）：${JSON.stringify(up.body).slice(0, 300)}`);
+      return 1;
+    }
+  }
+  console.log(`  gitee 下载 URL : ${giteeDownloadUrl({ repo, tag, assetName: assets[0].name })}`);
+  return 0;
+}
+
+/**
  * 主流程。
  * @param {string[]} argv
  */
@@ -289,6 +414,10 @@ export async function main(argv = process.argv.slice(2)) {
 
   if (dry) {
     console.log('\n✓ DRY-RUN 完成（未发送任何写请求）。加 --apply 执行真实上架。');
+    if (args.mirrorGitee) {
+      const gTok = resolveGiteeToken({ tokenArg: args.giteeToken });
+      await mirrorToGitee({ repo: repoInfo.repo, tag, assets, notes: args.notes, apply: false, giteeToken: gTok.token });
+    }
     return 0;
   }
   if (!tok.token) { console.error('\n✗ --apply 必须有 token（GH_TOKEN / --token / gh hosts.yml 三者之一）'); return 2; }
@@ -346,6 +475,15 @@ export async function main(argv = process.argv.slice(2)) {
   console.log(`  匿名下载 URL : ${zipAsset.browser_download_url}`);
   if (sidecarExists) console.log(`  校验旁挂 URL : https://github.com/${repoInfo.repo}/releases/download/${tag}/${zipName}.sha256`);
   console.log(`  （新鸿蒙机 WorkBuddy 用此 URL curl；sha256 校验对照旁挂文件 sha256sum -c 或 qa/release/${tag}-pack.txt 的 overall-zip 行）`);
+  // —— gitee 镜像（deploy.prompt v3.1.0 取包主源；--mirror-gitee 才执行，失败 fail-loud）——
+  if (args.mirrorGitee) {
+    const gTok = resolveGiteeToken({ tokenArg: args.giteeToken });
+    const rc = await mirrorToGitee({
+      repo: repoInfo.repo, tag, assets, notes: args.notes,
+      apply: true, giteeToken: gTok.token,
+    });
+    if (rc !== 0) { console.error(`\n✗ gitee 镜像失败（rc=${rc}）——GitHub 侧已成功，可单独重跑镜像段。`); return rc; }
+  }
   return 0;
 }
 

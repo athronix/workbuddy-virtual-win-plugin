@@ -25,6 +25,10 @@ import {
   assertTag,
   buildAssetList,
   DEFAULT_REPO,
+  resolveGiteeToken,
+  giteeMirrorPlan,
+  giteeDownloadUrl,
+  GITEE_API,
 } from '../../delivery/publish-release.mjs';
 import {
   zipNameFor,
@@ -316,4 +320,41 @@ test('buildHeaders：不传 init.headers 时仅默认头+token；无 token 无 A
   const h = buildHeaders('tk');
   assert.equal(h.Authorization, 'Bearer tk');
   assert.ok(!('Content-Type' in h));
+});
+
+/* ============ Gitee 镜像纯函数（deploy.prompt v3.1.0 取包主源配套） ============ */
+
+test('gitee：resolveGiteeToken 优先级 env→--gitee-token→none（值透传但不用于断言外泄）', () => {
+  const a = resolveGiteeToken({ env: { GITEE_ACCESS_TOKEN: 'tk-env' }, tokenArg: 'tk-arg' });
+  assert.equal(a.source, 'GITEE_ACCESS_TOKEN');
+  const b = resolveGiteeToken({ env: {}, tokenArg: 'tk-arg' });
+  assert.equal(b.source, '--gitee-token');
+  const c = resolveGiteeToken({ env: { GITEE_ACCESS_TOKEN: '   ' }, tokenArg: null });
+  assert.equal(c.source, 'none');
+  assert.equal(c.token, null);
+});
+
+test('gitee：giteeMirrorPlan 无 release ⇒ 建 + 全量上传、零删除', () => {
+  const p = giteeMirrorPlan({ hasRelease: false, assetNames: ['a.zip', 'a.zip.sha256'], existingAssetNames: [] });
+  assert.equal(p.createRelease, true);
+  assert.deepEqual(p.deletes, []);
+  assert.deepEqual(p.uploads, ['a.zip', 'a.zip.sha256']);
+});
+
+test('gitee：giteeMirrorPlan 同名附件先删后传（大小写不敏感命中；gitee 会小写化落盘名）', () => {
+  const p = giteeMirrorPlan({
+    hasRelease: true,
+    assetNames: ['winvm-overall-V1.4.19.zip'],
+    existingAssetNames: ['winvm-overall-v1.4.19.zip'],
+  });
+  assert.equal(p.createRelease, false);
+  assert.equal(p.deletes.length, 1, '大小写不同也应判同名');
+  assert.equal(p.uploads[0], 'winvm-overall-V1.4.19.zip');
+});
+
+test('gitee：下载 URL 与 GitHub 端同构（releases/download/<tag>/<file>）', () => {
+  assert.equal(
+    giteeDownloadUrl({ repo: 'athronix/r', tag: 'V1.4.19', assetName: 'w.zip' }),
+    'https://gitee.com/athronix/r/releases/download/V1.4.19/w.zip');
+  assert.ok(GITEE_API.startsWith('https://gitee.com/api/v5'));
 });
