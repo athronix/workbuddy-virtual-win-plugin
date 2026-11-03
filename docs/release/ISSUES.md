@@ -367,13 +367,13 @@
 > **run11 分步计时基线（11-02 晚，V1.4.16 干净往返）**：有效总步时 **408s**（A 拆除 65s + B 重装 343s，36 有效步全 PASS、产品零重试；3 次重试全为 QA 脚手架自纠）。Top5=3.2a apply 125s(30.6%)/5.3 example 90s(22.1%)/5.2 a2a 34s/3.0 门禁 26s/5.1+U2.1 21s；三探针链 145s=35.5% 为最大可优化面（llmSession 冷启窗口 +48s vs run8 列观察项，非缺陷）。噪音 4 条全部被脚本既有注记预言（D3 ENOENT/connector-states ⚠/getcwd/powercfg GBK）。数据=`qa/evidence/run11-20261102-timings.csv`，报告=`qa/real-test-2026-11-02-run11.md`。
 
 
-## 迭代18 · V1.4.19（2026-11-03，取包源切 gitee 镜像版——开账）
+## 迭代18 · V1.4.19（2026-11-03，取包源切 gitee 镜像版——开账即关）
 
-> 状态：**进行中**。动因=用户令「deploy.prompt 发布包下载 URL 改 gitee（gitee 里应该发布对应版本）」。前置=镜像仓库已建（public、main+20 tags 与 GitHub 逐 sha 一致）；gitee Releases API 三坑实测=①POST /releases 必带 `target_commitish`（缺=422）②attach_files 无 upsert（同名 GET 列表→DELETE→POST，且 gitee 落盘名小写化=同名判定的大小写不敏感根因）③下载 302→foruda **一次性签名**（消费型，勿 -C - 续传）。V1.4.18 包+sidecar 已手工镜像并匿名验证（200/2899339B/sha `da4ec1bd…` 逐字节一致；latest 端点 tag=V1.4.18 可读）。
+> 状态：**已关闭（11-03 V1.4.19 发布链+gitee 分发路径包根复验）**。动因=用户令「deploy.prompt 发布包下载 URL 改 gitee（gitee 里应该发布对应版本）」。前置=镜像仓库已建（public、main+20 tags 与 GitHub 逐 sha 一致）；gitee Releases API 三坑实测=①POST /releases 必带 `target_commitish`（缺=422）②attach_files 无 upsert（同名 GET 列表→DELETE→POST，且 gitee 落盘名小写化=同名判定的大小写不敏感根因）③下载 302→foruda **一次性签名**（消费型，勿 -C - 续传）。V1.4.18 包+sidecar 已手工镜像并匿名验证（200/2899339B/sha `da4ec1bd…` 逐字节一致；latest 端点 tag=V1.4.18 可读）。
 
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
-| **I-6.19** | P3（分发链路优化） | **取包主源 GitHub→gitee 镜像**：deploy.prompt v3.1.0 Step 2.1 重写（BASE_GITEE 主+BASE_GH fallback+foruda 警示+判据① cd pkg 内跑）+latest 现解命令改 gitee API；`publish-release.mjs` 增 **`--mirror-gitee`**（GitHub 成功后自动镜像：tag 预检→release 建/复用→同名附件删后传→双资产上传；dry-run 出计划；令牌 GITEE_ACCESS_TOKEN/--gitee-token 不落盘不打印）；纯函数 giteeMirrorPlan/resolveGiteeToken/giteeDownloadUrl+单测 ×4（36/36）。**今后发布链标准动作=pack→push origin→git push gitee <tag>→publish --apply --mirror-gitee**（双端同 tag 同 sha），V1.4.19 起 dogfooding 首用。母本 v3.3/strategy v3.18 同步。 | 进行中（V1.4.19 发布链=首用+复验） |
+| **I-6.19** | P3（分发链路优化） | **取包主源 GitHub→gitee 镜像**：deploy.prompt v3.1.0 Step 2.1 重写（BASE_GITEE 主+BASE_GH fallback+foruda 警示+判据① cd pkg 内跑）+latest 现解命令改 gitee API；`publish-release.mjs` 增 **`--mirror-gitee`**（GitHub 成功后自动镜像：tag 预检→release 建/复用→同名附件删后传→双资产上传；dry-run 出计划；令牌 GITEE_ACCESS_TOKEN/--gitee-token 不落盘不打印）；纯函数 giteeMirrorPlan/resolveGiteeToken/giteeDownloadUrl+单测 ×4（36/36）。**今后发布链标准动作=pack→push origin→git push gitee <tag>→publish --apply --mirror-gitee**（双端同 tag 同 sha），V1.4.19 起 dogfooding 首用。母本 v3.3/strategy v3.18 同步。 | **run12 已闭环（V1.4.19）**：`--mirror-gitee` 首用=一条命令双端上架（GitHub 2 资产+gitee 2 资产 [release id=1269546]，gitee 自动附带的 V1.4.19.zip/tar.gz 源码包系平台行为非缺陷）；**gitee 匿名下载逐字节一致**（200/2901242B/sha `406f623f…`）、latest 双端=V1.4.19；包根直接换成 **gitee 下载包**（真实分发路径复验）install-host rc=0/FRESH/disabledTools=8/8 skill/health=200。 |
 
 ## 迭代17 · V1.4.17（2026-11-03，run11 坑产品化版——开账）
 
