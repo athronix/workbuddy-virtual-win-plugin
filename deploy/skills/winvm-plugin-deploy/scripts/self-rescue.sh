@@ -51,9 +51,27 @@ case "${1:-check}" in
     _mcp_call "app.process.launch" "{\"target\":\"shutdown\",\"arguments\":\"/r /t $D /f\"}"
     echo "→ 等 ~90s 后 bash $HERE/wait-channel.sh 3 10 判稳；隧道若 DEGRADED：node delivery/winvm-plugin.mjs tunnel ensure"
     ;;
+  rhythm-check)
+    # 交替采样 6×60s（run13 定谳法）：ssh 新连 rc=124 持续 而 tunnel_health 稳定 200
+    #   ⇒ guest vCPU 在跑（HTTP 有应答）但 sshd 监听栈周期性冻 =【hypervisor 自动暂停
+    #   反复把 VM 挂起】指纹——restart sshd / reboot guest 只能短暂复活，根治必须去
+    #   虚拟机管理端把「自动暂停」设为从不（deploy.prompt Step 0.3），勿在 driver 里耗轮次。
+    S1=0; S0=0
+    for i in 1 2 3 4 5 6; do
+      timeout 20 ssh -o BatchMode=yes -o ConnectTimeout=8 "${VM_USER:-User}@${VM_HOST:-172.16.100.2}" whoami >/dev/null 2>&1 && R=OK || R=124
+      H=$(curl -sS --noproxy 127.0.0.1 -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:18443/health" 2>/dev/null || echo ERR)
+      echo "[$(date +%H:%M:%S)] sample$i ssh=$R tunnel=$H"
+      [ "$R" = OK ] && S1=$((S1+1)); [ "$H" = 200 ] && S0=$((S0+1))
+      [ $i -lt 6 ] && sleep 55
+    done
+    if [ $S1 -eq 0 ] && [ $S0 -ge 5 ]; then
+      echo "VERDICT=PERIODIC_SUSPEND：ssh 全灭+隧道全活 ⇒ hypervisor 自动暂停指纹；根治=虚拟机管理端『自动暂停=从不+开机自启』（Step 0.3），非重启可解"
+      exit 3
+    elif [ $S1 -ge 4 ]; then echo "VERDICT=CHANNEL_HEALTHY"; else echo "VERDICT=MIXED（继续按 rc=124 行/开机期处置）"; fi
+    ;;
   restart-service)
     SVC="${2:-sshd}"
     _mcp_call "system.service.control" "{\"name\":\"$SVC\",\"action\":\"restart\"}"
     ;;
-  *) echo "用法：self-rescue.sh check | restart-guest [秒] | restart-service [sshd]" >&2; exit 2 ;;
+  *) echo "用法：self-rescue.sh check | rhythm-check | restart-guest [秒] | restart-service [sshd]" >&2; exit 2 ;;
 esac
