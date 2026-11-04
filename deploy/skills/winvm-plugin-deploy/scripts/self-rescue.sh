@@ -65,9 +65,17 @@ case "${1:-check}" in
       [ $i -lt 6 ] && sleep 55
     done
     if [ $S1 -eq 0 ] && [ $S0 -ge 5 ]; then
-      echo "VERDICT=PERIODIC_SUSPEND：ssh 全灭+隧道全活 ⇒ hypervisor 自动暂停指纹；根治=虚拟机管理端『自动暂停=从不+开机自启』（Step 0.3），非重启可解"
+      # run14 取证二分（勿再把 SSHD 栈坏死误读成暂停）：隧道 HTTP 持续 200 = guest vCPU 在跑
+      # =【没被暂停】（暂停时 vm-service 必无应答）。看 lastBootUpTime 佐证，判 WEDGE。
+      echo "VERDICT=SSHD_STACK_WEDGE：ssh 新连全灭而隧道 HTTP 持续 200 ⇒ vCPU 活着（非暂停），sshd 监听栈坏死"
+      echo "  取证三连：①system.info.get 看 lastBootUpTime（未变=期间没重启）②隧道持续 200（=没暂停）"
+      echo "  ③restart-service sshd 与 taskkill /F /T 树均实测无效（后者还会瞬断既有隧道=副作用慎用）。"
+      echo "  解药=guest 整机重启（self-rescue restart-guest）且重启后仅 ~7-11min 健康窗（run14 实测）——"
+      echo "  长链 driver 抢不进该窗：勿硬跑，按环境级故障上报（查 Defender 网络过滤/vEthernet/域）。"
       exit 3
-    elif [ $S1 -ge 4 ]; then echo "VERDICT=CHANNEL_HEALTHY"; else echo "VERDICT=MIXED（继续按 rc=124 行/开机期处置）"; fi
+    elif [ $S1 -eq 0 ] && [ "$S0" -lt 5 ]; then
+      echo "VERDICT=PERIODIC_SUSPEND：ssh 与隧道【都】间歇挂 ⇒ guest 被整体冻/放（真暂停指纹），查虚拟机管理端『自动暂停=从不』（Step 0.3）"; exit 3
+    elif [ $S1 -ge 4 ]; then echo "VERDICT=CHANNEL_HEALTHY"; else echo "VERDICT=MIXED（零星通=坏态进行窗，勿耗 driver，取证三连定性）"; fi
     ;;
   restart-service)
     SVC="${2:-sshd}"
