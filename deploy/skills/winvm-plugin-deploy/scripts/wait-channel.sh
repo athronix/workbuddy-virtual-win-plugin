@@ -4,7 +4,10 @@
 # 语义：每发 ssh whoami（CT=15、外层 timeout 45），需【连续】N 次成功才判稳退出 0；
 #       轮间 sleep 75s（自毒纪律：密集重试让 VM 侧半开 auth 槽不释放，稀疏反通）；
 #       全轮未稳 → 退出 1 并提示走能力通道自救（见 SKILL 铁律/自救路径）。
-# 预算：单轮最坏 45s+75s；调用方外层 timeout 必须 ≥ rounds×120（否则外层先杀=白跑，run13 亲犯两次的课）。
+# 预算（run14 三犯实锤强化）：单轮最坏 45s+75s=120s；调用方外层 timeout 必须 ≥ rounds×120
+#   （如 3 连击×10 轮 → 给 1300s；给 400s 会在第 4 轮前误杀成「判稳失败」假象）。
+# 重启后纪律：restart-guest 后 Windows 冷启+sshd+域解析实测 ~5-8min 才通——首轮 poll 前
+#   先 sleep ≥240s 再进判稳，别用 100s 短睡开测（run14：18:43 判 DOWN、18:44 手工却已通）。
 set -u
 : "${VM_HOST:?VM_HOST 未设}"
 : "${VM_USER:=User}"; : "${VM_SSH_PORT:=22}"

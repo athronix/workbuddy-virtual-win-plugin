@@ -42,6 +42,7 @@
 | shell-init getcwd 警告刷屏 | 沙箱固有 | 判据字段 ASCII 不受影响；X-4 放行（capture 用 2>/dev/null） |
 | 大文档批量 Edit 后内容缩水/出现字面 `\n` | python 普通串转义 | 每处 assert count==1 + 写后 grep 扫 `|\n|` 字面（项目铁律） |
 | 明文密码落 .env | 交付残留风险 | env.example 注释化该键；部署完删行（deploy-reports 提醒） |
+| **「判稳失败/NO_CHANNEL」但同刻手工单发却通** | 调用方外层 `timeout` < 被包脚本最坏时长（rounds×120s 量级），把仍在判稳的循环中途杀成失败假象；或 reboot 后 100s 短睡就开测而 Windows+sshd 实需 5-8min | 外层预算 ≥ rounds×120（wait-channel 头注）；restart 后首轮前 sleep ≥240s；判稳失败先**手工单发复测一次**再定性（run14 18:45 假失败/18:44 已通的错位实证） |
 | 一行式内嵌 python/sed 报 syntax error/rc=127 撕碎整链 | 双引号里嵌套单引号被 shell eval 拆坏（run13 实证：token 提取一行式炸整链；与「禁内联含 $」同源的第二形态） | 复杂逻辑一律 `cat > x.py <<'EOF'` 落盘再跑；令牌经文件/环境变量中转并即删；同族=python 普通串 `\n`/路径转义坑 |
 
 ## D. gitee 发布面（取包主源特有）

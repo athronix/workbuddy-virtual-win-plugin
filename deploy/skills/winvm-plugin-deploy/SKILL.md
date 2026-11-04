@@ -1,7 +1,7 @@
 ---
 name: winvm-plugin-deploy
 description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.1.1：run13 增通道判稳器/能力通道自救/rhythm-check 周期暂停定性/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
-version: 1.1.1
+version: 1.1.2
 agent_created: true
 ---
 
@@ -58,7 +58,7 @@ bash scripts/step.sh report              # 计时汇总；交付报告=总表+To
 ```bash
 bash scripts/self-rescue.sh check              # health=200? sshd Running? banner 8s 不吐?（形态确认）
 bash scripts/self-rescue.sh restart-guest 8    # 能力通道发 shutdown /r /t 8 /f（审计在册）
-bash scripts/wait-channel.sh 3 10              # 稀疏轮询判稳（75s 间隔，3 连击）
+bash scripts/wait-channel.sh 3 10              # 稀疏轮询判稳（75s 间隔 3 连击）；⚠ 外层 timeout ≥ rounds×120、reboot 后睡 240s 再测（run14 课）
 bash scripts/self-rescue.sh rhythm-check      # 交替采样：若 ssh 全灭+隧道全活 ⇒ hypervisor 自动暂停指纹，
                                               # 根治只在虚拟机管理端『自动暂停=从不』（Step 0.3）——先改设置再重跑，勿在 driver 里耗轮次
 # 隧道若 DEGRADED：node delivery/winvm-plugin.mjs tunnel ensure（自检自动重建）
