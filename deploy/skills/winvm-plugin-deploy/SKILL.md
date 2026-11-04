@@ -1,7 +1,7 @@
 ---
 name: winvm-plugin-deploy
 description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
-version: 1.0.0
+version: 1.0.1
 agent_created: true
 ---
 
@@ -13,9 +13,10 @@ agent_created: true
 
 1. **取包 gitee 主源、github 备源**；tag 以 `releases/latest` 现解为准（gitee API），示例值仅参考。
 2. **远端 PowerShell 铁律**：复合逻辑=写 `.ps1` → scp → `powershell -File`；短片段=`-EncodedCommand`（base64 UTF-16LE）。**任何情况下不双引号内联含 `$` 的 PS**——本地 bash 与远端壳都会吞改（R8 安装链 183 次失败、run11 本地 `$_` 展开两案定谳）。本技能一律经 `scripts/ps-run.sh`。
-3. **宿主删文件禁 `rm`**（部分鸿蒙宿主坏 shim）→ `fs_rm`（node fs）。
+3. **宿主删文件禁 `rm`**（部分鸿蒙宿主坏 shim=`bad interpreter`）→ `fs_rm`（node fs）。禁 `rm -rf <目录>` 式清理——**误写 `rm -f ~/.config` 类通配/目录删除可能被沙箱提权批准后真执行**；清理具体文件用 `node -e 'fs.unlinkSync(路径)'`（存在性先判断，幂等）。
 4. **ssh/scp 必须外层 timeout**：VM sshd 连接位占满时 TCP 层**无限挂起**（连 BatchMode 不退，实测卡死 8 分钟）——`vm-conn.sh` 已内建 `VM_SSH_TIMEOUT=25`。
-5. **密码只走环境变量**（askpass / `WINVM_VM_PASSWORD`），不落盘不进命令行；`.env` 凭据 V1.4.20 起自动回注。
+4. **shell 拼接纪律**：命令行内嵌 python/sed 含嵌套单引号会被 eval 撕碎（run13 实证：token 提取一行式炸整链 exit 127）→ 复杂逻辑一律先写脚本文件再执行；令牌经文件/环境变量中转并即删。
+5. **密码只走环境变量**（askpass / `WINVM_VM_PASSWORD`），不落盘不进命令行；`.env` 凭据 V1.4.20 起自动回注（旧包=外部 export 后跑 setup）。
 6. **每步判据自检不过 = 停**：按四元组（现象/根因/证据/处置）记录并查 `references/troubleshooting.md`，不跳步硬推；缺信息问用户（P-1）。
 
 ## 安装主流程（deploy.sh 一键化，对应 deploy.prompt Step 0→6）
@@ -31,7 +32,7 @@ bash scripts/deploy.sh                      # DRY-RUN：体检+通道+计划预�
 bash scripts/deploy.sh --apply              # 真执行：通道→取包→prepare→setup→vmcheck→host→38探针→交付
 ```
 
-- 每环节自动计时留痕到 `~/wbtmp/vmdeploy-run-<日期>/steps.tsv`；收尾打 Top5/问题行/失败行。
+- 每环节自动计时留痕到 `~/wbtmp/vmdeploy-run-<日期>/steps.tsv`（显式指定 `export VMDEPLOY_RUN_DIR=~/wbtmp/vmdeploy-run13-<日期>` 使多日/多轮不混算）；收尾打 Top5/问题行/失败行。
 - 幂等：任一相位失败 → 查表处置后**只重跑失败相位**（deploy.sh 各步独立可重入）。
 - BUILD 假败（缺 typescript）、.env 密码不回注 两坑已在 ≥V1.4.20 包内根除；旧包按 troubleshooting B 表绕行。
 

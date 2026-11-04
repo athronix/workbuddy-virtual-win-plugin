@@ -11,6 +11,7 @@
 | `Permission denied (publickey)`（明明免密在） | 宿主 `~/.ssh` 属主随 uid 漂移（沙箱 uid 跨调用变化），known_hosts/id_ed25519 权限位失效 | 编排走独立选项 `-F /dev/null -o UserKnownHostsFile=/dev/null`（vm-conn 密码通道已内建）；长期=两把密钥分开（GitHub 用 id_ed25519_github，VM 通道重建用默认键） |
 | sshd 在跑、端口在听，但 TCP 超时 | 防火墙规则 Profile 与网卡 Profile 不匹配（R3） | VM 管理员：`Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Profile Any`；诊断见 preflight FW= 行 |
 | 连不上且 ping 通 | VM 被 hypervisor 暂停/睡眠 | VM 管理端设「自动暂停=从不 + 开机自启」；guest 内电源只是部分（prepare-vm DB-5） |
+| **ping 100% 丢包** | VM 整机离线（hypervisor 关机/暂停/网络断开） | **P-4 人工点：非任何脚本可解**——用户在 VM 管理端开机/恢复后重试；期间 skill 离线件（env-detect/download-verify/pack 校验）不受阻可先行 |
 | ssh 传 `/End` 变 `C:/.../End`、`$_` 变路径 | 远端默认壳=Git-Bash/MSYS 改写 | 铁律通道（见 B 首行） |
 | 内联 PowerShell 报 ParserError/怪值 | 双引号命令串里 `$_`/`$p` 被**本地** bash 先展开（run11 0.4 实测） | 与远端同权对待：单引号 heredoc 写 `.ps1` → ps-run；短片段 `-c` 走 EncodedCommand |
 
@@ -41,6 +42,7 @@
 | shell-init getcwd 警告刷屏 | 沙箱固有 | 判据字段 ASCII 不受影响；X-4 放行（capture 用 2>/dev/null） |
 | 大文档批量 Edit 后内容缩水/出现字面 `\n` | python 普通串转义 | 每处 assert count==1 + 写后 grep 扫 `|\n|` 字面（项目铁律） |
 | 明文密码落 .env | 交付残留风险 | env.example 注释化该键；部署完删行（deploy-reports 提醒） |
+| 一行式内嵌 python/sed 报 syntax error/rc=127 撕碎整链 | 双引号里嵌套单引号被 shell eval 拆坏（run13 实证：token 提取一行式炸整链；与「禁内联含 $」同源的第二形态） | 复杂逻辑一律 `cat > x.py <<'EOF'` 落盘再跑；令牌经文件/环境变量中转并即删；同族=python 普通串 `\n`/路径转义坑 |
 
 ## D. gitee 发布面（取包主源特有）
 
@@ -48,7 +50,7 @@
 |---|---|---|
 | gitee 下载二次续传 403 | 302→foruda 是**一次性签名** URL | 失败=整文件重试（勿 `-C -`）；github 备源可续传（deploy.prompt v3.1.0 已按此写） |
 | `sha256sum -c` 报 no such file winvm-overall-... | sidecar 内是相对名 | 判据①必须 `cd pkg/` 后跑（driver 已内建） |
-| gitee API 建 release 422 / 改库 400 | POST /releases 必带 `target_commitish`；PATCH /repos 必带 `name` | publish-release.mjs --mirror-gitee 已内建；手工调 API 时记住 |
+| gitee API 建 release 422 / 改库 400 | POST /releases 必带 `target_commitish`；PATCH /repos 必带 `name` | publish-release.mjs --mirror-gitee 已内建；手工调 API 时记住 | / 改库 400 | POST /releases 必带 `target_commitish`；PATCH /repos 必带 `name` | publish-release.mjs --mirror-gitee 已内建；手工调 API 时记住 |
 | 附件"删了又出现"重复 | attach_files 无 upsert 且落盘名会小写化 | 同名判定要大小写不敏感；先 DELETE 再 POST（mirror 逻辑已处理） |
 
 ## E. 版本门槛速查（问题 ↔ 修复起始版本）
