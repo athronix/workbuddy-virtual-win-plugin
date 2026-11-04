@@ -1,7 +1,7 @@
 ---
 name: winvm-plugin-deploy
-description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
-version: 1.0.1
+description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.1.0：run13 增通道判稳器/能力通道自救/banner 挂起定谳/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
+version: 1.1.0
 agent_created: true
 ---
 
@@ -51,6 +51,19 @@ bash scripts/verify.sh                   # 三探针 38 项 + 终态矩阵（fre
 bash scripts/step.sh report              # 计时汇总；交付报告=总表+Top5+问题清单直接成文
 ```
 
+## 通道自救路径（run13 定谳：ssh 通道死、MCP 隧道活的组合态）
+
+判据形态：`ssh` TCP 秒连但 **banner 8s 不吐**（node 裸探针可证）、sshd 服务 Running、`restart sshd` 无效、RDP 亦超时——= guest 监听栈僵死/半开堆积，**旧长连接仍可用来救场**。此时**先走能力通道，勿找 hypervisor**：
+
+```bash
+bash scripts/self-rescue.sh check              # health=200? sshd Running? banner 8s 不吐?（形态确认）
+bash scripts/self-rescue.sh restart-guest 8    # 能力通道发 shutdown /r /t 8 /f（审计在册）
+bash scripts/wait-channel.sh 3 10              # 稀疏轮询判稳（75s 间隔，3 连击）
+# 隧道若 DEGRADED：node delivery/winvm-plugin.mjs tunnel ensure（自检自动重建）
+```
+
+预算纪律（run13 亲犯两次的课）：**外层 `timeout` ≥ 内层最坏耗时总和**——probe 五试最坏 5×(VST+15s)≈275s，包它的 timeout 给 300s 起；外层先杀=整段白跑还留下"失败假象"误导诊断。
+
 ## 卡住时（先查表再动手）
 
 `references/troubleshooting.md`：按现象组织（A 通道网络 / B 安装拆除 / C 宿主特例 / D gitee 发布面 / E 版本门槛速查）。高频五例：
@@ -72,6 +85,8 @@ bash scripts/step.sh report              # 计时汇总；交付报告=总表+To
 | `ps-run.sh` | 铁律执行器：`ps-run.sh x.ps1`（ASCII 门禁+推送+执行+远端清理）；`-c '单行'` EncodedCommand |
 | `preflight.sh` | Step 0 一键体检（信息/运行时/通道/VM 前置 sshd·node·防火墙），RED/YELLOW/GREEN+逐项修复命令 |
 | `download-verify.sh` | 取包三件套（gitee 主+github 备、sha256、解压、verify-manifest）→ `PKG_ROOT=` |
+| `wait-channel.sh` | 通道判稳器：稀疏轮询（75s 间隔）连击 N 判稳；冷开机/挂起期勿单发判死（run13 沉淀） |
+| `self-rescue.sh` | 能力通道自救三合一：check（health+sshd+banner 探针定谳挂起形态）/ restart-guest（shutdown /r 经 app.process.launch）/ restart-service；隧道健在时免碰 hypervisor（run13 实测 ~70s 复活） |
 | `deploy.sh` / `undeploy.sh` | 主流程 driver（默认 dry-run；--apply 真执行；全程 step 计时） |
 | `verify.sh` | 三探针 + 终态矩阵（装后随时可跑） |
 | `step.sh` | 分步计时/留痕/汇总（begin/end/log/report） |
