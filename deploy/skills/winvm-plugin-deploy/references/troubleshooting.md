@@ -7,7 +7,7 @@
 | 现象 | 根因 | 解法 |
 |---|---|---|
 | `vmssh whoami` 挂起、**rc=124 且 stderr 为空**（TCP 已连、认证阶段不回；run13 定谳=VM 开机后 3~10min 挂起期+密集重试自毒半开槽） | sshd 连接位被占满/开机期 auth 挂起（Windows OpenSSH 开机负载+域解析慢；BatchMode/ConnectTimeout 救不了 TCP 层挂起） | ①ssh/scp 外层必包 `timeout`；②**probe 三试间隔 15s**（run13 起；3s 太密会自毒）；③调用方 timeout 预算 ≥3×(VM_SSH_TIMEOUT+15)+余量（如 35s×3+30≈150s 起，**外层小于内层=白跑**）；④冷开机期判 RED 前至少等 5 分钟再单发复测；⑤>10min 仍挂=VM 内管理员 `Restart-Service sshd`；⑥禁并发多轨同 VM |
-| **ssh 新连持续 rc=124 全灭，但 tunnel health 稳定 200**（6×60s 交替采样指纹；`self-rescue.sh rhythm-check` 一键判） | **hypervisor 自动暂停反复挂起 VM**（guest 每次被冻/解冻，sshd 监听栈随之坏死；restart sshd/reboot guest 均短暂复活再犯） | **根治只在虚拟机管理端：自动暂停=从不 + 开机自启**（deploy.prompt Step 0.3 人工点）；确认设置前勿起 driver（必半途而废），自救仅用于拿通道快照 |\n| 偶发一两次 `Permission denied`/超时，复跑即好 | 桥接链路抖动（R4） | `vmssh/vmscp` 三试+2s；勿当配置错误排查 |
+| **ssh 新连持续 rc=124 全灭，但 tunnel health 稳定 200**（6×60s 交替采样指纹；`self-rescue.sh rhythm-check` 一键判） | **hypervisor 自动暂停反复挂起 VM**（guest 每次被冻/解冻，sshd 监听栈随之坏死；restart sshd/reboot guest 均短暂复活再犯） | **根治只在虚拟机管理端：自动暂停=从不 + 开机自启**（deploy.prompt Step 0.3 人工点）；确认设置前勿起 driver（必半途而废），自救仅用于拿通道快照。注意形态可为**分钟级存活窗**（run13 三跑：判稳 3 连击后数分钟再灭、同小时 verify 全绿——判稳≠长跑保证；driver 长链在窗内跑不完的根因即此） |\n| 偶发一两次 `Permission denied`/超时，复跑即好 | 桥接链路抖动（R4） | `vmssh/vmscp` 三试+2s；勿当配置错误排查 |
 | `Permission denied (publickey)`（明明免密在） | 宿主 `~/.ssh` 属主随 uid 漂移（沙箱 uid 跨调用变化），known_hosts/id_ed25519 权限位失效 | 编排走独立选项 `-F /dev/null -o UserKnownHostsFile=/dev/null`（vm-conn 密码通道已内建）；长期=两把密钥分开（GitHub 用 id_ed25519_github，VM 通道重建用默认键） |
 | sshd 在跑、端口在听，但 TCP 超时 | 防火墙规则 Profile 与网卡 Profile 不匹配（R3） | VM 管理员：`Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Profile Any`；诊断见 preflight FW= 行 |
 | 连不上且 ping 通 | VM 被 hypervisor 暂停/睡眠 | VM 管理端设「自动暂停=从不 + 开机自启」；guest 内电源只是部分（prepare-vm DB-5） |

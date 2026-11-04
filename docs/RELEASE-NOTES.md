@@ -44,6 +44,8 @@
 | V1.4.16（11-02） | run9 脏场景实弹修复版（I-6.17·P1） | run9 判定 NO→同夜修复再实弹转绿：D7=CMSL 对象无 .Terminate()（PS5.1 MethodNotFound 静默空转=清扫只报告不杀，I-6.16 根治未闭环）→ Invoke-CimMethod -InputObject（修复后 WMI 诱饵实弹 KILLED）；D8=VM-START 成功路径吞日志→forwardVmStartEvidence helper 双调用点（setup/deploy-vm）转印哨兵进日志（E2E SWEEP 行可见+诱饵 KILLED+health200）；O-1 install-host states ⚠ 降噪；D9 环境事实=sshd job object 回收通道后代（注入配方改 WMI Create）。单测 +2 锁。报告 `qa/real-test-2026-11-02-run9.md` |
 | V1.4.17（11-03） | run11 坑产品化（执行者避坑清单版） | 3 执行者返工（会话态/相对路径/本地 `$_`）+4 噪音+冷启带宽 → 两 .prompt【执行者避坑清单】X-1~X-5（deploy v3.0.6/undeploy v2.5）+pack V11e；X-1 姿势机械化验证。run12 验证轮判据=零复发 |
 | V1.4.18（11-03） | run12 条款验证回写版 | run12=YES-with-nits：**X-1~X-3 零复发实锤**（39 步 RETRY=0，38/38 全绿）、X-4 四噪音全放行零停顿；回写 D-3 深冷带宽三档（~250s）+D-2 噪音捕获纪律+D-1 X-6 bash 全路径（/bin/bash=损坏 shim）→ deploy v3.0.7/undeploy v2.6。总步时 550s 基线。报告 `qa/real-test-2026-11-03-run12.md` |
+| V1.4.19（11-03） | 取包主源切 gitee 镜像（发布链自动化版） | gitee 镜像仓库 public+全 tag 对齐；deploy.prompt v3.1.0 Step 2.1=gitee 主源+github fallback（foruda 一次性签名警示）；publish-release `--mirror-gitee` 双端自动镜像上线（gitee Releases API 三坑=target_commitish 必带/attach_files 无 upsert 且落盘名小写化/下载消费签名） |
+| V1.4.20（11-04） | 用户实跑复盘收编+技能化（run13 首航版） | **deploy-reports 复盘三修复**：I-6.20 prepare-vm DB-3 三元数组展开（两态 93/62 行零逗号）/I-6.21 `injectCredentialEnv` .env 凭据回注（白名单+env 优先）/I-6.22 `decideBuildFallback` BUILD 降级 SKIP（假败根除）；**I-6.23 通道硬化**=两 .prompt vmssh/vmscp 外层 timeout VST（deploy v3.1.1/undeploy v2.7）；新交付 **winvm-plugin-deploy skill**（deploy/skills/，SKILL+12 脚本+2 参考，run13 沉淀至 v1.1.1：rhythm-check 周期暂停定性/self-rescue 能力通道自救/wait-channel 判稳/预算纪律）；p7-x567 锁 3/3 |
 
 ## 三、已知限制（如实，2026-10-15 批11~14 后态）
 
