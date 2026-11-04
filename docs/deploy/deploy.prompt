@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.1.0 · 取包源切 gitee 镜像（主）+GitHub（fallback）；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.1.1 · I-6.23 vmssh/vmscp 外层 timeout 硬化（sshd 占满 TCP 无限挂起解药）；前版=取包源切 gitee 镜像（主）+GitHub（fallback）；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -34,18 +34,21 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
     [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
   done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
-  export RELEASE_TAG=V1.4.19                   # ⚠ 示例值——以 releases/latest API 现解为准：
+  export RELEASE_TAG=V1.4.20                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL "https://gitee.com/api/v5/repos/athronix/workbuddy-virtual-win-plugin/releases/latest" | grep tag_name
     #   （gitee 与 github 双端镜像发同 tag 同 zip；gitee 端不可达时回退 api.github.com 同型命令）
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.19.zip
+  export ZIP=winvm-overall-V1.4.20.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
   # SSH 重试封装（R4：桥接链路偶发抖动，所有 ssh/scp 一律经它；判据不变、只加韧性）：
-  vmssh()  { for i in 1 2 3; do ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 \
+  # I-6.23（run 技能开发期实测）：VM sshd 连接位占满时 TCP 层【无限挂起】——ConnectTimeout
+  # 只管建连、BatchMode 也不退 ⇒ 外层必须 timeout（VST=25s/次；调优可 export VM_SSH_TIMEOUT）。
+  VST="${VM_SSH_TIMEOUT:-25}"
+  vmssh()  { for i in 1 2 3; do timeout "$VST" ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 \
               -p $VM_SSH_PORT $VM_USER@$VM_HOST "$@" && return 0; sleep 2; done; return 1; }
-  vmscp()  { for i in 1 2 3; do scp -P $VM_SSH_PORT -o ConnectTimeout=10 -o BatchMode=yes \
+  vmscp()  { for i in 1 2 3; do timeout "$VST" scp -P $VM_SSH_PORT -o ConnectTimeout=10 -o BatchMode=yes \
               "$@" && return 0; sleep 2; done; return 1; }
 
 ────────────────────────────────────────
@@ -264,6 +267,7 @@ Step 6 交付引导（不参与部署判据，但决定任务通道路由正确�
 - 公钥无效 → Administrators 成员必须写 C:/ProgramData/ssh/administrators_authorized_keys（icacls 用 SID）。
 - sshd 在跑端口在听但连不上（超时）→ 防火墙 Profile 不匹配（见 0.4，管理员 PS 一条命令修）。
 - 偶发 ssh/scp 一两次失败 → 桥接抖动，vmssh/vmscp 重试面内自愈，非缺陷。
+- ssh **无任何报错地长时间挂起** → VM sshd 连接位占满（TCP 层不退，BatchMode/ConnectTimeout 均救不了，I-6.23 实测）；v3.1.1 的 VST=25s 外层 timeout 已拦停重试，持续数分钟不恢复=VM 内管理员 `Restart-Service sshd` 或检查前会话遗留连接。
 - 部署报「✅ 完成」但服务没起 → .env WINVM_DRY_RUN 是否 =1。
 - 下载 (28) connect timeout → 2.1 已 gitee 主源+github fallback+重试面；单源全挂再检查网络，勿手改 URL 形态（gitee 下载须跟随 302，curl -L 已在默认行为）。
 - 隧道 TCP 通但 HTTP 黑洞 → tunnel status 看 ownerMatch/stateStale，kill 旧 pid 后 ensure；

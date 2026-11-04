@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.6 · run12 回写：X-4 噪音捕获纪律/X-6 bash 全路径（与 deploy v3.0.7 同规）；v2.5=run11 复盘产品化 X-1~X-4；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.7 · I-6.23 vmssh/vmscp 外层 timeout 硬化（与 deploy v3.1.1 同规）；v2.6=run12 回写：X-4 噪音捕获纪律/X-6 bash 全路径；v2.5=run11 复盘产品化 X-1~X-4；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、
@@ -37,9 +37,12 @@ v2.3 要点：prompt-verify 实跑收编（2026-11-02）——D1 NODE/PY 探测�
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 会把 --apply 降级成 dry-run（假拆）
   # export WINVM_SSH_PASSWORD=***             # 仅免密通道已失效、需重建时才注入；拆除本身不需要密码
   # SSH 重试封装（R4：桥接抖动；判据不变、只加韧性）：
-  vmssh()  { for i in 1 2 3; do ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 \
+  # I-6.23（run 技能开发期实测）：VM sshd 连接位占满时 TCP 层【无限挂起】——ConnectTimeout
+  # 只管建连、BatchMode 也不退 ⇒ 外层必须 timeout（VST=25s/次；调优可 export VM_SSH_TIMEOUT）。
+  VST="${VM_SSH_TIMEOUT:-25}"
+  vmssh()  { for i in 1 2 3; do timeout "$VST" ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=15 \
               -p $VM_SSH_PORT $VM_USER@$VM_HOST "$@" && return 0; sleep 2; done; return 1; }
-  vmscp()  { for i in 1 2 3; do scp -P $VM_SSH_PORT -o ConnectTimeout=10 -o BatchMode=yes \
+  vmscp()  { for i in 1 2 3; do timeout "$VST" scp -P $VM_SSH_PORT -o ConnectTimeout=10 -o BatchMode=yes \
               "$@" && return 0; sleep 2; done; return 1; }
 
 ────────────────────────────────────────
