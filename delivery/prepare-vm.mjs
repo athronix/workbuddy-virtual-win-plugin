@@ -154,7 +154,9 @@ export function buildPrepareVmApplyPs1(cfg) {
     '} else { Write-Output "[DB-6][SKIP] not admin; Defender needs elevation (or run tools/add-defender-exclusions.ps1 as admin)" }',
     '',
     '# ---- DB-3 Node >= 18 (optional; winget -> zip fallback) ----',
-    ensureNode
+    // X-5 修复（deploy-reports 复盘）：三元数组必须 ... 展开扁平化——裸置为 lines 元素时
+    // join('\r\n') 隐式 toString 逗号串接，生成的 .ps1 报「line 119 非法 ,」。
+    ...(ensureNode
       ? [
         '  $node = Get-Command node -ErrorAction SilentlyContinue',
         '  if ($node) { Write-Output ("[DB-3] node present " + (node -v) + " [SKIP]") }',
@@ -192,7 +194,7 @@ export function buildPrepareVmApplyPs1(cfg) {
         '    } catch { Write-Output ("[DB-3][MANUAL] zip install FAILED: " + $_.Exception.Message + " -- install Node >= 18 manually (INSTALL-GUIDE 1.3)") }',
         '  }',
       ]
-      : ['  Write-Output "[DB-3] node provisioning not requested (pass --ensure-node to enable winget/zip install)"'],
+      : ['  Write-Output "[DB-3] node provisioning not requested (pass --ensure-node to enable winget/zip install)"']),
     '',
     'Write-Output "PREPARE_VM_DONE"',
   ];

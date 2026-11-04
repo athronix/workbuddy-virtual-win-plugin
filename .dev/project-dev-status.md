@@ -100,6 +100,7 @@
 | **undeploy-prompts 立项+回环实测+V1.4.5 收编（10-27/28）** | ✅ v1.5；回环 38/38；I-6.3 入包 | deploy-prompts 逆向镜像。回环实测揪出 `uninstall.mjs` 两处镜像不对称并修复：U-1 全局 `~/.workbuddy/mcp.json` winvm 键不清（新增 cleanGlobalMcpJson）、U-2 `tunnel-autostart.json` 残留（补 markers）；核验清单动态 16→19 项口径、§8 --vm-host 兜底、排错补 2 条瞬态。⚠ 修复晚于 V1.4.4 打包（ISSUES 迭代7 追加） |
 | **纯 Prompt 脚本抽面+四轮回环+V1.4.8 收编 I-6.4（10-29）** | ✅ run3 拆 19/19+装 38/38；I-6.4 入包 |
 | **run7+发布态复验（11-02，迭代15→V1.4.14）** | ✅ 已闭环（V1.4.14） | 修复后两 .prompt 真机再往返：D1~D5 全 FIXED-VERIFIED；I-6.14 盘扫族服务端闸 120→300s+I-6.15 会话兜底；--wipe 复验抓僵尸 node 三式免疫实弹→VM 重启应急成文（v3.0.5/v2.4+V11d），发布态 19/19+38/38 |
+| **实跑复盘收编+部署技能化（11-03 晚，迭代19/V1.4.20+skill）** | 进行中 | deploy-reports 复盘→I-6.20/21/22 三修复+I-6.23 通道 timeout；`deploy/skills/winvm-plugin-deploy` v1.0.0（SKILL+9 脚本+2 参考，pack 校验过）；离线项实弹全绿，apply 路径待 VM 恢复（VM 掉线=P-4 人工点） |
 | **取包源切 gitee 镜像（11-03 下午，迭代18/V1.4.19）** | ✅ 已闭环（V1.4.19） | deploy.prompt v3.1.0 主源=gitee+fallback=github；publish-release --mirror-gitee 双端镜像（单测 36/36）；V1.4.19 发布链=首用+包根切换 |
 | **run11 坑产品化+run12 验证（11-03，迭代17→V1.4.18）** | ✅ 已闭环（V1.4.18） | X-1~X-5 避坑清单入册（V11e）；**run12=X 条款零复发实锤**（39 步 RETRY=0、38/38）+D-1/D-2/D-3 回写（X-6/捕获纪律/深冷带宽）=deploy v3.0.7/undeploy v2.6；总步时 550s 基线 |
 | **run8/9/10 连跑至零偏差（11-02 晚，迭代16→V1.4.16）** | ✅ 已闭环（V1.4.16） | run8=干净场景一次过（8m35s）；run9=脏场景 NO→I-6.17 同夜修复；**run10=终局 YES**（脏场景双判据 FIXED-VERIFIED+完全按脚本一次过零跳步零重试 ~10m00s）——用户「高效顺利完成」判据达成 |

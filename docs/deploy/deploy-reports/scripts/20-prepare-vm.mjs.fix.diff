@@ -1,0 +1,64 @@
+# 代码改动：delivery/prepare-vm.mjs · buildPrepareVmApplyPs1（DB-3 段）
+
+## 文件
+`delivery/prepare-vm.mjs` 中的 `buildPrepareVmApplyPs1(cfg)` 函数（生成 APPLY 阶段推送 VM 的 PowerShell 脚本）。
+
+## 根因
+DB-3（Node 供给）段原本把「三元表达式返回的数组」**直接作为 `lines` 数组的一个元素**放入，
+即形成了嵌套数组 `lines = [ ..., <conditionalArray> ]`。
+最终 `return lines.join('\r\n')` 时，嵌套数组被 `Array.prototype.toString()` 隐式转换，
+内部元素以**逗号 `,`** 拼接，注入到生成的 `.ps1` 中，导致 PowerShell 解析报错
+（实测报错：`line 119 非法 ,`）。`deploy-vm.mjs` 的同名构建器经核对无此缺陷。
+
+## 修复
+对三元表达式结果加 `...` 展开运算符，将条件块**扁平化**进 `lines`，消除嵌套数组。
+
+### 改动前（broken）
+```js
+  const lines = [
+    ...
+    '# ---- DB-3 Node >= 18 (optional; winget -> zip fallback) ----',
+    ensureNode                                   // ← 直接把数组/三元当元素，产生嵌套数组
+      ? [
+        '  $node = Get-Command node -ErrorAction SilentlyContinue',
+        '  if ($node) { Write-Output ("[DB-3] node present " + (node -v) + " [SKIP]") }',
+        ...
+      ]
+      : ['  Write-Output "[DB-3] node provisioning not requested (pass --ensure-node to enable winget/zip install)"'],
+    '',
+    'Write-Output "PREPARE_VM_DONE"',
+  ];
+  return lines.join('\r\n');
+```
+
+### 改动后（fixed，当前生效）
+```js
+  const lines = [
+    ...
+    '# ---- DB-3 Node >= 18 (optional; winget -> zip fallback) ----',
+    ...(ensureNode                                  // ← 加 ... 展开，扁平化进 lines
+      ? [
+        '  $node = Get-Command node -ErrorAction SilentlyContinue',
+        '  if ($node) { Write-Output ("[DB-3] node present " + (node -v) + " [SKIP]") }',
+        ...
+      ]
+      : ['  Write-Output "[DB-3] node provisioning not requested (pass --ensure-node to enable winget/zip install)"']),
+    '',
+    'Write-Output "PREPARE_VM_DONE"',
+  ];
+  return lines.join('\r\n');
+```
+
+## 验证
+- `node --check delivery/prepare-vm.mjs` 通过；
+- 生成脚本 93 行、无任何非法 `,`；
+- 实测 `prepare-vm --apply --ensure-node` 成功：sshd 自动启动、防火墙放行、电源永不休眠、
+  Defender 排除项写入、Node v26.13.0 经 winget 装好、`PREPARE_VM_DONE` 正常输出。
+
+## 给开发团队的建议
+1. 此类「数组嵌套进模板数组 + join」是典型的静默出错点，建议在 CI 增加：
+   - 对 `buildPrepareVmApplyPs1` / `buildVmInstallPs1` / `buildVmStartPs1` 等所有
+     `lines.join(...)` 构建器的**单元测试**：断言生成的 `.ps1` 文本中不存在行内多余 `,`，
+     且对 `ensureNode` true/false 两路径都做 `node --check` 等价校验（可借 `powershell -NoProfile -Command "..."` 或语法树解析）。
+2. 推荐将「PowerShell 行模板」统一抽象为一个 `pushLine(arr, ...fragments)` 辅助，
+   强制展开，杜绝裸嵌套数组再次混入。

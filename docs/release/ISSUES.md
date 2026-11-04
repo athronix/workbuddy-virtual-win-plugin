@@ -367,6 +367,18 @@
 > **run11 分步计时基线（11-02 晚，V1.4.16 干净往返）**：有效总步时 **408s**（A 拆除 65s + B 重装 343s，36 有效步全 PASS、产品零重试；3 次重试全为 QA 脚手架自纠）。Top5=3.2a apply 125s(30.6%)/5.3 example 90s(22.1%)/5.2 a2a 34s/3.0 门禁 26s/5.1+U2.1 21s；三探针链 145s=35.5% 为最大可优化面（llmSession 冷启窗口 +48s vs run8 列观察项，非缺陷）。噪音 4 条全部被脚本既有注记预言（D3 ENOENT/connector-states ⚠/getcwd/powercfg GBK）。数据=`qa/evidence/run11-20261102-timings.csv`，报告=`qa/real-test-2026-11-02-run11.md`。
 
 
+## 迭代19 · V1.4.20 + winvm-plugin-deploy skill（2026-11-03，用户实跑复盘收编+技能化——开账）
+
+> 状态：**进行中（代码与技能本体完成；实弹复测被 VM 掉线阻塞，待用户 hypervisor 恢复后跑 deploy.sh/undeploy.sh apply 路径+V1.4.20 发布链）**。动因=用户交来 `docs/deploy/deploy-reports/`（第三台宿主实跑总结：4 类根因=前置信息不足/VM 配置难/ssh 通道不稳/无高效脚本支撑），令开发 `deploy/skills/winvm-plugin-deploy` 技能（主流程+子流程+问题方案+高效脚本模板）。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.20** | P2（X-5 复盘收编） | `prepare-vm.mjs buildPrepareVmApplyPs1` DB-3 段三元数组**裸置 lines 元素**→join 隐式 toString 逗号串接→生成 .ps1 语法错（用户新机实测 line 119 非法 ,；本机 run 未触发因 ensureNode 常带=false 路径侥幸）。修复=`...(ensureNode ? [...] : [...])` 展开；两态生成 93/62 行零逗号实证。单测锁=p7-x567 文件（含 ASCII 锁沿用）。同案防再犯=报告建议 B.2「pushLine 强展开」记 backlog（低优先，锁已拦症状）。 | 已修复（HEAD）；随 V1.4.20 入包 |
+| **I-6.21** | P2（X-6 复盘收编） | `.env` 凭据不回填 process.env：TUNNEL 回落分支与 tunnel-daemon 只读 env var ⇒ 新机用户 `.env` 填 WINVM_VM_PASSWORD 隧道仍失败（实测卡一次，靠外部 export 绕）。修复=新增纯函数 `injectCredentialEnv`（白名单 WINVM_VM_PASSWORD/WINVM_VM_KEY、process.env 显式值优先）+main 在 env 加载后回注（.env.example 不注）。 | 已修复（HEAD）；随 V1.4.20 入包 |
+| **I-6.22** | P2（X-7 复盘收编） | BUILD 相位假败：发布包不随发 typescript（白名单本意）+dist 预构建可用 ⇒ 纯净宿主 `npm run build` exit 127 拖整链 rc=1（用户实跑「EXIT=1 但功能全达成」）。修复=纯函数 `decideBuildFallback`（缺 tsc+dist 在位→skip-degraded 不计失败；缺 tsc 无 dist→仍 build 让真失败显形）+执行器 BUILD 特判。`--skip-build` 仍是发布包标准入口，本修复消除忘加时的假败。 | 已修复（HEAD）；随 V1.4.20 入包 |
+| **I-6.23** | P3（通道韧性·skill 开发中发现） | **VM sshd 连接位占满时 TCP 层无限挂起**：`BatchMode+ConnectTimeout` 均不退（本宿主 2026-11-03 实测卡 8 分钟；同参数 8 分钟前后时好时坏=与 VM 侧 sshd backlog 状态相关），skill 开发期撞出。修复=vm-conn.sh 全调用外层 `timeout $VM_SSH_TIMEOUT`（默认 25s）；行为验证=拥塞期 probe 12s×3 快速判 RED 而非挂死（设计目标达成）。母文档 .prompt 的 ssh 命令均带 ConnectTimeout 但无外层 timeout——**记 backlog：下版 .prompt 为 vmssh/vmscp 加 timeout 前缀（入包面 V11 通道）**。 | skill 层已修；.prompt 强化列入迭代20 候选 |
+| **SKILL** | 交付物 | `deploy/skills/winvm-plugin-deploy/` v1.0.0：SKILL.md（铁律+双主流程+速查五例+清单）+scripts×9（env-detect 冒烟探测/vm-conn 双通道+timeout/ps-run 铁律执行器含 ASCII 门禁/preflight RED-YELLOW-GREEN 体检/download-verify 双源取包/deploy.sh+undeploy.sh 计时 driver/verify.sh/step.sh 计时器/env.example）+references×2（troubleshooting 22 案例 A-E 五族+known-good-flow 耗时带）。**实弹已验**：env-detect/step 闭环/download-verify（gitee latest→SHA256_OK→MANIFEST PASS→PKG_ROOT）/通道 timeout 行为/preflight RED 正确性；**待验（VM 掉线阻塞）**：ps-run 成功路径、deploy/undeploy --apply 全链、verify.sh。pack 校验通过=wbtmp/skillpkg/winvm-plugin-deploy.zip。 | 进行中（待 VM 恢复补实弹） |
+
 ## 迭代18 · V1.4.19（2026-11-03，取包源切 gitee 镜像版——开账即关）
 
 > 状态：**已关闭（11-03 V1.4.19 发布链+gitee 分发路径包根复验）**。动因=用户令「deploy.prompt 发布包下载 URL 改 gitee（gitee 里应该发布对应版本）」。前置=镜像仓库已建（public、main+20 tags 与 GitHub 逐 sha 一致）；gitee Releases API 三坑实测=①POST /releases 必带 `target_commitish`（缺=422）②attach_files 无 upsert（同名 GET 列表→DELETE→POST，且 gitee 落盘名小写化=同名判定的大小写不敏感根因）③下载 302→foruda **一次性签名**（消费型，勿 -C - 续传）。V1.4.18 包+sidecar 已手工镜像并匿名验证（200/2899339B/sha `da4ec1bd…` 逐字节一致；latest 端点 tag=V1.4.18 可读）。

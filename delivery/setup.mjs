@@ -70,6 +70,36 @@ export function loadEnvFile(path) {
   return parseEnv(readFileSync(path, 'utf8'));
 }
 
+/**
+ * X-6（deploy-reports 实跑复盘）：`.env` 中的**凭据类**字段回注 process.env。
+ * 根因：TUNNEL 回落分支与 tunnel-daemon 只读 process.env.WINVM_VM_PASSWORD，而 loadEnvFile
+ * 的解析结果不回注 ⇒ 用户在 .env 里配了密码，隧道仍拿不到（极不直观，实测卡死一次）。
+ * 纪律：仅白名单键（防泛污染）；process.env 已有显式值时**不覆盖**（环境优先于文件）。
+ * @returns {string[]} 实际写入的键（供日志/单测断言）
+ */
+export const CREDENTIAL_ENV_KEYS = ['WINVM_VM_PASSWORD', 'WINVM_VM_KEY'];
+export function injectCredentialEnv(env, target = process.env) {
+  const written = [];
+  for (const k of CREDENTIAL_ENV_KEYS) {
+    const v = env && env[k];
+    if (v && !target[k]) { target[k] = String(v); written.push(k); }
+  }
+  return written;
+}
+
+/**
+ * X-7（deploy-reports 实跑复盘）：BUILD 相位降级判定。
+ * 根因：发布包**不随包分发 node_modules/typescript**（白名单本意），纯净宿主 `npm run build`
+ * 必 exit 127 硬失败 → 整个 setup rc=1「N 步失败」**假败**（功能其实完好：发布包的 dist
+ * 是预构建+打包期指纹在册，正是运行要用的产物）。
+ * 规则：缺 tsc 且预构建 dist 在位 ⇒ skip（降级 WARN 不计失败）；缺 tsc 且 dist 不在 ⇒
+ * 仍 build（真环境真缺产物，失败是有意义的）；tsc 在 ⇒ 原样 build。
+ */
+export function decideBuildFallback({ tscAvailable, distPrebuilt }) {
+  if (tscAvailable) return 'build';
+  return distPrebuilt ? 'skip-degraded' : 'build';
+}
+
 /** 将 .env 映射为强类型配置；opts.apply 表示本次是否真执行 */
 export function resolveConfig(env, opts = {}) {
   const num = (k, d) => {
@@ -1128,6 +1158,12 @@ async function main() {
     log(`未找到 .env，使用模板 ${fallback}（请复制为 .env 后填写）`);
   }
 
+  // X-6：.env 凭据回注（.example 模板值不注——其 WINVM_VM_PASSWORD 为空/占位自然跳过）。
+  if (!target.endsWith('.env.example')) {
+    const injected = injectCredentialEnv(env);
+    if (injected.length) log(`凭据回注：${injected.join(', ')} ← ${target}（process.env 未显式设置时生效）`);
+  }
+
   const cfg = resolveConfig(env, { apply, skipBuild });
   const isUninstall = args.includes('--uninstall');
   const plan = isUninstall ? buildUninstallPlan(cfg) : buildPlan(cfg);
@@ -1375,6 +1411,20 @@ async function main() {
         log(`        node delivery/winvm-plugin.mjs health   # 或刷新 http://127.0.0.1:${cfg.tunnelLocalPort}/health`);
       }
       continue;
+    }
+
+    if (s.phase === 'BUILD') {
+      // X-7：缺 typescript 且预构建 dist 在位 ⇒ 降级 SKIP（发布包形态本不需要重建；
+      // 硬败只会把整个部署拖成 rc=1 假败）。判定纯函数 decideBuildFallback，单测在册。
+      const tscAvailable = existsSync(join(ROOT, 'node_modules', 'typescript'));
+      const distPrebuilt = existsSync(join(ROOT, 'packages', 'vm-capabilities', 'dist'))
+        && existsSync(join(ROOT, 'packages', 'vm-service', 'dist'));
+      if (decideBuildFallback({ tscAvailable, distPrebuilt }) === 'skip-degraded') {
+        log('   [BUILD] 降级 SKIP：typescript 未随包且 packages/*/dist 预构建在位（发布包形态，');
+        log('             dist 已由打包期 MANIFEST 指纹校验在册）——不计失败，继续后续相位。');
+        log('             （要真重建：有 typescript 的仓库态删掉 dist 或直接 npm run build。）');
+        continue;
+      }
     }
 
     // BUILD / HOST / TEST：本地直接运行
