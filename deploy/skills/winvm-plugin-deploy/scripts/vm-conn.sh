@@ -53,15 +53,29 @@ _askpass_env() {
 }
 vm_channel_probe() {
   [ -n "$VM_HOST" ] || { echo "VM_HOST 未设（问用户）" >&2; return 2; }
-  if _ssh_t ssh -o BatchMode=yes -o ConnectTimeout=8 "${_ssh_common[@]}" -p "$VM_SSH_PORT" "${VM_USER}@${VM_HOST}" whoami >/dev/null 2>&1; then
-    export VM_CHANNEL=key; echo "VM_CHANNEL=key（免密通道在）"; return 0
+  # run13 实测修复：VM 刚开机/sshd 冷启窗口存在【间歇拒绝】（单次探测会误判 NO_CHANNEL=RED，
+  # 而手工多试又通）⇒ 两条通道各三试+3s，与 vmssh 同韧性；全败才判无通道。
+  local i last_err=""
+  for i in 1 2 3; do
+    last_err=$(timeout "${VM_SSH_TIMEOUT:-25}" ssh -o BatchMode=yes -o ConnectTimeout=8 "${_ssh_common[@]}" -p "$VM_SSH_PORT" "${VM_USER}@${VM_HOST}" whoami 2>&1 >/dev/null) && \
+      { export VM_CHANNEL=key; echo "VM_CHANNEL=key（免密通道在；第 ${i} 试命中）"; return 0; }
+    # run13：间隔 15s——VM 开机后认证阶段挂起期内，密集重试会让 VM 侧半开连接
+    # 自毒（每次本地 timeout 杀掉、服务端 auth 槽要到登录超时才释放），稀疏单发反而通。
+    [ $i -lt 3 ] && sleep 15
+  done
+  if [ -n "${WINVM_SSH_PASSWORD:-}" ]; then
+    for i in 1 2 3; do
+      _ssh_t _askpass_env ssh -F /dev/null -o UserKnownHostsFile=/dev/null \
+        -o PubkeyAuthentication=no -o PreferredAuthentications=password -o NumberOfPasswordPrompts=1 \
+        "${_ssh_common[@]}" -p "$VM_SSH_PORT" "${VM_USER}@${VM_HOST}" whoami >/dev/null 2>&1 && \
+        { export VM_CHANNEL=password; echo "VM_CHANNEL=password（第 ${i} 试命中；建议事后建免密）"; return 0; }
+      [ $i -lt 3 ] && sleep 15
+    done
   fi
-  if [ -n "${WINVM_SSH_PASSWORD:-}" ] && _ssh_t _askpass_env ssh -F /dev/null -o UserKnownHostsFile=/dev/null \
-      -o PubkeyAuthentication=no -o PreferredAuthentications=password -o NumberOfPasswordPrompts=1 \
-      "${_ssh_common[@]}" -p "$VM_SSH_PORT" "${VM_USER}@${VM_HOST}" whoami >/dev/null 2>&1; then
-    export VM_CHANNEL=password; echo "VM_CHANNEL=password（askpass 通道可用；建议事后补建免密=deploy.prompt Step 1）"; return 0
-  fi
-  echo "NO_CHANNEL：免密不在且密码登录失败/未提供 → P-1 问用户（IP/账号/密码），或按 Step 1 建立免密"; return 1
+  # 四元组纪律：RED 必须带证据（最后一次 stderr），否则诊断无从谈起
+  echo "NO_CHANNEL：免密不在且密码登录失败/未提供 → P-1 问用户（IP/账号/密码），或按 Step 1 建立免密"
+  [ -n "$last_err" ] && echo "  最后一次 key 通道 stderr: $(printf '%s' "$last_err" | tr -d '\r' | head -c 200)"
+  return 1
 }
 # fs_rm：X-2 教训——宿主 rm 可能是坏 shim；一律 node fs（rm -rf 语义的安全版：仅限显式路径）。
 fs_rm() {

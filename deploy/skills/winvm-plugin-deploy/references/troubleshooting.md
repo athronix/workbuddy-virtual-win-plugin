@@ -6,7 +6,7 @@
 
 | 现象 | 根因 | 解法 |
 |---|---|---|
-| `vmssh whoami` 挂起数十秒~数分钟无任何输出（rc=124=timeout 杀） | VM sshd 连接位被占满（前会话/任务遗留半开连接）——**BatchMode 与 ConnectTimeout 都救不了 TCP 层挂起** | 所有 ssh/scp 外层必包 `timeout`（vm-conn.sh 已内建 `VM_SSH_TIMEOUT=25`）；连续 2-5 分钟仍占满 → VM 管理员 `Restart-Service sshd`；根治=避免并发多轨操作同一 VM（连跑纪律） |
+| `vmssh whoami` 挂起、**rc=124 且 stderr 为空**（TCP 已连、认证阶段不回；run13 定谳=VM 开机后 3~10min 挂起期+密集重试自毒半开槽） | sshd 连接位被占满/开机期 auth 挂起（Windows OpenSSH 开机负载+域解析慢；BatchMode/ConnectTimeout 救不了 TCP 层挂起） | ①ssh/scp 外层必包 `timeout`；②**probe 三试间隔 15s**（run13 起；3s 太密会自毒）；③调用方 timeout 预算 ≥3×(VM_SSH_TIMEOUT+15)+余量（如 35s×3+30≈150s 起，**外层小于内层=白跑**）；④冷开机期判 RED 前至少等 5 分钟再单发复测；⑤>10min 仍挂=VM 内管理员 `Restart-Service sshd`；⑥禁并发多轨同 VM |
 | 偶发一两次 `Permission denied`/超时，复跑即好 | 桥接链路抖动（R4） | `vmssh/vmscp` 三试+2s；勿当配置错误排查 |
 | `Permission denied (publickey)`（明明免密在） | 宿主 `~/.ssh` 属主随 uid 漂移（沙箱 uid 跨调用变化），known_hosts/id_ed25519 权限位失效 | 编排走独立选项 `-F /dev/null -o UserKnownHostsFile=/dev/null`（vm-conn 密码通道已内建）；长期=两把密钥分开（GitHub 用 id_ed25519_github，VM 通道重建用默认键） |
 | sshd 在跑、端口在听，但 TCP 超时 | 防火墙规则 Profile 与网卡 Profile 不匹配（R3） | VM 管理员：`Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Profile Any`；诊断见 preflight FW= 行 |
