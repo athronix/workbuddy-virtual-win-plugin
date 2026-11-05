@@ -132,6 +132,11 @@ export const GATE_GUARD_FILES = [
     id: 'cl026b-stream-break-suspension',
     why: 'CL-026b 挂起掐流**行为级**守卫（真机盲区 tr_mvhqpd53_5 补堵）：VM 侧挂起时掐断 SSE 长流 ⇒ 桥 for await 抛 undici TypeError(terminated) 落 delegate catch——旧 catch 恒 A2A_DELEGATE_FAILED（无 approval 无呈现指令）⇒ CL-026 出卡契约在真实挂起路径形同虚设。mock stream「吐事件后抛 terminated」驱动整条 delegate 链（经 dist），断言挂起收口携带呈现指令/无 error 字段/state=input-required/留痕齐备、掐流收口与正常早退**逐字同源**、防误伤真网络错（approval 缺席仍 A2A_DELEGATE_FAILED）、判据不依赖错误形态、红线零串台零凭据泄漏、旧形态变异必失配（K-10）。上轮纯函数拼接测试测不到该链路即本件入选理由；纯离线 <1s，(a)(b)(c) 全满足',
   },
+  {
+    file: 'p7-ssh2-conn.test.js',
+    id: 'ssh2-conn-env-contract',
+    why: 'run16/run17：node ssh2 后端（VM_SSH_BACKEND=ssh2）的 **env 契约与判形纯函数钉**：buildConnectOptions 默认值/覆盖/密码附带/缺参抛错（错误不得含凭据内容=凭据纪律承诺）、resolvePrivateKeyForConnect path→Buffer（ssh2 字符串 privateKey 按 PEM 字面量解析的实锤坑，改回传 path 即全通道死）、classifyScpShape 判形（D-5 目录名误判负例钉住）。通道层失效=deploy 全链阻断（run17 D-1 教训），只有机检能在无人实机时拦住契约漂移；纯离线零网络 <1s，(a)(b)(c) 全满足',
+  },
 ];
 
 /**

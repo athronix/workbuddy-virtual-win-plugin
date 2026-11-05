@@ -24,6 +24,10 @@ NODE="${NODE:?缺少健康 node → 先跑 scripts/env-detect.sh}"
 LOGD="${VMDEPLOY_LOG_DIR:-$HOME/wbtmp/vmdeploy-run-default}"; mkdir -p "$LOGD"
 
 _step_log() { STEP log "$1" < "$2" 2>/dev/null || true; }
+# run17 D-3 假绿止血：不即时阻断的段失败（如实记 FAIL 后仍按原流程走完）汇入 FAILED_STEPS，
+# 末尾聚合出链非零——steps.tsv 判定列必须可信；硬阻断段（C1/C2 取包/C3.2/C3.3/C4.1）维持即时 exit 1 不变。
+FAILED_STEPS=""
+_fail_note() { FAILED_STEPS="$FAILED_STEPS $1"; }
 
 # ── Step 0 体检 ──
 STEP begin P0 0 "preflight 五项体检"
@@ -46,19 +50,36 @@ if ! { ls "$PKG/MANIFEST.txt" >/dev/null 2>&1 && ls -d "$PKG/delivery" >/dev/nul
   PKG="${LAST#PKG_ROOT=}"
   { [ -f "$PKG/MANIFEST.txt" ]; } || { STEP end C2 2.1 1 FAIL "取包失败" "$LAST"; exit 1; }
 fi
-( cd "$PKG" && "${PY:-python3}" qa/deploy-probes/verify-manifest.py . > "$LOGD/manifest.log" 2>&1 ); tail -1 "$LOGD/manifest.log"; _step_log manifest "$LOGD/manifest.log"
-STEP end C2 2.3 0 PASS "MANIFEST 见日志" "none"
+( cd "$PKG" && "${PY:-python3}" qa/deploy-probes/verify-manifest.py . > "$LOGD/manifest.log" 2>&1 ); MRC=$?
+tail -1 "$LOGD/manifest.log"; _step_log manifest "$LOGD/manifest.log"
+# run17 D-3：manifest rc 入判定（旧=无条件 PASS，882 undeclared 假绿）；不即时阻断（发布面
+# 已知漂移史未定谳），如实 FAIL + 聚合出链非零，人工对照 manifest.log 处置。
+if [ $MRC -ne 0 ]; then
+  STEP end C2 2.3 $MRC FAIL "manifest rc=$MRC" "RESULT: FAIL 见 $LOGD/manifest.log（undeclared=发布清单与包内容漂移，对照 publish 链）"
+  _fail_note "C2/2.3-manifest"
+else
+  STEP end C2 2.3 0 PASS "MANIFEST 见日志" "none"
+fi
 
 # ── Step 3 VM 侧（prepare-vm 补齐 + setup 七相位；X-6/X-7 修复后 .env/密码/BUILD 均免手工） ──
 STEP begin C3 3.0 "ENV_PRECHECK 硬门禁"
-( cd "$PKG" && "${BASH_OK:-bash}" "$_here/ps-run.sh" "$PKG/qa/deploy-probes/vm-env-check.ps1" > "$LOGD/env-check.log" 2>&1 ) || true
+# run17 D-3：旧=`|| true` 吞非零后无条件 PASS（run17 活体假绿：env-check.log=VMS scp 失败仍 PASS）。
+# 现 capture rc 入判定；判据=rc≠0 或日志缺 ENV_PRECHECK 行 → FAIL（不即时阻断，聚合出链非零）。
+( cd "$PKG" && "${BASH_OK:-bash}" "$_here/ps-run.sh" "$PKG/qa/deploy-probes/vm-env-check.ps1" > "$LOGD/env-check.log" 2>&1 ); ERC=$?
 grep -E "ENV_PRECHECK|BLOCKERS|NODE_OK|CLI_OK" "$LOGD/env-check.log" | head -5; _step_log env-check "$LOGD/env-check.log"
-STEP end C3 3.0 0 PASS "见日志（BLOCKERS≠none 时照 troubleshooting P-2 处置）" "none"
+if [ $ERC -ne 0 ] || ! grep -q "ENV_PRECHECK" "$LOGD/env-check.log" 2>/dev/null; then
+  STEP end C3 3.0 "$([ $ERC -ne 0 ] && echo $ERC || echo 1)" FAIL "env-check rc=$ERC/无 ENV_PRECHECK 行" "照 troubleshooting P-2 处置（BLOCKERS≠none 或通道失败=先修通道重跑）"
+  _fail_note "C3/3.0-env-check"
+else
+  STEP end C3 3.0 0 PASS "见日志（BLOCKERS≠none 时照 troubleshooting P-2 处置）" "none"
+fi
 
 STEP begin C3 3.2 "prepare-vm --ensure-node + setup --apply --skip-build"
 ( cd "$PKG" && "$NODE" delivery/bootstrap.mjs prepare-vm --apply --ensure-node \
     --vm-host "$VM_HOST" --vm-user "$VM_USER" --vm-ssh-port "$VM_SSH_PORT" > "$LOGD/prepare.log" 2>&1 ); PRC2=$?
 tail -4 "$LOGD/prepare.log"; _step_log prepare-vm "$LOGD/prepare.log"
+# run17 D-3：prepare rc 旧仅展示在 PASS 判据里=吞没；现入聚合（不阻断：setup 成功可覆盖补齐面，人工对照 prepare.log）
+if [ $PRC2 -ne 0 ]; then _fail_note "C3/3.2-prepare(rc=$PRC2)"; fi
 # .env 就位（缺失→从样本生成骨架；字段核对仍按 deploy.prompt 3.1 人工过目）
 [ -f "$PKG/.env" ] || cp "$PKG/delivery/env.example" "$PKG/.env" 2>/dev/null || echo "⚠ 无 .env 也无 env.example→按 prompt 3.1 手建"
 ( cd "$PKG" && "$NODE" delivery/setup.mjs --apply --skip-build > "$LOGD/setup.log" 2>&1 ); SRC=$?
@@ -68,7 +89,7 @@ if [ $SRC -ne 0 ]; then
   STEP end C3 3.2 $SRC FAIL "setup rc=$SRC" "失败相位名在 setup.log；对照 troubleshooting（BUILD 假败≤V1.4.18 已修/420s 未监听=僵尸行/僵尸=shutdown /r 重启行）"
   exit 1
 fi
-STEP end C3 3.2 0 PASS "prepare rc=$PRC2 + setup rc=0" "none"
+STEP end C3 3.2 $PRC2 "$([ $PRC2 -eq 0 ] && echo PASS || echo FAIL)" "prepare rc=$PRC2 + setup rc=0" "$([ $PRC2 -eq 0 ] && echo none || echo 'prepare-vm 非零，对照 prepare.log')"
 
 STEP begin C3 3.3 "vmcheck 七判据"
 ( cd "$PKG" && "${BASH_OK:-bash}" "$_here/ps-run.sh" "$PKG/qa/deploy-probes/vmcheck.ps1" > "$LOGD/vmcheck.log" 2>&1 ); VC=$?
@@ -83,25 +104,48 @@ STEP begin C4 4.1 "install-host + 隧道"
 tail -3 "$LOGD/host.log"; _step_log install-host "$LOGD/host.log"
 [ $HC -eq 0 ] || { STEP end C4 4.1 $HC FAIL "install-host rc=$HC" "connector-states ⚠=平台账户噪声（X-4 放行）；真败查 errno=12=脆弱 node 行"; exit 1; }
 ( cd "$PKG" && "$NODE" delivery/install-host.mjs --check-fresh 2>&1 | tail -1 )
-curl -sS --noproxy 127.0.0.1 -o /dev/null -w 'health=%{http_code}\n' --max-time 15 "http://127.0.0.1:${WINVM_TUNNEL_LOCAL_PORT:-18443}/health"
-STEP end C4 4.5 0 PASS "fresh/health 见日志" "none"
+# run17 D-3：隧道 health curl rc+码入判定（旧=输出后无条件 PASS）；health 非 200 记 FAIL 聚合出链
+HEALTH_CODE="$(curl -sS --noproxy 127.0.0.1 -o /dev/null -w '%{http_code}' --max-time 15 "http://127.0.0.1:${WINVM_TUNNEL_LOCAL_PORT:-18443}/health" 2>/dev/null)"; HCRC=$?
+echo "health=$HEALTH_CODE (curl rc=$HCRC)"
+if [ $HCRC -ne 0 ] || [ "$HEALTH_CODE" != "200" ]; then
+  STEP end C4 4.5 1 FAIL "health=$HEALTH_CODE rc=$HCRC" "隧道 daemon 未就绪：查 delivery/tunnel-daemon.mjs 状态与 ~/.workbuddy/winvm 日志"
+  _fail_note "C4/4.5-health"
+else
+  STEP end C4 4.5 0 PASS "fresh/health=$HEALTH_CODE 见日志" "none"
+fi
 
 # ── Step 5 三探针 ──
 STEP begin C5 5 "三探针 38 项（X-5 带宽：冷 ~145s / 深冷 ≤250s）"
 PROBLEMS=""
+PRC_ALL=0
 for pr in mcp-probe a2a-probe example-probe; do
   ( cd "$PKG" && "${PY:-python3}" "qa/deploy-probes/$pr.py" > "$LOGD/$pr.log" 2>&1 ); RC=$?
   echo "[$pr rc=$RC] $(grep -E 'SUMMARY|RESULT' "$LOGD/$pr.log" | tail -1)"
   _step_log "$pr" "$LOGD/$pr.log"
-  [ $RC -ne 0 ] && PROBLEMS="$PROBLEMS $pr:FAIL"
+  [ $RC -ne 0 ] && { PROBLEMS="$PROBLEMS $pr:FAIL"; [ $PRC_ALL -eq 0 ] && PRC_ALL=$RC; }
 done
-STEP end C5 5.3 0 "$([ -z "$PROBLEMS" ] && echo PASS || echo FAIL)" "38 项见日志" "${PROBLEMS:-none}"
+# run17 D-3：探针 rc 入 steps.tsv rc 列（旧=恒 0 只 judgment 显 FAIL）+ 聚合出链非零
+STEP end C5 5.3 $PRC_ALL "$([ -z "$PROBLEMS" ] && echo PASS || echo FAIL)" "38 项见日志" "${PROBLEMS:-none}"
+[ -z "$PROBLEMS" ] || _fail_note "C5/5.3-probes($PROBLEMS)"
 [ -z "$PROBLEMS" ] || { echo "⚠ 探针失败:$PROBLEMS —— 按 troubleshooting 对应行处置（EXECUTION_TIMEOUT vs timed out 两形态勿混）"; }
 
 # ── Step 6 交付 ──
 STEP begin C6 6.1 "skill 交付判据"
-echo "connector-winvm skills=$(ls "$HOME/.workbuddy/connectors/skills/connector-winvm/" 2>/dev/null | wc -l)"
-STEP end C6 6.1 0 PASS "计数=8" "none"
+SKCNT="$(ls "$HOME/.workbuddy/connectors/skills/connector-winvm/" 2>/dev/null | wc -l)"
+echo "connector-winvm skills=$SKCNT"
+# run17 D-3：计数判据入判定（旧=无条件 PASS）；≠8 记 FAIL 聚合出链（口径见 deploy.prompt Step 6）
+if [ "$SKCNT" -lt 8 ]; then
+  STEP end C6 6.1 1 FAIL "skills=$SKCNT（期望≥8）" "skill 交付缺口：重跑 delivery/deploy-shared-skills.mjs 或对照 deploy.prompt Step 6"
+  _fail_note "C6/6.1-skills"
+else
+  STEP end C6 6.1 0 PASS "计数=$SKCNT" "none"
+fi
 
 STEP report
+# run17 D-3 聚合出链：非硬阻断段失败（FAILED_STEPS 在场）→ 如实非零退出（旧=恒 0 假绿）
+if [ -n "$FAILED_STEPS" ]; then
+  echo "DEPLOY_APPLY_WITH_FAILURES:$FAILED_STEPS PKG_ROOT=$PKG"
+  echo "⚠ steps.tsv 判定列含 FAIL（硬阻断段已过；失败段明细见上与 logs/），出链 rc=1"
+  exit 1
+fi
 echo "DEPLOY_APPLY_DONE PKG_ROOT=$PKG"

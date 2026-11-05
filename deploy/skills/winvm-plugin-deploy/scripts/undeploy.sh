@@ -15,6 +15,10 @@ while [ $# -gt 0 ]; do case "$1" in --apply) APPLY=1;; --pkg) PKG="$2"; shift;; 
 NODE="${NODE:?先跑 env-detect.sh}"
 LOGD="${VMDEPLOY_LOG_DIR:-$HOME/wbtmp/vmdeploy-undeploy-default}"; mkdir -p "$LOGD"
 
+# run17 D-3 假绿止血：非阻断段失败入 FAILED_STEPS 聚合，末尾出链非零（steps.tsv 判定列必须可信）
+FAILED_STEPS=""
+_fail_note() { FAILED_STEPS="$FAILED_STEPS $1"; }
+
 STEP begin U0 0.1 "免密通道仍在（拆除器 VM 相位依赖）"
 vm_channel_probe || { STEP end U0 0.1 1 FAIL "通道失效" "P-2：重建=deploy.prompt Step 1（先报告审批）；勿在拆到一半时重建"; exit 1; }
 STEP end U0 0.1 0 PASS "channel=${VM_CHANNEL}" "none"
@@ -24,15 +28,28 @@ grep -E "^WINVM_DRY_RUN" "$PKG/.env" 2>/dev/null || echo "（.env 无该键=默�
 STEP end U0 0.2 0 PASS "见输出" "none"
 
 STEP begin U0 0.3 "拆除前基线留档"
+# run17 D-3：旧=组 rc 不采、无条件 PASS（run17 活体：VM 基线行=vmssh 127 空转仍 PASS）。
+# 现 capture rc；判据=rc=0 且 baseline.log 含 VM 侧 BRIDGE= 行。
 { find "$HOME/.workbuddy" -iname '*winvm*' 2>/dev/null | head -50; echo "--VM--"; \
-  "${BASH_OK:-bash}" "$_here/ps-run.sh" -c '$a=Test-Path C:\WinVMBridge; $b=[bool](Get-ScheduledTask -TaskName WinVMBridge.Service -EA SilentlyContinue); $c=@(Get-NetTCPConnection -LocalPort 18443 -State Listen -EA SilentlyContinue).Count; $d=(Get-Service sshd).Status; $e=Test-Path C:\WinVMWorkspace; Write-Output ("BRIDGE=" + $a + " TASK=" + $b + " LISTEN=" + $c + " SSHD=" + $d + " WS=" + $e)'; } > "$LOGD/baseline.log" 2>&1
-tail -3 "$LOGD/baseline.log"; bash "$_here/step.sh" log baseline < "$LOGD/baseline.log" || true
-STEP end U0 0.3 0 PASS "基线=$LOGD/baseline.log" "none"
+  "${BASH_OK:-bash}" "$_here/ps-run.sh" -c '$a=Test-Path C:\WinVMBridge; $b=[bool](Get-ScheduledTask -TaskName WinVMBridge.Service -EA SilentlyContinue); $c=@(Get-NetTCPConnection -LocalPort 18443 -State Listen -EA SilentlyContinue).Count; $d=(Get-Service sshd).Status; $e=Test-Path C:\WinVMWorkspace; Write-Output ("BRIDGE=" + $a + " TASK=" + $b + " LISTEN=" + $c + " SSHD=" + $d + " WS=" + $e)'; } > "$LOGD/baseline.log" 2>&1; BRC=$?
+tail -3 "$LOGD/baseline.log"; bash "$_here/step.sh" log baseline < "$LOGD/baseline.log" || true   # 故意容忍：留痕失败不阻断拆除主流程
+if [ $BRC -ne 0 ] || ! grep -q "BRIDGE=" "$LOGD/baseline.log" 2>/dev/null; then
+  STEP end U0 0.3 "$([ $BRC -ne 0 ] && echo $BRC || echo 1)" FAIL "baseline rc=$BRC/无 VM 基线行" "VM 通道或 ps 执行失败：先修通道（deploy.prompt Step 1）再拆，否则 U4 复核无对照"
+  _fail_note "U0/0.3-baseline"
+else
+  STEP end U0 0.3 0 PASS "基线=$LOGD/baseline.log" "none"
+fi
 
 STEP begin U1 1 "DRY-RUN 规划核对"
-( cd "$PKG" && "$NODE" delivery/uninstall.mjs > "$LOGD/dry.log" 2>&1 ) || true
-head -2 "$LOGD/dry.log"; grep -cE "\[DRY\]|\[KEEP\]" "$LOGD/dry.log" | sed 's/^/dry+keep 行数=/'; bash "$_here/step.sh" log dry < "$LOGD/dry.log" || true
-STEP end U1 1 0 PASS "人工核对无越界项后 --apply" "none"
+# run17 D-3：旧=`|| true` 吞 rc；现 capture——dry 规划失败=拆不了，如实 FAIL 聚合出链
+( cd "$PKG" && "$NODE" delivery/uninstall.mjs > "$LOGD/dry.log" 2>&1 ); DRC=$?
+head -2 "$LOGD/dry.log"; grep -cE "\[DRY\]|\[KEEP\]" "$LOGD/dry.log" | sed 's/^/dry+keep 行数=/'; bash "$_here/step.sh" log dry < "$LOGD/dry.log" || true   # 故意容忍：留痕失败不阻断
+if [ $DRC -ne 0 ]; then
+  STEP end U1 1 $DRC FAIL "uninstall dry rc=$DRC" "dry.log 查失败原因（缺 .env/包根错=先 download-verify）"
+  _fail_note "U1/1-dry"
+else
+  STEP end U1 1 0 PASS "人工核对无越界项后 --apply" "none"
+fi
 [ $APPLY -eq 0 ] && { echo "DRY-RUN 完成：核对上表后加 --apply 真拆。"; STEP report; exit 0; }
 
 STEP begin U2 2 "--apply 真拆"
@@ -53,10 +70,22 @@ fi
 STEP end U2 2 0 PASS "19 项全 PASS" "none"
 
 STEP begin U4 4.2 "独立复核（防假 PASS）"
-curl -sS -o /dev/null -w 'health=%{http_code}(期望000)\n' --connect-timeout 4 "http://127.0.0.1:${WINVM_TUNNEL_LOCAL_PORT:-18443}/health" 2>/dev/null || true
-"$NODE" -e "const j=require(process.env.HOME+'/.workbuddy/mcp.json');const k=Object.keys(j.mcpServers||{}).filter(x=>/winvm/i.test(x));console.log(k.length?'LEFT:'+k:'GLOBAL_MCP_CLEAN')"
-"${BASH_OK:-bash}" "$_here/ps-run.sh" -c '$a=Test-Path C:\WinVMBridge; $b=[bool](Get-ScheduledTask -TaskName WinVMBridge.Service -EA SilentlyContinue); $c=@(Get-NetTCPConnection -LocalPort 18443 -State Listen -EA SilentlyContinue).Count; $d=(Get-Service sshd).Status; $e=Test-Path C:\WinVMWorkspace; Write-Output ("期望 False False 0 Running True => " + $a + " " + $b + " " + $c + " " + $d + " " + $e)'
-STEP end U4 4.2 0 PASS "逐项对照上表" "none"
+# run17 D-3：旧=三行裸跑、无条件 PASS（run17 活体：VM 行 vmssh 127 空转仍 PASS）。
+# health 期望 000（服务已拆，连上=没拆干净→FAIL）；mcp 检查与 VM 终态行 rc 入段内判定
+# （U4_RC=段内独立计数，前序段失败不混入本行归因，但仍聚合出链）。
+U4_RC=0
+HCODE="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 4 "http://127.0.0.1:${WINVM_TUNNEL_LOCAL_PORT:-18443}/health" 2>/dev/null)" || true
+echo "health=${HCODE}(期望000)"
+[ "$HCODE" = "000" ] || [ -z "$HCODE" ] || { echo "⚠ health 端口仍可连=隧道未拆净" >&2; U4_RC=1; _fail_note "U4/4.2-health"; }
+"$NODE" -e "const j=require(process.env.HOME+'/.workbuddy/mcp.json');const k=Object.keys(j.mcpServers||{}).filter(x=>/winvm/i.test(x));console.log(k.length?'LEFT:'+k:'GLOBAL_MCP_CLEAN')" || { U4_RC=1; _fail_note "U4/4.2-mcp"; }
+"${BASH_OK:-bash}" "$_here/ps-run.sh" -c '$a=Test-Path C:\WinVMBridge; $b=[bool](Get-ScheduledTask -TaskName WinVMBridge.Service -EA SilentlyContinue); $c=@(Get-NetTCPConnection -LocalPort 18443 -State Listen -EA SilentlyContinue).Count; $d=(Get-Service sshd).Status; $e=Test-Path C:\WinVMWorkspace; Write-Output ("期望 False False 0 Running True => " + $a + " " + $b + " " + $c + " " + $d + " " + $e)' || { U4_RC=1; _fail_note "U4/4.2-vm-terminal"; }
+STEP end U4 4.2 $U4_RC "$([ $U4_RC -eq 0 ] && echo PASS || echo FAIL)" "逐项对照上表" "$([ $U4_RC -eq 0 ] && echo none || echo '复核行见上（health/mcp/VM 终态至少一项失败）')"
 
 STEP report
+# run17 D-3 聚合出链：非硬阻断段失败 → 如实非零（硬阻断段 U0/U2 维持即时 exit 1）
+if [ -n "$FAILED_STEPS" ]; then
+  echo "UNDEPLOY_WITH_FAILURES:$FAILED_STEPS"
+  echo "⚠ steps.tsv 判定列含 FAIL（明细见上与 logs/），出链 rc=1"
+  exit 1
+fi
 echo "UNDEPLOY_DONE —— 存留项（密钥/trash/下载物）按 undeploy U5 逐项问用户，默认保留。"

@@ -10,7 +10,11 @@ set -u
 : "${VMDEPLOY_ENV_SH:=${HOME}/wbtmp/vmdeploy-env.sh}"; [ -f "$VMDEPLOY_ENV_SH" ] && . "$VMDEPLOY_ENV_SH"
 NODE="${NODE:-$(command -v node || true)}"
 _here="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-if [ -z "${VM_CHANNEL:-}" ]; then . "$_here/vm-conn.sh"; vm_channel_probe || exit 1; fi
+# run17 D-1 修复：无条件 source vm-conn.sh——deploy/undeploy 以 `bash ps-run.sh` 子进程调用时
+# 继承 VM_CHANNEL 变量但不继承 vmssh/vmscp 函数；旧条件 source（VM_CHANNEL 已置=不 source）
+# → line15 vmssh command not found（127）。函数必须在场；probe 只在通道未定时执行（已置=复用）。
+. "$_here/vm-conn.sh"
+if [ -z "${VM_CHANNEL:-}" ]; then vm_channel_probe || exit 1; fi
 
 _ps_cmd() { vmssh "$1"; }   # $1=已确保零本地展开的命令串
 

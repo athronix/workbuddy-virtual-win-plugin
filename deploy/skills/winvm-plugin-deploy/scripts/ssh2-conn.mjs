@@ -15,6 +15,8 @@
  *   put <local> <remote>   sftp 上传（remote 为正斜杠 Windows 路径，如 C:/WinVMWorkspace/x.ps1）
  *   get <remote> <local>   sftp 下载
  *   ping                   ready 即退 0（带超时；vm_channel_probe ssh2 快路径用）
+ *   shape <a1e> <a2e> <a1> <a2> [pfx]   vmscp 判形纯函数 CLI（run17 D-8，零连接；
+ *                          输出 put|get|unknown——vm-conn.sh 与单测共用同一事实源）
  *
  * 连接参数全部来自环境变量（与 vm-conn.sh 同一契约）：
  *   VM_HOST / VM_USER(默认 User) / VM_SSH_PORT(默认 22)
@@ -84,6 +86,41 @@ export function resolvePrivateKeyForConnect(options) {
   if (typeof options.privateKey !== 'string') return options; // 已是 Buffer，原样
   if (!existsSync(options.privateKey)) throw new Error('私钥文件不存在: ' + options.privateKey);
   return { ...options, privateKey: readFileSync(options.privateKey) };
+}
+
+/**
+ * 判断字符串是否"像 remote 目标"（与 vm-conn.sh 的 scp 判形 case 语义一字不差）：
+ *   ① 以 <VM_USER>@<VM_HOST>: 前缀在场（prefix 传入，空串=不检查此式）
+ *   ② 含 ':' 且冒号后紧跟 '/'（盘符/绝对路径形态，如 C:/WinVMWorkspace/x.ps1）
+ * @param {string} s
+ * @param {string} prefix 形如 'User@172.16.100.2:'；无匹配返回 false
+ * @returns {boolean}
+ */
+export function isRemoteLike(s, prefix = '') {
+  if (typeof s !== 'string' || s === '') return false;
+  if (prefix && s.startsWith(prefix) && s.length > prefix.length) return true;
+  const i = s.indexOf(':');
+  return i > 0 && s[i + 1] === '/';
+}
+
+/**
+ * 纯函数：vmscp 判形（run17 D-8——原 bash 判定语义的单一事实源，vm-conn.sh 经
+ * `ssh2-conn.mjs shape` 子命令调用；单测钉住 D-5 目录名误判负例）。
+ * 输入=两位置参 + 各自"是否为本地现存文件"（bash 侧 [ -f ] 结果传入，不触盘）+ 前缀。
+ * @param {boolean} a1Exists a1 本地是否现存文件（目录=false，D-5 负例关键）
+ * @param {boolean} a2Exists a2 本地是否现存文件
+ * @param {string} a1
+ * @param {string} a2
+ * @param {string} prefix 形如 'User@172.16.100.2:'
+ * @returns {'put'|'get'|'unknown'}
+ */
+export function classifyScpShape(a1Exists, a2Exists, a1, a2, prefix = '') {
+  if (a1Exists && isRemoteLike(a2, prefix)) return 'put';        // scp 原生：local → remote
+  if (a2Exists && isRemoteLike(a1, prefix)) return 'get';        // scp 原生：remote → local
+  // 下载目标本地尚不存在是常态：a1 像 remote 且两侧均非本地文件 → get
+  if (!a1Exists && !a2Exists && isRemoteLike(a1, prefix)) return 'get';
+  // D-5 负例：a1 为目录/不存在且无 ':' → 不像 remote，两侧判不住 → unknown（调用方显式报错，勿静默错传）
+  return 'unknown';
 }
 
 /**
@@ -257,7 +294,7 @@ async function cmdPing(conn) {
 }
 
 function usage() {
-  console.error('用法: ssh2-conn.mjs <exec <cmd...>|put <local> <remote>|get <remote> <local>|ping>');
+  console.error('用法: ssh2-conn.mjs <exec <cmd...>|put <local> <remote>|get <remote> <local>|ping|shape <a1e> <a2e> <a1> <a2> [pfx]>');
   console.error('环境变量: VM_HOST VM_USER VM_SSH_PORT WINVM_VM_KEY WINVM_SSH_PASSWORD VM_SSH_READY_TIMEOUT_MS');
 }
 
@@ -265,6 +302,13 @@ function usage() {
 async function main() {
   const [sub, ...rest] = process.argv.slice(2);
   if (!sub) { usage(); process.exit(2); }
+  // shape：vmscp 判形纯函数 CLI（零连接零触网，vm-conn.sh 与单测共用同一事实源）
+  // 用法: shape <a1-exists:0|1> <a2-exists:0|1> <a1> <a2> [prefix]  → stdout put|get|unknown
+  if (sub === 'shape') {
+    const out = classifyScpShape(rest[0] === '1', rest[1] === '1', rest[2] ?? '', rest[3] ?? '', rest[4] ?? `${process.env.VM_USER || 'User'}@${process.env.VM_HOST || ''}:`);
+    process.stdout.write(out + '\n');
+    process.exit(0);
+  }
   await withConnection(
     (await loadClientCtor(import.meta.url)).load,
     import.meta.url,
