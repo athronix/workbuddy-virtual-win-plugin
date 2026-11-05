@@ -33,6 +33,7 @@ bash scripts/deploy.sh --apply              # 真执行：通道→取包→prep
 ```
 
 - 每环节自动计时留痕到 `~/wbtmp/vmdeploy-run-<日期>/steps.tsv`（显式指定 `export VMDEPLOY_RUN_DIR=~/wbtmp/vmdeploy-run13-<日期>` 使多日/多轮不混算）；收尾打 Top5/问题行/失败行。
+- run19 R-3 注记：同一 `VMDEPLOY_RUN_DIR` 多轮混跑时，steps.tsv 按 begin/end 行的 `begin_utc` 时间戳分段读（同 step-id 多行=多轮各记一行，勿把旧轮 FAIL 混入本轮判读）；推荐**每轮独立 RUN_DIR**（`vmdeploy-runN`）从根上免混算。
 - 幂等：任一相位失败 → 查表处置后**只重跑失败相位**（deploy.sh 各步独立可重入）。
 - BUILD 假败（缺 typescript）、.env 密码不回注 两坑已在 ≥V1.4.20 包内根除；旧包按 troubleshooting B 表绕行。
 

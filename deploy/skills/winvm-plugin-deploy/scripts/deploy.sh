@@ -8,6 +8,8 @@ _here="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 : "${VMDEPLOY_ENV_SH:=${HOME}/wbtmp/vmdeploy-env.sh}"; [ -f "$VMDEPLOY_ENV_SH" ] && . "$VMDEPLOY_ENV_SH"
 # shellcheck disable=SC1090
 . "$_here/vm-conn.sh"
+# shellcheck disable=SC1090
+. "$_here/pkg-root.sh"   # run19 R-1：三 driver 选根共享事实源（_pick_pkg_root/resolve_pkg_root/pkg_root_usage_error）
 STEP() { bash "$_here/step.sh" "$@"; }
 APPLY=0; PKG="${PKG_ROOT:-$HOME/winvm-deploy/overall-root}"; TAG="${RELEASE_TAG:-}"
 # 包根显式来源（env PKG_ROOT 或 --pkg）=跳过自动取最新；未显式=C2 走 download-verify 取最新
@@ -48,21 +50,32 @@ STEP end C1 1.5 0 PASS "channel=${VM_CHANNEL}" "none"
 # ── Step 2 取包/校验 ──
 STEP begin C2 2 "包根判定/取包三件套"
 if [ -f "$PKG/MANIFEST.txt" ] && [ -d "$PKG/delivery" ] && [ "$PKG_EXPLICIT" = "1" ]; then
-  echo "[C2] 包根=显式指定 $PKG（跳过取包）"
+  echo "[PKG] root=$PKG（来源=显式 env PKG_ROOT/--pkg，跳过取包）"
 else
-  # run18 P-1 定谳：overall-root 曾双层并存（V1.4.19 带 overall/ 前缀 zip + 平铺 zip 混解；
-  # 陈旧层永不被扫出=882 undeclared），且旧条件「外层有 MANIFEST 即跳过下载」使最新 release
-  # 永不落地。改：默认路径=download-verify 取最新（按 MANIFEST version==TAG 选根+隔离陈旧嵌套层），
-  # 离线回退现存包根（如实告警版本可能陈旧）。
-  LAST_DV="$(bash "$_here/download-verify.sh" ${TAG:+--tag "$TAG"} 2>&1 | tail -1)" || true
-  if [ "${LAST_DV#PKG_ROOT=}" != "$LAST_DV" ] && [ -f "${LAST_DV#PKG_ROOT=}/MANIFEST.txt" ]; then
-    PKG="${LAST_DV#PKG_ROOT=}"; echo "[C2] 包根=download-verify 最新判定 $PKG"
+  # run18 P-1 定谳：overall-root 曾双层并存（陈旧层永不被扫出=882 undeclared），且旧条件
+  # 「外层有 MANIFEST 即跳过下载」使最新 release 永不落地。默认路径=download-verify 取最新
+  # （隔离重解+version==TAG 选根），离线回退现存包根（如实告警版本或陈旧）。
+  # run19 R-2：旧=`… 2>&1 | tail -1` 只留末行，[cache]/[quarantine]/verify-manifest 信息行
+  # 全丢（run19 grep 实锤排障失明）。现全量落 $LOGD/download-verify.log，仅从中取 PKG_ROOT 末行。
+  bash "$_here/download-verify.sh" ${TAG:+--tag "$TAG"} > "$LOGD/download-verify.log" 2>&1 || true
+  _step_log download-verify "$LOGD/download-verify.log"
+  grep -E '^\[(cache|quarantine|pkg-root|download)\]|^SHA256_|^RESULT|^⚠' "$LOGD/download-verify.log" | head -8
+  LAST_DV="$(grep -E '^PKG_ROOT=' "$LOGD/download-verify.log" | tail -1)"
+  if [ -n "$LAST_DV" ] && [ -f "${LAST_DV#PKG_ROOT=}/MANIFEST.txt" ]; then
+    PKG="${LAST_DV#PKG_ROOT=}"; echo "[PKG] root=$PKG（来源=download-verify 最新判定）"
+  elif resolve_pkg_root; then
+    # 回退三级链的「状态文件>现探」（pkg-root.sh）；download-verify 失败但本地已有合法层
+    PKG="$PKG_RESOLVED"; echo "[PKG] root=$PKG（来源=回退 $PKG_SOURCE；download-verify 失败见 $LOGD/download-verify.log 末行=$(tail -1 "$LOGD/download-verify.log")）"
   elif [ -f "$PKG/MANIFEST.txt" ] && [ -d "$PKG/delivery" ]; then
-    echo "[C2] download-verify 不可达/失败（${LAST_DV:-空}），回退现存包根 $PKG（版本或陈旧，注意 C3 用包内代码）"
+    echo "[PKG] root=$PKG（来源=保底旧默认，download-verify 失败且无可探层，版本或陈旧——C3 用包内代码注意）"
   else
-    STEP end C2 2 1 FAIL "取包失败" "${LAST_DV:-download-verify 无输出且无现存包根}"; exit 1
+    echo "[PKG] 取包失败：download-verify 无 PKG_ROOT 输出且无任何合法包根" >&2
+    pkg_root_usage_error
+    STEP end C2 2 1 FAIL "取包失败" "$(tail -1 "$LOGD/download-verify.log" 2>/dev/null || echo 无输出)；三 driver 包根未定"; exit 1
   fi
 fi
+# run19 R-1：C2 定根后落状态文件（显式/自动两分支统一在此写）——undeploy/verify 默认值三级链第 2 级来源
+{ echo "$PKG"; } > "$PKG_ROOT_STATE" 2>/dev/null && echo "[PKG] 状态文件已写 $PKG_ROOT_STATE" || echo "⚠ pkg-root.txt 写入失败（undeploy/verify 将走现探回退）" >&2
 ( cd "$PKG" && "${PY:-python3}" qa/deploy-probes/verify-manifest.py . > "$LOGD/manifest.log" 2>&1 ); MRC=$?
 tail -1 "$LOGD/manifest.log"; _step_log manifest "$LOGD/manifest.log"
 # run17 D-3：manifest rc 入判定（旧=无条件 PASS，882 undeclared 假绿）；不即时阻断（发布面

@@ -5,10 +5,19 @@ set -u
 _here="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 : "${VMDEPLOY_ENV_SH:=${HOME}/wbtmp/vmdeploy-env.sh}"; [ -f "$VMDEPLOY_ENV_SH" ] && . "$VMDEPLOY_ENV_SH"
 NODE="${NODE:-$(command -v node || true)}"; PY="${PY:-$(command -v python3 || true)}"
-PKG="${PKG_ROOT:-$HOME/winvm-deploy/overall-root}"
+# run19 R-1：选根三级默认（env PKG_ROOT > pkg-root.txt 状态 > 现探 > 保底旧默认），
+# 与 deploy/undeploy 共享 pkg-root.sh 事实源——旧硬指外层在隔离重解现场=空壳（run19 VER=2 实锤）。
+# shellcheck disable=SC1090
+. "$_here/pkg-root.sh"
+if resolve_pkg_root; then
+  PKG="$PKG_RESOLVED"; echo "[PKG] root=$PKG（来源=$PKG_SOURCE）"
+else
+  PKG="$HOME/winvm-deploy/overall-root"
+  echo "⚠ [PKG] env/状态文件/现探三皆空，保底旧默认 $PKG" >&2
+fi
 LOGD="${VMDEPLOY_LOG_DIR:-$HOME/wbtmp/vmdeploy-verify-$(date +%Y%m%d-%H%M)}"; mkdir -p "$LOGD"
 STEP() { bash "$_here/step.sh" "$@"; }
-[ -d "$PKG/qa/deploy-probes" ] || { echo "包根缺 qa/deploy-probes：$PKG（download-verify 或 --pkg 修正）" >&2; exit 2; }
+[ -d "$PKG/qa/deploy-probes" ] || { echo "包根缺 qa/deploy-probes：$PKG（PKG_ROOT=<dir> bash verify.sh 显式指定，或先跑 deploy/download-verify 落 pkg-root.txt）" >&2; pkg_root_usage_error; exit 2; }
 
 echo "== 探针（X-5 带宽：全链 97~250s 属正常带；判据=零超时零复跑） =="
 FAILS=""

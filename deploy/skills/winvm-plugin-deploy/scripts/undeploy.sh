@@ -7,9 +7,22 @@ _here="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 : "${VMDEPLOY_ENV_SH:=${HOME}/wbtmp/vmdeploy-env.sh}"; [ -f "$VMDEPLOY_ENV_SH" ] && . "$VMDEPLOY_ENV_SH"
 # shellcheck disable=SC1090
 . "$_here/vm-conn.sh"
+# shellcheck disable=SC1090
+. "$_here/pkg-root.sh"   # run19 R-1：选根三级默认（env>状态文件>现探>保底）与 deploy/verify 共享事实源
 STEP() { bash "$_here/step.sh" "$@"; }
-APPLY=0; PKG="${PKG_ROOT:-$HOME/winvm-deploy/overall-root}"
-while [ $# -gt 0 ]; do case "$1" in --apply) APPLY=1;; --pkg) PKG="$2"; shift;; *) exit 2;; esac; shift; done
+APPLY=0
+while [ $# -gt 0 ]; do case "$1" in --apply) APPLY=1;; --pkg) PKG="$2"; PKG_ROOT="$2"; shift;; *) exit 2;; esac; shift; done
+# run19 R-1：旧默认硬指外层（隔离重解后外层=空壳 ⇒ Cannot find module uninstall.mjs，run19 UND=1 实锤）。
+# 三级：env PKG_ROOT（含 --pkg）> $DEPLOY_ROOT/pkg-root.txt（deploy C2 落盘）> _pick_pkg_root 现探
+# > 保底旧默认+告警。拆除场景包根已被隔离/不存在=合法可能：解析不出时带三选一处置文案显式报错，勿静默空壳。
+if resolve_pkg_root; then
+  PKG="$PKG_RESOLVED"; echo "[PKG] root=$PKG（来源=$PKG_SOURCE）"
+else
+  PKG="${PKG:-$HOME/winvm-deploy/overall-root}"
+  echo "⚠ [PKG] 无法解析合法包根（env/状态文件/现探三皆空），保底用 $PKG——拆除场景包根可能已隔离" >&2
+  pkg_root_usage_error
+  echo "UNDEPLOY_PKG_ROOT_MISSING" >&2; exit 2
+fi
 : "${VM_HOST:?VM_HOST 未设 → 问用户}"
 : "${VM_USER:=User}"; : "${VM_SSH_PORT:=22}"
 NODE="${NODE:?先跑 env-detect.sh}"
