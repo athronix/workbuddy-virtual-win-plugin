@@ -10,10 +10,12 @@ _here="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 . "$_here/vm-conn.sh"
 STEP() { bash "$_here/step.sh" "$@"; }
 APPLY=0; PKG="${PKG_ROOT:-$HOME/winvm-deploy/overall-root}"; TAG="${RELEASE_TAG:-}"
+# 包根显式来源（env PKG_ROOT 或 --pkg）=跳过自动取最新；未显式=C2 走 download-verify 取最新
+PKG_EXPLICIT="${PKG_ROOT:+1}"; PKG_EXPLICIT="${PKG_EXPLICIT:-0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --apply) APPLY=1 ;;
-    --pkg) PKG="$2"; shift ;;
+    --pkg) PKG="$2"; PKG_EXPLICIT=1; shift ;;
     --tag) TAG="$2"; shift ;;
     *) echo "未知参数 $1" >&2; exit 2 ;;
   esac; shift
@@ -45,20 +47,31 @@ STEP end C1 1.5 0 PASS "channel=${VM_CHANNEL}" "none"
 
 # ── Step 2 取包/校验 ──
 STEP begin C2 2 "包根判定/取包三件套"
-if ! { ls "$PKG/MANIFEST.txt" >/dev/null 2>&1 && ls -d "$PKG/delivery" >/dev/null 2>&1; }; then
-  LAST="$(bash "$_here/download-verify.sh" ${TAG:+--tag "$TAG"} | tail -1)"
-  PKG="${LAST#PKG_ROOT=}"
-  { [ -f "$PKG/MANIFEST.txt" ]; } || { STEP end C2 2.1 1 FAIL "取包失败" "$LAST"; exit 1; }
+if [ -f "$PKG/MANIFEST.txt" ] && [ -d "$PKG/delivery" ] && [ "$PKG_EXPLICIT" = "1" ]; then
+  echo "[C2] 包根=显式指定 $PKG（跳过取包）"
+else
+  # run18 P-1 定谳：overall-root 曾双层并存（V1.4.19 带 overall/ 前缀 zip + 平铺 zip 混解；
+  # 陈旧层永不被扫出=882 undeclared），且旧条件「外层有 MANIFEST 即跳过下载」使最新 release
+  # 永不落地。改：默认路径=download-verify 取最新（按 MANIFEST version==TAG 选根+隔离陈旧嵌套层），
+  # 离线回退现存包根（如实告警版本可能陈旧）。
+  LAST_DV="$(bash "$_here/download-verify.sh" ${TAG:+--tag "$TAG"} 2>&1 | tail -1)" || true
+  if [ "${LAST_DV#PKG_ROOT=}" != "$LAST_DV" ] && [ -f "${LAST_DV#PKG_ROOT=}/MANIFEST.txt" ]; then
+    PKG="${LAST_DV#PKG_ROOT=}"; echo "[C2] 包根=download-verify 最新判定 $PKG"
+  elif [ -f "$PKG/MANIFEST.txt" ] && [ -d "$PKG/delivery" ]; then
+    echo "[C2] download-verify 不可达/失败（${LAST_DV:-空}），回退现存包根 $PKG（版本或陈旧，注意 C3 用包内代码）"
+  else
+    STEP end C2 2 1 FAIL "取包失败" "${LAST_DV:-download-verify 无输出且无现存包根}"; exit 1
+  fi
 fi
 ( cd "$PKG" && "${PY:-python3}" qa/deploy-probes/verify-manifest.py . > "$LOGD/manifest.log" 2>&1 ); MRC=$?
 tail -1 "$LOGD/manifest.log"; _step_log manifest "$LOGD/manifest.log"
 # run17 D-3：manifest rc 入判定（旧=无条件 PASS，882 undeclared 假绿）；不即时阻断（发布面
 # 已知漂移史未定谳），如实 FAIL + 聚合出链非零，人工对照 manifest.log 处置。
 if [ $MRC -ne 0 ]; then
-  STEP end C2 2.3 $MRC FAIL "manifest rc=$MRC" "RESULT: FAIL 见 $LOGD/manifest.log（undeclared=发布清单与包内容漂移，对照 publish 链）"
-  _fail_note "C2/2.3-manifest"
+  STEP end C2 2 $MRC FAIL "manifest rc=$MRC pkg=$PKG" "RESULT: FAIL 见 $LOGD/manifest.log（undeclared=陈旧层/发布清单漂移，对照 publish 链）"
+  _fail_note "C2/2-manifest"
 else
-  STEP end C2 2.3 0 PASS "MANIFEST 见日志" "none"
+  STEP end C2 2 0 PASS "MANIFEST 见日志 pkg=$PKG" "none"
 fi
 
 # ── Step 3 VM 侧（prepare-vm 补齐 + setup 七相位；X-6/X-7 修复后 .env/密码/BUILD 均免手工） ──
@@ -99,10 +112,14 @@ if [ $VC -ne 0 ]; then STEP end C3 3.3 $VC FAIL "vmcheck rc=$VC" "Ready+GUI SESS
 STEP end C3 3.3 0 PASS "七判据见日志" "none"
 
 # ── Step 4 宿主插件+隧道 ──
-STEP begin C4 4.1 "install-host + 隧道"
+# run18 P-5：旧=begin 4.1 成功路径无 end、health 用 4.5 end 但从未 begin 4.5（steps.tsv
+# dur 空白/孤儿行）。现两段各自 begin/end 成对：4.1=install-host，4.5=fresh+health。
+STEP begin C4 4.1 "install-host --yes（插件+隧道装）"
 ( cd "$PKG" && "$NODE" delivery/install-host.mjs --yes --vm-host "$VM_HOST" --vm-user "$VM_USER" --vm-ssh-port "$VM_SSH_PORT" > "$LOGD/host.log" 2>&1 ); HC=$?
 tail -3 "$LOGD/host.log"; _step_log install-host "$LOGD/host.log"
 [ $HC -eq 0 ] || { STEP end C4 4.1 $HC FAIL "install-host rc=$HC" "connector-states ⚠=平台账户噪声（X-4 放行）；真败查 errno=12=脆弱 node 行"; exit 1; }
+STEP end C4 4.1 0 PASS "install-host rc=0" "none"
+STEP begin C4 4.5 "fresh + 隧道 health"
 ( cd "$PKG" && "$NODE" delivery/install-host.mjs --check-fresh 2>&1 | tail -1 )
 # run17 D-3：隧道 health curl rc+码入判定（旧=输出后无条件 PASS）；health 非 200 记 FAIL 聚合出链
 HEALTH_CODE="$(curl -sS --noproxy 127.0.0.1 -o /dev/null -w '%{http_code}' --max-time 15 "http://127.0.0.1:${WINVM_TUNNEL_LOCAL_PORT:-18443}/health" 2>/dev/null)"; HCRC=$?
@@ -125,8 +142,9 @@ for pr in mcp-probe a2a-probe example-probe; do
   [ $RC -ne 0 ] && { PROBLEMS="$PROBLEMS $pr:FAIL"; [ $PRC_ALL -eq 0 ] && PRC_ALL=$RC; }
 done
 # run17 D-3：探针 rc 入 steps.tsv rc 列（旧=恒 0 只 judgment 显 FAIL）+ 聚合出链非零
-STEP end C5 5.3 $PRC_ALL "$([ -z "$PROBLEMS" ] && echo PASS || echo FAIL)" "38 项见日志" "${PROBLEMS:-none}"
-[ -z "$PROBLEMS" ] || _fail_note "C5/5.3-probes($PROBLEMS)"
+# run18 P-5：end id 与 begin 对齐（旧 end 5.3 无 begin → dur 空）
+STEP end C5 5 $PRC_ALL "$([ -z "$PROBLEMS" ] && echo PASS || echo FAIL)" "38 项见日志" "${PROBLEMS:-none}"
+[ -z "$PROBLEMS" ] || _fail_note "C5/5-probes($PROBLEMS)"
 [ -z "$PROBLEMS" ] || { echo "⚠ 探针失败:$PROBLEMS —— 按 troubleshooting 对应行处置（EXECUTION_TIMEOUT vs timed out 两形态勿混）"; }
 
 # ── Step 6 交付 ──

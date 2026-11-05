@@ -34,7 +34,13 @@ if [ -n "${VM_HOST:-}" ]; then
   # shellcheck disable=SC1090
   . "$_here/vm-conn.sh" 2>/dev/null
   if vm_channel_probe >/dev/null 2>&1; then
-    "${BASH_OK:-bash}" "$_here/ps-run.sh" -c '$t=(Get-ScheduledTask -TaskName WinVMBridge.Service -EA SilentlyContinue).State; $l=@(Get-NetTCPConnection -LocalPort 18443 -State Listen -EA SilentlyContinue).Count; $s=(Get-Service sshd).Status; Write-Output ("VM: task=" + $t + " listen=" + $l + " sshd=" + $s)' | tr -d '\r' || VRC=1
+    # run18 P-3：旧=`ps-run … | tr … || VRC=1` 被管道末级 tr 恒 0 吞（与 health 行同坑）。
+    # 现 PIPESTATUS 取 ps-run 真 rc + 内容判据（VM: task= 行必须在场），对齐同文件 health 行判法。
+    "${BASH_OK:-bash}" "$_here/ps-run.sh" -c '$t=(Get-ScheduledTask -TaskName WinVMBridge.Service -EA SilentlyContinue).State; $l=@(Get-NetTCPConnection -LocalPort 18443 -State Listen -EA SilentlyContinue).Count; $s=(Get-Service sshd).Status; Write-Output ("VM: task=" + $t + " listen=" + $l + " sshd=" + $s)' | tr -d '\r' > "$LOGD/vm-terminal.txt"; VTRC=${PIPESTATUS[0]}
+    cat "$LOGD/vm-terminal.txt"
+    if [ $VTRC -ne 0 ] || ! grep -q "VM: task=" "$LOGD/vm-terminal.txt" 2>/dev/null; then
+      echo "⚠ VM 终态行失败 rc=$VTRC（如实计败，勿被管道吞）" >&2; VRC=1
+    fi
   else
     echo "⚠ VM 通道不可用：VM 终态行缺失（如实计失败，勿吞）" >&2; VRC=1
   fi

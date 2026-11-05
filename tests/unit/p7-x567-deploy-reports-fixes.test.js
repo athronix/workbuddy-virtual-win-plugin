@@ -36,6 +36,24 @@ test('X-5 锁：apply 载荷两态（ensureNode true/false）零嵌套数组串�
   }
 });
 
+test('X-5 加钉（run18 P-2）：DB-3 段行级独立 + run18 实锤错形态签名零出现 + 源文件展开式在场', async () => {
+  const { readFileSync } = await import('node:fs');
+  const ps = buildPrepareVmApplyPs1({ servicePort: 18443, vmDeployDir: 'C:/WinVMBridge', sshPort: 22, ensureNode: true });
+  // ① run18 报错签名：`SilentlyContinue) {,`（数组未展开→join 逗号把下一条语句并入块首）
+  assert.ok(!/\)\s*\{\s*,/.test(ps), 'run18 签名 `) {,` 再现=三元数组又忘展开');
+  // ② DB-3 每条语句必须独立成行（行首允许两空格缩进；串接形态=一行内出现多条 Write-Output）
+  const db3Lines = ps.split('\r\n').filter((l) => l.includes('[DB-3]'));
+  assert.ok(db3Lines.length >= 6, `DB-3 应生成多条独立行，实际 ${db3Lines.length}`);
+  for (const l of db3Lines) {
+    const n = (l.match(/Write-Output/g) || []).length;
+    assert.ok(n <= 1, `DB-3 单行 Write-Output 应 ≤1（串接嫌疑）: ${l.slice(0, 80)}`);
+  }
+  // ③ 源级钉：delivery/prepare-vm.mjs 中 ensureNode 三元必须以 ...(...) 展开式在场
+  //    （run18 根因=包内 V1.4.19 陈旧副本无此修复；本钉防 HEAD 侧回潮）
+  const src = readFileSync(join(ROOT, 'delivery', 'prepare-vm.mjs'), 'utf8');
+  assert.match(src, /\.\.\.\(\s*ensureNode/, 'ensureNode 三元必须 ... 展开（裸置=join 逗号串接，X-5 根坑）');
+});
+
 /* ---------------- X-6 ---------------- */
 
 test('X-6 锁：仅白名单凭据键回注，process.env 显式值优先不被覆盖', () => {

@@ -74,9 +74,14 @@ STEP begin U4 4.2 "独立复核（防假 PASS）"
 # health 期望 000（服务已拆，连上=没拆干净→FAIL）；mcp 检查与 VM 终态行 rc 入段内判定
 # （U4_RC=段内独立计数，前序段失败不混入本行归因，但仍聚合出链）。
 U4_RC=0
-HCODE="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 4 "http://127.0.0.1:${WINVM_TUNNEL_LOCAL_PORT:-18443}/health" 2>/dev/null)" || true
-echo "health=${HCODE}(期望000)"
-[ "$HCODE" = "000" ] || [ -z "$HCODE" ] || { echo "⚠ health 端口仍可连=隧道未拆净" >&2; U4_RC=1; _fail_note "U4/4.2-health"; }
+# run18 P-4：旧=`$(curl …) || true` 双吞（赋值恒成功盖 curl rc；且 HCODE 空=探针缺失被当过）。
+# 对齐 deploy C4.5 写法：capture curl rc；判据=HCODE 恒须为 000（端口拆净=不可连的 curl 形态），
+# 非 000（含空=探针没跑出码）一律如实计败。
+HCODE="$(curl -sS -o /dev/null -w '%{http_code}' --connect-timeout 4 "http://127.0.0.1:${WINVM_TUNNEL_LOCAL_PORT:-18443}/health" 2>/dev/null)"; UHRC=$?
+echo "health=${HCODE}(期望000, curl rc=$UHRC)"
+if [ "$HCODE" != "000" ]; then
+  echo "⚠ health=${HCODE:-<无码>} rc=$UHRC：期望 000=端口拆净不可连" >&2; U4_RC=1; _fail_note "U4/4.2-health"
+fi
 "$NODE" -e "const j=require(process.env.HOME+'/.workbuddy/mcp.json');const k=Object.keys(j.mcpServers||{}).filter(x=>/winvm/i.test(x));console.log(k.length?'LEFT:'+k:'GLOBAL_MCP_CLEAN')" || { U4_RC=1; _fail_note "U4/4.2-mcp"; }
 "${BASH_OK:-bash}" "$_here/ps-run.sh" -c '$a=Test-Path C:\WinVMBridge; $b=[bool](Get-ScheduledTask -TaskName WinVMBridge.Service -EA SilentlyContinue); $c=@(Get-NetTCPConnection -LocalPort 18443 -State Listen -EA SilentlyContinue).Count; $d=(Get-Service sshd).Status; $e=Test-Path C:\WinVMWorkspace; Write-Output ("期望 False False 0 Running True => " + $a + " " + $b + " " + $c + " " + $d + " " + $e)' || { U4_RC=1; _fail_note "U4/4.2-vm-terminal"; }
 STEP end U4 4.2 $U4_RC "$([ $U4_RC -eq 0 ] && echo PASS || echo FAIL)" "逐项对照上表" "$([ $U4_RC -eq 0 ] && echo none || echo '复核行见上（health/mcp/VM 终态至少一项失败）')"
