@@ -18,8 +18,9 @@ while [ $# -gt 0 ]; do case "$1" in --apply) APPLY=1;; --pkg) PKG="$2"; PKG_ROOT
 if resolve_pkg_root; then
   PKG="$PKG_RESOLVED"; echo "[PKG] root=$PKG（来源=$PKG_SOURCE）"
 else
-  PKG="${PKG:-$HOME/winvm-deploy/overall-root}"
-  echo "⚠ [PKG] 无法解析合法包根（env/状态文件/现探三皆空），保底用 $PKG——拆除场景包根可能已隔离" >&2
+  # run20 QA nit①：原「保底用 $PKG」句失真——下一行即 exit 2，保底从不生效反误导；
+  # 拆除场景解析失败=按处置文案人工介入，不猜路径。
+  echo "⚠ [PKG] 无法解析合法包根（env/状态文件/现探三皆空）——即将退出；拆除场景包根可能已被隔离（查 DEPLOY_ROOT/stale-quarantine/）" >&2
   pkg_root_usage_error
   echo "UNDEPLOY_PKG_ROOT_MISSING" >&2; exit 2
 fi

@@ -367,6 +367,20 @@
 > **run11 分步计时基线（11-02 晚，V1.4.16 干净往返）**：有效总步时 **408s**（A 拆除 65s + B 重装 343s，36 有效步全 PASS、产品零重试；3 次重试全为 QA 脚手架自纠）。Top5=3.2a apply 125s(30.6%)/5.3 example 90s(22.1%)/5.2 a2a 34s/3.0 门禁 26s/5.1+U2.1 21s；三探针链 145s=35.5% 为最大可优化面（llmSession 冷启窗口 +48s vs run8 列观察项，非缺陷）。噪音 4 条全部被脚本既有注记预言（D3 ENOENT/connector-states ⚠/getcwd/powercfg GBK）。数据=`qa/evidence/run11-20261102-timings.csv`，报告=`qa/real-test-2026-11-02-run11.md`。
 
 
+## 迭代20 · run17~20 ssh2 后端战役（2026-11-05，通道相位挂的结构性解法——开账即关）
+
+> 状态：**已关闭（run20 终局 YES：原样三段 UND/DEP/VER 全 0 + verify 38/38 + 矩阵全绿 + steps.tsv 零假 PASS，全程 12m02s 串行单轨、零重启 VM）**。动因=用户报「HiShell 新开 ssh 通」，A/B 定罪相位挂为 WB 沙箱 OpenSSH 二进制专属；团队=sudo software-company 快速模式（engineer+QA 各两轮+终局）。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.24** | P1（通道） | **ssh2 后端**：新 scripts/ssh2-conn.mjs（exec/put/get/ping+sftp、env 契约、凭据零打印、RC_INFRA=111 三试 5s→二进制兜底一发有界）+ vm-conn.sh VM_SSH_BACKEND=key\|ssh2\|auto（默认 key 发布面零冲击）+ probe 快路径（VM_CHANNEL=key 预置=单发 8s）。取证链：同秒 ssh2 READY 654ms/exec rc=0 vs 二进制 rc=124（14:2x）；run17 起 ssh2 路径四轮零 124。单测 p7-ssh2-conn 12 例入 GATE_GUARD（QA N-1 补登）。 | ✅ run17~20 四轮实机签收（commits 40c6c5d/cc07f54） |
+| **I-6.25** | P1（假绿止血） | D-3+P-3/P-4：三 driver rc-capture+FAILED_STEPS 聚合出链（硬阻断段语义保留）；verify VM 行 PIPESTATUS+内容判；U4 health UHRC（HCODE 恒须 000）。止血让预存缺陷如实暴露=P-1/P-2 由此显形（改法价值非锅）。 | ✅ |
+| **I-6.26** | P2（预存必现） | D-1：ps-run.sh 子进程无 vmssh/vmscp 函数（bash 继承变量不继承函数；13efed0 预存，ssh2 快路径 export VM_CHANNEL 使其必现）→ 无条件 source+probe 仅空值时执行。 | ✅ run18 复验三态 PASS |
+| **I-6.27** | P1（取包链） | P-1：882 undeclared=陈旧「手工上提一层」外层复制品被当包根扫（zip 带 overall/ 前缀；外层 MANIFEST=V1.4.19）。修=download-verify 隔离重解（stale-quarantine/）+MANIFEST 版本选根+同 TAG cache 快路径（0.68s）；R-1 传导=新 pkg-root.sh 单一事实源（env>状态文件>现探三级），run19 两类假阻 run20 全消。**P-2 定谳：无第二处裸三元**——run18 跑的是 V1.4.19 陈旧副本（无 X-5 修复），V1.4.20 tag --contains 确认已含；P-1 修好包根恒 V1.4.20 自动消解，delivery 零改动、**无需 V1.4.21**。 | ✅ |
+| **I-6.28** | P2（记录面） | P-5：steps.tsv begin/end id 错位致 dur 空白+聚合少算（run20 零空白实证）；R-2：C2 内嵌 download-verify 只 tail -1 丢 [cache]/[quarantine] 行→全量落 $LOGD；R-3：RUN_DIR 分轮注记；run20 文案 nit（保底句失真）同批修。 | ✅ |
+
+**backlog（不阻断）**：D-2=delivery 层（setup/uninstall/bootstrap/prepare-vm）仍 spawn ssh/scp 二进制，灭相位下预期仍死——run17/18 的 C3.2/U2 通过系好相位幸存；推广 VM_SSH_BACKEND 进 delivery=发布面工程（V1.4.21 候选，待用户裁定）。低优：pkg-root.sh bash 冒烟机检、verify CLIXML 噪音分离、D-5/D-6/D-7 边角。
+
 ## 迭代19 · V1.4.20 + winvm-plugin-deploy skill（2026-11-03~04，用户实跑复盘收编+技能化——开账）
 
 > 状态：**进行中（代码与技能本体完成；实弹复测被 VM 掉线阻塞，待用户 hypervisor 恢复后跑 deploy.sh/undeploy.sh apply 路径+V1.4.20 发布链）**。动因=用户交来 `docs/deploy/deploy-reports/`（第三台宿主实跑总结：4 类根因=前置信息不足/VM 配置难/ssh 通道不稳/无高效脚本支撑），令开发 `deploy/skills/winvm-plugin-deploy` 技能（主流程+子流程+问题方案+高效脚本模板）。

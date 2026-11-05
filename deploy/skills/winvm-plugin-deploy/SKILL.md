@@ -1,7 +1,7 @@
 ---
 name: winvm-plugin-deploy
 description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.1.1：run13 增通道判稳器/能力通道自救/rhythm-check 周期暂停定性/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
-version: 1.1.8
+version: 1.2.0
 agent_created: true
 ---
 
@@ -51,6 +51,12 @@ bash scripts/undeploy.sh --apply         # 真拆：19 项核验+U4 独立复核
 bash scripts/verify.sh                   # 三探针 38 项 + 终态矩阵（fresh/disabledTools=8/隧道/health/skills=8/VM 点；⚠ skills=0 ⇒ 宿主侧外部擦除非 VM 问题，install-host --yes 幂等恢复，run15g 实证）
 bash scripts/step.sh report              # 计时汇总；交付报告=总表+Top5+问题清单直接成文
 ```
+
+## 通道后端与包根选择（run17~20 定版，v1.2.0）
+
+**ssh2 后端（本宿主的正解）**：鸿蒙 WB 沙箱的 OpenSSH 二进制对 VM 呈相位性挂起（灭窗 rc=124 空 stderr，与参数/密度/退避/静置全无关；好窗又全通）——同秒实锤：ssh2 库 READY 654ms+exec rc=0 而二进制 124。凡在 WB 沙箱跑 driver，**export VM_SSH_BACKEND=ssh2**（vm-conn.sh 的 vmssh/vmscp/probe 全走 ssh2-conn.mjs：exec/put/get/ping，env 契约 VM_HOST/VM_USER/VM_SSH_PORT/WINVM_VM_KEY，凭据零打印；基础设施失败 rc=111 三试 5s 间隔→二进制兜底一发有界 <40s）。默认 key=原二进制（发布面零冲击）；HiShell 等其它 App 通道不受此相位影响，勿拿它们的通来否定 WB 的灭。
+
+**包根三级默认（pkg-root.sh 单一事实源）**：`resolve_pkg_root` = 显式 env PKG_ROOT/--pkg > 状态文件 `$DEPLOY_ROOT/pkg-root.txt`（download-verify/deploy 两产出者写） > 现探（内层优先、MANIFEST 版本匹配） > 报错带处置文案（undeploy 不静默 exit 2）。历史坑：手工「上提一层」复制品+隔离重解并存时，硬编码外层=「Cannot find module uninstall.mjs」类假阻（run19 定谳）。
 
 ## 通道自救路径（run13 定谳：ssh 通道死、MCP 隧道活的组合态）
 
