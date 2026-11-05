@@ -8,6 +8,7 @@
 |---|---|---|
 | `vmssh whoami` 挂起、**rc=124 且 stderr 为空**（TCP 已连、认证阶段不回；run13 定谳=VM 开机后 3~10min 挂起期+密集重试自毒半开槽） | sshd 连接位被占满/开机期 auth 挂起（Windows OpenSSH 开机负载+域解析慢；BatchMode/ConnectTimeout 救不了 TCP 层挂起） | ①ssh/scp 外层必包 `timeout`；②**probe 三试间隔 15s**（run13 起；3s 太密会自毒）；③调用方 timeout 预算 ≥3×(VM_SSH_TIMEOUT+15)+余量（如 35s×3+30≈150s 起，**外层小于内层=白跑**）；④冷开机期判 RED 前至少等 5 分钟再单发复测；⑤>10min 仍挂=VM 内管理员 `Restart-Service sshd`；⑥禁并发多轨同 VM |
 | **ssh 新连持续 rc=124 全灭，但 tunnel health 稳定 200** | **run14 定谳修正：这【不是】暂停**——隧道 HTTP 持续 200=vCPU 一直活着（暂停时 vm-service 必无应答）；真形态=**sshd 监听栈坏死**（TCP accept 得进、协议层无响应；lastBootUpTime 未变佐证没重启），restart-service/taskkill /F /T 树全无效（后者还瞬断既有隧道=副作用慎用）。真·暂停指纹=ssh 与隧道【都】间歇挂 | 解药=guest 整机重启；重启后健康窗实测仅 ~7-11min，长链 driver 抢不进=环境级故障上报用户（Defender 网络过滤/vEthernet 交换机/域），勿循环耗轮次；rhythm-check 已带 SSHD_STACK_WEDGE/PERIODIC_SUSPEND 二分 |恶化曲线实录（run14/15 同夜）：boot 窗 7min→restart-service 放 1 枪→闪窗→16min 零窗；越早处置越可能抢进链（≥15min 稳定窗是 driver 全链硬前提） |
+| **用户整机重启后窗仍塌缩**（run15g 终态：11:21 boot→11:24 单发 rc=0→11:25 起 driver 五试全 124） | WEDGE 已进【持久态】：整机重启从解药降级为只能开 3 分钟级窗，sshd 新入站路径坏死与 boot 无关 | 停止窗口赌局；根因排查移交 VM 桌面（管理员 PS）：①Get-WinEvent Microsoft-Windows-OpenSSH* ②Defender 网络检查系统/实时保护临时关 60s 对照 ③宿主虚拟化 App 里重置 VM 网络适配器（NAT⇄桥接）。期间 MCP 隧道侧一切照常（38/38 实证） |
 | `Permission denied (publickey)`（明明免密在） | 宿主 `~/.ssh` 属主随 uid 漂移（沙箱 uid 跨调用变化），known_hosts/id_ed25519 权限位失效 | 编排走独立选项 `-F /dev/null -o UserKnownHostsFile=/dev/null`（vm-conn 密码通道已内建）；长期=两把密钥分开（GitHub 用 id_ed25519_github，VM 通道重建用默认键） |
 | sshd 在跑、端口在听，但 TCP 超时 | 防火墙规则 Profile 与网卡 Profile 不匹配（R3） | VM 管理员：`Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Profile Any`；诊断见 preflight FW= 行 |
 | 连不上且 ping 通 | VM 被 hypervisor 暂停/睡眠 | VM 管理端设「自动暂停=从不 + 开机自启」；guest 内电源只是部分（prepare-vm DB-5） |
@@ -43,7 +44,7 @@
 | 大文档批量 Edit 后内容缩水/出现字面 `\n` | python 普通串转义 | 每处 assert count==1 + 写后 grep 扫 `|\n|` 字面（项目铁律） |
 | 明文密码落 .env | 交付残留风险 | env.example 注释化该键；部署完删行（deploy-reports 提醒） |
 | **「判稳失败/NO_CHANNEL」但同刻手工单发却通** | 调用方外层 `timeout` < 被包脚本最坏时长（rounds×120s 量级），把仍在判稳的循环中途杀成失败假象；或 reboot 后 100s 短睡就开测而 Windows+sshd 实需 5-8min | 外层预算 ≥ rounds×120（wait-channel 头注）；restart 后首轮前 sleep ≥240s；判稳失败先**手工单发复测一次**再定性（run14 18:45 假失败/18:44 已通的错位实证） |
-| 一行式内嵌 python/sed 报 syntax error/rc=127 撕碎整链 | 双引号里嵌套单引号被 shell eval 拆坏（run13 实证：token 提取一行式炸整链；与「禁内联含 $」同源的第二形态） | 复杂逻辑一律 `cat > x.py <<'EOF'` 落盘再跑；令牌经文件/环境变量中转并即删；同族=python 普通串 `\n`/路径转义坑 |
+| **verify 终态 connector skills=0**（历轮基线 8；disabledTools/health 均正常） | 宿主侧外部因素可清空 `~/.workbuddy/connectors/skills/`（run15g 实证：目录 mtime 落在宿主重启窗口，非本项目任何脚本所为——undeploy 当时根本没跑） | `install-host --yes` 重跑即幂等恢复 8/8（run15g 实测 rc=0）；verify.sh 已把该项打进终态矩阵，见 0 即跑 install-host，勿查 VM |\n| 一行式内嵌 python/sed 报 syntax error/rc=127 撕碎整链 | 双引号里嵌套单引号被 shell eval 拆坏（run13 实证：token 提取一行式炸整链；与「禁内联含 $」同源的第二形态） | 复杂逻辑一律 `cat > x.py <<'EOF'` 落盘再跑；令牌经文件/环境变量中转并即删；同族=python 普通串 `\n`/路径转义坑 |
 
 ## D. gitee 发布面（取包主源特有）
 

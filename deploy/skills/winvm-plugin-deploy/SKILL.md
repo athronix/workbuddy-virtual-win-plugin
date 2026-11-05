@@ -1,7 +1,7 @@
 ---
 name: winvm-plugin-deploy
 description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.1.1：run13 增通道判稳器/能力通道自救/rhythm-check 周期暂停定性/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
-version: 1.1.4
+version: 1.1.5
 agent_created: true
 ---
 
@@ -47,13 +47,13 @@ bash scripts/undeploy.sh --apply         # 真拆：19 项核验+U4 独立复核
 ## 复验与汇报
 
 ```bash
-bash scripts/verify.sh                   # 三探针 38 项 + 终态矩阵（fresh/8/隧道/health/skill/VM 点）
+bash scripts/verify.sh                   # 三探针 38 项 + 终态矩阵（fresh/disabledTools=8/隧道/health/skills=8/VM 点；⚠ skills=0 ⇒ 宿主侧外部擦除非 VM 问题，install-host --yes 幂等恢复，run15g 实证）
 bash scripts/step.sh report              # 计时汇总；交付报告=总表+Top5+问题清单直接成文
 ```
 
 ## 通道自救路径（run13 定谳：ssh 通道死、MCP 隧道活的组合态）
 
-> ⚠ **红线（用户明令 2026-11-04，最高优先级）：绝不主动重启 VM/guest**——`self-rescue.sh restart-guest`、`shutdown /r`、taskkill sshd 树等复位手段**一律禁用**，除非用户当次明确要求。通道坏了的正确姿势=**探测并利用健康窗口**跑最短链（隧道 ensure→undeploy→deploy→verify 一气呵成），无窗则止损上报等用户处置，不许用重启赌窗口。
+> ⚠ **红线（用户明令 2026-11-04，最高优先级）：绝不主动重启 VM/guest**——`self-rescue.sh restart-guest`、`shutdown /r`、taskkill sshd 树等复位手段**一律禁用**，除非用户当次明确要求。通道坏了的正确姿势=**探测并利用健康窗口**跑最短链（隧道 ensure→undeploy→deploy→verify 一气呵成），无窗则止损上报等用户处置，不许用重启赌窗口。（run15g 升级实证：**连用户手动整机重启也只能开 3 分钟窗**——重启连『制造窗口』的资格都已失去，WEDGE 进持久态时唯一正确动作=拿 MCP 隧道侧完成可完成的一切+移交 VM 桌面排查清单，见 troubleshooting A 表恶化曲线两行。）
 
 判据形态：`ssh` TCP 秒连但 **banner 8s 不吐**（node 裸探针可证）、sshd 服务 Running、`restart sshd` 无效、RDP 亦超时——= guest 监听栈僵死/半开堆积，**旧长连接仍可用来救场**。此时**先走能力通道，勿找 hypervisor**：
 
