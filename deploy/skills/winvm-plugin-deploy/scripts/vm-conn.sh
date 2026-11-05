@@ -53,13 +53,24 @@ _askpass_env() {
 }
 vm_channel_probe() {
   [ -n "$VM_HOST" ] || { echo "VM_HOST 未设（问用户）" >&2; return 2; }
+  # run15 定谳（17:34 密测 12/12 全通 vs 五试 40s 内全灭）：窗好时连发全过、【重试无自毒】；
+  # 五试×15s 间隔的真正代价=健康窗被 ~261s 探测程序耗尽。⇒ 调用方已裁定通道时走快路径：
+  # export VM_CHANNEL=key（或 password）后本函数只做单发验证（8s 内定成败），失败才回退五试全探。
+  if [ "${VM_CHANNEL:-}" = key ]; then
+    if _ssh_t ssh -o BatchMode=yes -o ConnectTimeout=8 "${_ssh_common[@]}" -p "$VM_SSH_PORT" "${VM_USER}@${VM_HOST}" whoami >/dev/null 2>&1; then
+      echo "VM_CHANNEL=key 复用（预置通道单发验证过，快路径）"; return 0
+    fi
+    echo "VM_CHANNEL=key 预置单发失败 → 回退五试全探" >&2
+  fi
   # run13 定谳：VM 开机 auth 慢期里 ConnectTimeout=8 成临界（probe 8s×3 全灭 vs 单发 15s 三连通）；
-  # 密集短试自毒半开槽 ⇒ 五试、15s 间隔、CT=15；失败诊断无条件打印（rc+末次 stderr）。
+  # 五试、15s 间隔、CT=15；失败诊断无条件打印（rc+末次 stderr）。
+  # 【run15 17:34 更正】旧『密集重试自毒』判已被密测证伪：窗开时 12 连发/2s 间隔全通。
+  # 五试间隔的真实意义=给『环境相位切换』留观察窗，不是防自毒；窗闭相位下怎么退避都白搭。
   local i last_err="" last_rc=0
   for i in 1 2 3 4 5; do
     last_err=$(timeout "${VM_SSH_TIMEOUT:-25}" ssh -o BatchMode=yes "${_ssh_common[@]}" -p "$VM_SSH_PORT" "${VM_USER}@${VM_HOST}" whoami 2>&1 >/dev/null); last_rc=$?
     [ $last_rc -eq 0 ] && { export VM_CHANNEL=key; echo "VM_CHANNEL=key（免密通道在；第 ${i} 试命中）"; return 0; }
-    # 间隔 15s：本地 timeout 杀掉=VM 侧半开连接要等登录超时才释放，密集重试自毒、稀疏反通。
+    # 间隔 15s（run15 更正：非防自毒——密测证明窗开时连发无害；此间隔=相位切换观察节拍）。
     [ $i -lt 5 ] && sleep 15
   done
   if [ -n "${WINVM_SSH_PASSWORD:-}" ]; then
