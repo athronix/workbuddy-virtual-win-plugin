@@ -1,7 +1,7 @@
 ---
 name: winvm-plugin-deploy
 description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.1.1：run13 增通道判稳器/能力通道自救/rhythm-check 周期暂停定性/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
-version: 1.1.6
+version: 1.1.7
 agent_created: true
 ---
 
@@ -73,7 +73,7 @@ bash scripts/self-rescue.sh rhythm-check      # 交替采样二分定性（run14
 ## 通道坏的定位阶梯（run15h 定版：先分层再动手，勿再治 sshd）
 
 1. **sshd 无罪快速自证**（能力通道，30 秒）：guest 内 `TcpClient` 自连 `127.0.0.1:22` 和 `自身LAN IP:22`——都秒回 banner ⇒ 问题不在 guest，转步骤 2；不回 ⇒ 才是 sshd 层（restart-service 路径）。
-2. **数据面黑洞指纹**：宿主 ping 通 + TCP 握手成 + banner 时有时无 + guest 侧无半开堆积 = 虚拟化交换机入站数据面丢包。解法=guest 内关 NIC checksum/LSO offload + 关 NIC 电源管理，或宿主虚拟化 App 重置 VM 网卡（均非 VM 重启）。
+2. **banner 能到=数据面无罪**（v1.1.7 更正，用户质疑证伪旧『数据面丢包』判）：run15i 14:59 全链认证成功 + 15:16-18 裸 TCP 连测 28/28 秒回 banner——banner 能流的时刻 vSwitch/防火墙全健康。灭窗的形态=**banner 之后、认证完成之前挂起**（rc=124 stderr 空），即 sshd **子进程/会话建立段**（Windows OpenSSH: 父监听进程出 banner，子进程走 lsass 建登录令牌——嫌疑集中在子进程 spawn/lsass/PerSource 节流），**不是网络层**。旧「关 NIC offload/重置 vSwitch」指示作废勿执行。判别实验=灭窗内让用户从其它 App（如 HiShell）**新开**一条：秒通⇒问题在本 App 沙箱出口侧；同样挂⇒坐实 VM sshd 认证段。
 3. **已建立连接 ≠ 新建连接**：隧道/保活长连全程健康不能推出新连接可用（run15h：keepalive 活 8min、期间新建五试全灭）。窗口判定永远用新建连接实测。
 
 ## 卡住时（先查表再动手）
