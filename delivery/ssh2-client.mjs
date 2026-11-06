@@ -19,6 +19,21 @@
  *     binary 一发；远端非零码=业务真值，**绝不回落**（回落只会重复执行副作用）。
  *     策略语义由各调用点经 backend 参数自装配，本模块不内置调用点策略。
  *
+ * ⚠ 调用点契约（迭代21 QA 登记项 §6，新增调用点前必读——双闸门防回落误触发）：
+ *   【红线一：非零码禁重抛 Error】auto 回落的安全性完全依赖「op 绝不把远端非零码重抛为
+ *     Error」——远端码必须经 runner.exec 的 resolve 以 {ok:false, code:N} **结果对象**返回
+ *     （runVmOp/mapRunnerResult 链路保证）。若调用点在 op 内自行把非零码包成 Error 上抛
+ *     （如 `if (!r.ok) throw new Error(...)`），该 Error 可能命中 INFRA_PATTERNS 被分型为
+ *     连接级失败 → auto 触发回落 → **二进制二次执行同一命令=重复副作用**。包装文案含
+ *     「超时/失败/connection/refused」等字样时尤其危险。判据想抛错的场景请改在
+ *     runVmOp 返回**之后**按 res.ok/res.code 判定（参照 winvm-plugin.sshExec 的正规写法）。
+ *   【红线二：半途断连=二次执行，写类命令必须幂等】exec 通道中途断流（stream close
+ *     code=null）判 infra → auto 回落二进制**再执行一遍**；此时首次执行的远端命令可能
+ *     已部分落地。故**新增写类（含副作用）调用点的远端命令必须幂等**（现全量调用点均为
+ *     只读探测或幂等 .ps1——每项先探测再动作，二次执行无害；New-Item -Force/
+ *     Remove-Item -ErrorAction SilentlyContinue/schtasks 语义均幂等）。非幂等写命令
+ *     （如无条件 Add-Content/追加式安装）不得走 auto，应显式 ssh2 后端或改造成幂等形。
+ *
  * 凭据纪律（同 ssh2-conn）：
  *   - 私钥 readFileSync 转 Buffer 后传 ssh2 —— ssh2 对**字符串** privateKey 按 PEM 字面量
  *     解析，传路径必报 "Unsupported key format"（run17 实锤坑）；
@@ -162,6 +177,8 @@ export function resolvePrivateKeyForConnect(options) {
  *  - backend='ssh2' → 只执行 op()；op 抛连接级错**原样上抛**（显式失败，不碰二进制）；
  *  - backend='auto'（默认）→ op() 优先；仅连接级失败（isInfraFailure 命中或 e.noSsh2）
  *    → onFallback(e) 后 binary() 一发；op 正常返回（含远端非零码的 {ok:false}）不落回落。
+ *  ⚠ op 的双闸门契约（非零码禁重抛 Error / 写类命令须幂等）见文件头「调用点契约」段——
+ *    违反其一会让 auto 把业务真值误判为连接级失败并二次执行副作用。
  * @template T
  * @param {{backend?:string, binary:(()=>T|Promise<T>), op:(()=>Promise<T>),
  *          onFallback?:(e:unknown)=>void}} opts
