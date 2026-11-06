@@ -726,7 +726,7 @@ function main() {
     if (!existsSync(join(ROOT, src))) fail(`overall 文档源缺失：${src}（请先撰写）`);
     const dst = join(dest, 'overall', 'docs', name);
     ensureDir(dirname(dst)); // name 可含子目录（deploy/xxx.md）
-    cpSync(join(ROOT, src), dst);
+    copyEntry(join(ROOT, src), dst); // V1.4.23：走 copyEntry=recursive:true，支持目录级条目（技能收编）
   }
   writeReadme(join(dest, 'overall'), 'overall', version, {
     title: '整体一键部署发布包（宿主机 + VM + 文档）',
