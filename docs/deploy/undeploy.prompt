@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.7 · I-6.23 vmssh/vmscp 外层 timeout 硬化（与 deploy v3.1.1 同规）；v2.6=run12 回写：X-4 噪音捕获纪律/X-6 bash 全路径；v2.5=run11 复盘产品化 X-1~X-4；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.8 · run20/21 定案通道后端 ssh2 指引（拆除同样免疫灭相位：V1.4.21 起 uninstall/bootstrap 默认 auto=ssh2 优先；deploy v3.2.0 同规）；v2.7=I-6.23 vmssh/vmscp 外层 timeout 硬化（与 deploy v3.1.1 同规）；v2.6=run12 回写：X-4 噪音捕获纪律/X-6 bash 全路径；v2.5=run11 复盘产品化 X-1~X-4；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、
@@ -84,6 +84,11 @@ U0 · 拆除前置检查（只读）
           -o NumberOfPasswordPrompts=0 -p $VM_SSH_PORT $VM_USER@$VM_HOST whoami
       判据：输出用户名 + 退出码 0。若已失效 → 按 P-2：先按 deploy 脚本 Step 1 重建通道再拆，
             或经用户同意后改用密码通道（WINVM_SSH_PASSWORD + askpass）。
+      ⚠ 鸿蒙(WB)宿主特判（deploy.prompt v3.2.0 Step 0.6 同规）：本发探测**无报错地挂满超时**
+        （rc=124 空 stderr）多半是本宿主 OpenSSH 二进制的相位性挂起而**非通道真失效**——
+        V1.4.21 起 delivery 拆除链（uninstall/bootstrap）默认 auto=ssh2 优先已免疫；skill 路径
+        export VM_SSH_BACKEND=ssh2 或单发 `node <包根>/delivery/ssh2-resolve.mjs` 系通道先自证。
+        勿因二进制灭相位误判 P-2 重建通道、更勿重启 VM（红线）。
   0.2 WINVM_DRY_RUN=0（否则 --apply 会被降级，出现"假已拆"）。
   0.3 记录拆除前基线（供 U4 对照）：当前 ~/.workbuddy 下 winvm 落点清单、VM 上
       C:/WinVMBridge 与计划任务是否存在。

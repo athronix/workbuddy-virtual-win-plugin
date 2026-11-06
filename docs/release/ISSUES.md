@@ -367,6 +367,14 @@
 > **run11 分步计时基线（11-02 晚，V1.4.16 干净往返）**：有效总步时 **408s**（A 拆除 65s + B 重装 343s，36 有效步全 PASS、产品零重试；3 次重试全为 QA 脚手架自纠）。Top5=3.2a apply 125s(30.6%)/5.3 example 90s(22.1%)/5.2 a2a 34s/3.0 门禁 26s/5.1+U2.1 21s；三探针链 145s=35.5% 为最大可优化面（llmSession 冷启窗口 +48s vs run8 列观察项，非缺陷）。噪音 4 条全部被脚本既有注记预言（D3 ENOENT/connector-states ⚠/getcwd/powercfg GBK）。数据=`qa/evidence/run11-20261102-timings.csv`，报告=`qa/real-test-2026-11-02-run11.md`。
 
 
+## 迭代22 · V1.4.22（2026-11-06，run20/21 定案固化进安装脚本面——开账）
+
+> 状态：**进行中**。动因=用户令「发布一个版本」。V1.4.21 运行码已全链验证（run21 灭窗实战三段全绿）——本批把**通道后端定案**写进智能体安装脚本面（.prompt=发布面，永久规则=深化内容逐迭代必达入包），运行码零改动，V1.4.22。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.31** | P3（安装脚本面） | **ssh2 后端指引入两 .prompt**：deploy v3.2.0 Step 0.6（鸿蒙宿主相位性挂起定案+delivery V1.4.21 起默认 auto 免疫+skill `export VM_SSH_BACKEND=ssh2`+灭相位勿重启 VM 红线）+排错行分身份重写（WB 宿主=相位挂 vs 其它=sshd 占满）；undeploy v2.8 U0.1 特判（二进制灭相位≠通道真失效勿误判 P-2）；母本 v3.5/strategy v3.20/README/docs-index 同步示例值 V1.4.22；pack **V11f**（包内 deploy.prompt 含 VM_SSH_BACKEND+相位性挂起 fail-loud）。 | 进行中（发布链=下步） |
+
 ## 迭代21 · V1.4.21（2026-11-06，D-2 落地=delivery 发布层 ssh2 化——开账即关）
 
 > 状态：**已关闭（V1.4.21 全链实证）**：pack V1–V11 全绿 24 项（zip `6a16b72d…`/2930719B，ssh2-client/backend MANIFEST 在册）→tag@53e7d6b→双端 push→publish `--mirror-gitee`（GitHub+gitee 各两资产，gitee latest=V1.4.21）→**gitee 匿名下载逐字节一致**→download-verify --tag V1.4.21（隔离旧根+选根+.env 下传+状态文件=skill 分发链自洽）→包根 install-host rc=0/**FRESH 189**/health=200/disabledTools 8-0/skills 8/缓存 ssh2 三件在场。**run21 实战加验（11-06 16:44~16:57）**：V1.4.21 首航全程处于二进制灭相位（16:44/16:59 两端快照 rc=124），三段仍全 0/798s——U0 通道判定 1s 即过（旧=261s 拦停）、C3.2 setup 217s **auto 回落计数 0**（ssh2 恒通兜底没轮到出场）。灭窗实战=最强验证形态，报告 run21-realtest-2026-11-06.md。**动因=用户裁定「确认是 ssh 二进制的问题，那都 ssh2 化吧」。定罪补充证据：11-06 10:15 同秒分叉第五例（二进制 rc=124 vs ssh2 pong ready rc=0）。清点=文件系统 grep 交叉（Grep 工具再度零命中，MEMORY 教训第三次应验）定稿 24+1 处（tools/psmod-drift.mjs L215 为清单外发现），实改 **25 处**，隧道兜底分支（setup L1048/winvm-plugin L417）与 bootstrap interactive tty 属设计内保留（非「远端命令/传文件」类）。

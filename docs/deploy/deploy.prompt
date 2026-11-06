@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.1.1 · I-6.23 vmssh/vmscp 外层 timeout 硬化（sshd 占满 TCP 无限挂起解药）；前版=取包源切 gitee 镜像（主）+GitHub（fallback）；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.2.0 · run20/21 战役定案=鸿蒙宿主通道后端 ssh2 指引（Step 0.6；V1.4.21 起 delivery 默认 auto 免疫灭相位）；前版=I-6.23 vmssh/vmscp 外层 timeout 硬化、取包 gitee 镜像主+GitHub fallback；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -34,11 +34,11 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
     [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
   done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
-  export RELEASE_TAG=V1.4.20                   # ⚠ 示例值——以 releases/latest API 现解为准：
+  export RELEASE_TAG=V1.4.22                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL "https://gitee.com/api/v5/repos/athronix/workbuddy-virtual-win-plugin/releases/latest" | grep tag_name
     #   （gitee 与 github 双端镜像发同 tag 同 zip；gitee 端不可达时回退 api.github.com 同型命令）
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.20.zip
+  export ZIP=winvm-overall-V1.4.22.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
@@ -120,6 +120,16 @@ Step 0 · 前置检查（开工前逐项确认；不满足按 P-2 处置）
         Set-NetFirewallRule -Name OpenSSH-Server-In-TCP -Profile Any
       本项目自建规则（prepare-vm DB-2）默认全 Profile，无此问题。
   0.5 ssh/scp 偶发一两次失败 → 属桥接抖动，用 vmssh/vmscp 重试面（上方），非配置错误。
+  0.6 鸿蒙(WB)宿主通道后端（run13~21 战役定案，V1.4.21 起）：本宿主的 OpenSSH 二进制对 VM 呈
+      **相位性挂起**（灭相位 TCP/banner 能过、认证段随机挂死 rc=124 空 stderr，与重试密度/参数
+      形态/静置时长全无关），而 node ssh2 库通道同秒恒通（run17~21 多组同秒分叉实锤）。对策：
+      ① delivery 安装链（setup/uninstall/bootstrap 等 25 处）V1.4.21 起默认 **auto=ssh2 优先**，
+         仅连接级失败回落二进制一发，远端非零码不回落——**无需任何配置即已免疫灭相位**；
+      ② 若走 skill driver（deploy/skills/winvm-plugin-deploy）：export VM_SSH_BACKEND=ssh2；
+      ③ 手工用 vmssh/裸 ssh 长时间挂起（无报错）先怀疑本宿主二进制相位：**换 ssh2 后端或换通道
+         App（如 HiShell）验证**，勿归因 VM/sshd、更勿重启 VM（红线）——run21 全程灭窗三段全绿
+         即终局证据。判据：`node delivery/ssh2-client.mjs` 系文件在场且包版本 ≥V1.4.21。
+
 
 ────────────────────────────────────────
 Step 1 · 密码登录 → 建立免密通道（已免密可跳过，判据 1.5 复核即可）
@@ -267,7 +277,7 @@ Step 6 交付引导（不参与部署判据，但决定任务通道路由正确�
 - 公钥无效 → Administrators 成员必须写 C:/ProgramData/ssh/administrators_authorized_keys（icacls 用 SID）。
 - sshd 在跑端口在听但连不上（超时）→ 防火墙 Profile 不匹配（见 0.4，管理员 PS 一条命令修）。
 - 偶发 ssh/scp 一两次失败 → 桥接抖动，vmssh/vmscp 重试面内自愈，非缺陷。
-- ssh **无任何报错地长时间挂起** → VM sshd 连接位占满（TCP 层不退，BatchMode/ConnectTimeout 均救不了，I-6.23 实测）；v3.1.1 的 VST=25s 外层 timeout 已拦停重试，持续数分钟不恢复=VM 内管理员 `Restart-Service sshd` 或检查前会话遗留连接。
+- ssh **无任何报错地长时间挂起** → 先分身份（Step 0.6/run13~21 定案）：**鸿蒙 WB 宿主二进制=相位性挂起**（run21 全程灭窗而 ssh2/delivery-auto 三段全绿），解法=走 ssh2 后端（delivery 默认 auto 已免疫；skill export VM_SSH_BACKEND=ssh2）或换通道 App 验证，**勿重启 VM（红线）**；其它宿主/App=VM sshd 连接位占满（BatchMode/ConnectTimeout 救不了，I-6.23），VST=25s 外层 timeout 已拦停重试，持续不恢复=VM 内管理员 `Restart-Service sshd` 或查遗留连接。
 - 部署报「✅ 完成」但服务没起 → .env WINVM_DRY_RUN 是否 =1。
 - 下载 (28) connect timeout → 2.1 已 gitee 主源+github fallback+重试面；单源全挂再检查网络，勿手改 URL 形态（gitee 下载须跟随 302，curl -L 已在默认行为）。
 - 隧道 TCP 通但 HTTP 黑洞 → tunnel status 看 ownerMatch/stateStale，kill 旧 pid 后 ensure；

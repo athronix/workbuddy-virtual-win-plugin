@@ -2,6 +2,7 @@
 
 > 文档 ID：DEPLOY-PROMPTS-v1
 > 状态：**六步已真机实测通过**（验收 25/25，见 `qa/real-test-2026-10-26-run1.md`）
+> 更新：2026-11-06（v3.5：**run20/21 战役定案入面（迭代22/V1.4.22）**——两 .prompt 增鸿蒙宿主通道后端 ssh2 指引（deploy Step 0.6/undeploy U0.1 特判）；V1.4.21 起 delivery 默认 auto=ssh2 优先免疫灭相位（run21 全程灭窗三段全绿终局证据）；pack V11f
 > 更新：2026-11-04（v3.4：**I-6.23 通道挂起解药**——vmssh/vmscp 外层 timeout（VST=25s）入两 .prompt（deploy v3.1.1/undeploy v2.7）+排错新增「无报错长挂起=sshd 占满」行；VM 停机实测 11s 有界返回
 > 更新：2026-11-03（v3.3：**取包主源切 gitee 镜像 + GitHub fallback**——deploy.prompt v3.1.0 Step 2.1 重写；publish-release.mjs 增 --mirror-gitee 双端镜像发布（gitee Releases API 三坑实证入 I-6.19））
 > 更新：2026-11-03（v3.2：run12 条款验证轮 YES-with-nits 回写——X-4 噪音捕获纪律/X-5 深冷档 250s/X-6 bash 全路径；deploy.prompt v3.0.7/undeploy v2.6；示例值升 V1.4.18）
@@ -58,8 +59,8 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
 |---|---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 同左 | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | 解析到 `V1.4.2` | latest 跳转页 | ☐ |
-| `RELEASE_TAG` | `V1.4.20`（**示例值——以 `releases/latest` API 现解为准**，见 `RELEASE_URL` 行与 deploy.prompt 注入段指引） | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
-| `ZIP_NAME` | `winvm-overall-<RELEASE_TAG>.zip`（示例 V1.4.20） | 随 latest 现解（旁挂 91 B sidecar 现取现验） | 分发单元 | ☐ |
+| `RELEASE_TAG` | `V1.4.22`（**示例值——以 `releases/latest` API 现解为准**，见 `RELEASE_URL` 行与 deploy.prompt 注入段指引） | 10-29 上架 latest=V1.4.6 | 发布标签（V1.4.6=.prompt 两脚本+README §5.4 入包版；V1.4.5=I-6.3 收编版；V1.4.4=I-6.1 补发版） | ☐ |
+| `ZIP_NAME` | `winvm-overall-<RELEASE_TAG>.zip`（示例 V1.4.22） | 随 latest 现解（旁挂 91 B sidecar 现取现验） | 分发单元 | ☐ |
 | `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：以 release 旁挂 `winvm-overall-<TAG>.zip.sha256` 为准，`sha256sum -c` 当场验 | V1.4.6 回环实测一致 | 整包校验值（取包时现取现验，永不陈旧） | ☐ |
 | `PKG_FILES`/`PKG_BYTES`/`PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：以**包内 `MANIFEST.txt` 头七行**为准，`$PY qa/deploy-probes/verify-manifest.py .` 复算即验 | V1.4.6=881/7606427/`2562a598…`（历史样例） | MANIFEST 三元组（Step 2.3 判据②的输入源=包内文件，非本文档） | ☐ |
 | `DEPLOY_ROOT` | `~/winvm-deploy` | 同左 | 宿主解压根 | ☐ |
@@ -136,7 +137,7 @@ VM 侧需 `sshd` 运行中、Windows 账户**有非空密码**、已装 Node ≥
   VM_DEPLOY_DIR=C:/WinVMBridge   VM_WORKSPACE=C:/WinVMWorkspace
   SERVICE_PORT=18443（仅回环 127.0.0.1）
   PROVIDER=workbuddy   WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.20   ZIP=winvm-overall-V1.4.20.zip
+  RELEASE_TAG=V1.4.22   ZIP=winvm-overall-V1.4.22.zip
   REPO=athronix/workbuddy-virtual-win-plugin
   DEPLOY_ROOT=~/winvm-deploy   PKG_ROOT=~/winvm-deploy/overall-root/overall
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
@@ -361,7 +362,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 
 ```text
 从 GitHub Release 取 WinVM Bridge 分发包并做三层校验。
-  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.20  ZIP=winvm-overall-V1.4.20.zip
+  REPO=athronix/workbuddy-virtual-win-plugin  TAG=V1.4.22  ZIP=winvm-overall-V1.4.22.zip
 1) 用绝对 URL（不要 releases/latest）下载 zip 与 .zip.sha256 到 ~/winvm-deploy/pkg/，
    带 --connect-timeout 20 --max-time 900 --retry 5 --retry-delay 3 --retry-all-errors -C -。
    判据①：sha256sum -c 通过。
@@ -525,7 +526,7 @@ $PY qa/deploy-probes/a2a-probe.py
 |---|---|---|---|
 | 1 | ~~是否发布 V1.4.3~~ | **已裁决并执行（10-26 用户批准）**：V1.4.3 已上架（G-1 修复入包+V5 断言），清场重装 run2 复验非账户零污染 | ✅ 关闭 |
 | 2 | ~~G-2 MANIFEST 无消费者~~ | **已收编**：`delivery/verify-release.mjs`（四判据+V5）随包分发，Step 2 判据二入口 | ✅ 关闭 |
-| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / latest 现解，示例 `V1.4.20`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
+| 3 | **本轮变量是否即为长期默认** | 见 §2 全表（`172.16.100.2` / `User` / `18443` / `workbuddy` / latest 现解，示例 `V1.4.22`）；provider/@latest 两项已裁定 | 用户：其余项逐项确认 |
 | 4 | **VM 密码管理方式** | 当前经 `WINVM_SSH_PASSWORD` 运行期注入，未落任何文件 | 用户：确认是否维持该方式 |
 | 5 | ~~G-3 deploy-probes 不进包~~ | **已收编**：V1.4.3 包内 `qa/deploy-probes/` 6 件 + `delivery/tools/diagnose-connectors.mjs`（PACKAGE_REQUIRED 必存断言兜底），纯 Release 安装链零仓库依赖 | ✅ 关闭 |
 | 6 | ~~VM 默认 shell=Git-Bash 隐藏前置~~ | **已根除（V1.4.9/迭代12）**：安装/拆除/探针全部远端命令改跨壳通道（cmd.exe 兼容），sshd 保持出厂默认即可；新宿主机复盘 R8 落账 ISSUES I-6.5 | ✅ 关闭 |
@@ -611,6 +612,7 @@ $PY qa/deploy-probes/a2a-probe.py
 | 2026-10-26 | v1.4 | P6 增加「能力实测状态」提示（引用 strategy §9.2）；新增只读补测脚本 `qa/deploy-probes/example-probe.py`。**本轮 VM 于 18:05 起从宿主不可达**（网关通、VM 不应答），Step 6 示例中 7 项标 ⏳ 未实跑 |
 | 2026-10-26 | v1.5 | **V1.4.3 发布同步**：RELEASE_TAG/ZIP_NAME/HOST_SKILL_DIR（实测 8）升版；总 Prompt/P2/P3/P6 版本引用同步；§7 待确认 1/2/5（G-1/2/3）销账关闭；Step 2 判据二入口=包内 verify-release.mjs |
 | 2026-10-27 | v1.6 | **V1.4.4 版本引用同步**（10-27 回环实测时发现 v1.5 仍写 V1.4.3——本次回环 Step 3~5 走既有包根未触发下载面，故此前未暴露）：§2.2 RELEASE_TAG/ZIP_NAME/ZIP_SHA256/PKG 三元组、总 Prompt、P2、§5 速查升 V1.4.4（03cef597…/876/7422500/5f50a2c2…）；头注加对偶行（undeploy-prompts） |
+| 2026-11-06 | v3.5 | **迭代22/V1.4.22：run20/21 定案入安装脚本面**——deploy.prompt v3.2.0 Step 0.6 鸿蒙宿主通道后端（相位性挂起定案+delivery 默认 auto=ssh2 优先免疫+skill VM_SSH_BACKEND=ssh2+勿重启红线）+排错行分身份；undeploy.prompt v2.8 U0.1 灭相位特判（二进制挂≠通道失效勿误判 P-2）；pack V11f 特征断言（VM_SSH_BACKEND+相位性挂起）。运行码=V1.4.21 零改动。 |
 | 2026-11-03 | v3.3 | **取包主源切 gitee 镜像（迭代18/V1.4.19）**：gitee 仓库 public 镜像（main+全 tags 逐 sha 一致）+Releases 已建并匿名验证；deploy.prompt v3.1.0 Step 2.1=BASE_GITEE 主+BASE_GH fallback+foruda 一次性签名警示（勿 -C -）；publish-release `--mirror-gitee` 双端自动镜像（gitee API 三坑=POST releases 必带 target_commitish／attach_files 无 upsert 删后传且同名大小写不敏感／下载 302 消费签名；纯函数+单测 ×4=36/36）。发布链标准动作更新=pack→push origin→push gitee tag→publish --apply --mirror-gitee。 |
 | 2026-11-03 | v3.2 | **run12 验证回写（迭代17 追加/V1.4.18）**：X 条款首轮验证=X-1/X-2/X-3 三类返工**零复发**（run11 3 次 ~55s→0；39 步全 rc=0、RETRY=0、终态 38/38 全绿）、X-4 四噪音全命中全放行零停顿、X-5 判定面有效但深冷带宽低估（往返后即刻测链 239s>声明带 145s，E7 单发 178s）→回写=deploy v3.0.7/undeploy v2.6：X-5 上修三档（热 97/冷 145/深冷 ~250，判据以零超时零复跑为准）+X-4 追加噪音捕获纪律（判据替换捕获 2>/dev/null，D-2）+X-6 辅助脚本 bash 全路径（/bin/bash=损坏 shim，D-1）。总步时 550s（run11 408s，差值=深冷探针带+显式诊断行，无返工贡献）。 |
 | 2026-11-03 | v3.1 | **run11 坑产品化（迭代17/V1.4.17）**：分步计时基线轮（408s/36 步全 PASS/产品零重试）暴露的三类**执行者姿势返工**（会话态不持久→X-1 source env.sh 协议；相对路径×cd 冲突→X-2 绝对路径纪律；本地侧 `$_` 先展开→X-3 铁律本地同权）+四条**良性噪音**（getcwd/D3 ENOENT/GBK 码页/connector-states ⚠→X-4 放行表集中预言）+X-5 探针冷启带宽（145s 冷 vs 97s 热，评估勿误判回归），一并入两 .prompt【执行者避坑清单】新段；pack **V11e**（包内必含避坑清单+source 行特征）。run12=避坑条款验证轮（判据=X-1~X-3 零复发）。 |
