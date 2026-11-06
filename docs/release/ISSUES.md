@@ -367,6 +367,14 @@
 > **run11 分步计时基线（11-02 晚，V1.4.16 干净往返）**：有效总步时 **408s**（A 拆除 65s + B 重装 343s，36 有效步全 PASS、产品零重试；3 次重试全为 QA 脚手架自纠）。Top5=3.2a apply 125s(30.6%)/5.3 example 90s(22.1%)/5.2 a2a 34s/3.0 门禁 26s/5.1+U2.1 21s；三探针链 145s=35.5% 为最大可优化面（llmSession 冷启窗口 +48s vs run8 列观察项，非缺陷）。噪音 4 条全部被脚本既有注记预言（D3 ENOENT/connector-states ⚠/getcwd/powercfg GBK）。数据=`qa/evidence/run11-20261102-timings.csv`，报告=`qa/real-test-2026-11-02-run11.md`。
 
 
+## 迭代24 · V1.4.24（2026-11-06，URL 单指令入口=独立技能包上架——开账）
+
+> 状态：**进行中**。动因=用户明确目标形态：「只要给鸿蒙宿主机 WorkBuddy 发送指令『请依据 skill {skill_url} 安装/卸载/验证 winvm-plugin』，WorkBuddy 就会依据 skill 完成本项目的安装/卸载/验证」。V1.4.23 只解决「包内带技能」（前提=已有 overall 包根）；本迭代补齐**零前提入口面**——技能本体以独立 zip 随双端 release 上架，skill_url 单指令即可完成取技能→取发布包→全流程。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.33** | P3（分发闭环·入口面） | **独立部署技能包 `winvm-plugin-deploy-skill.zip` 入发布链**：pack-release 新增 `makeDeploySkillZip`（staging 复制仓库技能目录+RELEASE-VERSION.txt 版本指纹→zip 内根=`winvm-plugin-deploy/`，解到 `~/.workbuddy/skills/` 即标准 skill 布局；条目根+四件套+指纹五断言 fail-loud，zip 名全小写=规避 gitee attach 落盘小写化差异）；证据行族 `deploy-skill-zip:`/`deploy-skill-zip-sha256-file:`。**publish-release buildAssetList 扩展**：同目录技能包在场⇒四资产（overall zip+旁挂+skill zip+旁挂）双端一并上架；旧 tag 无技能包=正常两资产零噪声 warn；上架完成打印双端 skill URL+单指令话术。**SKILL.md v1.2.1** 新增「URL 单指令入口」引导章（五步：取技能包[gitee 302 禁 -C -]→P-1 问环境事实→env-detect+download-verify 取 overall[此步后 ssh2-resolve 经 $PKG_ROOT/delivery 候选路径自动可解析]→按动词路由 deploy/undeploy/verify→troubleshooting+红线勿重启 VM）；**deploy.prompt v3.2.2 Step 0.6⑤ / undeploy.prompt v2.10 ⚑ 注记**；overall README 快速段第 6 条。pack **V11h**（包内 SKILL.md 含「URL 单指令入口」+zip 名）/**V11i**（包内 undeploy.prompt 同款注记）深化面机械化必达。单测 +6（buildAssetList skill 分支四态+buildSkillZipSpawn 形态+证据行口径，42/42）；顺带根除 pack-release 既有 `fs.rmSync` 无命名空间导入隐患（4 处→已导入 rmSync）。 | 开账→发布链实证后关 |
+
 ## 迭代23 · V1.4.23（2026-11-06，部署技能入发布包——开账）
 
 > 状态：**已关闭（V1.4.23 全链实证）**：pack 26 项全绿（**V11g 首验 ✓**）→tag@包源点→双端 push→publish --mirror-gitee（latest=V1.4.23）→**gitee 匿名下载 sha `69711a4c…` 逐字节一致**→**新机模拟实证**：解包即见 docs/deploy/skills/winvm-plugin-deploy/（SKILL v1.2.0 可解析+scripts 14 件 bash -n 过）=零仓库按技能全自主部署成立。过程账：pack 守卫两连拦（工作树不净/半新半旧目录=设计内 fail-loud）+目录级条目首战暴露 cpSync 缺 recursive（修=走 copyEntry，commit 前置）。SKILL 元数据微漂移（description 括注/表两行）已修=随下批 pack 同步（在场断言 V11g 不受影响）。发布包 release/V1.4.23.failed-attempt1 残留目录经用户裁定保留不清。动因原文=用户问「skill 的 GitHub 地址给鸿蒙宿主的 WorkBuddy 能否直接按 skill 完成全部署？」查实=**V1.4.22 包内只有运行态 connector skills、不含 winvm-plugin-deploy 部署技能本体**（repo 地址可行、release 地址断链）→ 用户裁定「最新版本应该根据 skill 指引进行本项目的部署运维」=收编入包。

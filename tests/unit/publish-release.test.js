@@ -38,6 +38,10 @@ import {
   sha256SidecarNameFor,
   sha256SidecarContent,
   diffZipEntriesVsManifest,
+  buildSkillZipSpawn,
+  skillZipEvidenceLine,
+  SKILL_ZIP_NAME,
+  SKILL_ZIP_ROOT,
 } from '../../delivery/pack-release.mjs';
 
 /* ==================== ① token 解析优先级 ==================== */
@@ -358,3 +362,64 @@ test('gitee：下载 URL 与 GitHub 端同构（releases/download/<tag>/<file>�
     'https://gitee.com/athronix/r/releases/download/V1.4.19/w.zip');
   assert.ok(GITEE_API.startsWith('https://gitee.com/api/v5'));
 });
+
+/* ==================== ⑥ V1.4.24 独立技能包随 release 上架（URL 单指令入口） ==================== */
+
+// existsSync 是真 fs——测 skill 分支须用真实路径。本仓技能源 SKILL.md 必然在场（从仓库根跑测）
+const SKILL_REAL = 'deploy/skills/winvm-plugin-deploy/SKILL.md';
+
+test('V1.4.24 buildAssetList：无 opts ⇒ 两资产（zip+旁挂），与旧行为逐字节兼容', () => {
+  const r = buildAssetList('/r/winvm-overall-V1.4.24.zip', true);
+  assert.deepEqual(r.assets.map((a) => a.name), ['winvm-overall-V1.4.24.zip', 'winvm-overall-V1.4.24.zip.sha256']);
+  assert.equal(r.warn, null);
+});
+
+test('V1.4.24 buildAssetList：skillZipPath 在场（存在）⇒ 四资产 zip+旁挂+skill+skill旁挂', () => {
+  // 借真技能目录的父级构造 skill zip 路径不实际（zip 未生成）；直接用一个存在文件模拟：
+  // buildAssetList 对 skill 用 existsSync(skillZipPath)——传真实目录内文件当哨兵
+  const r = buildAssetList('/r/winvm-overall-V1.4.24.zip', true, {
+    skillZipPath: SKILL_REAL, // 存在 ⇒ 视作 skill zip 在场
+    skillSidecarExists: true,
+  });
+  assert.equal(r.assets.length, 4, JSON.stringify(r.assets.map((a) => a.name)));
+  assert.equal(r.assets[2].path, SKILL_REAL);
+  assert.equal(r.assets[3].name, 'SKILL.md.sha256');
+});
+
+test('V1.4.24 buildAssetList：skillZipPath 不存在 ⇒ 仅两资产 + warn 点名（旧 tag 无 skill 属正常路径不 warn）', () => {
+  const r = buildAssetList('/r/winvm-overall-V1.4.24.zip', true, {
+    skillZipPath: '/nonexistent/winvm-plugin-deploy-skill.zip',
+  });
+  assert.equal(r.assets.length, 2);
+  assert.equal(r.warn, null, 'warnSkillMissing 未置位=旧 tag 正常态，不产生噪声 warn');
+});
+
+test('V1.4.24 buildAssetList：warnSkillMissing 置位且 skill 不在场 ⇒ warn 显形（≥V1.4.24 双 zip 必达）', () => {
+  const r = buildAssetList('/r/a.zip', true, {
+    skillZipPath: '/nonexistent/winvm-plugin-deploy-skill.zip',
+    warnSkillMissing: true,
+  });
+  assert.equal(r.assets.length, 2);
+  assert.ok(r.warn && r.warn.includes('winvm-plugin-deploy-skill.zip') && r.warn.includes('双 zip'), `warn 不合格：${r.warn}`);
+});
+
+/* ==================== ⑦ V1.4.24 独立技能包打包纯函数（URL 单指令入口分发单元） ==================== */
+
+test('V1.4.24 buildSkillZipSpawn：条目根恒为 winvm-plugin-deploy/，输出落 release/<v>/ 根，cwd=skill-staging', () => {
+  const p = buildSkillZipSpawn('/repo/release/V1.4.24');
+  assert.equal(p.cmd, 'zip');
+  assert.equal(p.zipName, SKILL_ZIP_NAME);
+  assert.equal(SKILL_ZIP_NAME, 'winvm-plugin-deploy-skill.zip');
+  assert.equal(SKILL_ZIP_ROOT, 'winvm-plugin-deploy');
+  assert.ok(p.cwd.endsWith('skill-staging'), `cwd 须为 skill-staging：${p.cwd}`);
+  // zip 从 staging 打出、落到 release/<v>/ 根（join('..', name)）；条目根=winvm-plugin-deploy
+  assert.deepEqual(p.args, ['-qr', '../' + SKILL_ZIP_NAME, 'winvm-plugin-deploy']);
+  assert.ok(p.outPath.endsWith('/V1.4.24/' + SKILL_ZIP_NAME), `outPath 应落版本根：${p.outPath}`);
+});
+
+test('V1.4.24 skillZipEvidenceLine：前缀口径 deploy-skill-zip（与 overall-zip 同族可 grep）', () => {
+  const l = skillZipEvidenceLine('release/V1.4.24/winvm-plugin-deploy-skill.zip', { sha256: 'ab12', bytes: 4096 });
+  assert.equal(l, 'deploy-skill-zip: release/V1.4.24/winvm-plugin-deploy-skill.zip sha256=ab12 bytes=4096');
+});
+
+

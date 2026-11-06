@@ -144,21 +144,36 @@ export function resolveToken(opts = {}) {
  * 待上传资产清单（Q-2 纯函数）：zip 本体 + 旁挂 `<zip>.sha256`（pack-release 产、
  * 同目录、sha256sum -c 兼容）。旁挂缺失 ⇒ **warn 继续、只上架 zip**（兼容旧包；
  * 新机侧回退 MANIFEST/pack 证据校验，team-lead 裁决口径）。
+ * V1.4.24 扩展：`skillZip`（winvm-plugin-deploy-skill.zip 独立技能包，同目录）在场时
+ * 一并上架（zip+旁挂），缺失 ⇒ warn 继续（旧 tag 无此资产属正常）。
  * @param {string} zipPath zip 绝对/相对路径
  * @param {boolean} sidecarExists 旁挂文件是否存在
+ * @param {{skillZipPath?:string|null, skillSidecarExists?:boolean}} [opts]
  * @returns {{assets: {path:string, name:string, contentType:string}[], warn:string|null}}
  */
-export function buildAssetList(zipPath, sidecarExists) {
+export function buildAssetList(zipPath, sidecarExists, opts = {}) {
   const zipName = zipPath.split(/[\\/]/).pop();
   const assets = [{ path: zipPath, name: zipName, contentType: 'application/zip' }];
-  let warn = null;
+  const warns = [];
   if (sidecarExists) {
     assets.push({ path: `${zipPath}.sha256`, name: `${zipName}.sha256`, contentType: 'text/plain' });
   } else {
-    warn = `旁挂校验文件 ${zipName}.sha256 缺失——仅上架 zip（兼容旧包；新机侧回退 MANIFEST/pack 证据校验）`;
+    warns.push(`旁挂校验文件 ${zipName}.sha256 缺失——仅上架 zip（兼容旧包；新机侧回退 MANIFEST/pack 证据校验）`);
   }
-  return { assets, warn };
+  if (opts.skillZipPath && existsSync(opts.skillZipPath)) {
+    const sName = opts.skillZipPath.split(/[\\/]/).pop();
+    assets.push({ path: opts.skillZipPath, name: sName, contentType: 'application/zip' });
+    if (opts.skillSidecarExists) {
+      assets.push({ path: `${opts.skillZipPath}.sha256`, name: `${sName}.sha256`, contentType: 'text/plain' });
+    } else {
+      warns.push(`技能包旁挂 ${sName}.sha256 缺失——技能包仍上架但新机侧需自备校验`);
+    }
+  } else if (opts.warnSkillMissing) {
+    warns.push(`独立技能包 ${sNameGuess(opts.skillZipPath)} 不在场——≥V1.4.24 发布必须双 zip（URL 单指令入口面），请核对 pack 产物`);
+  }
+  return { assets, warn: warns.join(' ｜ ') || null };
 }
+function sNameGuess(p) { return p ? String(p).split(/[\\/]/).pop() : 'winvm-plugin-deploy-skill.zip'; }
 
 /**
  * 上传计划（纯函数）：根据「release 是否已存在」与「同名 asset 是否已存在」决定动作序列。
@@ -366,9 +381,17 @@ export async function main(argv = process.argv.slice(2)) {
   const zipName = zipPath.split(/[\\/]/).pop();
   if (!zipName.endsWith('.zip')) { console.error(`✗ 后缀须 .zip：${zipName}`); return 2; }
   // Q-2 旁挂资产：pack 侧产 <zip>.sha256 ⇒ 双资产上架；缺失=warn 继续只上架 zip（兼容旧包）。
+  // V1.4.24：同目录独立技能包 winvm-plugin-deploy-skill.zip（+旁挂）一并上架——URL 单指令入口面；
+  // 旧 tag（≤V1.4.23）无此资产=正常，仅 warn 显形不阻断。
+  const dir = dirname(zipPath);
+  const skillZipPath = join(dir, 'winvm-plugin-deploy-skill.zip');
   const sidecarPath = `${zipPath}.sha256`;
   const sidecarExists = existsSync(sidecarPath);
-  const { assets, warn: assetWarn } = buildAssetList(zipPath, sidecarExists);
+  const { assets, warn: assetWarn } = buildAssetList(zipPath, sidecarExists, {
+    skillZipPath,
+    skillSidecarExists: existsSync(`${skillZipPath}.sha256`),
+    warnSkillMissing: !existsSync(skillZipPath),
+  });
   if (assetWarn) console.log(`  ⚠ WARN : ${assetWarn}`);
 
   let repoInfo;
@@ -474,6 +497,11 @@ export async function main(argv = process.argv.slice(2)) {
   console.log(`  Release 页面 : ${release.html_url ?? `${API}/repos/${repoInfo.repo}/releases/tags/${tag}`}`);
   console.log(`  匿名下载 URL : ${zipAsset.browser_download_url}`);
   if (sidecarExists) console.log(`  校验旁挂 URL : https://github.com/${repoInfo.repo}/releases/download/${tag}/${zipName}.sha256`);
+  if (assets.some((a) => a.name === 'winvm-plugin-deploy-skill.zip')) {
+    console.log(`  技能包 URL   : https://github.com/${repoInfo.repo}/releases/download/${tag}/winvm-plugin-deploy-skill.zip`);
+    console.log(`  技能包 URL(gitee 主源) : https://gitee.com/${repoInfo.repo}/releases/download/${tag}/winvm-plugin-deploy-skill.zip`);
+    console.log(`  ⇒ 单指令入口话术：「请依据 skill <上面的 gitee URL> 安装/卸载/验证 winvm-plugin」`);
+  }
   console.log(`  （新鸿蒙机 WorkBuddy 用此 URL curl；sha256 校验对照旁挂文件 sha256sum -c 或 qa/release/${tag}-pack.txt 的 overall-zip 行）`);
   // —— gitee 镜像（deploy.prompt v3.1.0 取包主源；--mirror-gitee 才执行，失败 fail-loud）——
   if (args.mirrorGitee) {

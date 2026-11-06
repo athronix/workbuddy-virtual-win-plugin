@@ -445,14 +445,14 @@ export function makeOverallZip(destVersionDir, version) {
   // —— 缺陷#1 条目集断言（读 zip 中央目录，不读盘上目录：判的就是上架字节流本身）——
   const list = spawnSync('unzip', ['-Z1', plan.outPath], { cwd: plan.cwd, encoding: 'utf8' });
   if (list.status !== 0) {
-    try { fs.rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
+    try { rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
     fail(`zip 条目列举失败（unzip -Z1 exit ${list.status}）：${(list.stderr || list.stdout || '').toString().trim().slice(0, 300)}——断言无法执行 ⇒ 按不可信处理，半成品已删除`);
   }
   const zipEntries = list.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
   const manifestRows = readFileSync(manifestPath, 'utf8').split('\n');
   const extras = diffZipEntriesVsManifest(zipEntries, manifestRows);
   if (extras.length) {
-    try { fs.rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
+    try { rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
     fail(`zip 混入非 MANIFEST 成员（发布闸口拦截，仓库 public 后这些文件将匿名可取）：\n  ${extras.join('\n  ')}\n——从包目录移除上述杂文件（勿删 MANIFEST 在册成员/.env.example）后重试`);
   }
   const zip = { path: plan.outPath, zipName: plan.zipName, sha256: sha256File(plan.outPath), bytes: statSync(plan.outPath).size };
@@ -472,6 +472,71 @@ export function overallZipEvidenceLine(relPathFromRoot, zip) {
 /** 旁挂资产证据行（Q-2；前缀口径=team-lead 定稿 `overall-zip-sha256-file:`） */
 export function overallZipSha256EvidenceLine(relPathFromRoot) {
   return `overall-zip-sha256-file: ${relPathFromRoot}`;
+}
+
+/* ------------------------------ 独立技能包（V1.4.24：URL 单指令入口的分发单元） ------------------------------ */
+/**
+ * 部署技能 winvm-plugin-deploy 的**独立 zip**（全小写名=规避 gitee attach 落盘名小写化差异）。
+ * 动机（11-06 用户裁定）：新机只需一句「请依据 skill {skill_url} 安装/卸载/验证 winvm-plugin」
+ * ⇒ WorkBuddy 下载本 zip、解包安装到 ~/.workbuddy/skills/、按 SKILL.md 自助完成取发布包与全流程。
+ * zip 内根=winvm-plugin-deploy/ ⇒ 解压到用户级技能目录即成标准 skill 布局。
+ */
+export const SKILL_ZIP_NAME = 'winvm-plugin-deploy-skill.zip';
+export const SKILL_DIR_REL = 'deploy/skills/winvm-plugin-deploy';
+export const SKILL_ZIP_ROOT = 'winvm-plugin-deploy';
+/** 技能包 zip 命令计划（纯函数供单测）：从 release/<v>/skill-staging 执行，条目根恒为 winvm-plugin-deploy/ */
+export function buildSkillZipSpawn(destVersionDir) {
+  const cwd = join(destVersionDir, 'skill-staging');
+  return { cmd: 'zip', args: ['-qr', join('..', SKILL_ZIP_NAME), SKILL_ZIP_ROOT], cwd, outPath: join(destVersionDir, SKILL_ZIP_NAME), zipName: SKILL_ZIP_NAME };
+}
+/** 技能包证据行（与 overall-zip 同口径前缀族） */
+export function skillZipEvidenceLine(relPathFromRoot, zip) {
+  return `deploy-skill-zip: ${relPathFromRoot} sha256=${zip.sha256} bytes=${zip.bytes}`;
+}
+export function skillZipSha256EvidenceLine(relPathFromRoot) {
+  return `deploy-skill-zip-sha256-file: ${relPathFromRoot}`;
+}
+/**
+ * 生成独立技能包 zip：staging 复制仓库技能目录 + 写入 RELEASE-VERSION.txt 版本指纹，
+ * zip 后断言条目根与四件套在场（SKILL.md/ssh2-conn.mjs/undeploy.sh/troubleshooting.md）。
+ * 任何缺失/混入 fail-loud（删半成品，不落残缺证据）。
+ */
+export function makeDeploySkillZip(destVersionDir, version, commit) {
+  const srcSkillDir = join(ROOT, SKILL_DIR_REL);
+  if (!existsSync(join(srcSkillDir, 'SKILL.md'))) fail(`技能源缺失：${SKILL_DIR_REL}/SKILL.md`);
+  const plan = buildSkillZipSpawn(destVersionDir);
+  if (existsSync(plan.outPath)) fail(`技能包 zip 目标已存在：${relative(ROOT, plan.outPath)}（请移走旧 zip，避免新旧混发）`);
+  const staging = plan.cwd;
+  try { rmSync(staging, { recursive: true, force: true }); } catch { /* 首次不存在 */ }
+  ensureDir(staging);
+  copyEntry(srcSkillDir, join(staging, SKILL_ZIP_ROOT));
+  // 版本指纹（解包后可溯源；skill 加载器不消费此文件，多一个 txt 无害）
+  writeFileSync(join(staging, SKILL_ZIP_ROOT, 'RELEASE-VERSION.txt'), `${version}  commit=${commit}\n`);
+  const r = spawnSync(plan.cmd, plan.args, { cwd: staging, encoding: 'utf8' });
+  if (r.status !== 0 || !existsSync(plan.outPath)) {
+    fail(`技能包 zip 生成失败（exit ${r.status}）：${(r.error ? r.error.message : (r.stderr || r.stdout || '')).toString().trim().slice(0, 300)}`);
+  }
+  const list = spawnSync('unzip', ['-Z1', plan.outPath], { cwd: destVersionDir, encoding: 'utf8' });
+  if (list.status !== 0) {
+    try { rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
+    fail(`技能包 zip 条目列举失败 ⇒ 按不可信处理，半成品已删除`);
+  }
+  const entries = list.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+  const bad = entries.filter((e) => !e.startsWith(`${SKILL_ZIP_ROOT}/`));
+  const need = [`${SKILL_ZIP_ROOT}/SKILL.md`, `${SKILL_ZIP_ROOT}/scripts/ssh2-conn.mjs`, `${SKILL_ZIP_ROOT}/scripts/undeploy.sh`, `${SKILL_ZIP_ROOT}/references/troubleshooting.md`, `${SKILL_ZIP_ROOT}/RELEASE-VERSION.txt`];
+  const missing = need.filter((p) => !entries.includes(p));
+  if (bad.length || missing.length) {
+    try { rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
+    fail(`技能包 zip 结构不合格（根外条目=${bad.slice(0, 3).join(',') || '无'}；缺=${missing.join(',') || '无'}）——半成品已删除`);
+  }
+  const zip = { path: plan.outPath, zipName: SKILL_ZIP_NAME, sha256: sha256File(plan.outPath), bytes: statSync(plan.outPath).size, entries: entries.filter((e) => !e.endsWith('/')).length };
+  zip.sidecarName = sha256SidecarNameFor(SKILL_ZIP_NAME);
+  zip.sidecarPath = join(destVersionDir, zip.sidecarName);
+  writeFileSync(zip.sidecarPath, sha256SidecarContent(SKILL_ZIP_NAME, zip.sha256));
+  if (!existsSync(zip.sidecarPath) || readFileSync(zip.sidecarPath, 'utf8') !== sha256SidecarContent(SKILL_ZIP_NAME, zip.sha256)) {
+    fail(`技能包旁挂校验文件写出回读不一致：${relative(ROOT, zip.sidecarPath)}`);
+  }
+  return zip;
 }
 
 /* ------------------------------ 包内验证 V1-V4 ------------------------------ */
@@ -604,11 +669,25 @@ function verifyPackages(dest, version) {
       && existsSync(join(skDir, 'scripts', 'undeploy.sh')) && existsSync(join(skDir, 'references', 'troubleshooting.md'));
     results.push({ label: 'V11 overall 包含 winvm-plugin-deploy 技能（SKILL+ssh2-conn+driver+百科四件，部署技能化面）', ok: hit15, status: hit15 ? 0 : 1, tail: '' });
     console.log(`  ${hit15 ? '\u2713' : '\u2717'} V11 overall 包含 winvm-plugin-deploy 技能（SKILL+ssh2-conn+driver+百科四件，部署技能化面）`);
+    // V11h（V1.4.24，用户裁定「URL 单指令入口」=安装脚本能力面深化）：技能包独立上架所依赖的
+    // 两段入口指引必达包内——① SKILL.md 含「URL 单指令入口」引导章（新机 WorkBuddy 只凭 skill_url
+    // 即可自助取包→全流程）；② deploy.prompt Step 0.6 含 ⑤ URL 单指令入口段（无技能环境的等效兜底）。
+    // 滞后 = fail-loud 拒产包（同 V11 其余深化面纪律，机械化替代口头声称）。
+    const hit16 = skTxt.includes('URL 单指令入口') && skTxt.includes('winvm-plugin-deploy-skill.zip');
+    results.push({ label: 'V11 SKILL.md 含 URL 单指令入口引导章（≥V1.4.24 深化面）', ok: hit16, status: hit16 ? 0 : 1, tail: '' });
+    console.log(`  ${hit16 ? '\u2713' : '\u2717'} V11 SKILL.md 含 URL 单指令入口引导章（≥V1.4.24 深化面）`);
+    const hit17 = dTxt.includes('URL 单指令入口') && dTxt.includes('winvm-plugin-deploy-skill.zip');
+    results.push({ label: 'V11 deploy.prompt 含 URL 单指令入口段⑤（≥V1.4.24 深化面）', ok: hit17, status: hit17 ? 0 : 1, tail: '' });
+    console.log(`  ${hit17 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 URL 单指令入口段⑤（≥V1.4.24 深化面）`);
     const upFp = join(dest, 'overall', 'docs', 'deploy', 'undeploy.prompt');
     const uTxt = existsSync(upFp) ? readFileSync(upFp, 'utf8') : '';
     const hit10 = uTxt.includes('RMKEY') && uTxt.includes('旧包兼容');
     results.push({ label: 'V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）', ok: hit10, status: hit10 ? 0 : 1, tail: '' });
     console.log(`  ${hit10 ? '\u2713' : '\u2717'} V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）`);
+    // V11i（V1.4.24）：undeploy.prompt ⚑ URL 单指令入口注记在场（拆除面的同族深化，勿只装不拆）。
+    const hit18 = uTxt.includes('URL 单指令入口') && uTxt.includes('winvm-plugin-deploy-skill.zip');
+    results.push({ label: 'V11 undeploy.prompt 含 URL 单指令入口注记（≥V1.4.24 深化面）', ok: hit18, status: hit18 ? 0 : 1, tail: '' });
+    console.log(`  ${hit18 ? '\u2713' : '\u2717'} V11 undeploy.prompt 含 URL 单指令入口注记（≥V1.4.24 深化面）`);
   }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
@@ -742,6 +821,7 @@ function main() {
       '3. 整段复制粘贴给 WorkBuddy（鸿蒙宿主）新会话，即按 Step 1→6 自动部署，每步带判据自检。',
       '4. 卸载同理：整段粘贴 `docs/deploy/undeploy.prompt`（U0→U5，DRY-RUN 先行，默认保留工作区与 SSH 密钥）。',
       '5. **技能模式（V1.4.23 起推荐）**：对 WorkBuddy 说「按 docs/deploy/skills/winvm-plugin-deploy 技能部署本包（PKG_ROOT=包根绝对路径）」——技能封装主流程/子流程/30+ 问题百科/分步计时 driver/ssh2 通道后端，抗灭相位、可断点续跑，比纯 Prompt 更稳；拆除与复验同理（undeploy.sh/verify.sh）。',
+      '6. **URL 单指令入口（V1.4.24 起，零前提最省形态）**：同一 release 另附独立技能包 `winvm-plugin-deploy-skill.zip`。新机连 overall 包都不用先下——只发一句「请依据 skill https://gitee.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-plugin-deploy-skill.zip 安装 winvm-plugin」，WorkBuddy 下载并安装该技能后按其「URL 单指令入口」引导段自助完成取包→部署→验证；卸载/验证换动词即可。',
       '',
       '## 一键部署',
       '```bash',
@@ -788,6 +868,9 @@ function main() {
   // Q-2 旁挂 <zip>.sha256（sha256sum -c 兼容）随 zip 一同上架，解包前即可整包校验。
   console.log('· 生成 overall zip + sha256 旁挂（GitHub Release 分发单元）');
   const overallZip = makeOverallZip(dest, version);
+  // V1.4.24：独立部署技能包（URL 单指令入口分发单元）——与 overall 同 tag 双资产上架
+  console.log('· 生成 winvm-plugin-deploy 独立技能包 zip + sha256 旁挂（skill URL 单指令入口）');
+  const skillZip = makeDeploySkillZip(dest, version, COMMIT);
 
   // —— 证据（版本化入库；release/ 本体不入库） ——
   const evDir = resolve(ROOT, args.evidenceDir);
@@ -804,6 +887,8 @@ function main() {
     `overall : files=${overallMan.files} bytes=${overallMan.bytes} total-sha256=${overallMan.total}`,
     overallZipEvidenceLine(relative(ROOT, overallZip.path), overallZip),
     overallZipSha256EvidenceLine(relative(ROOT, overallZip.sidecarPath)),
+    skillZipEvidenceLine(relative(ROOT, skillZip.path), skillZip),
+    skillZipSha256EvidenceLine(relative(ROOT, skillZip.sidecarPath)),
     '',
     '# 目录树（release/' + version + '）',
     ...treeOf(join(dest)),
@@ -816,6 +901,7 @@ function main() {
   console.log(`  vm      ${vmMan.files} 文件 / ${(vmMan.bytes / 1024).toFixed(0)}K / sha256 ${vmMan.total.slice(0, 16)}…`);
   console.log(`  overall ${overallMan.files} 文件 / ${(overallMan.bytes / 1024).toFixed(0)}K / sha256 ${overallMan.total.slice(0, 16)}…`);
   console.log(`  overall-zip ${relative(ROOT, overallZip.path)} / ${(overallZip.bytes / 1024).toFixed(0)}K / sha256 ${overallZip.sha256.slice(0, 16)}…  旁挂 ${relative(ROOT, overallZip.sidecarPath)}  →上架：node delivery/publish-release.mjs --tag ${version} --zip ${relative(ROOT, overallZip.path)} [--apply]`);
+  console.log(`  deploy-skill-zip ${relative(ROOT, skillZip.path)} / ${(skillZip.bytes / 1024).toFixed(0)}K / ${skillZip.entries} 文件 / sha256 ${skillZip.sha256.slice(0, 16)}…（同 tag 双端 release 自动随附上架；skill URL 单指令入口）`);
   console.log(`  证据：${relative(ROOT, evPath)}`);
   console.log(`\n下一步：cd ${relative(ROOT, dest)}/overall && bash deploy-all.sh --wipe   （清空历史部署后整体重装；bash 显式解释防 hmdfs 丢执行位）\n`);
 }
