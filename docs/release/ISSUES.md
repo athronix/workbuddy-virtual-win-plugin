@@ -369,7 +369,7 @@
 
 ## 迭代21 · V1.4.21（2026-11-06，D-2 落地=delivery 发布层 ssh2 化——开账即关）
 
-> 状态：**已关闭（V1.4.21 发布链+包根复验，见下）**。动因=用户裁定「确认是 ssh 二进制的问题，那都 ssh2 化吧」。定罪补充证据：11-06 10:15 同秒分叉第五例（二进制 rc=124 vs ssh2 pong ready rc=0）。清点=文件系统 grep 交叉（Grep 工具再度零命中，MEMORY 教训第三次应验）定稿 24+1 处（tools/psmod-drift.mjs L215 为清单外发现），实改 **25 处**，隧道兜底分支（setup L1048/winvm-plugin L417）与 bootstrap interactive tty 属设计内保留（非「远端命令/传文件」类）。
+> 状态：**已关闭（V1.4.21 全链实证）**：pack V1–V11 全绿 24 项（zip `6a16b72d…`/2930719B，ssh2-client/backend MANIFEST 在册）→tag@53e7d6b→双端 push→publish `--mirror-gitee`（GitHub+gitee 各两资产，gitee latest=V1.4.21）→**gitee 匿名下载逐字节一致**→download-verify --tag V1.4.21（隔离旧根+选根+.env 下传+状态文件=skill 分发链自洽）→包根 install-host rc=0/**FRESH 189**/health=200/disabledTools 8-0/skills 8/缓存 ssh2 三件在场。动因=用户裁定「确认是 ssh 二进制的问题，那都 ssh2 化吧」。定罪补充证据：11-06 10:15 同秒分叉第五例（二进制 rc=124 vs ssh2 pong ready rc=0）。清点=文件系统 grep 交叉（Grep 工具再度零命中，MEMORY 教训第三次应验）定稿 24+1 处（tools/psmod-drift.mjs L215 为清单外发现），实改 **25 处**，隧道兜底分支（setup L1048/winvm-plugin L417）与 bootstrap interactive tty 属设计内保留（非「远端命令/传文件」类）。
 
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
