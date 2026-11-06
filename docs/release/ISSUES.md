@@ -369,11 +369,11 @@
 
 ## 迭代23 · V1.4.23（2026-11-06，部署技能入发布包——开账）
 
-> 状态：**进行中**。动因=用户问「skill 的 GitHub 地址给鸿蒙宿主的 WorkBuddy 能否直接按 skill 完成全部署？」查实=**V1.4.22 包内只有运行态 connector skills、不含 winvm-plugin-deploy 部署技能本体**（repo 地址可行、release 地址断链）→ 用户裁定「最新版本应该根据 skill 指引进行本项目的部署运维」=收编入包。
+> 状态：**已关闭（V1.4.23 全链实证）**：pack 26 项全绿（**V11g 首验 ✓**）→tag@包源点→双端 push→publish --mirror-gitee（latest=V1.4.23）→**gitee 匿名下载 sha `69711a4c…` 逐字节一致**→**新机模拟实证**：解包即见 docs/deploy/skills/winvm-plugin-deploy/（SKILL v1.2.0 可解析+scripts 14 件 bash -n 过）=零仓库按技能全自主部署成立。过程账：pack 守卫两连拦（工作树不净/半新半旧目录=设计内 fail-loud）+目录级条目首战暴露 cpSync 缺 recursive（修=走 copyEntry，commit 前置）。SKILL 元数据微漂移（description 括注/表两行）已修=随下批 pack 同步（在场断言 V11g 不受影响）。发布包 release/V1.4.23.failed-attempt1 残留目录经用户裁定保留不清。动因原文=用户问「skill 的 GitHub 地址给鸿蒙宿主的 WorkBuddy 能否直接按 skill 完成全部署？」查实=**V1.4.22 包内只有运行态 connector skills、不含 winvm-plugin-deploy 部署技能本体**（repo 地址可行、release 地址断链）→ 用户裁定「最新版本应该根据 skill 指引进行本项目的部署运维」=收编入包。
 
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
-| **I-6.32** | P3（分发闭环） | **winvm-plugin-deploy 整目录收编 overall 包**（V1.4.5/V1.4.6 零仓库收编先例延伸）：OVERALL_DOCS 增目录级条目 `['deploy/skills/winvm-plugin-deploy', 'deploy/skills/winvm-plugin-deploy']`（既有 copy 循环 name 含子目录=落位包内 `docs/deploy/skills/`）；PACKAGE_REQUIRED.overall 四件断言（SKILL.md/scripts/ssh2-conn.mjs/scripts/vm-conn.sh/references/troubleshooting.md）；pack **V11g**=四件套在场 fail-loud（技能收编滞后=拒产包，与 V11 家族同械）。安装脚本面注记：deploy.prompt v3.2.1 Step 0.6④ 技能模式（PKG_ROOT=包根一句话起装）+undeploy v2.9/README 快速段第 5 条；母本 v3.6/strategy v3.21/README/docs-index 示例 V1.4.23。**回答用户=V1.4.23 起：release 地址或 repo 地址任一，鸿蒙 WorkBuddy 均可独立完成部署+启动+验证**（推荐说法见 SKILL.md 头部与 README）。 | 进行中（发布链=下步） |
+| **I-6.32** | P3（分发闭环） | **winvm-plugin-deploy 整目录收编 overall 包**（V1.4.5/V1.4.6 零仓库收编先例延伸）：OVERALL_DOCS 增目录级条目 `['deploy/skills/winvm-plugin-deploy', 'deploy/skills/winvm-plugin-deploy']`（既有 copy 循环 name 含子目录=落位包内 `docs/deploy/skills/`）；PACKAGE_REQUIRED.overall 四件断言（SKILL.md/scripts/ssh2-conn.mjs/scripts/vm-conn.sh/references/troubleshooting.md）；pack **V11g**=四件套在场 fail-loud（技能收编滞后=拒产包，与 V11 家族同械）。安装脚本面注记：deploy.prompt v3.2.1 Step 0.6④ 技能模式（PKG_ROOT=包根一句话起装）+undeploy v2.9/README 快速段第 5 条；母本 v3.6/strategy v3.21/README/docs-index 示例 V1.4.23。**回答用户=V1.4.23 起：release 地址或 repo 地址任一，鸿蒙 WorkBuddy 均可独立完成部署+启动+验证**（推荐说法见 SKILL.md 头部与 README）。 | ✅ V1.4.23 发布链+新机模拟闭环 |
 
 ## 迭代22 · V1.4.22（2026-11-06，run20/21 定案固化进安装脚本面——开账）
 

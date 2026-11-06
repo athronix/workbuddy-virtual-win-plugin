@@ -1,6 +1,6 @@
 ---
 name: winvm-plugin-deploy
-description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.1.1：run13 增通道判稳器/能力通道自救/rhythm-check 周期暂停定性/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
+description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.2.0：run13~21 全战役沉淀——通道判稳器/能力通道自救/rhythm-check 定性/ssh2 通道后端/包根三级选根/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
 version: 1.2.0
 agent_created: true
 ---
@@ -105,6 +105,8 @@ bash scripts/self-rescue.sh rhythm-check      # 交替采样二分定性（run14
 | `preflight.sh` | Step 0 一键体检（信息/运行时/通道/VM 前置 sshd·node·防火墙），RED/YELLOW/GREEN+逐项修复命令 |
 | `download-verify.sh` | 取包三件套（gitee 主+github 备、sha256、解压、verify-manifest）→ `PKG_ROOT=` |
 | `wait-channel.sh` | 通道判稳器：稀疏轮询（75s 间隔）连击 N 判稳；冷开机/挂起期勿单发判死（run13 沉淀） |
+| `ssh2-conn.mjs` | **ssh2 通道后端**（exec/put/get/ping；VM_SSH_BACKEND=ssh2 时 vm-conn 全走它；本宿主相位挂的正解，run17~21 实锤） |
+| `pkg-root.sh` | 包根三级选根单一事实源（env PKG_ROOT>pkg-root.txt 状态>现探内层优先；三 driver 共用，run19 R-1 定版） |
 | `self-rescue.sh` | 能力通道自救三合一：check（health+sshd+banner 探针定谳挂起形态）/ restart-guest（shutdown /r 经 app.process.launch）/ restart-service；隧道健在时免碰 hypervisor（run13 实测 ~70s 复活） |
 | `deploy.sh` / `undeploy.sh` | 主流程 driver（默认 dry-run；--apply 真执行；全程 step 计时） |
 | `verify.sh` | 三探针 + 终态矩阵（装后随时可跑） |
