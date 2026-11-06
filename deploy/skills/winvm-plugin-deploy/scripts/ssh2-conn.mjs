@@ -124,7 +124,40 @@ export function classifyScpShape(a1Exists, a2Exists, a1, a2, prefix = '') {
 }
 
 /**
- * 加载 ssh2 Client 构造器：复用仓库 delivery/ssh2-resolve.mjs 的确定性解析链
+ * 纯函数（V1.4.24 抽出供单测）：ssh2-resolve.mjs 候选路径序列。
+ * 技能经 URL 入口装到 ~/.workbuddy/skills/ 后 selfDir 距包根八层深，旧固定 `../../../..`
+ * 候选永不命中；候选=仓内/dev 位（首位，零冲击）+ env PKG_ROOT + DEPLOY_ROOT（默认
+ * $HOME/winvm-deploy）常规落点 + pkg-root.txt 状态首行（与 pkg-root.sh 三级口径同源）。
+ * @param {string} selfDir scripts/ 绝对目录
+ * @param {Record<string,string|undefined>} env
+ * @param {(p:string)=>string|null} readFile 注入读状态文件（缺=尝试 fs）
+ * @returns {string[]} 去重后的候选路径（resolve 形态）
+ */
+export function buildResolverCandidates(selfDir, env = process.env, readFile) {
+  const out = [path.join(selfDir, '..', '..', '..', '..', 'delivery', 'ssh2-resolve.mjs')];
+  const home = env.HOME || '';
+  const dr = env.DEPLOY_ROOT || (home ? path.join(home, 'winvm-deploy') : '');
+  const roots = [];
+  if (env.PKG_ROOT) roots.push(env.PKG_ROOT);
+  if (dr) {
+    roots.push(path.join(dr, 'overall-root', 'overall'), path.join(dr, 'overall-root'));
+    try {
+      const st = readFile ? readFile(path.join(dr, 'pkg-root.txt')) : (existsSync(path.join(dr, 'pkg-root.txt')) ? readFileSync(path.join(dr, 'pkg-root.txt'), 'utf8') : null);
+      if (st) { const s = String(st).split('\n')[0].trim(); if (s) roots.push(s); }
+    } catch { /* 状态文件缺=正常 */ }
+  }
+  for (const r of roots) {
+    for (const sub of ['delivery/ssh2-resolve.mjs', 'overall/delivery/ssh2-resolve.mjs']) {
+      const p = path.resolve(r, sub);
+      if (!p.startsWith(path.resolve(r) + path.sep)) continue; // `..` 逃逸防御
+      if (!out.includes(p)) out.push(p);
+    }
+  }
+  return out;
+}
+
+/**
+ * 加载 ssh2 Client 构造器：复用 delivery/ssh2-resolve.mjs 的确定性解析链
  * （裸 import → node_modules 逐级 → vendor → WINVM_SSH2_DIR）。
  * 注意：loadSsh2Client 返回的就是 Client 构造器本身（不是 {Client} 解构）。
  * @param {string} moduleUrl 调用方 import.meta.url
@@ -132,12 +165,7 @@ export function classifyScpShape(a1Exists, a2Exists, a1, a2, prefix = '') {
  */
 export async function loadClientCtor(moduleUrl) {
   const selfDir = path.dirname(fileURLToPath(moduleUrl));
-  // 候选解析链：仓库内 delivery/ssh2-resolve.mjs（scripts/ → ../..=仓库根），
-  // 其次安装/运行侧 overall-root/delivery 绝对路径（spike 已验证可达）。
-  const candidates = [
-    path.join(selfDir, '..', '..', '..', '..', 'delivery', 'ssh2-resolve.mjs'),
-    '/storage/Users/currentUser/winvm-deploy/overall-root/delivery/ssh2-resolve.mjs',
-  ];
+  const candidates = buildResolverCandidates(selfDir);
   let lastErr = null;
   for (const p of candidates) {
     try {

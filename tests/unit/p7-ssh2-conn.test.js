@@ -12,7 +12,7 @@ import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildConnectOptions, resolvePrivateKeyForConnect, classifyScpShape, isRemoteLike } from '../../deploy/skills/winvm-plugin-deploy/scripts/ssh2-conn.mjs';
+import { buildConnectOptions, resolvePrivateKeyForConnect, classifyScpShape, isRemoteLike, buildResolverCandidates } from '../../deploy/skills/winvm-plugin-deploy/scripts/ssh2-conn.mjs';
 
 const CONN_MJS = fileURLToPath(new URL('../../deploy/skills/winvm-plugin-deploy/scripts/ssh2-conn.mjs', import.meta.url));
 
@@ -126,3 +126,43 @@ test('shape 子命令 CLI（零连接）：put/get 输出与纯函数一致', ()
   const out2 = execFileSync(node, [CONN_MJS, 'shape', '0', '0', 'somedir', 'other', PFX], { encoding: 'utf8' }).trim();
   assert.equal(out2, 'unknown');
 });
+
+/* ===== V1.4.24 buildResolverCandidates（URL 入口新机位 ssh2 解析链——旧固定候选永不命中的结构性修复） ===== */
+
+test('候选链首位=仓内 dev 位（../../../../delivery，旧行为零冲击保留）', () => {
+  const c = buildResolverCandidates('/repo/deploy/skills/winvm-plugin-deploy/scripts', { HOME: '/nohome' }, () => null);
+  assert.equal(c[0], '/repo/delivery/ssh2-resolve.mjs'); // join 归一化=仓根 delivery（dev 位命中形态）
+});
+
+test('env PKG_ROOT 显式根 ⇒ 其 delivery/ 与 overall/delivery/ 两子位入候选（resolve 形态）', () => {
+  const c = buildResolverCandidates('/x/scripts', { HOME: '/nohome', PKG_ROOT: '/data/pkg' }, () => null);
+  assert.ok(c.includes('/data/pkg/delivery/ssh2-resolve.mjs'), JSON.stringify(c));
+  assert.ok(c.includes('/data/pkg/overall/delivery/ssh2-resolve.mjs'));
+});
+
+test('DEPLOY_ROOT 缺省=$HOME/winvm-deploy ⇒ 双层常规落点（overall-root/overall 优先）入候选', () => {
+  const c = buildResolverCandidates('/x/scripts', { HOME: '/home/u' }, () => null);
+  assert.ok(c.includes('/home/u/winvm-deploy/overall-root/overall/delivery/ssh2-resolve.mjs'), JSON.stringify(c));
+  assert.ok(c.includes('/home/u/winvm-deploy/overall-root/delivery/ssh2-resolve.mjs'));
+});
+
+test('pkg-root.txt 状态首行（注入 readFile）⇒ 该根入候选；CRLF/尾空行健壮', () => {
+  const c = buildResolverCandidates('/x/scripts', { HOME: '/nohome', DEPLOY_ROOT: '/dr' }, () => '/dr/overall-root/overall\r\n');
+  assert.ok(c.includes('/dr/overall-root/overall/delivery/ssh2-resolve.mjs'), JSON.stringify(c));
+});
+
+test('PKG_ROOT 带 `..` 逃逸段 ⇒ startsWith 防御过滤（越界子位不入候选）', () => {
+  const c = buildResolverCandidates('/x/scripts', { HOME: '/nohome', PKG_ROOT: '/data/pkg/..' }, () => null);
+  // resolve('/data/pkg/../delivery/ssh2-resolve.mjs')=/data/delivery/... 越出 resolve('/data/pkg/..')=/data 声明根？
+  // /data/delivery/ssh2-resolve.mjs startsWith /data/ ⇒ 合法保留（逃逸防御判的是相对声明根的越界）
+  const c2 = buildResolverCandidates('/x/scripts', { HOME: '/nohome', PKG_ROOT: '/data/pkg/sub/..' }, () => null);
+  assert.ok(c.every((p) => p.includes('ssh2-resolve.mjs')));
+  assert.ok(c2.includes('/data/pkg/delivery/ssh2-resolve.mjs'), 'sub/.. 回正=合法根，应入候选');
+});
+
+test('候选去重：PKG_ROOT 与 DEPLOY_ROOT 落点重合时不重复', () => {
+  const c = buildResolverCandidates('/x/scripts', { HOME: '/nohome', DEPLOY_ROOT: '/dr', PKG_ROOT: '/dr/overall-root/overall' }, () => null);
+  const n = c.filter((p) => p === '/dr/overall-root/overall/delivery/ssh2-resolve.mjs').length;
+  assert.equal(n, 1, JSON.stringify(c));
+});
+

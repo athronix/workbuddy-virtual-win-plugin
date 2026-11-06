@@ -46,7 +46,10 @@
 | 大文档批量 Edit 后内容缩水/出现字面 `\n` | python 普通串转义 | 每处 assert count==1 + 写后 grep 扫 `|\n|` 字面（项目铁律） |
 | 明文密码落 .env | 交付残留风险 | env.example 注释化该键；部署完删行（deploy-reports 提醒） |
 | **「判稳失败/NO_CHANNEL」但同刻手工单发却通** | 调用方外层 `timeout` < 被包脚本最坏时长（rounds×120s 量级），把仍在判稳的循环中途杀成失败假象；或 reboot 后 100s 短睡就开测而 Windows+sshd 实需 5-8min | 外层预算 ≥ rounds×120（wait-channel 头注）；restart 后首轮前 sleep ≥240s；判稳失败先**手工单发复测一次**再定性（run14 18:45 假失败/18:44 已通的错位实证） |
-| **verify 终态 connector skills=0**（历轮基线 8；disabledTools/health 均正常） | 宿主侧外部因素可清空 `~/.workbuddy/connectors/skills/`（run15g 实证：目录 mtime 落在宿主重启窗口，非本项目任何脚本所为——undeploy 当时根本没跑） | `install-host --yes` 重跑即幂等恢复 8/8（run15g 实测 rc=0）；verify.sh 已把该项打进终态矩阵，见 0 即跑 install-host，勿查 VM |\n| 一行式内嵌 python/sed 报 syntax error/rc=127 撕碎整链 | 双引号里嵌套单引号被 shell eval 拆坏（run13 实证：token 提取一行式炸整链；与「禁内联含 $」同源的第二形态） | 复杂逻辑一律 `cat > x.py <<'EOF'` 落盘再跑；令牌经文件/环境变量中转并即删；同族=python 普通串 `\n`/路径转义坑 |
+| **verify 终态 connector skills=0**（历轮基线 8；disabledTools/health 均正常） | 宿主侧外部因素可清空 `~/.workbuddy/connectors/skills/`（run15g 实证：目录 mtime 落在宿主重启窗口，非本项目任何脚本所为——undeploy 当时根本没跑） | `install-host --yes` 重跑即幂等恢复 8/8（run15g 实测 rc=0）；verify.sh 已把该项打进终态矩阵，见 0 即跑 install-host，勿查 VM |
+| 一行式内嵌 python/sed 报 syntax error/rc=127 撕碎整链 | 双引号里嵌套单引号被 shell eval 拆坏（run13 实证：token 提取一行式炸整链；与「禁内联含 $」同源的第二形态） | 复杂逻辑一律 `cat > x.py <<'EOF'` 落盘再跑；令牌经文件/环境变量中转并即删；同族=python 普通串 `\n`/路径转义坑 |
+| **URL 入口装技能后 ssh2 后端报「ssh2 解析失败」**（技能在 `~/.workbuddy/skills/`、包在 `$DEPLOY_ROOT`） | ≤V1.4.24 缺陷：ssh2-conn 候选链写死 `../../../..`+旧绝对路径，技能装到用户级目录后距包根八层深、且 DEPLOY_ROOT 可覆写——两候选全不命中（11-06 新机模拟实锤） | ≥V1.4.25 候选链动态化（env PKG_ROOT > pkg-root.txt 状态 > DEPLOY_ROOT 常规落点）；旧版绕行=显式 `export PKG_ROOT=<包根>` 无效时进包根跑 driver |
+| sha256sum -c 报 no such file（本地保存名≠旁挂内登记名） | 下载时 `-o` 改名了，sidecar 用的是发布资产名 | curl `-o` 必须用资产原名（skill_url 尾段即原名）；判据失败先 `ls` 核对名形再重跑 |
 
 ## D. gitee 发布面（取包主源特有）
 
@@ -59,4 +62,4 @@
 
 ## E. 版本门槛速查（问题 ↔ 修复起始版本）
 
-R8 跨壳=V1.4.9 · KEEP 误报=V1.4.9 · 探测冒烟/僵尸重启=V1.4.16（D1/I-6.15b 文案） · VM-START 清扫=V1.4.15、击杀生效=V1.4.16 · 服务端闸 300s=V1.4.17 · 探针窗 330s=V1.4.17 · 避坑清单 X-1~X-6=v3.0.6~v3.0.7 · gitee 主源=v3.1.0 · .env 凭据回注+BUILD 降级=V1.4.20。
+R8 跨壳=V1.4.9 · KEEP 误报=V1.4.9 · 探测冒烟/僵尸重启=V1.4.16（D1/I-6.15b 文案） · VM-START 清扫=V1.4.15、击杀生效=V1.4.16 · 服务端闸 300s=V1.4.17 · 探针窗 330s=V1.4.17 · 避坑清单 X-1~X-6=v3.0.6~v3.0.7 · gitee 主源=v3.1.0 · .env 凭据回注+BUILD 降级=V1.4.20 · ssh2 后端全量=V1.4.21 · 技能入包=V1.4.23 · 独立技能包上架=V1.4.24 · **URL 入口 ssh2 候选链修复=V1.4.25**。

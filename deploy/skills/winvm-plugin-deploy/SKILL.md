@@ -1,7 +1,7 @@
 ---
 name: winvm-plugin-deploy
-description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.2.1：支持「请依据 skill {skill_url} 安装/卸载/验证 winvm-plugin」单指令远程入口——下载本技能包即自助全流程；v1.2.0 run13~21 全战役沉淀：通道判稳器/能力通道自救/rhythm-check 定性/ssh2 通道后端/包根三级选根/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，给出本技能的 URL 或目录让你按其安装/卸载/验证 winvm-plugin，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
-version: 1.2.1
+description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.2.2：URL 单指令入口链闭环——技能包 ssh2 候选链动态化PKG_ROOT/pkg-root.txt/DEPLOY_ROOT 三级，新机装技能位即可直连；v1.2.1 入口引导章；v1.2.0 run13~21 全战役沉淀：通道判稳器/能力通道自救/rhythm-check 定性/ssh2 通道后端/包根三级选根/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，给出本技能的 URL 或目录让你按其安装/卸载/验证 winvm-plugin，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
+version: 1.2.2
 agent_created: true
 ---
 
@@ -13,13 +13,13 @@ agent_created: true
 
 收到这种指令时，按下述引导序列自主完成，**全程不要反问流程问题**（只按 P-1 问缺的环境事实）：
 
-1. **取技能本体**：`mkdir -p ~/wbtmp && curl -fsSL --connect-timeout 20 --max-time 300 -o ~/wbtmp/winvm-plugin-deploy-skill.zip "<skill_url>"`（⚠ gitee 下载 302→foruda 一次性签名，**禁 `-C -` 断点续传**，失败整文件重试；sha256 旁挂同 URL 加 `.sha256` 后缀可取，先校验）。解压到用户级技能目录：`unzip -o <zip> -d ~/.workbuddy/skills/`（zip 内根=`winvm-plugin-deploy/`，解出即标准 skill 布局）。**后续所有 `scripts/…` 相对路径 = `~/.workbuddy/skills/winvm-plugin-deploy/`**。
+1. **取技能本体**：`mkdir -p ~/wbtmp && curl -fsSL --connect-timeout 20 --max-time 300 -o ~/wbtmp/winvm-plugin-deploy-skill.zip "<skill_url>"`（⚠ `-o` 必须用资产原名=URL 尾段，旁挂 sha256 内登记的是原名，改名会让 `sha256sum -c` 假失败；gitee 下载 302→foruda 一次性签名，**禁 `-C -` 断点续传**，失败整文件重试；sha256 旁挂同 URL 加 `.sha256` 后缀可取，先校验）。解压到用户级技能目录：`unzip -o <zip> -d ~/.workbuddy/skills/`（zip 内根=`winvm-plugin-deploy/`，解出即标准 skill 布局）。**后续所有 `scripts/…` 相对路径 = `~/.workbuddy/skills/winvm-plugin-deploy/`**。
 2. **环境事实**：`VM_HOST` / `VM_USER`（未知 → P-1 问用户，这是唯一允许的提问点）；密码/私钥按 vm-conn.sh 双通道现探。
 3. **取发布包**：`bash scripts/env-detect.sh` → `source ~/wbtmp/vmdeploy-env.sh` → `bash scripts/download-verify.sh`（gitee latest 主源）→ 记下末行 `PKG_ROOT=`。此步后 ssh2 后端自动可解析（`$PKG_ROOT/delivery/ssh2-resolve.mjs` + 包内 `node_modules/ssh2`，且 download-verify 默认落点与 ssh2-conn 兜底候选路径同源）。
 4. **按动词路由主流程**：安装/部署/重装 → `export VM_SSH_BACKEND=ssh2` 后 `bash scripts/deploy.sh --apply`；卸载/拆除 → `bash scripts/undeploy.sh --apply`；验证/体检 → `bash scripts/verify.sh`。收尾 `bash scripts/step.sh report` 出计时汇总并如实汇报 PASS/FAIL。
 5. **卡住**：查 `references/troubleshooting.md` 现象表；通道灭相位**不是**停跑理由（ssh2 后端免疫），红线勿越——绝不主动重启 VM。
 
-> 技能包 URL 的权威来源 = 双端 release 资产 `winvm-plugin-deploy-skill.zip`（gitee 主：`https://gitee.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-plugin-deploy-skill.zip`；≥V1.4.24 随每个 tag 发布，与 overall 包同 tag 同批）。用户只给仓库页或说"最新版"时，`curl https://gitee.com/api/v5/repos/athronix/workbuddy-virtual-win-plugin/releases/latest` 现解 tag 再拼 URL。
+> 技能包 URL 的权威来源 = 双端 release 资产 `winvm-plugin-deploy-skill.zip`（gitee 主：`https://gitee.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-plugin-deploy-skill.zip`；≥V1.4.24 随每个 tag 发布，与 overall 包同 tag 同批；**V1.4.24 首发版有 ssh2 候选链缺陷，latest 现解天然规避——只要 latest ≥V1.4.25 即拿到修复版**）。用户只给仓库页或说"最新版"时，`curl https://gitee.com/api/v5/repos/athronix/workbuddy-virtual-win-plugin/releases/latest` 现解 tag 再拼 URL。
 
 
 ## 铁律（任何环节先遵守）
