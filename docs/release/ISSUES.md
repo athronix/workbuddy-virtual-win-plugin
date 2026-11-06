@@ -369,11 +369,11 @@
 
 ## 迭代22 · V1.4.22（2026-11-06，run20/21 定案固化进安装脚本面——开账）
 
-> 状态：**进行中**。动因=用户令「发布一个版本」。V1.4.21 运行码已全链验证（run21 灭窗实战三段全绿）——本批把**通道后端定案**写进智能体安装脚本面（.prompt=发布面，永久规则=深化内容逐迭代必达入包），运行码零改动，V1.4.22。
+> 状态：**已关闭（V1.4.22 全链实证）**：pack V1–V11 全绿 25 项（**V11f 首验通过**=ssh2 后端指引入包断言在场）→tag@0ce3037→双端 publish --mirror-gitee（GitHub+gitee 双资产×2，latest=V1.4.22）→gitee 匿名下载 sha `63a4c338…` 逐字节一致→包根切 V1.4.22（download-verify PASS+选根+.env 传导）install-host rc=0/FRESH/health=200/skills=8，包内 deploy.prompt v3.2.0×VM_SSH_BACKEND=2 在册。
 
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
-| **I-6.31** | P3（安装脚本面） | **ssh2 后端指引入两 .prompt**：deploy v3.2.0 Step 0.6（鸿蒙宿主相位性挂起定案+delivery V1.4.21 起默认 auto 免疫+skill `export VM_SSH_BACKEND=ssh2`+灭相位勿重启 VM 红线）+排错行分身份重写（WB 宿主=相位挂 vs 其它=sshd 占满）；undeploy v2.8 U0.1 特判（二进制灭相位≠通道真失效勿误判 P-2）；母本 v3.5/strategy v3.20/README/docs-index 同步示例值 V1.4.22；pack **V11f**（包内 deploy.prompt 含 VM_SSH_BACKEND+相位性挂起 fail-loud）。 | 进行中（发布链=下步） |
+| **I-6.31** | P3（安装脚本面） | **ssh2 后端指引入两 .prompt**：deploy v3.2.0 Step 0.6（鸿蒙宿主相位性挂起定案+delivery V1.4.21 起默认 auto 免疫+skill `export VM_SSH_BACKEND=ssh2`+灭相位勿重启 VM 红线）+排错行分身份重写（WB 宿主=相位挂 vs 其它=sshd 占满）；undeploy v2.8 U0.1 特判（二进制灭相位≠通道真失效勿误判 P-2）；母本 v3.5/strategy v3.20/README/docs-index 同步示例值 V1.4.22；pack **V11f**（包内 deploy.prompt 含 VM_SSH_BACKEND+相位性挂起 fail-loud）。 | ✅ V1.4.22 发布链闭环（V11f 首验+双端上架+包根复验全绿） |
 
 ## 迭代21 · V1.4.21（2026-11-06，D-2 落地=delivery 发布层 ssh2 化——开账即关）
 

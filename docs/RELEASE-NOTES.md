@@ -47,6 +47,7 @@
 | V1.4.19（11-03） | 取包主源切 gitee 镜像（发布链自动化版） | gitee 镜像仓库 public+全 tag 对齐；deploy.prompt v3.1.0 Step 2.1=gitee 主源+github fallback（foruda 一次性签名警示）；publish-release `--mirror-gitee` 双端自动镜像上线（gitee Releases API 三坑=target_commitish 必带/attach_files 无 upsert 且落盘名小写化/下载消费签名） |
 | V1.4.20（11-04） | 用户实跑复盘收编+技能化（run13 首航版） | **deploy-reports 复盘三修复**：I-6.20 prepare-vm DB-3 三元数组展开（两态 93/62 行零逗号）/I-6.21 `injectCredentialEnv` .env 凭据回注（白名单+env 优先）/I-6.22 `decideBuildFallback` BUILD 降级 SKIP（假败根除）；**I-6.23 通道硬化**=两 .prompt vmssh/vmscp 外层 timeout VST（deploy v3.1.1/undeploy v2.7）；新交付 **winvm-plugin-deploy skill**（deploy/skills/，SKILL+12 脚本+2 参考，run13 沉淀至 v1.1.1：rhythm-check 周期暂停定性/self-rescue 能力通道自救/wait-channel 判稳/预算纪律）；p7-x567 锁 3/3 |
 | V1.4.21（11-06） | D-2 落地：delivery 发布层 ssh2 化 | 用户裁定「都 ssh2 化」——25 处 ssh/scp 调用点（setup/uninstall/bootstrap/prepare-vm/winvm-plugin/psmod-drift）改 ssh2 优先：新 delivery/ssh2-client.mjs（createSshRunner/runWithBackend/infra 分型）+ ssh2-backend.mjs（WINVM_SSH_BACKEND=env>config>**auto 默认**：ssh2 优先、仅连接级失败回落二进制一发、远端非零码绝不回落双闸门）；key=原行为零冲击；隧道兜底/interactive tty 设计内保留；分发面 install-host×3+pack PACKAGE_REQUIRED×3+env.example 契约；单测 49+QA 对抗 26=**YES 零缺陷**（灭窗同秒分叉 delivery 层铁证）；sync→async 签名变化登记 |
+| V1.4.22（11-06） | 安装脚本面固化版（迭代22，运行码=V1.4.21 零改动） | run20/21 战役定案进 .prompt：deploy v3.2.0 Step 0.6 鸿蒙宿主通道后端（OpenSSH 二进制相位性挂起定案+delivery 默认 auto=ssh2 优先免疫+skill `export VM_SSH_BACKEND=ssh2`+灭相位勿重启 VM 红线）+排错行分身份；undeploy v2.8 U0.1 特判（二进制挂≠通道失效勿误判 P-2 重建）；母本 v3.5/strategy v3.20；pack **V11f** 特征断言（深化面滞后=fail-loud 拒产包，永久规则机械化） |
 
 ## 三、已知限制（如实，2026-10-15 批11~14 后态）
 
