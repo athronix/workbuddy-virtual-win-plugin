@@ -190,6 +190,9 @@ const PACKAGE_REQUIRED = {
     'docs/deploy/deploy-strategy.md', 'docs/deploy/deploy-prompts.md', 'docs/deploy/undeploy-prompts.md',
     // V1.4.6 收编项（10-29 裁定：纯 Prompt 一键粘贴脚本两篇）
     'docs/deploy/deploy.prompt', 'docs/deploy/undeploy.prompt',
+    // V1.4.23 收编项（部署技能入包；缺=打包 fail-loud）
+    'docs/deploy/skills/winvm-plugin-deploy/SKILL.md', 'docs/deploy/skills/winvm-plugin-deploy/scripts/ssh2-conn.mjs',
+    'docs/deploy/skills/winvm-plugin-deploy/scripts/vm-conn.sh', 'docs/deploy/skills/winvm-plugin-deploy/references/troubleshooting.md',
     'tools/winvm-prepare.ps1',
     // V1.4.3 收编项的包内存在性（漏收=打包 fail-loud）
     'delivery/tools/diagnose-connectors.mjs', 'delivery/verify-release.mjs',
@@ -214,6 +217,10 @@ const OVERALL_DOCS = [
   // 直接把 docs/deploy/deploy.prompt / undeploy.prompt 整段粘给 WorkBuddy 即可部署/拆除。
   ['docs/deploy/deploy.prompt', 'deploy/deploy.prompt'],
   ['docs/deploy/undeploy.prompt', 'deploy/undeploy.prompt'],
+  // V1.4.23 收编（11-06 用户裁定「最新版本应该根据 skill 指引进行本项目的部署运维」）：
+  // 部署技能本体 winvm-plugin-deploy 整目录入包（SKILL.md+scripts×14+references×2）——纯包装机者
+  // 零仓库即可获得「主流程/子流程/问题百科/计时 driver/ssh2 通道后端」完整部署运维能力。
+  ['deploy/skills/winvm-plugin-deploy', 'deploy/skills/winvm-plugin-deploy'],
 ];
 
 /* ------------------------------ 组装 ------------------------------ */
@@ -590,6 +597,13 @@ function verifyPackages(dest, version) {
     console.log(`  ${hit13 ? '\u2713' : '\u2717'} V11 deploy.prompt 含执行者避坑清单（run11 X 条款深化面）`);
     results.push({ label: 'V11 deploy.prompt 含 ssh2 通道后端指引（run20/21 定案深化面）', ok: hit14, status: hit14 ? 0 : 1, tail: '' });
     console.log(`  ${hit14 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 ssh2 通道后端指引（run20/21 定案深化面）`);
+    // V11g（V1.4.23，用户裁定部署技能化必达包内）：winvm-plugin-deploy 技能本体+关键件在场。
+    const skDir = join(dest, 'overall', 'docs', 'deploy', 'skills', 'winvm-plugin-deploy');
+    const skTxt = existsSync(join(skDir, 'SKILL.md')) ? readFileSync(join(skDir, 'SKILL.md'), 'utf8') : '';
+    const hit15 = skTxt.includes('name: winvm-plugin-deploy') && existsSync(join(skDir, 'scripts', 'ssh2-conn.mjs'))
+      && existsSync(join(skDir, 'scripts', 'undeploy.sh')) && existsSync(join(skDir, 'references', 'troubleshooting.md'));
+    results.push({ label: 'V11 overall 包含 winvm-plugin-deploy 技能（SKILL+ssh2-conn+driver+百科四件，部署技能化面）', ok: hit15, status: hit15 ? 0 : 1, tail: '' });
+    console.log(`  ${hit15 ? '\u2713' : '\u2717'} V11 overall 包含 winvm-plugin-deploy 技能（SKILL+ssh2-conn+driver+百科四件，部署技能化面）`);
     const upFp = join(dest, 'overall', 'docs', 'deploy', 'undeploy.prompt');
     const uTxt = existsSync(upFp) ? readFileSync(upFp, 'utf8') : '';
     const hit10 = uTxt.includes('RMKEY') && uTxt.includes('旧包兼容');
@@ -727,6 +741,7 @@ function main() {
       '2. 打开 `docs/deploy/deploy.prompt`，先把【运行期注入】段里的 `VM_HOST` / `VM_USER` / `PKG_ROOT`（=包根绝对路径）等按实际环境改好。',
       '3. 整段复制粘贴给 WorkBuddy（鸿蒙宿主）新会话，即按 Step 1→6 自动部署，每步带判据自检。',
       '4. 卸载同理：整段粘贴 `docs/deploy/undeploy.prompt`（U0→U5，DRY-RUN 先行，默认保留工作区与 SSH 密钥）。',
+      '5. **技能模式（V1.4.23 起推荐）**：对 WorkBuddy 说「按 docs/deploy/skills/winvm-plugin-deploy 技能部署本包（PKG_ROOT=包根绝对路径）」——技能封装主流程/子流程/30+ 问题百科/分步计时 driver/ssh2 通道后端，抗灭相位、可断点续跑，比纯 Prompt 更稳；拆除与复验同理（undeploy.sh/verify.sh）。',
       '',
       '## 一键部署',
       '```bash',

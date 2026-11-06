@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.2.0 · run20/21 战役定案=鸿蒙宿主通道后端 ssh2 指引（Step 0.6；V1.4.21 起 delivery 默认 auto 免疫灭相位）；前版=I-6.23 vmssh/vmscp 外层 timeout 硬化、取包 gitee 镜像主+GitHub fallback；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.2.1 · 迭代23=部署技能入包注记（≥V1.4.23 包内含 docs/deploy/skills/winvm-plugin-deploy，推荐技能模式见 Step 0.6④；本 .prompt 保留作无技能环境兜底）；v3.2.0 · run20/21 战役定案=鸿蒙宿主通道后端 ssh2 指引（Step 0.6；V1.4.21 起 delivery 默认 auto 免疫灭相位）；前版=I-6.23 vmssh/vmscp 外层 timeout 硬化、取包 gitee 镜像主+GitHub fallback；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -34,11 +34,11 @@ v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R
     [ -n "$c" ] && [ -x "$c" ] && "$c" -c 'print(1)' >/dev/null 2>&1 && { PY=$c; break; }
   done
   echo "NODE=$NODE PY=$PY"                     # 判据：两者非空（已通过 .mjs / -c 冒烟）；取不到 → 问用户
-  export RELEASE_TAG=V1.4.22                   # ⚠ 示例值——以 releases/latest API 现解为准：
+  export RELEASE_TAG=V1.4.23                   # ⚠ 示例值——以 releases/latest API 现解为准：
     # curl -fsSL "https://gitee.com/api/v5/repos/athronix/workbuddy-virtual-win-plugin/releases/latest" | grep tag_name
     #   （gitee 与 github 双端镜像发同 tag 同 zip；gitee 端不可达时回退 api.github.com 同型命令）
     # （校验值=旁挂 sidecar+包内 MANIFEST，README §5.4；包内快照恒为打包时值）
-  export ZIP=winvm-overall-V1.4.22.zip
+  export ZIP=winvm-overall-V1.4.23.zip
   export REPO=athronix/workbuddy-virtual-win-plugin
   export WINVM_DRY_RUN=0                       # ⚠ 必须 0：=1 时 --apply 也只 dry-run（假成功）
 
@@ -129,6 +129,10 @@ Step 0 · 前置检查（开工前逐项确认；不满足按 P-2 处置）
       ③ 手工用 vmssh/裸 ssh 长时间挂起（无报错）先怀疑本宿主二进制相位：**换 ssh2 后端或换通道
          App（如 HiShell）验证**，勿归因 VM/sshd、更勿重启 VM（红线）——run21 全程灭窗三段全绿
          即终局证据。判据：`node delivery/ssh2-client.mjs` 系文件在场且包版本 ≥V1.4.21。
+      ④ **技能模式（≥V1.4.23 推荐，优先于整段粘贴本脚本）**：包内 `docs/deploy/skills/winvm-plugin-deploy/`
+         即部署运维技能本体（SKILL.md 主流程+子流程+30+ 问题百科+分步计时 driver+ssh2 通道后端）——
+         对 WorkBuddy 说「按该技能部署本包，PKG_ROOT=包根绝对路径」即可；拆/验同理
+         （undeploy.sh / verify.sh）。本 .prompt 继续作为无技能环境的等效兜底路径。
 
 
 ────────────────────────────────────────

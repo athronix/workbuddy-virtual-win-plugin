@@ -53,7 +53,7 @@
 |---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | latest 跳转链接 | ☐ |
-| `RELEASE_TAG` | `V1.4.22`（示例值——**以 latest API 现解为准**；2026-11-06 上架；历史 run 用 `V1.4.21`/`V1.4.20`） | 发布标签 | ☐ |
+| `RELEASE_TAG` | `V1.4.23`（示例值——**以 latest API 现解为准**；2026-11-06 上架；历史 run 用 `V1.4.22`/`V1.4.21`） | 发布标签 | ☐ |
 | `ZIP_NAME` | `winvm-overall-V1.4.3.zip` | 分发单元（V1.4.3 起含 delivery/tools/ + qa/deploy-probes/ + verify-release.mjs） | ☐ |
 | `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：release 旁挂 `.zip.sha256` 现取现验（`sha256sum -c`）；V1.4.6 回环样例 `dc417bf2…` | 整包校验值 | ☐ |
 | `PKG_FILES` / `PKG_BYTES` / `PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：包内 `MANIFEST.txt` 头七行为权威，verify-manifest/verify-release 复算即验；历史样例 V1.4.6=881/7606427/`2562a598…`、V1.4.5=879/7580107/`88fd11c1…` | MANIFEST 三元组（重装核对用） | ☐ |
@@ -762,7 +762,7 @@ node delivery/uninstall.mjs --apply --purge-workspace   # 连工作区一起清�
 
 【环境常量】VM_HOST=172.16.100.2  VM_USER=User  VM_SSH_PORT=22  SERVICE_PORT=18443
   VM_DEPLOY_DIR=C:/WinVMBridge  PROVIDER=workbuddy  WORKBUDDY_CLI=codebuddy
-  RELEASE_TAG=V1.4.22  ZIP=winvm-overall-V1.4.22.zip
+  RELEASE_TAG=V1.4.23  ZIP=winvm-overall-V1.4.23.zip
 【宿主工具】node=/data/storage/el1/bundle/libs/arm64/node/bin/node（必须绝对路径）
             python3=/data/service/hnp/bin/python3；有 ssh/scp/unzip/sha256sum/curl；无 sshpass
 【安全红线】不要把密码写进任何文件/提交；不要在日志里回显密码。
@@ -904,6 +904,7 @@ Step 6 交付引导（不参与部署判据，但决定后续任务通道路由�
 | 2026-10-27 | v3.0 | **卸载 Prompt 总集立项**：新增 `docs/deploy/undeploy-prompts.md` v1.0（deploy-prompts 的逆向镜像：§2.3 十七落点镜像清单 + U0~U5 总 Prompt + POST-CLEANUP 核验 + 存留项决策表 + `--wipe` 清场重装衔接）；§6 回滚与清理加 Prompt 版指针；deploy-prompts 头注加对偶行 |
 | 2026-10-27 | v3.1 | **undeploy⇄deploy 回环实测（run1）**：拆除 19/19 + 重装 38/38 全绿；抓出并修复 `uninstall.mjs` 两处镜像不对称（全局 mcp.json / tunnel-autostart，ISSUES I-6.3）；`undeploy-prompts.md` 升 v1.1（十八落点、动态 16→19 核验口径、--vm-host 兜底、排错补 2 条瞬态）。详见 `qa/real-test-2026-10-27-run1.md` |
 | 2026-10-27 | v3.2 | **版本引用同步 V1.4.4 + 裁定落地**：§0.5-B RELEASE_TAG/ZIP_SHA256/PKG 三元组升 V1.4.4（**补 v2.9 漏网**——变更行宣称"默认升 V1.4.4"但 §0.5 表与 §7 Prompt 未同步，10-27 回环核对 deploy-prompts 时发现同款陈旧）；§7 总 Prompt 版本行同步；I-6.3 用户裁定（不补发、下迭代收编）+ pack-release **V7 硬断言**（包内 uninstall 必含 cleanGlobalMcpJson，正反例验证：V1.4.4 旧包=拒产/HEAD=过） |
+| 2026-11-06 | v3.21 | **迭代23/V1.4.23：部署技能入包**——winvm-plugin-deploy 收编 overall 发布包（docs/deploy/skills/ 落位；PACKAGE_REQUIRED 四件+V11g 断言=fail-loud 机械化）；纯包装机零仓库「按技能部署运维」成立；.prompt 技能模式注记。运行码零改动。 |
 | 2026-11-06 | v3.20 | **迭代22/V1.4.22**：两 .prompt 增鸿蒙宿主通道后端 ssh2 指引（deploy Step 0.6/undeploy U0.1 特判=灭相位勿误判勿重启）；delivery V1.4.21 起默认 auto=ssh2 优先免疫灭相位（run21 灭窗实战三段全绿）；pack V11f。运行码零改动。 |
 | 2026-11-04 | v3.19 | **I-6.23 硬化（迭代19 追加/V1.4.20）**：两 .prompt vmssh/vmscp 外层 timeout VST=25s（deploy v3.1.1/undeploy v2.7）——VM 停机实测 11s 有界返回；skill 同步。 |
 | 2026-11-03 | v3.18 | **取包主源切 gitee 镜像（迭代18/V1.4.19）**：deploy.prompt v3.1.0（BASE_GITEE 主+BASE_GH fallback+foruda 警示）；publish-release `--mirror-gitee`（I-6.19）；发布链标准动作=push origin+push gitee tag+publish --apply --mirror-gitee。 |

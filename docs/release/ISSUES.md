@@ -367,6 +367,14 @@
 > **run11 分步计时基线（11-02 晚，V1.4.16 干净往返）**：有效总步时 **408s**（A 拆除 65s + B 重装 343s，36 有效步全 PASS、产品零重试；3 次重试全为 QA 脚手架自纠）。Top5=3.2a apply 125s(30.6%)/5.3 example 90s(22.1%)/5.2 a2a 34s/3.0 门禁 26s/5.1+U2.1 21s；三探针链 145s=35.5% 为最大可优化面（llmSession 冷启窗口 +48s vs run8 列观察项，非缺陷）。噪音 4 条全部被脚本既有注记预言（D3 ENOENT/connector-states ⚠/getcwd/powercfg GBK）。数据=`qa/evidence/run11-20261102-timings.csv`，报告=`qa/real-test-2026-11-02-run11.md`。
 
 
+## 迭代23 · V1.4.23（2026-11-06，部署技能入发布包——开账）
+
+> 状态：**进行中**。动因=用户问「skill 的 GitHub 地址给鸿蒙宿主的 WorkBuddy 能否直接按 skill 完成全部署？」查实=**V1.4.22 包内只有运行态 connector skills、不含 winvm-plugin-deploy 部署技能本体**（repo 地址可行、release 地址断链）→ 用户裁定「最新版本应该根据 skill 指引进行本项目的部署运维」=收编入包。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.32** | P3（分发闭环） | **winvm-plugin-deploy 整目录收编 overall 包**（V1.4.5/V1.4.6 零仓库收编先例延伸）：OVERALL_DOCS 增目录级条目 `['deploy/skills/winvm-plugin-deploy', 'deploy/skills/winvm-plugin-deploy']`（既有 copy 循环 name 含子目录=落位包内 `docs/deploy/skills/`）；PACKAGE_REQUIRED.overall 四件断言（SKILL.md/scripts/ssh2-conn.mjs/scripts/vm-conn.sh/references/troubleshooting.md）；pack **V11g**=四件套在场 fail-loud（技能收编滞后=拒产包，与 V11 家族同械）。安装脚本面注记：deploy.prompt v3.2.1 Step 0.6④ 技能模式（PKG_ROOT=包根一句话起装）+undeploy v2.9/README 快速段第 5 条；母本 v3.6/strategy v3.21/README/docs-index 示例 V1.4.23。**回答用户=V1.4.23 起：release 地址或 repo 地址任一，鸿蒙 WorkBuddy 均可独立完成部署+启动+验证**（推荐说法见 SKILL.md 头部与 README）。 | 进行中（发布链=下步） |
+
 ## 迭代22 · V1.4.22（2026-11-06，run20/21 定案固化进安装脚本面——开账）
 
 > 状态：**已关闭（V1.4.22 全链实证）**：pack V1–V11 全绿 25 项（**V11f 首验通过**=ssh2 后端指引入包断言在场）→tag@0ce3037→双端 publish --mirror-gitee（GitHub+gitee 双资产×2，latest=V1.4.22）→gitee 匿名下载 sha `63a4c338…` 逐字节一致→包根切 V1.4.22（download-verify PASS+选根+.env 传导）install-host rc=0/FRESH/health=200/skills=8，包内 deploy.prompt v3.2.0×VM_SSH_BACKEND=2 在册。
