@@ -367,6 +367,17 @@
 > **run11 分步计时基线（11-02 晚，V1.4.16 干净往返）**：有效总步时 **408s**（A 拆除 65s + B 重装 343s，36 有效步全 PASS、产品零重试；3 次重试全为 QA 脚手架自纠）。Top5=3.2a apply 125s(30.6%)/5.3 example 90s(22.1%)/5.2 a2a 34s/3.0 门禁 26s/5.1+U2.1 21s；三探针链 145s=35.5% 为最大可优化面（llmSession 冷启窗口 +48s vs run8 列观察项，非缺陷）。噪音 4 条全部被脚本既有注记预言（D3 ENOENT/connector-states ⚠/getcwd/powercfg GBK）。数据=`qa/evidence/run11-20261102-timings.csv`，报告=`qa/real-test-2026-11-02-run11.md`。
 
 
+## 迭代21 · V1.4.21（2026-11-06，D-2 落地=delivery 发布层 ssh2 化——开账即关）
+
+> 状态：**已关闭（V1.4.21 发布链+包根复验，见下）**。动因=用户裁定「确认是 ssh 二进制的问题，那都 ssh2 化吧」。定罪补充证据：11-06 10:15 同秒分叉第五例（二进制 rc=124 vs ssh2 pong ready rc=0）。清点=文件系统 grep 交叉（Grep 工具再度零命中，MEMORY 教训第三次应验）定稿 24+1 处（tools/psmod-drift.mjs L215 为清单外发现），实改 **25 处**，隧道兜底分支（setup L1048/winvm-plugin L417）与 bootstrap interactive tty 属设计内保留（非「远端命令/传文件」类）。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.29** | P1（D-2 本体） | **delivery ssh2 化**：新 delivery/ssh2-client.mjs（createSshRunner 惰性建连/exec/put/get sftp 单连接复用/Ssh2InfraError 分型/runWithBackend/runVmOp/mapRunnerResult，凭据纪律全套=私钥 path→Buffer run17 坑在册、零凭据打印、briefError≤120）+ ssh2-backend.mjs（resolveSshBackend 三级 env WINVM_SSH_BACKEND>config>auto，非法值归零）。改造 setup×9（deployQaProbes 循环 scp→一次建连批量 put=N 握手省 1）/uninstall×4/bootstrap capture×1+interactive 保二进制带引导/prepare-vm×1（probePrepareVm sync→async，仓内零调用方已注记）/winvm-plugin×2（sshExec/psRemote→async，5 调用点全 await）/psmod-drift×1。**auto 语义**=ssh2 优先、仅连接级 infra 错误回落二进制**一发**、远端非零码=业务真值绝不回落；ssh2 显式失败绝不暗走二进制。sync→async 签名变化全登记。单测 tests/unit/ssh2-client.test.js 49 例（含分发白名单三处对账断言）。 | ✅（commits cc305d2/d29bfbc；QA 5264d67 独立验收 **YES 零缺陷**：26 例独立对抗测试钉死双闸门——远端码 1/2/3/42/124/127/255 恒零回落、auto infra 恰一发、显式 ssh2 全谱失败二进制零触碰；key 零冲击=worktree 对照 cc305d2 vs 386e14e 输出唯一差异为时间戳；**灭窗价值实证闭环**：12:39 起灭相位 binary whoami 124×6，同秒 12:40:48 ssh2 rc=0/1535ms，灭窗夹逼 uninstall dry-run/winvm-plugin health/bootstrap check 全链 rc=0——delivery 层零 124 铁证与 run20 skill 层并轨） |
+| **I-6.30** | P2（分发面） | **发布面闭环**：install-host buildIntegrityFilePairs+两处 extraFiles×3 同源增 ssh2-client/backend（漏=插件缓存炸 import 历史大坑，单测钉 listed≥3）；pack-release HOST/VM 白名单+PACKAGE_REQUIRED host/vm/overall 三面断言；env.example 增 WINVM_SSH_BACKEND=auto 契约字段；ssh2 vendor 复用 CL-015 T11 链零新增。**部署两 .prompt 免动**（后端开关在 delivery 层自管、默认 auto，装/拆脚本语义不变）。QA §6 两登记项契约头注=d29bfbc（非零码禁重抛 Error=双闸门红线；半途断连 code=null→auto 二次执行⇒写类调用点必幂等）。 | ✅ |
+
+**backlog**：psmod-drift `cd 'C:\...' && sha256sum` cmd.exe 既有 MSYS 依赖缺陷（双后端同态失败，git 386e14e 核对预存，判据降级语义不变=低优）；exec 半途 infra 二次执行的幂等纪律已头注显式化=新调用点评审项。
+
 ## 迭代20 · run17~20 ssh2 后端战役（2026-11-05，通道相位挂的结构性解法——开账即关）
 
 > 状态：**已关闭（run20 终局 YES：原样三段 UND/DEP/VER 全 0 + verify 38/38 + 矩阵全绿 + steps.tsv 零假 PASS，全程 12m02s 串行单轨、零重启 VM）**。动因=用户报「HiShell 新开 ssh 通」，A/B 定罪相位挂为 WB 沙箱 OpenSSH 二进制专属；团队=sudo software-company 快速模式（engineer+QA 各两轮+终局）。
