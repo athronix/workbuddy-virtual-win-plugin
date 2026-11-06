@@ -530,6 +530,8 @@ export function makeDeploySkillZip(destVersionDir, version, commit) {
     fail(`技能包 zip 结构不合格（根外条目=${bad.slice(0, 3).join(',') || '无'}；缺=${missing.join(',') || '无'}）——半成品已删除`);
   }
   const zip = { path: plan.outPath, zipName: SKILL_ZIP_NAME, sha256: sha256File(plan.outPath), bytes: statSync(plan.outPath).size, entries: entries.filter((e) => !e.endsWith('/')).length };
+  // 中间物收尾：staging 目录只服务 zip，不留残（zip 已独立可验；防后续工具把 staging 当包内容）
+  try { rmSync(staging, { recursive: true, force: true }); } catch { /* 留手工排查余地，不阻断 */ }
   zip.sidecarName = sha256SidecarNameFor(SKILL_ZIP_NAME);
   zip.sidecarPath = join(destVersionDir, zip.sidecarName);
   writeFileSync(zip.sidecarPath, sha256SidecarContent(SKILL_ZIP_NAME, zip.sha256));

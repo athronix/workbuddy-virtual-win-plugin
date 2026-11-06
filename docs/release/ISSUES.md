@@ -367,9 +367,9 @@
 > **run11 分步计时基线（11-02 晚，V1.4.16 干净往返）**：有效总步时 **408s**（A 拆除 65s + B 重装 343s，36 有效步全 PASS、产品零重试；3 次重试全为 QA 脚手架自纠）。Top5=3.2a apply 125s(30.6%)/5.3 example 90s(22.1%)/5.2 a2a 34s/3.0 门禁 26s/5.1+U2.1 21s；三探针链 145s=35.5% 为最大可优化面（llmSession 冷启窗口 +48s vs run8 列观察项，非缺陷）。噪音 4 条全部被脚本既有注记预言（D3 ENOENT/connector-states ⚠/getcwd/powercfg GBK）。数据=`qa/evidence/run11-20261102-timings.csv`，报告=`qa/real-test-2026-11-02-run11.md`。
 
 
-## 迭代24 · V1.4.24（2026-11-06，URL 单指令入口=独立技能包上架——开账）
+## 迭代24 · V1.4.24+V1.4.25（2026-11-06，URL 单指令入口=独立技能包上架——开账）
 
-> 状态：**进行中**。动因=用户明确目标形态：「只要给鸿蒙宿主机 WorkBuddy 发送指令『请依据 skill {skill_url} 安装/卸载/验证 winvm-plugin』，WorkBuddy 就会依据 skill 完成本项目的安装/卸载/验证」。V1.4.23 只解决「包内带技能」（前提=已有 overall 包根）；本迭代补齐**零前提入口面**——技能本体以独立 zip 随双端 release 上架，skill_url 单指令即可完成取技能→取发布包→全流程。
+> 状态：**已关闭（V1.4.25 端到端模拟 YES）**：V1.4.24 首发（pack V1–V11 全绿 29 项含 **V11h/V11i 首验**；GitHub 四资产上架 release id 717510465/535/576/614；**匿名下载双 zip sha 逐字节对账 OK**）→**按用户目标句式做新机端到端模拟**：前四步（下载/校验/解包安装/env-detect+download-verify）全绿，**第五步 ssh2 解析假阻**=I-6.34（候选链写死旧路径，技能装用户级 skills 后距包根八层深全不命中）→同夜 V1.4.25 修复（buildResolverCandidates 动态候选链纯函数+p7 单测 +6=18/18）→gate GREEN 2377→pack→tag@39422a6→双端 push→GitHub 四资产+双 zip 匿名对账 OK→**第二轮五步全绿**（skill zip 下载校验→解包 RELEASE-VERSION=V1.4.25→download-verify 全新 DEPLOY_ROOT→**SSH2_CTOR_RESOLVED true（零显式注入）**→vm_channel_probe ssh2 快路径通→**preflight READINESS=GREEN**）。报告 `qa/real-test-2026-11-06-url-entry.md`。**结论=V1.4.25 起用户句式「请依据 skill {skill_url} 安装/卸载/验证 winvm-plugin」全链无断点**。gitee 镜像 V1.4.24/25 四资产待令牌（I-6.35）；V1.4.24 tag 保留原样（latest 解析天然跳过=风险自消）。动因原文=用户「我要的效果：只要给鸿蒙宿主机 WorkBuddy 发送指令『请依据 skill {skill_url} 安装/卸载/验证 winvm-plugin』，WorkBuddy 就会依据 skill 完成本项目的安装/卸载/验证」。
 
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
