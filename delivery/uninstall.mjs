@@ -83,6 +83,8 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import { removeFromUserPath } from './path-util.mjs';
+// 迭代21 / D-2：VM SSH 后端三级开关（零依赖静态导入；ssh2-client 动态按需导入）
+import { resolveSshBackend, resolveVmKeyPath, syncVmBackend } from './ssh2-backend.mjs';
 
 /* ------------------------------ constants ------------------------------ */
 
@@ -251,7 +253,8 @@ function resolveVmTarget(args, home) {
   if (!host || !user) {
     return null;
   }
-  return { host, user, sshPort: Number(sshPort) || 22 };
+  // 迭代21 D-2：连接对象就地补后端三级判定（env > vm-conn.json.sshBackend > auto）
+  return syncVmBackend({ host, user, sshPort: Number(sshPort) || 22 });
 }
 
 /* ------------------------------ HOST: tunnel daemon ------------------------------ */
@@ -765,11 +768,29 @@ export function buildVmPs1({ purgeWorkspace }) {
   return lines.join('\r\n') + '\r\n';
 }
 
+/* ------------------------------ VM ssh2 channel (迭代21 / D-2) ------------------------------ */
+
+/** ssh2-client 动态装载（模块级缓存；null=不可达 → auto/key 落二进制、显式 ssh2 报错引导）。 */
+let uninstallSsh2Mod; // undefined=未探测 | null=不可用 | module
+async function getUninstallSsh2Mod() {
+  if (uninstallSsh2Mod === undefined) {
+    try {
+      uninstallSsh2Mod = await import('./ssh2-client.mjs');
+    } catch {
+      uninstallSsh2Mod = null;
+    }
+  }
+  return uninstallSsh2Mod;
+}
+
 /**
  * Push the generated .ps1 to the VM, run it, remove it. All output printed as-is.
- * @returns {{ok: boolean, output: string}}
+ *
+ * 迭代21 / D-2 ssh2 化：三处 ssh/scp（push/exec/清理）全走「ssh2 优先（auto）/ 二进制兜底」
+ * （L812 清理动作可容忍失败；L804 主执行=判据类）。由 sync 改 **async**（调用方 main 已 await）。
+ * @returns {Promise<{ok: boolean, output: string}>}
  */
-function runVmPhase(vm, { apply, purgeWorkspace }) {
+async function runVmPhase(vm, { apply, purgeWorkspace }) {
   const ps1 = buildVmPs1({ purgeWorkspace });
   const localPath = join(tmpdir(), `winvm-un-${Date.now()}.ps1`);
   try {
@@ -780,13 +801,41 @@ function runVmPhase(vm, { apply, purgeWorkspace }) {
   }
   const sshTarget = `${vm.user}@${vm.host}`;
   const sshPort = String(vm.sshPort);
+  const backend = vm.vmSshBackend || resolveSshBackend(process.env);
+  const mod = backend === 'key' ? null : await getUninstallSsh2Mod();
+  if (backend === 'ssh2' && !mod) {
+    // 显式 ssh2 后端承诺=绝不暗走二进制（ssh2-client 本体不可达=如实失败）
+    return { ok: false, output: '要求 ssh2 后端但 ssh2-client.mjs 不可达 → 临时 WINVM_SSH_BACKEND=key 使用' };
+  }
 
-  const scp = spawnSync('scp', ['-P', sshPort, '-o', 'ConnectTimeout=10', localPath, `${sshTarget}:${VM_REMOTE_PS1}`], {
-    encoding: 'utf8',
+  /** ssh2 通道参数装配（凭据零打印，路径解析走共享探测链）。 */
+  const ssh2Params = (timeoutMs) => ({
+    backend: mod ? backend : 'key',
+    host: vm.host,
+    port: Number(vm.sshPort) || 22,
+    user: vm.user,
+    privateKeyPath: resolveVmKeyPath(),
+    password: process.env['WINVM_VM_PASSWORD'] || process.env['WINVM_SSH_PASSWORD'] || '',
+    timeoutMs,
+    onFallback: (e) => console.log(`[WARN] ssh2 连接级失败（${mod ? mod.briefError(e) : ''}）→ auto 回落二进制一发`),
   });
-  if (scp.status !== 0) {
-    console.log(`[WARN] scp ${VM_REMOTE_PS1} to VM failed: ${(scp.stderr || scp.stdout || '').trim().slice(0, 300)}`);
-    return { ok: false, output: scp.stderr || '' };
+
+  const scp = mod
+    ? await mod.runVmOp({
+        ...ssh2Params(60_000),
+        op: (runner) => runner.put(localPath, VM_REMOTE_PS1),
+        binary: async () => {
+          const r = spawnSync('scp', ['-P', sshPort, '-o', 'ConnectTimeout=10', localPath, `${sshTarget}:${VM_REMOTE_PS1}`], { encoding: 'utf8' });
+          return { ok: r.status === 0, code: r.status ?? -1, out: `${r.stdout || ''}${r.stderr || ''}` };
+        },
+      })
+    : (() => {
+        const r = spawnSync('scp', ['-P', sshPort, '-o', 'ConnectTimeout=10', localPath, `${sshTarget}:${VM_REMOTE_PS1}`], { encoding: 'utf8' });
+        return { ok: r.status === 0, code: r.status ?? -1, out: `${r.stdout || ''}${r.stderr || ''}` };
+      })();
+  if (!scp.ok) {
+    console.log(`[WARN] scp ${VM_REMOTE_PS1} to VM failed: ${(scp.out || '').trim().slice(0, 300)}`);
+    return { ok: false, output: scp.out || '' };
   }
   const probeOnly = !apply;
   console.log(`${probeOnly ? '[INFO] probe-only push: ' : '[DO]  pushed '}${VM_REMOTE_PS1} to ${sshTarget}${probeOnly ? ' (read-only report mode)' : ''}`);
@@ -801,17 +850,45 @@ function runVmPhase(vm, { apply, purgeWorkspace }) {
     remoteArgs[remoteArgs.length - 1] += ' -Apply';
     if (purgeWorkspace) remoteArgs[remoteArgs.length - 1] += ' -PurgeWorkspace';
   }
-  const run = spawnSync('ssh', remoteArgs, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
-  const output = `${run.stdout || ''}${run.stderr || ''}`;
+  const runCmd = remoteArgs[remoteArgs.length - 1];
+  const run = mod
+    ? await mod.runVmOp({
+        ...ssh2Params(300_000),
+        op: (runner) => runner.exec(runCmd, { timeoutMs: 300_000 }),
+        binary: async () => {
+          const r = spawnSync('ssh', remoteArgs, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+          return { ok: r.status === 0, code: r.status ?? -1, out: `${r.stdout || ''}${r.stderr || ''}` };
+        },
+      })
+    : (() => {
+        const r = spawnSync('ssh', remoteArgs, { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
+        return { ok: r.status === 0, code: r.status ?? -1, out: `${r.stdout || ''}${r.stderr || ''}` };
+      })();
+  const output = run.out || '';
   process.stdout.write(output);
 
   // Cleanup the remote helper script (best effort).
   // Cross-shell cleanup (R8 fix 2026-10-30): `rm -f` is Git-Bash-only and fails on the
   // cmd.exe default shell; use powershell Remove-Item (bare exe + dash args = portable).
   const enc = Buffer.from(`Remove-Item -LiteralPath '${VM_REMOTE_PS1}' -Force -ErrorAction SilentlyContinue`, 'utf16le').toString('base64');
-  spawnSync('ssh', ['-p', sshPort, '-o', 'ConnectTimeout=10', sshTarget, `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${enc}`], { encoding: 'utf8' });
+  const cleanCmd = `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${enc}`;
+  if (mod) {
+    // 清理动作可容忍失败（判据不依赖它）：异常吞掉，best-effort 语义不变。
+    try {
+      await mod.runVmOp({
+        ...ssh2Params(60_000),
+        op: (runner) => runner.exec(cleanCmd, { timeoutMs: 60_000 }),
+        binary: async () => {
+          spawnSync('ssh', ['-p', sshPort, '-o', 'ConnectTimeout=10', sshTarget, cleanCmd], { encoding: 'utf8' });
+          return { ok: true, code: 0, out: '' };
+        },
+      });
+    } catch { /* best effort */ }
+  } else {
+    spawnSync('ssh', ['-p', sshPort, '-o', 'ConnectTimeout=10', sshTarget, cleanCmd], { encoding: 'utf8' });
+  }
 
-  const ok = run.status === 0 && (!apply || output.includes('VM_CLEANUP_DONE'));
+  const ok = run.ok && (!apply || output.includes('VM_CLEANUP_DONE'));
   return { ok, output };
 }
 
@@ -832,12 +909,43 @@ function checkPortClosed(port, timeoutMs = 2000) {
   });
 }
 
-function sshPasswordlessOk(vm) {
+function sshPasswordlessOkSync(vm) {
   const r = spawnSync('ssh', ['-p', String(vm.sshPort), '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes', `${vm.user}@${vm.host}`, 'whoami'], {
     encoding: 'utf8',
     timeout: 20000,
   });
   return { ok: r.status === 0, output: (r.stdout || r.stderr || '').trim() };
+}
+
+/**
+ * 免密登录判据（POST-CLEANUP 核验行，判据类调用点）。
+ * 迭代21 / D-2：ssh2 优先（auto）/ 二进制兜底；sync → async（调用方 printVerification 本就 await）。
+ * @returns {Promise<{ok:boolean, output:string}>}
+ */
+async function sshPasswordlessOk(vm) {
+  const backend = vm.vmSshBackend || resolveSshBackend(process.env);
+  const binary = () => {
+    const b = sshPasswordlessOkSync(vm);
+    return Promise.resolve({ ok: b.ok, code: b.ok ? 0 : 1, out: b.output });
+  };
+  const mod = backend === 'key' ? null : await getUninstallSsh2Mod();
+  if (!mod) {
+    if (backend === 'ssh2') return { ok: false, output: 'ssh2 backend unavailable（临时 WINVM_SSH_BACKEND=key 使用）' };
+    return sshPasswordlessOkSync(vm);
+  }
+  const res = await mod.runVmOp({
+    backend,
+    host: vm.host,
+    port: Number(vm.sshPort) || 22,
+    user: vm.user,
+    privateKeyPath: resolveVmKeyPath(),
+    password: process.env['WINVM_VM_PASSWORD'] || process.env['WINVM_SSH_PASSWORD'] || '',
+    timeoutMs: 20_000,
+    op: (runner) => runner.exec('whoami', { timeoutMs: 20_000 }),
+    binary,
+    onFallback: (e) => console.log(`[WARN] ssh2 连接级失败（${mod.briefError(e)}）→ auto 回落二进制一发`),
+  });
+  return { ok: res.ok, output: (res.out || '').trim() };
 }
 
 async function printVerification(hostRoot, home, vm, purgeWorkspace, executed) {
@@ -880,7 +988,8 @@ async function printVerification(hostRoot, home, vm, purgeWorkspace, executed) {
 
   if (vm) {
     const vmPs1Out = executed ? lastVmPostStatus : null;
-    const ssh = sshPasswordlessOk(vm);
+    // 迭代21 D-2：判据类 whoami 走双后端（async）
+    const ssh = await sshPasswordlessOk(vm);
     rows.push([`VM ssh ${vm.user}@${vm.host} passwordless ("whoami") works`, ssh.ok, ssh.ok]);
     if (vmPs1Out) {
       const get = (k) => {
@@ -984,7 +1093,8 @@ async function main() {
   /* ---------------- VM phase ---------------- */
   if (vm) {
     console.log(`--- VM: ${vm.user}@${vm.host} (generated .ps1 pushed via scp) ---`);
-    const r = runVmPhase(vm, { apply: !dryRun, purgeWorkspace: args.purgeWorkspace });
+    // 迭代21 D-2：runVmPhase 双后端化后为 async（内部 dry-run 仍仅 probe-only）
+    const r = await runVmPhase(vm, { apply: !dryRun, purgeWorkspace: args.purgeWorkspace });
     if (!dryRun) {
       lastVmPostStatus = r.output;
       if (!r.ok) {

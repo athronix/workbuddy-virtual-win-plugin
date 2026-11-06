@@ -131,6 +131,9 @@ function ssh2Closure() {
 const HOST_DELIVERY = [
   'delivery/install-host.mjs', 'delivery/deploy-winvm-plugin.mjs', 'delivery/path-util.mjs',
   'delivery/account-resolve.mjs', 'delivery/preflight.mjs', 'delivery/ssh2-resolve.mjs',
+  // 迭代21 / D-2：ssh2 共享执行体 + 后端三级开关（winvm-plugin.mjs/setup.mjs 的相对 import 硬依赖，
+  // 与 ssh2-resolve 同登记方式=漂移即 copyEntry fail-loud）
+  'delivery/ssh2-client.mjs', 'delivery/ssh2-backend.mjs',
   'delivery/oh-tunnel.mjs', 'delivery/tunnel-daemon.mjs', 'delivery/winvm-plugin.mjs',
   'delivery/hooks', 'delivery/env.example',
 ];
@@ -138,6 +141,9 @@ const VM_DELIVERY = [
   'delivery/deploy-vm.mjs', 'delivery/setup.mjs', 'delivery/install-vm.mjs',
   'delivery/deploy-shared-skills.mjs', 'delivery/link-workspace.mjs',
   'delivery/deploy-winvm-plugin.mjs', 'delivery/path-util.mjs', 'delivery/preflight.mjs',
+  // 迭代21 / D-2：setup.mjs（VM 相位执行体在本包内跑）与 install-vm 部署的 winvm-plugin 均
+  // 相对 import 这两个文件；VM 包 ssh2 不可达时 auto 落二进制=零冲击。
+  'delivery/ssh2-client.mjs', 'delivery/ssh2-backend.mjs', 'delivery/ssh2-resolve.mjs',
   'delivery/env.example',
   // install-vm.mjs 的**非 import 硬依赖**（读文件生成 runtime.json；迭代1 教训：dry-run 抓不到这类缺失）
   'delivery/vm-service.config.json',
@@ -161,11 +167,15 @@ const DEPLOY_PROBES = ['qa/deploy-probes/verify-manifest.py', 'qa/deploy-probes/
 const PACKAGE_REQUIRED = {
   host: [
     'delivery/install-host.mjs', 'delivery/tunnel-daemon.mjs', 'delivery/winvm-plugin.mjs',
+    // 迭代21 / D-2：插件缓存运行态硬依赖（winvm-plugin 静态 import ssh2-backend；
+    // ssh2-client 动态 import + 其静态 import ssh2-resolve）——漂移=缓存炸 import（历轮已知大坑）
+    'delivery/ssh2-backend.mjs', 'delivery/ssh2-client.mjs', 'delivery/ssh2-resolve.mjs',
     'delivery/hooks/hooks.json', 'delivery/env.example', 'package.json', '.env.example',
     'node_modules/@winvm/host-sdk/package.json', 'node_modules/ssh2/package.json',
   ],
   vm: [
     'delivery/deploy-vm.mjs', 'delivery/setup.mjs', 'delivery/install-vm.mjs',
+    'delivery/ssh2-client.mjs', 'delivery/ssh2-backend.mjs', 'delivery/ssh2-resolve.mjs',
     'delivery/vm-service.config.json', 'delivery/env.example', 'package.json', '.env.example',
     'qa/probes/qa-probe.ps1', 'qa/probes/lead-md5-3.ps1',
   ],
@@ -173,6 +183,8 @@ const PACKAGE_REQUIRED = {
     'delivery/install-host.mjs', 'delivery/deploy-vm.mjs', 'delivery/setup.mjs',
     'delivery/install-vm.mjs', 'delivery/vm-service.config.json', 'delivery/bootstrap.mjs',
     'delivery/uninstall.mjs', 'delivery/env.example', 'package.json', '.env.example',
+    // 迭代21 / D-2：ssh2 运行面在 overall 包的存在性（漏收=打包 fail-loud）
+    'delivery/ssh2-client.mjs', 'delivery/ssh2-backend.mjs', 'delivery/ssh2-resolve.mjs',
     'docs/DEPLOYMENT.md', 'docs/RELEASE-V1.4.0.md', 'docs/issues.md',
     // V1.4.5 收编项（Prompt 总集三篇）的包内存在性（漏收=打包 fail-loud）
     'docs/deploy/deploy-strategy.md', 'docs/deploy/deploy-prompts.md', 'docs/deploy/undeploy-prompts.md',

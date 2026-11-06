@@ -52,6 +52,10 @@ import { homedir } from 'node:os';
 import http from 'node:http';
 import net from 'node:net';
 
+// 迭代21 / D-2：VM SSH 后端三级开关 + 默认键探测（零依赖纯逻辑，静态导入；
+// ssh2-client 动态按需导入=不硬依赖 ssh2 在场，Windows/macOS 宿主零冲击）。
+import { resolveSshBackend } from './ssh2-backend.mjs';
+
 /**
  * 排除名单单一事实源（P2-4 怪癖 B）：`connectors/` 下的非账户目录（平台内部目录，非账户）。
  * 本文件侧（host 类子命令的账户罗列）用它过滤，避免把 skills / marketplace-meta 当成账户。
@@ -159,7 +163,10 @@ export function resolveVmConn({ argv = {}, env = {}, dotEnv = {}, persisted = {}
   const password = env['WINVM_VM_PASSWORD'] || persisted.password || '';
   // tunnel-mode：同一优先级惯例（argv > env > persisted > 默认），附来源供 status 展示
   const tunnel = resolveTunnelModeFromSources({ argv, env, persisted });
-  return { host, user, sshPort, servicePort, provider, cli, identityFile, privateKey, password, tunnelMode: tunnel.mode, tunnelModeSource: tunnel.source, ...(tunnel.warning ? { tunnelModeWarning: tunnel.warning } : {}) };
+  // 迭代21 / D-2：VM SSH 后端三级判定（env WINVM_SSH_BACKEND > 持久化 sshBackend（dotEnv 亦可）> auto）。
+  // resolveSshBackend 已含 env 最高优先，config 位取 persisted/dotEnv 归一值。
+  const vmSshBackend = resolveSshBackend(env, persisted.sshBackend || dotEnv['WINVM_SSH_BACKEND']);
+  return { host, user, sshPort, servicePort, provider, cli, identityFile, privateKey, password, vmSshBackend, tunnelMode: tunnel.mode, tunnelModeSource: tunnel.source, ...(tunnel.warning ? { tunnelModeWarning: tunnel.warning } : {}) };
 }
 
 /**
@@ -348,17 +355,76 @@ async function httpPostJson(url, body) {
 
 /* ============================ SSH 中继（host 侧） ============================ */
 
-function sshExec(vm, remoteCmd, timeoutMs = 60000) {
-  if (!vm.host || !vm.user) {
-    throw new Error('缺少 VM 连接信息：请在仓库目录运行（读 .env）或传 --vm-host/--vm-user');
+/** ssh2-client 动态装载缓存（undefined=未探测 | null=不可达 → auto 落二进制 / 显式 ssh2 报错引导）。 */
+let pluginSsh2Mod;
+async function getSsh2Mod() {
+  if (pluginSsh2Mod === undefined) {
+    try {
+      pluginSsh2Mod = await import('./ssh2-client.mjs');
+    } catch {
+      pluginSsh2Mod = null;
+    }
   }
+  return pluginSsh2Mod;
+}
+
+/** 二进制执行原路径（保留原语义：BatchMode + ConnectTimeout；失败且无 stdout 抛错）。 */
+function sshExecBinary(vm, remoteCmd, timeoutMs) {
   const r = sh('ssh', ['-p', String(vm.sshPort), '-o', 'BatchMode=yes', '-o', `ConnectTimeout=10`, `${vm.user}@${vm.host}`, remoteCmd], {
     timeout: timeoutMs,
   });
   if (r.status !== 0 && !r.stdout) {
     throw new Error(`SSH 执行失败（${r.stderr || r.error || 'exit ' + r.status}）`);
   }
-  return r.stdout;
+  return { ok: true, code: 0, out: r.stdout, stdout: r.stdout, stderr: r.stderr };
+}
+
+/**
+ * 在 VM 上执行远端命令并返回 stdout（host→VM 中继的单一执行体）。
+ *
+ * 迭代21 / D-2 ssh2 化：走「ssh2 优先（auto）/ 二进制兜底」双后端
+ * （ssh2-client.runVmOp；连接级失败才落二进制一发，远端非零码=业务真值不回落）。
+ * 由 sync 改 **async**（返回 Promise<string>，抛错语义不变）；全部调用点已 await。
+ * 隧道分支（withTunnel 的系统 ssh 兜底路径）**不在范围**——那是 oh/ssh2 后端之外的
+ * 系统 ssh 分支（鸿蒙走 oh-tunnel 已被证明恒强），本次只改「ssh 执行远端命令」类。
+ * @returns {Promise<string>} 远端 stdout
+ */
+async function sshExec(vm, remoteCmd, timeoutMs = 60000) {
+  if (!vm.host || !vm.user) {
+    throw new Error('缺少 VM 连接信息：请在仓库目录运行（读 .env）或传 --vm-host/--vm-user');
+  }
+  const backend = vm.vmSshBackend || resolveSshBackend(process.env);
+  if (backend === 'key') return sshExecBinary(vm, remoteCmd, timeoutMs).stdout;
+  const mod = await getSsh2Mod();
+  if (!mod) {
+    // auto 下模块本体不可达=通道不可用 → 二进制（原行为）；显式 ssh2 后端→报错引导。
+    if (backend === 'ssh2') {
+      throw new Error('要求 ssh2 后端但 ssh2-client 不可达 → 临时 WINVM_SSH_BACKEND=key 使用');
+    }
+    return sshExecBinary(vm, remoteCmd, timeoutMs).stdout;
+  }
+  const res = await mod.runVmOp({
+    backend,
+    host: vm.host,
+    port: Number(vm.sshPort) || 22,
+    user: vm.user,
+    privateKeyPath: vm.identityFile || '',
+    privateKey: vm.privateKey || undefined,
+    password: vm.password || process.env['WINVM_VM_PASSWORD'] || '',
+    timeoutMs,
+    op: (runner) => runner.exec(remoteCmd, { timeoutMs }),
+    binary: async () => {
+      try {
+        return sshExecBinary(vm, remoteCmd, timeoutMs);
+      } catch (e) {
+        return { ok: false, code: 1, out: String(e?.message || e), stdout: '', stderr: String(e?.message || e) };
+      }
+    },
+    onFallback: (e) => console.error(`⚠️ ssh2 连接级失败（${mod.briefError(e)}）→ auto 回落二进制一发`),
+  });
+  // 旧契约：非零且无 stdout=抛错（消费方 try/catch 语义不变）；成功返回 stdout（trim 保持一致面）
+  if (!res.ok && !res.stdout) throw new Error(`SSH 执行失败（${String(res.stderr || res.out || 'exit ' + res.code).slice(0, 200)}）`);
+  return String(res.stdout ?? '').trim();
 }
 
 /**
@@ -372,8 +438,10 @@ function sshExec(vm, remoteCmd, timeoutMs = 60000) {
  * ⚠ 这是把 PS「内联经 ssh」执行（与本仓 install/uninstall 偏好的「推 .ps1 + `-File`」不同）：
  * 仅用于**短小、无 `$`、无 `/` 前缀参数**的 cmdlet 片段；复杂脚本仍应走 .ps1 推送。
  * 失败（非 0 且无 stdout）时抛错，由调用方兜底。
+ * 迭代21 D-2：底层 sshExec 双后端化 → 本函数随动 async（调用点全部 await）。
+ * @returns {Promise<string>} 远端 stdout
  */
-function psRemote(vm, script, timeoutMs = 60000) {
+async function psRemote(vm, script, timeoutMs = 60000) {
   return sshExec(vm, `powershell -NoProfile -NonInteractive -Command "${script}"`, timeoutMs);
 }
 
@@ -680,7 +748,7 @@ async function cmdHealth(side, vm) {
     }
   } else {
     try {
-      const out = sshExec(vm, `curl -s --noproxy 127.0.0.1 http://127.0.0.1:${vm.servicePort}/health`);
+      const out = await sshExec(vm, `curl -s --noproxy 127.0.0.1 http://127.0.0.1:${vm.servicePort}/health`);
       const h = JSON.parse(out);
       console.log(JSON.stringify(h, null, 2));
       if (h?.session?.interactive === false) {
@@ -857,7 +925,7 @@ async function cmdServer(side, vm, action) {
     if (side === 'vm') {
       return sh('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], { stdio: inherit ? 'inherit' : 'ignore' }).status;
     }
-    try { psRemote(vm, ps); return 0; } catch { return 1; }
+    try { await psRemote(vm, ps); return 0; } catch { return 1; }
   };
 
   if (action === 'status') {
@@ -865,11 +933,15 @@ async function cmdServer(side, vm, action) {
     if (side === 'vm') {
       q = sh('powershell', ['-NoProfile', '-NonInteractive', '-Command', script.registered]).stdout.includes('REGISTERED');
     } else {
-      try { q = psRemote(vm, script.registered).includes('REGISTERED'); } catch { q = false; }
+      try { q = (await psRemote(vm, script.registered)).includes('REGISTERED'); } catch { q = false; }
     }
-    const listening = side === 'vm'
-      ? await isPortListening('127.0.0.1', port)
-      : (() => { try { return psRemote(vm, script.portProbe).trim().toLowerCase() === 'true'; } catch { return false; } })();
+    let listening = false;
+    if (side === 'vm') {
+      listening = await isPortListening('127.0.0.1', port);
+    } else {
+      // 迭代21 D-2：psRemote 异步化 → 端口探针同样 await（判据语义不变）
+      try { listening = (await psRemote(vm, script.portProbe)).trim().toLowerCase() === 'true'; } catch { listening = false; }
+    }
     console.log(`计划任务 ${task} : ${q ? '已注册' : '未注册'}`);
     console.log(`服务端口 :${port} : ${listening ? '监听中 ✅' : '未监听'}`);
     return;
@@ -946,7 +1018,8 @@ async function cmdCommand(side, vm, tool, argsJson) {
   }
 }
 
-function cmdUninstall(side, vm, withVm) {
+/** 迭代21 D-2：--vm 分支经 sshExec 双后端 → async（main 调用点已 await） */
+async function cmdUninstall(side, vm, withVm) {
   if (side === 'host') {
     const repo = repoDirForHostInstaller();
     if (repo) {
@@ -968,7 +1041,7 @@ function cmdUninstall(side, vm, withVm) {
           `$ErrorActionPreference='Stop'; Set-Location -LiteralPath '${dir.replace(/'/g, "''")}'; ` +
           `& node delivery/install-vm.mjs --uninstall --yes --provider ${vm.provider || 'workbuddy'} --cli ${vm.cli || 'codebuddy'}`;
         const encoded = Buffer.from(ps, 'utf16le').toString('base64');
-        const out = sshExec(vm, `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`);
+        const out = await sshExec(vm, `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`);
         console.log(out);
       } catch (e) {
         console.error(`VM 卸载失败：${e.message}`);
@@ -1006,9 +1079,9 @@ function cmdUpdate(side, vm) {
   }
 }
 
-function cmdReinstall(side, vm) {
+async function cmdReinstall(side, vm) {
   console.log('== 重新安装（先卸载后安装）==\n');
-  cmdUninstall(side, vm, false);
+  await cmdUninstall(side, vm, false);
   if (process.exitCode) return;
   console.log('');
   cmdUpdate(side, vm);
@@ -1371,13 +1444,13 @@ async function main() {
       await cmdCommand(side, vm, a.tool, a.args);
       break;
     case 'uninstall':
-      cmdUninstall(side, vm, a.vm);
+      await cmdUninstall(side, vm, a.vm);
       break;
     case 'update':
       cmdUpdate(side, vm);
       break;
     case 'reinstall':
-      cmdReinstall(side, vm);
+      await cmdReinstall(side, vm);
       break;
     default:
       console.error(`未知子命令：${a.sub}\n`);

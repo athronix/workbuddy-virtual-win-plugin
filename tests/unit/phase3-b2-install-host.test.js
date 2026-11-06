@@ -86,6 +86,10 @@ test('buildIntegrityFilePairs：夹具三组面齐备（桥 dist/依赖 dist/@wi
     // P2-4 怪癖 B：winvm-plugin 的相对运行时依赖 account-resolve.mjs 也必须在对账面里
     // （与宿主缓存部署的 extraFiles 同名同源，否则 --check-fresh 对不上）
     writeFileSync(join(repo, 'delivery', 'account-resolve.mjs'), 'export const NON_ACCOUNT_DIRS = new Set(["skills"]);\n');
+    // 迭代21 / D-2：winvm-plugin 新增 ssh2 运行面相对依赖（静态 ssh2-backend + 动态 ssh2-client），
+    // 必须同步进对账面+extraFiles（漏投=插件缓存炸 import，历轮已知大坑）
+    writeFileSync(join(repo, 'delivery', 'ssh2-client.mjs'), 'export const x = 1;\n');
+    writeFileSync(join(repo, 'delivery', 'ssh2-backend.mjs'), 'export const y = 2;\n');
 
     const pairs = buildIntegrityFilePairs(cache, repo);
     const rels = pairs.map((p) => p.rel);
@@ -94,6 +98,8 @@ test('buildIntegrityFilePairs：夹具三组面齐备（桥 dist/依赖 dist/@wi
     assert.ok(rels.some((r) => r === '@winvm/contracts/package.json'), '依赖 package.json 面');
     assert.ok(rels.includes('tunnel-daemon.mjs') && rels.includes('hooks/hooks.json'), 'runtime 单文件面');
     assert.ok(rels.includes('account-resolve.mjs'), 'winvm-plugin 运行时依赖面（P2-4）');
+    assert.ok(rels.includes('ssh2-client.mjs') && rels.includes('ssh2-backend.mjs'),
+      '迭代21 D-2：ssh2 运行面依赖必须在对账面（与 extraFiles 同名同源）');
     // dst 落点正确性（依赖 dist 落 node_modules/@winvm/<name>/dist）
     const dep = pairs.find((p) => p.rel === '@winvm/contracts/dist/bridge.js');
     assert.ok(dep.dst.includes(join('a2a-bridge', 'node_modules', '@winvm', 'contracts', 'dist')), dep.dst);

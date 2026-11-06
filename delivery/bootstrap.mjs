@@ -43,6 +43,8 @@ import readline from 'node:readline/promises';
 // Reuse existing delivery modules (no behavior change to them).
 import { parseEnv, loadEnvFile, resolveConfig, runRemotePs1 } from './setup.mjs';
 import { checkHostDeps, printChecks, evaluateAgentLogin } from './preflight.mjs';
+// 迭代21 / D-2：VM SSH 后端三级开关（零依赖纯逻辑，静态导入；ssh2-client 动态按需导入）
+import { resolveSshBackend, resolveVmKeyPath } from './ssh2-backend.mjs';
 // Phase 3 批2 · P0-2：prepare-vm 纯逻辑（探测/应用 .ps1 生成 + 计划解析），SSH 通道复用本文件既有模式。
 import {
   buildPrepareVmProbePs1,
@@ -142,28 +144,55 @@ function loadEnvOrTemplate() {
  * instead of hanging on a password prompt; stderr is captured but MSYS/Git-Bash
  * noise on the remote side is tolerated (verdict is based on exit code +
  * output regex, never on stderr alone).
+ *
+ * 迭代21 / D-2 ssh2 化：capture 形态走「ssh2 优先（auto）/ 二进制兜底」双后端
+ * （ssh2-client.runVmOp 装配；连接级失败才落二进制，远端非零码=业务真值不回落）。
+ * interactive 形态（trust 首次密码登录）需要人类 tty 输入，**无法 ssh2 化**：
+ * auto/key 下保持二进制（裁定）；显式 WINVM_SSH_BACKEND=ssh2 时该路径报错并引导
+ * 临时 `WINVM_SSH_BACKEND=key` 使用。返回形态与旧实现一致（消费方零改动），
+ * 由 sync 变 async（全部调用点已 await）。
  * @param {string[]} sshArgs extra args after the base options
- * @param {{timeoutMs?: number, interactive?: boolean}} [opts]
- * @returns {{ok: boolean, code: number, out: string, err: string}}
+ * @param {{timeoutMs?: number, interactive?: boolean, backend?: string}} [opts]
+ * @returns {Promise<{ok: boolean, code: number, out: string, err: string}>}
  */
 /**
  * Cross-shell PowerShell one-liner over ssh (R8 fix): the script is base64-encoded as
  * UTF-16LE and passed as a SINGLE `-EncodedCommand` token, so it survives cmd.exe /
  * Git-Bash / pwsh default shells alike (no quoting/expansion ever reaches the remote shell).
- * @returns {{ok:boolean, code:number, out:string, err:string}}
+ * @returns {Promise<{ok:boolean, code:number, out:string, err:string}>}
  */
-function runSshPs(targetArgs, script, opts = {}) {
+async function runSshPs(targetArgs, script, opts = {}) {
   const encoded = Buffer.from(script, 'utf16le').toString('base64');
   return runSsh([...targetArgs, `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encoded}`], opts);
 }
 
-function runSsh(sshArgs, opts = {}) {
-  const args = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', ...sshArgs];
-  if (opts.interactive) {
-    // One password login: inherit stdio so the user can type the password.
-    const r = spawnSync('ssh', args, { stdio: 'inherit' });
-    return { ok: r.status === 0, code: r.status ?? -1, out: '', err: '' };
+/** ssh2-client 动态装载（失败=null：auto 落二进制；显式 ssh2 后端则报错引导）。 */
+let bootstrapSsh2Mod; // undefined=未探测 | null=不可用 | module
+async function getSsh2Mod() {
+  if (bootstrapSsh2Mod === undefined) {
+    try {
+      bootstrapSsh2Mod = await import('./ssh2-client.mjs');
+    } catch {
+      bootstrapSsh2Mod = null;
+    }
   }
+  return bootstrapSsh2Mod;
+}
+
+/** 解析本文件 ssh 参数形态 ['-p',port,'user@host',remoteCmd...] → 连接要素；不符形态返回 null（走二进制）。 */
+function parseSshTargetArgs(sshArgs) {
+  const iP = sshArgs.indexOf('-p');
+  if (iP < 0) return null;
+  const port = Number(sshArgs[iP + 1]);
+  const target = String(sshArgs[iP + 2] || '');
+  const cmdParts = sshArgs.slice(iP + 3);
+  const at = target.lastIndexOf('@');
+  if (!Number.isInteger(port) || port <= 0 || at <= 0 || cmdParts.length === 0) return null;
+  return { port, user: target.slice(0, at), host: target.slice(at + 1), cmd: cmdParts.join(' ') };
+}
+
+/** 二进制原路径（保留原样：BatchMode + ConnectTimeout=8 + 有界 timeout）。 */
+function runSshBinary(args, opts) {
   const r = spawnSync('ssh', args, { encoding: 'utf8', timeout: opts.timeoutMs ?? 30_000 });
   return {
     ok: r.status === 0,
@@ -171,6 +200,64 @@ function runSsh(sshArgs, opts = {}) {
     out: String(r.stdout || ''),
     err: String(r.stderr || ''),
   };
+}
+
+async function runSsh(sshArgs, opts = {}) {
+  const args = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', ...sshArgs];
+  const backend = opts.backend || resolveSshBackend(process.env);
+  if (opts.interactive) {
+    // One password login: inherit stdio so the user can type the password.
+    // 交互 tty 无法 ssh2 化（D-2 裁定）：auto/key 保持二进制；显式 ssh2 后端=报错引导。
+    if (backend === 'ssh2') {
+      log(' [ABORT] backend=ssh2 无法执行交互式密码登录（tty 不支持）。');
+      log('         临时改用二进制后端：WINVM_SSH_BACKEND=key node delivery/bootstrap.mjs trust');
+      return { ok: false, code: -1, out: '', err: 'interactive trust path requires key backend' };
+    }
+    const r = spawnSync('ssh', args, { stdio: 'inherit' });
+    return { ok: r.status === 0, code: r.status ?? -1, out: '', err: '' };
+  }
+  const parsed = parseSshTargetArgs(sshArgs);
+  if (backend !== 'key' && parsed) {
+    const mod = await getSsh2Mod();
+    if (!mod) {
+      if (backend === 'ssh2') {
+        log(' [ABORT] 要求 ssh2 后端但 ssh2-client 不可达 → 临时 WINVM_SSH_BACKEND=key 使用');
+        return { ok: false, code: -1, out: '', err: 'ssh2 backend unavailable' };
+      }
+      return runSshBinary(args, opts);
+    }
+    try {
+      const res = await mod.runVmOp({
+        backend,
+        host: parsed.host,
+        port: parsed.port,
+        user: parsed.user,
+        privateKeyPath: resolveVmKeyPath(),
+        password: process.env['WINVM_VM_PASSWORD'] || process.env['WINVM_SSH_PASSWORD'] || '',
+        timeoutMs: opts.timeoutMs ?? 30_000,
+        op: (runner) => runner.exec(parsed.cmd, { timeoutMs: opts.timeoutMs ?? 30_000 }),
+        binary: () => Promise.resolve(runSshBinary(args, opts)),
+        onFallback: (e) => log(' [ssh2→binary] auto 回落二进制一发：' + mod.briefError(e)),
+      });
+      // 双后端结果契约对齐旧 {ok,code,out,err}：
+      //  - ssh2 路径：stdout/stderr 由 mapRunnerResult 分流 → out=concat、err=stderr；
+      //  - 二进制路径：runSshBinary 原形态（out/stderr 字段在场时优先取）。
+      return {
+        ok: res.ok,
+        code: res.code,
+        out: res.stdout != null ? res.stdout : String(res.out ?? ''),
+        err: res.stderr != null ? res.stderr : String(res.err ?? ''),
+      };
+    } catch (e) {
+      // 显式 ssh2 后端的连接级失败=单条探测如实降级（旧二进制语义：BatchMode 失败 fast-fail，
+      // 不炸整条 check 流水线）；auto 的理论不可达分支不会到这里。
+      if (backend === 'ssh2') {
+        return { ok: false, code: -1, out: '', err: mod.briefError(e) };
+      }
+      throw e;
+    }
+  }
+  return runSshBinary(args, opts);
 }
 
 /** First semver-ish token found in a blob, or ''. */
@@ -252,8 +339,8 @@ async function cmdCheck() {
       blocking++;
     } else {
       // VM node probe: `where node` (task-mandated) + `node -v` for the version.
-      const whereNode = runSsh(['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost, 'where node'], { timeoutMs: 25_000 });
-      const nodeVer = runSsh(['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost, 'node -v'], { timeoutMs: 25_000 });
+      const whereNode = await runSsh(['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost, 'where node'], { timeoutMs: 25_000, backend: cfg.vmSshBackend });
+      const nodeVer = await runSsh(['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost, 'node -v'], { timeoutMs: 25_000, backend: cfg.vmSshBackend });
       const nodeOk = whereNode.ok || nodeVer.ok;
       const vStr = firstVersion(nodeVer.out);
       log('  [' + (nodeOk ? 'OK' : 'FAIL') + '] VM node' +
@@ -268,7 +355,7 @@ async function cmdCheck() {
 
       // VM agent CLI probe: non-blocking for workbuddy-deterministic.
       const isDeterministic = cfg.vmProvider === 'workbuddy-deterministic';
-      const cb = runSsh(['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost, cfg.workbuddyCli + ' --version'], { timeoutMs: 25_000 });
+      const cb = await runSsh(['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost, cfg.workbuddyCli + ' --version'], { timeoutMs: 25_000, backend: cfg.vmSshBackend });
       const cbVer = firstVersion(cb.out);
       if (cb.ok) {
         log('  [OK] VM agent CLI "' + cfg.workbuddyCli + '"' + (cbVer ? ' (v' + cbVer + ')' : '') +
@@ -296,10 +383,10 @@ async function cmdCheck() {
       // provider=workbuddy ∧ 登录态未证实 ⇒ 红字播报「当前确定性可用；切 LLM 需 VM 内交互登录」。
       {
         // R8 fix: was bash `test -f … || test -f …` (cmd.exe 不认)。改跨壳 PS（EncodedCommand）。
-        const mk = runSshPs(
+        const mk = await runSshPs(
           ['-p', String(cfg.vmSshPort), cfg.vmUser + '@' + cfg.vmHost],
           "$d=Join-Path $env:USERPROFILE '.codebuddy'; $ok=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json'))); Write-Output $ok; if(-not $ok){exit 1}",
-          { timeoutMs: 15_000 },
+          { timeoutMs: 15_000, backend: cfg.vmSshBackend },
         );
         const verdict = evaluateAgentLogin({
           provider: cfg.vmProvider,
@@ -401,7 +488,7 @@ async function cmdTrust() {
   log('       password ONCE; the key goes to ~/.ssh/authorized_keys AND to');
   log("       C:/ProgramData/ssh/administrators_authorized_keys with icacls ACL fix, so");
   log('       it works for standard users AND Administrators-group users):');
-  const put = runSsh(['-p', String(cfg.vmSshPort), target, remoteCmd], { interactive: true });
+  const put = await runSsh(['-p', String(cfg.vmSshPort), target, remoteCmd], { interactive: true, backend: cfg.vmSshBackend });
   log('');
   if (!put.ok) {
     log(' [WARN] The remote command exited non-zero (' + put.code + '). If the password was');
@@ -413,7 +500,7 @@ async function cmdTrust() {
   // 3) Verify passwordless login (BatchMode=yes: fails instead of prompting).
   log(' [3/3] Verifying passwordless login (ssh -o BatchMode=yes ' + target + ' whoami)...');
   await sleep(500);
-  const verify = runSsh(['-p', String(cfg.vmSshPort), target, 'whoami'], { timeoutMs: 25_000 });
+  const verify = await runSsh(['-p', String(cfg.vmSshPort), target, 'whoami'], { timeoutMs: 25_000, backend: cfg.vmSshBackend });
   const who = verify.out.trim().split(/\r?\n/).filter(Boolean).pop() || '';
   if (verify.ok && who) {
     log(' [PASS] Passwordless SSH works. Remote identity: ' + who);
@@ -570,21 +657,22 @@ async function cmdPrepareVm(argv) {
   }
   const target = cfg.vmUser + '@' + cfg.vmHost;
   const sshBase = ['-p', String(cfg.vmSshPort), target];
-  const probe = (cmd, timeoutMs = 20_000) => runSsh([...sshBase, cmd], { timeoutMs });
+  const probe = async (cmd, timeoutMs = 20_000) => runSsh([...sshBase, cmd], { timeoutMs, backend: cfg.vmSshBackend });
 
   // —— 只读轻探测（每条独立容错；判据只用退出码+输出正则，绝不信 stderr 单独定性）——
-  const rAdmin = probe('net session', 15_000); // 非管理员必 access denied(错误5)
-  const rSshdQ = probe('sc query sshd');
-  const rSshdC = probe('sc qc sshd');
-  const rFwSsh = probe(`netsh advfirewall firewall show rule name=WinVM-SSH-${cfg.vmSshPort}`);
-  const rFwSvc = probe(`netsh advfirewall firewall show rule name=WinVM-Service-${cfg.servicePort}`);
+  // 迭代21 D-2：探测经 runSsh 双后端（ssh2 优先/auto 回落），逐条串行 await 保序。
+  const rAdmin = await probe('net session', 15_000); // 非管理员必 access denied(错误5)
+  const rSshdQ = await probe('sc query sshd');
+  const rSshdC = await probe('sc qc sshd');
+  const rFwSsh = await probe(`netsh advfirewall firewall show rule name=WinVM-SSH-${cfg.vmSshPort}`);
+  const rFwSvc = await probe(`netsh advfirewall firewall show rule name=WinVM-Service-${cfg.servicePort}`);
   // DB-5 轻探测**不可行**（实测）：powercfg 的 /query 斜杠参数被远端 Git-Bash/MSYS 路径转换吞改
   //（"invalid parameter" 乱码），而项目铁律禁 ssh 内联 PowerShell。⇒ 现状判定让位给
   // apply .ps1 通道（powershell -File 无 MSYS 干扰；powercfg /change 本身幂等无害）。
-  const rNode = probe('node -v');
-  const rCli = probe(cfg.workbuddyCli + ' --version');
+  const rNode = await probe('node -v');
+  const rCli = await probe(cfg.workbuddyCli + ' --version');
   // R8 fix: bash `test -f` → 跨壳 PS（EncodedCommand），判据仍用退出码（ok=exit 0）。
-  const rMarker = runSshPs(sshBase, "$d=Join-Path $env:USERPROFILE '.codebuddy'; $ok=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json'))); Write-Output $ok; if(-not $ok){exit 1}", { timeoutMs: 15_000 });
+  const rMarker = await runSshPs(sshBase, "$d=Join-Path $env:USERPROFILE '.codebuddy'; $ok=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json'))); Write-Output $ok; if(-not $ok){exit 1}", { timeoutMs: 15_000, backend: cfg.vmSshBackend });
 
   const sshdInstalled = !/1060|does not exist/i.test(rSshdQ.out + rSshdQ.err);
   const sshdRunning = /RUNNING/i.test(rSshdQ.out);

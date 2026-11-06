@@ -30,6 +30,8 @@ import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import net from 'node:net';
+// 迭代21 / D-2：VM SSH 后端三级开关（零依赖纯逻辑，可静态导入；ssh2-client 按需动态导入）
+import { resolveSshBackend } from './ssh2-backend.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -131,6 +133,9 @@ export function resolveConfig(env, opts = {}) {
     vmUser: env['VM_USER'] || '',
     vmDeployDir: env['VM_DEPLOY_DIR'] || 'C:/WinVMBridge',
     vmProvider: env['WINVM_VM_PROVIDER'] || 'workbuddy-deterministic',
+    // 迭代21 / D-2：VM SSH 后端三级判定（显式 env WINVM_SSH_BACKEND > .env 同名字段 > 默认 auto）。
+    // auto=ssh2 优先、连接级失败回落二进制一发；key=原二进制行为。详见 delivery/ssh2-backend.mjs。
+    vmSshBackend: resolveSshBackend(process.env, env['WINVM_SSH_BACKEND']),
     // Phase 5 批14：策略闸执法灰度跨部署持久化（'' / shadow ⇒ 不注入=缺省 shadow）。
     policyGateWiring: (env['WINVM_POLICY_GATE_WIRING'] || '').trim().toLowerCase(),
     workbuddyCli: env['WINVM_WORKBUDDY_CLI'] || 'codebuddy',
@@ -292,6 +297,147 @@ export function buildDeployManifest(info) {
  */
 export const QA_PROBE_FILES = ['qa-probe.ps1', 'lead-md5-3.ps1'];
 
+/* ----------------------------- VM SSH 执行通道（迭代21 / D-2 ssh2 化） -----------------------------
+ * 背景：鸿蒙 WB 沙箱 OpenSSH 二进制对 VM 相位性挂起（rc=124 空 stderr），node ssh2 库同秒恒通。
+ * 本节的 ssh/scp 二进制调用点全部改为「ssh2 优先（auto）/ 二进制兜底」双后端装配
+ * （ssh2-client.mjs 共享执行体 + ssh2-backend.mjs 三级开关；隧道分支 L1048 不在范围——
+ *  那是非 oh 后端的系统 ssh 兜底分支，鸿蒙走 oh-tunnel 已被证明恒强）。 */
+
+/** ssh2 共享执行体的动态装载（模块级缓存；失败=null → ssh2 后端不可用，auto 落二进制）。 */
+let ssh2ModCache; // undefined=未探测 | null=不可用 | {createSshRunner, runWithBackend, briefError}
+async function getSsh2Mod() {
+  if (ssh2ModCache === undefined) {
+    try {
+      ssh2ModCache = await import('./ssh2-client.mjs');
+    } catch {
+      ssh2ModCache = null;
+    }
+  }
+  return ssh2ModCache;
+}
+
+/** ssh2 建连凭据解析（与 TUNNEL 回落分支同事实源）：env WINVM_VM_KEY/默认键探测链 + WINVM_VM_PASSWORD。 */
+function ssh2Creds() {
+  const id = resolveTunnelIdentityFile();
+  return {
+    privateKeyPath: id.identityFile || '',
+    password: process.env['WINVM_VM_PASSWORD'] || '',
+  };
+}
+
+/** scp「目标=目录」语义 → sftp 全路径（dir 尾斜杠归一 + 文件名拼接）。 */
+function remoteFileIn(remoteDir, fileName) {
+  const d = String(remoteDir).replace(/\\/g, '/').replace(/\/+$/, '');
+  return `${d}/${fileName}`;
+}
+
+/** ssh2 执行通道参数（凭据 + 连接四元组 + 回落日志），供单发/批量装配器共用。 */
+function vmChannelParams(cfg, opts = {}) {
+  const creds = ssh2Creds();
+  return {
+    backend: cfg.vmSshBackend || 'auto',
+    host: cfg.vmHost,
+    port: cfg.vmSshPort,
+    user: cfg.vmUser,
+    privateKeyPath: creds.privateKeyPath,
+    password: creds.password,
+    timeoutMs: opts.timeoutMs ?? 120_000,
+    onFallback: (e) => {
+      if (typeof opts.logOnFallback === 'function') opts.logOnFallback(e);
+      else log(`   ⚠️ ssh2 通道连接级失败（${String((e && e.message) || e).slice(0, 120)}）→ auto 回落二进制一发`);
+    },
+  };
+}
+
+/**
+ * 双后端装配器（单发 exec/put/get）：委托 ssh2-client.runVmOp（策略与建连复用，零重复实现）。
+ * backend≠key 且 ssh2 模块可达时走 ssh2（opFn），否则走二进制（binaryFn）；
+ * auto=连接级失败回落二进制一发；远端非零码=业务真值不回落。结果映射旧 run() 形态 {ok,code,out}。
+ * @param {object} cfg resolveConfig 产物（用 cfg.vmSshBackend/vmHost/vmSshPort/vmUser）
+ * @param {()=>Promise<{ok:boolean,code:number,out:string}>} binaryFn 原二进制路径（保留原样）
+ * @param {(runner:object)=>Promise<{ok:boolean,code:number,stdout:string,stderr:string}>} opFn runner.exec/put/get 操作
+ * @param {{timeoutMs?:number, logOnFallback?:(e:unknown)=>void}} [opts]
+ * @returns {Promise<{ok:boolean, code:number, out:string}>}
+ */
+export async function withVmChannel(cfg, binaryFn, opFn, opts = {}) {
+  const mod = await getSsh2Mod();
+  if (!mod) {
+    if ((cfg.vmSshBackend || 'auto') === 'ssh2') {
+      throw new Error('要求 ssh2 后端但 ssh2-client.mjs 不可达 → 临时 WINVM_SSH_BACKEND=key 使用');
+    }
+    return binaryFn(); // auto/key 下模块本体不可达（极端沙箱）→ 原二进制行为
+  }
+  return mod.runVmOp({ ...vmChannelParams(cfg, opts), binary: binaryFn, op: opFn });
+}
+
+/**
+ * 批量文件传输装配：一次建连循环 put 全部文件再 close（把 N 次握手省成 1 次；D-2 模板）。
+ * 二进制分支=逐文件原样 scp（语义不变）。
+ * @param {object} cfg
+ * @param {Array<[string,string]>} jobs [localPath, remotePath] 对
+ * @param {(local:string, remote:string)=>Promise<{ok:boolean, code:number, out:string}>} binaryOne 单文件二进制 scp
+ * @param {{timeoutMs?:number}} [opts]
+ * @returns {Promise<Array<{ok:boolean, code:number, out:string}>>} 与 jobs 同序
+ */
+export async function withVmChannelBatch(cfg, jobs, binaryOne, opts = {}) {
+  const backend = cfg.vmSshBackend || 'auto';
+  const mod = await getSsh2Mod();
+  if (!mod && backend === 'ssh2') {
+    throw new Error('要求 ssh2 后端但 ssh2-client.mjs 不可达 → 临时 WINVM_SSH_BACKEND=key 使用');
+  }
+  if (backend === 'key' || !mod) {
+    const out = [];
+    for (const [l, r] of jobs) out.push(await binaryOne(l, r));
+    return out;
+  }
+  const single = vmChannelParams(cfg, opts);
+  let runner = null;
+  try {
+    return await mod.runWithBackend({
+      backend,
+      binary: async () => {
+        const res = [];
+        for (const [l, r] of jobs) res.push(await binaryOne(l, r));
+        return res;
+      },
+      onFallback: single.onFallback,
+      op: async () => {
+        runner = await mod.createSshRunner({
+          host: single.host,
+          port: single.port,
+          user: single.user,
+          privateKeyPath: single.privateKeyPath || undefined,
+          password: single.password || undefined,
+          readyTimeoutMs: 15_000,
+        });
+        const res = [];
+        // 每文件 put 带护栏（死连接 fastPut 回调永不返回=挂死面 → infra 型「超时」触发回落）
+        const perFileMs = Math.max(10_000, Math.floor((opts.timeoutMs ?? 120_000) / Math.max(1, jobs.length)));
+        for (const [l, r] of jobs) {
+          let timer;
+          try {
+            const raced = await Promise.race([
+              runner.put(l, r),
+              new Promise((_, rej) => {
+                timer = setTimeout(() => rej(new Error(`ssh2 put 超时（${perFileMs}ms）→ ${r}`)), perFileMs);
+                timer.unref?.();
+              }),
+            ]);
+            res.push(mod.mapRunnerResult(raced));
+          } finally {
+            clearTimeout(timer);
+          }
+        }
+        return res;
+      },
+    });
+  } finally {
+    if (runner) {
+      try { await runner.close(); } catch { /* noop */ }
+    }
+  }
+}
+
 /**
  * QA-PROBE 相位执行体：把仓库 qa/probes/ 下的探针脚本逐个 scp 到 VM 部署目录下的
  * dev-and-qa/probes/（目录治理 2026-09-23：探针夹具不再散落部署根）。
@@ -306,34 +452,55 @@ async function deployQaProbes(cfg, log) {
   let ok = true;
   let out = '';
   // 先确保远端收口目录存在（探针落 dev-and-qa/probes/，不散落部署根）
-  const mk = await run(
-    'ssh',
-    [
-      '-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`,
+  // 迭代21 D-2：ssh2 优先（auto），二进制兜底——下同。
+  const mk = await withVmChannel(
+    cfg,
+    () => run(
+      'ssh',
+      [
+        '-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`,
+        `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${cfg.vmDeployDir}/${VM_DEVQA_DIR}/probes' | Out-Null"`,
+      ],
+      { timeoutMs: 60_000 },
+    ),
+    (runner) => runner.exec(
       `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${cfg.vmDeployDir}/${VM_DEVQA_DIR}/probes' | Out-Null"`,
-    ],
+      { timeoutMs: 60_000 },
+    ),
     { timeoutMs: 60_000 },
   );
   if (!mk.ok) {
     return { ok: false, pushed: [], missing: [...QA_PROBE_FILES], out: `创建远端 dev-and-qa/probes 失败：${mk.out.slice(0, 200)}` };
   }
+  // 本地在位的夹具先收集，再一次建连批量 put（N 次握手省成 1 次；D-2 模板）
+  const jobs = [];
   for (const f of QA_PROBE_FILES) {
     const local = join(ROOT, 'qa', 'probes', f);
     if (!existsSync(local)) {
       missing.push(f);
       continue;
     }
-    const r = await run(
+    jobs.push([f, local, `${cfg.vmDeployDir}/${VM_DEVQA_DIR}/probes/${f}`]);
+  }
+  const results = await withVmChannelBatch(
+    cfg,
+    jobs.map(([f, l, r]) => [l, r]),
+    (_l, remote) => run(
       'scp',
-      ['-P', String(cfg.vmSshPort), local, `${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir}/${VM_DEVQA_DIR}/probes/${f}`],
+      ['-P', String(cfg.vmSshPort), _l, `${cfg.vmUser}@${cfg.vmHost}:${remote}`],
       { timeoutMs: 60_000 },
-    );
-    if (r.ok) {
+    ),
+    { timeoutMs: 60_000 },
+  );
+  for (let i = 0; i < jobs.length; i++) {
+    const [f, l, r] = jobs[i];
+    const res = results[i];
+    if (res && res.ok) {
       pushed.push(f);
-      log(`   (qa/probes/${f} → ${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir}/${VM_DEVQA_DIR}/probes)`);
+      log(`   (qa/probes/${f} → ${cfg.vmUser}@${cfg.vmHost}:${r})`);
     } else {
       ok = false;
-      out += `scp ${f} 失败：${r.out.slice(0, 200)}\n`;
+      out += `scp ${f} 失败：${(res && res.out || '').slice(0, 200)}\n`;
     }
   }
   return { ok, pushed, missing, out };
@@ -360,9 +527,15 @@ async function writeDeployManifest(cfg, log) {
   const tmpLocal = join(ROOT, VM_ARCHIVE.replace('.tgz', '.manifest.tmp'));
   try {
     writeFileSync(tmpLocal, manifestBody, 'utf8');
-    const scpR = await run(
-      'scp',
-      ['-P', String(cfg.vmSshPort), tmpLocal, `${cfg.vmUser}@${cfg.vmHost}:${manifestPath}`],
+    // 迭代21 D-2：scp → ssh2 sftp put（auto 优先 / 二进制兜底）
+    const scpR = await withVmChannel(
+      cfg,
+      () => run(
+        'scp',
+        ['-P', String(cfg.vmSshPort), tmpLocal, `${cfg.vmUser}@${cfg.vmHost}:${manifestPath}`],
+        { timeoutMs: 60_000 },
+      ),
+      (runner) => runner.put(tmpLocal, manifestPath),
       { timeoutMs: 60_000 },
     );
     if (scpR.ok) {
@@ -661,12 +834,21 @@ export async function deployVm(cfg) {
   );
   if (sources.length === 0) return { ok: false, code: -1, out: '没有任何可分发产物，请先执行 npm run build' };
 
-  const mkdir = await run(
-    'ssh',
-    [
-      '-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`,
+  // 迭代21 D-2：ssh2 优先（auto）/ 二进制兜底——mkdir 与 scp 大产物传输同理。
+  const mkdir = await withVmChannel(
+    cfg,
+    () => run(
+      'ssh',
+      [
+        '-p', String(cfg.vmSshPort), `${cfg.vmUser}@${cfg.vmHost}`,
+        `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${cfg.vmDeployDir}' | Out-Null"`,
+      ],
+      { timeoutMs: 60_000 },
+    ),
+    (runner) => runner.exec(
       `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${cfg.vmDeployDir}' | Out-Null"`,
-    ],
+      { timeoutMs: 60_000 },
+    ),
     { timeoutMs: 60_000 },
   );
   if (!mkdir.ok) return { ok: false, code: mkdir.code, out: `创建 VM 部署目录失败：${mkdir.out.slice(0, 300)}` };
@@ -674,9 +856,15 @@ export async function deployVm(cfg) {
   const pack = await run('tar', ['-czf', VM_ARCHIVE, ...sources], { timeoutMs: 120_000 });
   if (!pack.ok) return { ok: false, code: pack.code, out: `打包产物失败：${pack.out.slice(0, 300)}` };
 
-  const cp = await run(
-    'scp',
-    ['-P', String(cfg.vmSshPort), VM_ARCHIVE, `${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir}`],
+  const cp = await withVmChannel(
+    cfg,
+    () => run(
+      'scp',
+      ['-P', String(cfg.vmSshPort), VM_ARCHIVE, `${cfg.vmUser}@${cfg.vmHost}:${cfg.vmDeployDir}`],
+      { timeoutMs: 300_000 },
+    ),
+    // 大产物（.tgz）走 sftp fastPut：scp 的「目标=目录」语义在 sftp 下需拼出完整远端文件路径
+    (runner) => runner.put(join(ROOT, VM_ARCHIVE), remoteFileIn(cfg.vmDeployDir, VM_ARCHIVE)),
     { timeoutMs: 300_000 },
   );
   if (!cp.ok) return { ok: false, code: cp.code, out: `传输产物失败：${cp.out.slice(0, 300)}` };
@@ -735,23 +923,40 @@ export async function runRemotePs1(cfg, ps1Body, { timeoutMs = 120_000, log = (m
   }
   const localWritten = existsSync(localPath) ? localPath : join(ROOT, '.setup-tmp', remoteName);
   const sshTarget = `${cfg.vmUser}@${cfg.vmHost}`;
+  // 远端 ssh home 相对路径（scp 裸文件名=落 sftp 默认目录=同一处；跨壳铁律不变）
   try {
-    const scp = await run('scp', ['-P', String(cfg.vmSshPort), localWritten, `${sshTarget}:${remoteName}`], { timeoutMs: 60_000 });
+    // 迭代21 D-2：.ps1 推送通道三处 ssh/scp 全走「ssh2 优先 / 二进制兜底」双后端
+    const scp = await withVmChannel(
+      cfg,
+      () => run('scp', ['-P', String(cfg.vmSshPort), localWritten, `${sshTarget}:${remoteName}`], { timeoutMs: 60_000 }),
+      (runner) => runner.put(localWritten, remoteName),
+      { timeoutMs: 60_000 },
+    );
     if (!scp.ok) return { ok: false, code: scp.code, out: `scp .ps1 失败：${scp.out.slice(0, 300)}` };
     log(`   (.ps1 已推送 ${remoteName} → VM)`);
-    const r = await run(
-      'ssh',
-      [
-        '-p', String(cfg.vmSshPort),
-        sshTarget,
-        `powershell -NoProfile -ExecutionPolicy Bypass -File ${remoteName}`,
-      ],
+    const r = await withVmChannel(
+      cfg,
+      () => run(
+        'ssh',
+        [
+          '-p', String(cfg.vmSshPort),
+          sshTarget,
+          `powershell -NoProfile -ExecutionPolicy Bypass -File ${remoteName}`,
+        ],
+        { timeoutMs },
+      ),
+      (runner) => runner.exec(`powershell -NoProfile -ExecutionPolicy Bypass -File ${remoteName}`, { timeoutMs }),
       { timeoutMs },
     );
     // 清理远端与本地临时脚本（best-effort）。
     // 跨壳删除（R8 批）：`rm -f` 是 Git-Bash 专属、cmd.exe 不认——统一走 powershell Remove-Item
     // （裸 exe + 连字符参数，cmd/bash/pwsh 三壳均可移植）。
-    await run('ssh', ['-p', String(cfg.vmSshPort), sshTarget, `powershell -NoProfile -Command "Remove-Item -LiteralPath '${remoteName}' -Force -ErrorAction SilentlyContinue"`], { timeoutMs: 30_000 });
+    await withVmChannel(
+      cfg,
+      () => run('ssh', ['-p', String(cfg.vmSshPort), sshTarget, `powershell -NoProfile -Command "Remove-Item -LiteralPath '${remoteName}' -Force -ErrorAction SilentlyContinue"`], { timeoutMs: 30_000 }),
+      (runner) => runner.exec(`powershell -NoProfile -Command "Remove-Item -LiteralPath '${remoteName}' -Force -ErrorAction SilentlyContinue"`, { timeoutMs: 30_000 }),
+      { timeoutMs: 30_000 },
+    );
     return r;
   } finally {
     try { rmSync(localWritten, { force: true }); } catch { /* noop */ }
@@ -1115,12 +1320,18 @@ function run(cmd, args, opts = {}) {
 async function waitForRemotePort(cfg, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const r = await run('ssh', [
-      '-p', String(cfg.vmSshPort),
-      '-o', `ConnectTimeout=8`,
-      `${cfg.vmUser}@${cfg.vmHost}`,
-      `netstat -ano | findstr ":${cfg.servicePort}" | findstr "LISTENING"`,
-    ], { timeoutMs: 15_000 });
+    // 迭代21 D-2：轮询探测也走双后端（每轮独立建连——auto 下失败自动落二进制，语义不变）
+    const r = await withVmChannel(
+      cfg,
+      () => run('ssh', [
+        '-p', String(cfg.vmSshPort),
+        '-o', `ConnectTimeout=8`,
+        `${cfg.vmUser}@${cfg.vmHost}`,
+        `netstat -ano | findstr ":${cfg.servicePort}" | findstr "LISTENING"`,
+      ], { timeoutMs: 15_000 }),
+      (runner) => runner.exec(`netstat -ano | findstr ":${cfg.servicePort}" | findstr "LISTENING"`, { timeoutMs: 15_000 }),
+      { timeoutMs: 15_000 },
+    );
     if (r.ok && r.out.includes('LISTENING')) return true;
     if (Date.now() >= deadline) return false;
     await sleep(2000);

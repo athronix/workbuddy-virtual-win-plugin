@@ -25,9 +25,11 @@
  * 幂等判据（setup dry-run 验收）：连跑两次 apply，第二次全 [SKIP]（每项先探测再动作）。
  */
 
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+// 迭代21 / D-2：后端三级开关（零依赖静态导入）；ssh2-client 动态按需导入（不硬依赖 ssh2 在场）。
+import { resolveSshBackend, resolveVmKeyPath } from './ssh2-backend.mjs';
 
 /* ----------------------------- 纯函数：探测计划 ----------------------------- */
 
@@ -285,22 +287,54 @@ export function planPrepareVm(cfg, probe) {
 /**
  * 经 ssh 只读探测当前 VM 前置态（复用 bootstrap 的 runSsh 语义：BatchMode + 容错 MSYS 噪声）。
  * 不走 apply、不写盘。失败时返回 null（调用方降级）。
- * @param {{vmHost:string, vmUser:string, vmSshPort:number}} cfg
+ *
+ * 迭代21 / D-2：ssh2 优先（auto）/ 二进制兜底双后端。因 ssh2 通道本质异步，本函数由
+ * sync 改为 **async**（返回 Promise<{ok,out}>）。仓内无调用方（bootstrap 自备探测通道），
+ * 外部消费方需加 await——已在回报中登记此签名差异。
+ * @param {{vmHost:string, vmUser:string, vmSshPort:number, vmSshBackend?:string}} cfg
  * @param {object} probeCfg {servicePort, vmDeployDir, ensureNode}
- * @returns {{ok:boolean, out:string}}
+ * @returns {Promise<{ok:boolean, out:string}>}
  */
-export function probePrepareVm(cfg, probeCfg) {
+export async function probePrepareVm(cfg, probeCfg) {
   const ps1 = buildPrepareVmProbePs1({ ...probeCfg, sshPort: cfg.vmSshPort });
   // 探测脚本较复杂 ⇒ 走 .ps1 scp 通道由上层负责；这里给「轻量单行」版（纯只读，PowerShell -Command 无 MSYS 变量的子集）。
   // 为保持铁律（勿内联 PS），单行探测只查极少数无 $ 变量的命令；复杂探测交给 runRemotePs1。
   const oneLiner = `powershell -NoProfile -Command "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)"`;
   const target = `${cfg.vmUser}@${cfg.vmHost}`;
-  const r = spawnSync('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-p', String(cfg.vmSshPort || 22), target, oneLiner], {
-    encoding: 'utf8',
-    timeout: 30_000,
+  const backend = cfg.vmSshBackend || resolveSshBackend(process.env);
+  const binary = () => {
+    const r = spawnSync('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-p', String(cfg.vmSshPort || 22), target, oneLiner], {
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    return { ok: r.status === 0, out: String(r.stdout || '') + String(r.stderr || '') };
+  };
+  if (backend === 'key') { void ps1; return binary(); }
+  let mod = null;
+  try {
+    mod = await import('./ssh2-client.mjs');
+  } catch {
+    mod = null;
+  }
+  if (!mod) {
+    if (backend === 'ssh2') throw new Error('要求 ssh2 后端但 ssh2-client 不可达 → 临时 WINVM_SSH_BACKEND=key 使用');
+    void ps1;
+    return binary();
+  }
+  const res = await mod.runVmOp({
+    backend,
+    host: cfg.vmHost,
+    port: Number(cfg.vmSshPort || 22),
+    user: cfg.vmUser,
+    privateKeyPath: resolveVmKeyPath(),
+    password: process.env['WINVM_VM_PASSWORD'] || process.env['WINVM_SSH_PASSWORD'] || '',
+    timeoutMs: 30_000,
+    op: (runner) => runner.exec(oneLiner, { timeoutMs: 30_000 }),
+    binary: async () => binary(),
+    onFallback: (e) => process.stderr.write(`[prepare-vm] ssh2 连接级失败，auto 回落二进制：${mod.briefError(e)}\n`),
   });
   void ps1;
-  return { ok: r.status === 0, out: String(r.stdout || '') + String(r.stderr || '') };
+  return { ok: res.ok, out: res.out };
 }
 
 /* ----------------------------- CLI 入口（可选独立运行） ----------------------------- */

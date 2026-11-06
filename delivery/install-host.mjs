@@ -212,7 +212,9 @@ export function buildIntegrityFilePairs(cacheRoot, repoRoot) {
   // 3) 隧道运行时 + hooks + winvm-plugin 的相对运行时依赖（account-resolve.mjs）单文件面
   //    （与 deployWinvmPlugin 宿主缓存调用的 extraFiles 名单**同名同源**，否则 freshness 会
   //     对不上：多算=缓存缺文件 MISSING，少算=多投放的文件无人对账）
-  for (const rel of ['winvm-plugin.mjs', 'oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs']) {
+  //    迭代21 / D-2：winvm-plugin.mjs 新增静态 import './ssh2-backend.mjs' + 动态 import
+  //    './ssh2-client.mjs'（其静态依赖 ssh2-resolve.mjs 已在册）——漏投=插件缓存炸 import。
+  for (const rel of ['winvm-plugin.mjs', 'oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs']) {
     pushFile(join(repoRoot, 'delivery', rel), join(cacheRoot, rel), rel);
   }
 
@@ -1301,9 +1303,9 @@ async function main() {
     // account-resolve.mjs 同属「winvm-plugin 的同目录运行时依赖」（P2-4 怪癖 B 根治）：缓存侧
     // 只有 winvm-plugin.mjs 单文件，缺它会 ERR_MODULE_NOT_FOUND；名单随本文件一起投放，
     // 使排除名单的单一事实源（delivery/account-resolve.mjs）在宿主缓存侧同样在场。
-    deployWinvmPlugin({ targetDir: paths.pluginRoot, side: 'host', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs'] });
+    deployWinvmPlugin({ targetDir: paths.pluginRoot, side: 'host', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs'] });
     // 仓库 delivery 部署：不写 .winvm-context.json（避免 side:host 随 tar 发到 VM；VM 侧由 install-vm 写 side:vm）
-    deployWinvmPlugin({ targetDir: join(repoRoot, 'delivery'), side: 'host', dryRun: false, writeContext: false, log: (m) => console.log(`管理命令(仓库): ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs'] });
+    deployWinvmPlugin({ targetDir: join(repoRoot, 'delivery'), side: 'host', dryRun: false, writeContext: false, log: (m) => console.log(`管理命令(仓库): ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs'] });
     /* ---- 沙箱白名单注入（T07 / P0-R4）：把本插件运行期写路径加入 settings.json 的
      * sandbox.extraAllowWrite，使 OH/Linux 沙箱内的 WorkBuddy 可写插件缓存与 winvm 运行目录。
      * 非致命：失败仅告警，不影响安装主干。 */

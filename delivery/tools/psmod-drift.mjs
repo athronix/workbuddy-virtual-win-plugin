@@ -35,6 +35,8 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import http from 'node:http';
 import https from 'node:https';
+// 迭代21 / D-2：VM SSH 后端三级开关（零依赖静态导入；ssh2-client 动态按需导入）
+import { resolveSshBackend, resolveVmKeyPath } from '../ssh2-backend.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..');
@@ -51,6 +53,8 @@ function parseArgs(argv) {
     vmSshPort: Number(process.env['VM_SSH_PORT'] || 22),
     vmPsmodDir: 'C:/WinVMBridge/packages/vm-capabilities/psmod',
     timeoutMs: 8000,
+    // 迭代21 / D-2：--ssh-backend 显式覆盖；缺省由 resolveSshBackend（env WINVM_SSH_BACKEND > auto）
+    sshBackend: '',
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -61,6 +65,7 @@ function parseArgs(argv) {
       case '--vm-user': o.vmUser = argv[++i]; break;
       case '--vm-ssh-port': o.vmSshPort = Number(argv[++i]); break;
       case '--vm-psmod-dir': o.vmPsmodDir = argv[++i]; break;
+      case '--ssh-backend': o.sshBackend = argv[++i]; break;
       case '--timeout': o.timeoutMs = Number(argv[++i]) || o.timeoutMs; break;
       default: break;
     }
@@ -207,22 +212,55 @@ function diffMaps(a, b) {
 
 /**
  * 经 ssh 只读取 VM 磁盘 psmod SHA256（sha256sum 可用则用；MSYS 通道，输出解析 `hash *name`/`hash  name`）。
- * @returns {Record<string,string>|null} 失败返回 null（调用方降级两方对账）
+ *
+ * 迭代21 / D-2（清单外调用点，一并 ssh2 化）：只读 exec 类 → 「ssh2 优先（auto）/ 二进制兜底」
+ * 双后端（ssh2-client 动态导入=不硬依赖 ssh2 在场）。sync → async。
+ * @returns {Promise<Record<string,string>|null>} 失败返回 null（调用方降级两方对账）
  */
-function vmDiskHashes(o) {
+async function vmDiskHashes(o) {
   if (!o.vmHost || !o.vmUser) return null;
   const cmd = `cd '${o.vmPsmodDir}' && sha256sum *.ps1`;
-  const r = spawnSync('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-p', String(o.vmSshPort), `${o.vmUser}@${o.vmHost}`, cmd], {
-    encoding: 'utf8',
-    timeout: 30_000,
-  });
-  if (r.status !== 0) return null;
-  const out = {};
-  for (const line of String(r.stdout || '').split(/\r?\n/)) {
-    const m = line.match(/^([0-9a-f]{64})\s+\*?([A-Za-z0-9_.\-]+\.ps1)\s*$/i);
-    if (m) out[m[2]] = m[1].toLowerCase();
+  const backend = o.sshBackend || resolveSshBackend(process.env);
+  const parse = (stdout) => {
+    const out = {};
+    for (const line of String(stdout || '').split(/\r?\n/)) {
+      const m = line.match(/^([0-9a-f]{64})\s+\*?([A-Za-z0-9_.\-]+\.ps1)\s*$/i);
+      if (m) out[m[2]] = m[1].toLowerCase();
+    }
+    return Object.keys(out).length ? out : null;
+  };
+  const binary = () => {
+    const r = spawnSync('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-p', String(o.vmSshPort), `${o.vmUser}@${o.vmHost}`, cmd], {
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    return { ok: r.status === 0, code: r.status ?? -1, out: String(r.stdout || ''), stdout: String(r.stdout || '') };
+  };
+  if (backend === 'key') return parse(binary().stdout);
+  let mod = null;
+  try {
+    mod = await import('../ssh2-client.mjs');
+  } catch {
+    mod = null;
   }
-  return Object.keys(out).length ? out : null;
+  if (!mod) return backend === 'ssh2' ? null : parse(binary().stdout);
+  try {
+    const res = await mod.runVmOp({
+      backend,
+      host: o.vmHost,
+      port: Number(o.vmSshPort) || 22,
+      user: o.vmUser,
+      privateKeyPath: resolveVmKeyPath(),
+      password: process.env['WINVM_VM_PASSWORD'] || process.env['WINVM_SSH_PASSWORD'] || '',
+      timeoutMs: 30_000,
+      op: (runner) => runner.exec(cmd, { timeoutMs: 30_000 }),
+      binary: async () => binary(),
+      onFallback: (e) => process.stderr.write(`psmod-drift: ssh2 连接级失败，auto 回落二进制：${mod.briefError(e)}\n`),
+    });
+    return res.ok ? parse(res.stdout || res.out) : null;
+  } catch {
+    return null; // 只读对账工具：通道失败=降级两方对账（语义与原「ssh 失败返回 null」一致）
+  }
 }
 
 /* ----------------------------- main ----------------------------- */
@@ -258,7 +296,7 @@ async function main() {
     console.log(`/health 拉取失败：${healthErr}`);
   }
 
-  const disk = o.vmDisk ? vmDiskHashes(o) : null;
+  const disk = o.vmDisk ? await vmDiskHashes(o) : null;
   if (o.vmDisk) console.log(`VM 磁盘哈希：${disk ? `${Object.keys(disk).length} 文件` : '不可得（ssh/sha256sum 失败）——降级两方对账'}`);
 
   const res = health
