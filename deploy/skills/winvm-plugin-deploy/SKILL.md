@@ -1,7 +1,7 @@
 ---
 name: winvm-plugin-deploy
-description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.2.2：URL 单指令入口链闭环——技能包 ssh2 候选链动态化PKG_ROOT/pkg-root.txt/DEPLOY_ROOT 三级，新机装技能位即可直连；v1.2.1 入口引导章；v1.2.0 run13~21 全战役沉淀：通道判稳器/能力通道自救/rhythm-check 定性/ssh2 通道后端/包根三级选根/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，给出本技能的 URL 或目录让你按其安装/卸载/验证 winvm-plugin，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
-version: 1.2.2
+description: WinVM Bridge（workbuddy-virtual-win-plugin）鸿蒙宿主与 Windows VM 双端一键安装、拆除、复验专用技能（v1.3.0 时间预算战役=roundtrip.sh 一键往返模板——固定链取包→拆→装→验连成一脚本、动态参数仅 VM_HOST/VM_USER/ACTION/tag、LLM 介入压缩到「问环境+发一次后台命令+读末块」三处、探针新鲜复用省 ~240s；v1.2.2 URL 入口 ssh2 候选链动态化；v1.2.1 入口引导章；v1.2.0 run13~21 全战役沉淀：通道判稳器/能力通道自救/rhythm-check 定性/ssh2 通道后端/包根三级选根/预算纪律）。当用户要求部署、安装、重装、拆除或卸载本项目到 VM，给出本技能的 URL 或目录让你按其安装/卸载/验证 winvm-plugin，跑 deploy.prompt 或 undeploy.prompt，验证 VM 插件安装，处理发布包下载慢或失败、VM ssh 连不上、不稳定、挂起、安装前置检查与环境体检时使用。封装两主流程的分环节子流程、数十个实战问题的现象根因解法百科，并提供分步计时、双通道连接、远端 PowerShell 铁律执行、一键体检、取包校验与验证 driver 脚本。
+version: 1.3.0
 agent_created: true
 ---
 
@@ -16,7 +16,10 @@ agent_created: true
 1. **取技能本体**：`mkdir -p ~/wbtmp && curl -fsSL --connect-timeout 20 --max-time 300 -o ~/wbtmp/winvm-plugin-deploy-skill.zip "<skill_url>"`（⚠ `-o` 必须用资产原名=URL 尾段，旁挂 sha256 内登记的是原名，改名会让 `sha256sum -c` 假失败；gitee 下载 302→foruda 一次性签名，**禁 `-C -` 断点续传**，失败整文件重试；sha256 旁挂同 URL 加 `.sha256` 后缀可取，先校验）。解压到用户级技能目录：`unzip -o <zip> -d ~/.workbuddy/skills/`（zip 内根=`winvm-plugin-deploy/`，解出即标准 skill 布局）。**后续所有 `scripts/…` 相对路径 = `~/.workbuddy/skills/winvm-plugin-deploy/`**。
 2. **环境事实**：`VM_HOST` / `VM_USER`（未知 → P-1 问用户，这是唯一允许的提问点）；密码/私钥按 vm-conn.sh 双通道现探。
 3. **取发布包**：`bash scripts/env-detect.sh` → `source ~/wbtmp/vmdeploy-env.sh` → `bash scripts/download-verify.sh`（gitee latest 主源）→ 记下末行 `PKG_ROOT=`。此步后 ssh2 后端自动可解析（`$PKG_ROOT/delivery/ssh2-resolve.mjs` + 包内 `node_modules/ssh2`，且 download-verify 默认落点与 ssh2-conn 兜底候选路径同源）。
-4. **按动词路由主流程**：安装/部署/重装 → `export VM_SSH_BACKEND=ssh2` 后 `bash scripts/deploy.sh --apply`；卸载/拆除 → `bash scripts/undeploy.sh --apply`；验证/体检 → `bash scripts/verify.sh`。收尾 `bash scripts/step.sh report` 出计时汇总并如实汇报 PASS/FAIL。
+4. **按动词路由（v1.3.0 一键往返模板，优先于分步 driver）**：LLM 只在「取 VM_HOST/VM_USER + 发一次后台命令 + 读末块汇报」三处介入，其余全在模板脚本内——
+   - **`VM_HOST=<ip> ACTION=<full|deploy|undeploy|verify> bash scripts/roundtrip.sh`**（后台 run_in_background 一次调用跑完；full=取包→拆→装→验、deploy=取包+装+验、undeploy=只拆、verify=只验；动态参数仅此：`RELEASE_TAG=`空现解 latest、`SKIP_DOWNLOAD=1` 用现役包根、`VM_USER` 默认 User）。完成后**只读末块 `== ROUNDTRIP_RESULT ==`**（含 VERDICT/WALL_S/各角色 PASS/FAIL/TOP5 计时），勿分段轮询中间态。
+   - **探针新鲜复用**（v1.3.0 省 ~240s）：deploy C5 全过落 stamp，verify 600s 内同包根自动 3×REUSED 只跑矩阵；强制冷跑 `VERIFY_FORCE_PROBE=1`、窗调 `PROBE_FRESH_BUDGET_S`。
+   - 分步 driver（deploy.sh/undeploy.sh/verify.sh/download-verify.sh）**保留**=排障时定点重跑失败环节、细粒度计时用；roundtrip 内部即按序调用它们（单一事实源，勿复制逻辑）。
 5. **卡住**：查 `references/troubleshooting.md` 现象表；通道灭相位**不是**停跑理由（ssh2 后端免疫），红线勿越——绝不主动重启 VM。
 
 > 技能包 URL 的权威来源 = 双端 release 资产 `winvm-plugin-deploy-skill.zip`（gitee 主：`https://gitee.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-plugin-deploy-skill.zip`；≥V1.4.24 随每个 tag 发布，与 overall 包同 tag 同批；**V1.4.24 首发版有 ssh2 候选链缺陷，latest 现解天然规避——只要 latest ≥V1.4.25 即拿到修复版**）。用户只给仓库页或说"最新版"时，`curl https://gitee.com/api/v5/repos/athronix/workbuddy-virtual-win-plugin/releases/latest` 现解 tag 再拼 URL。
@@ -32,8 +35,17 @@ agent_created: true
 5. **密码只走环境变量**（askpass / `WINVM_VM_PASSWORD`），不落盘不进命令行；`.env` 凭据 V1.4.20 起自动回注（旧包=外部 export 后跑 setup）。
 6. **每步判据自检不过 = 停**：按四元组（现象/根因/证据/处置）记录并查 `references/troubleshooting.md`，不跳步硬推；缺信息问用户（P-1）。
 
-## 安装主流程（deploy.sh 一键化，对应 deploy.prompt Step 0→6）
+## 安装主流程（对应 deploy.prompt Step 0→6）
 
+> **首选 = 一键往返模板 `roundtrip.sh`**（v1.3.0，用户裁定「固定相连操作连成一脚本，LLM 只取信息/探测/决策」）：
+> ```bash
+> # 一次后台调用跑完 取包→(拆)→装→验，动态参数仅此四个；完成后只读末块 ROUNDTRIP_RESULT
+> VM_HOST=<ip> ACTION=deploy bash scripts/roundtrip.sh   # 装+验；ACTION=full 含前置拆除；ACTION=undeploy 只拆；ACTION=verify 只验
+> ```
+> 内部即按序调用下方分步 driver（单一事实源），探针新鲜复用（deploy 完 600s 内 verify 只跑矩阵，省 ~240s）。排障/细粒度计时才用分步 driver。
+
+分步 driver（roundtrip 的组成，可独立重入）：
+```bash
 ```bash
 cd <包根或仓库>            # 包根缺失先：bash scripts/download-verify.sh [--tag V1.4.x]
 export VM_HOST=<ip> VM_USER=<user>          # 未知 → P-1 问用户
@@ -122,7 +134,9 @@ bash scripts/self-rescue.sh rhythm-check      # 交替采样二分定性（run14
 | `pkg-root.sh` | 包根三级选根单一事实源（env PKG_ROOT>pkg-root.txt 状态>现探内层优先；三 driver 共用，run19 R-1 定版） |
 | `self-rescue.sh` | 能力通道自救三合一：check（health+sshd+banner 探针定谳挂起形态）/ restart-guest（shutdown /r 经 app.process.launch）/ restart-service；隧道健在时免碰 hypervisor（run13 实测 ~70s 复活） |
 | `deploy.sh` / `undeploy.sh` | 主流程 driver（默认 dry-run；--apply 真执行；全程 step 计时） |
-| `verify.sh` | 三探针 + 终态矩阵（装后随时可跑） |
+| `roundtrip.sh` | **一键往返模板（v1.3.0 首选）**：动态参数仅 VM_HOST/VM_USER/ACTION/RELEASE_TAG，固定链取包→拆→装→验连成一脚本；后台一次调用跑完，末块 `ROUNDTRIP_RESULT` 机器可读（LLM 介入=问环境+发命令+读末块三处，勿分段轮询）；C5/undeploy 失败即停定点报障 |
+| `probe-fresh.sh` | 探针新鲜复用判定单一事实源（三防线=时效窗/同包根/强制冷跑；stamp 缺/损坏/未来时钟=保守冷跑；verify.sh 调用，p8 单测钉边界） |
+| `verify.sh` | 三探针 + 终态矩阵（装后随时可跑；deploy 完 600s 内同包根探针自动 REUSED 只跑矩阵，`VERIFY_FORCE_PROBE=1` 强制冷跑） |
 | `step.sh` | 分步计时/留痕/汇总（begin/end/log/report） |
 | `env.example` | `.env` 模板（provider 选择与密码纪律注释齐） |
 

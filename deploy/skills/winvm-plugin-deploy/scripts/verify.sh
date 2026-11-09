@@ -19,15 +19,33 @@ LOGD="${VMDEPLOY_LOG_DIR:-$HOME/wbtmp/vmdeploy-verify-$(date +%Y%m%d-%H%M)}"; mk
 STEP() { bash "$_here/step.sh" "$@"; }
 [ -d "$PKG/qa/deploy-probes" ] || { echo "包根缺 qa/deploy-probes：$PKG（PKG_ROOT=<dir> bash verify.sh 显式指定，或先跑 deploy/download-verify 落 pkg-root.txt）" >&2; pkg_root_usage_error; exit 2; }
 
+# ── v1.3.0 探针新鲜复用（run22 账本：deploy C5 刚过再冷跑=+240s）──
+# 判定=probe-fresh.sh 单一事实源（与单测共用；三防线=时效窗/同包根/强制冷跑，缺 stamp 保守不复用）。
+# 矩阵段不受复用影响恒跑（便宜且是独立复核面）。
+PROBE_STAMP="${VMDEPLOY_PROBE_STAMP:-$HOME/wbtmp/vmdeploy-probes-stamp.txt}"
+FRESH="${PROBE_FRESH_BUDGET_S:-600}"
+_PF_OUT="$(VMDEPLOY_PROBE_STAMP="$PROBE_STAMP" PROBE_PKG="$PKG" PROBE_FRESH_BUDGET_S="$FRESH" "${BASH_OK:-bash}" "$_here/probe-fresh.sh" 2>/dev/null)"
+REUSE=0; REASON=""
+case "$_PF_OUT" in *"REUSE=1"*) REUSE=1;; esac
+REASON="$(printf '%s\n' "$_PF_OUT" | sed -n 's/^REASON=//p' | head -1)"
+[ $REUSE -eq 1 ] && echo "[probe-fresh] $REASON"
+
 echo "== 探针（X-5 带宽：全链 97~250s 属正常带；判据=零超时零复跑） =="
 FAILS=""
 for pr in mcp-probe a2a-probe example-probe; do
   STEP begin VERIFY "5-$pr" "$pr 20/5/13"
+  if [ $REUSE -eq 1 ]; then
+    echo "[$pr REUSED] 新鲜窗 ${FRESH}s 内复用 deploy C5 结果（stamp=$PROBE_STAMP；强制冷跑=VERIFY_FORCE_PROBE=1）"
+    "$_here/step.sh" log "$pr" < /dev/null >/dev/null 2>&1 || true
+    STEP end VERIFY "5-$pr" 0 PASS "REUSED(deploy C5 fresh)" "none"
+    continue
+  fi
   ( cd "$PKG" && "$PY" "qa/deploy-probes/$pr.py" > "$LOGD/$pr.log" 2>&1 ); RC=$?
   LINE="$(grep -E 'SUMMARY|RESULT' "$LOGD/$pr.log" | tail -1)"
   echo "[$pr rc=$RC] $LINE"; "$_here/step.sh" log "$pr" < "$LOGD/$pr.log" >/dev/null || true
   if [ $RC -ne 0 ]; then FAILS="$FAILS $pr"; STEP end VERIFY "5-$pr" $RC FAIL "$pr" "$LINE"; else STEP end VERIFY "5-$pr" 0 PASS "${LINE:-ok}" "none"; fi
 done
+[ $REUSE -eq 1 ] && echo "[probe-reuse] 3/3 REUSED（deploy 完 600s 内同包根=同一事实，矩阵段仍独立复核）"
 
 echo "== 终态矩阵 =="
 STEP begin VERIFY 6 "终态矩阵"

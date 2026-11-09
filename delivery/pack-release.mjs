@@ -523,7 +523,7 @@ export function makeDeploySkillZip(destVersionDir, version, commit) {
   }
   const entries = list.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
   const bad = entries.filter((e) => !e.startsWith(`${SKILL_ZIP_ROOT}/`));
-  const need = [`${SKILL_ZIP_ROOT}/SKILL.md`, `${SKILL_ZIP_ROOT}/scripts/ssh2-conn.mjs`, `${SKILL_ZIP_ROOT}/scripts/undeploy.sh`, `${SKILL_ZIP_ROOT}/references/troubleshooting.md`, `${SKILL_ZIP_ROOT}/RELEASE-VERSION.txt`];
+  const need = [`${SKILL_ZIP_ROOT}/SKILL.md`, `${SKILL_ZIP_ROOT}/scripts/ssh2-conn.mjs`, `${SKILL_ZIP_ROOT}/scripts/undeploy.sh`, `${SKILL_ZIP_ROOT}/references/troubleshooting.md`, `${SKILL_ZIP_ROOT}/RELEASE-VERSION.txt`, `${SKILL_ZIP_ROOT}/scripts/roundtrip.sh`, `${SKILL_ZIP_ROOT}/scripts/probe-fresh.sh`];
   const missing = need.filter((p) => !entries.includes(p));
   if (bad.length || missing.length) {
     try { rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
@@ -678,6 +678,15 @@ function verifyPackages(dest, version) {
     const hit16 = skTxt.includes('URL 单指令入口') && skTxt.includes('winvm-plugin-deploy-skill.zip');
     results.push({ label: 'V11 SKILL.md 含 URL 单指令入口引导章（≥V1.4.24 深化面）', ok: hit16, status: hit16 ? 0 : 1, tail: '' });
     console.log(`  ${hit16 ? '\u2713' : '\u2717'} V11 SKILL.md 含 URL 单指令入口引导章（≥V1.4.24 深化面）`);
+    // V11j（V1.4.26，时间预算战役/用户裁定「固定操作连成一脚本、LLM 仅取信息+探测+决策」）：
+    // 包内技能必含一键往返模板面——① SKILL.md 含 roundtrip.sh + ROUNDTRIP_RESULT 末块指引
+    // ② 脚本实体 roundtrip.sh + probe-fresh.sh 在场（缺=退化成 LLM 分段驱动，省时目标失守）。
+    const hitJ1 = skTxt.includes('roundtrip.sh') && skTxt.includes('ROUNDTRIP_RESULT');
+    const hitJ2 = existsSync(join(skDir, 'scripts', 'roundtrip.sh')) && existsSync(join(skDir, 'scripts', 'probe-fresh.sh'));
+    results.push({ label: 'V11 SKILL.md 含 roundtrip 一键往返模板指引（≥V1.4.26 深化面）', ok: hitJ1, status: hitJ1 ? 0 : 1, tail: '' });
+    console.log(`  ${hitJ1 ? '\u2713' : '\u2717'} V11 SKILL.md 含 roundtrip 一键往返模板指引（≥V1.4.26 深化面）`);
+    results.push({ label: 'V11 overall 包内含 roundtrip.sh 脚本实体（≥V1.4.26 深化面）', ok: hitJ2, status: hitJ2 ? 0 : 1, tail: '' });
+    console.log(`  ${hitJ2 ? '\u2713' : '\u2717'} V11 overall 包内含 roundtrip.sh 脚本实体（≥V1.4.26 深化面）`);
     const hit17 = dTxt.includes('URL 单指令入口') && dTxt.includes('winvm-plugin-deploy-skill.zip');
     results.push({ label: 'V11 deploy.prompt 含 URL 单指令入口段⑤（≥V1.4.24 深化面）', ok: hit17, status: hit17 ? 0 : 1, tail: '' });
     console.log(`  ${hit17 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 URL 单指令入口段⑤（≥V1.4.24 深化面）`);

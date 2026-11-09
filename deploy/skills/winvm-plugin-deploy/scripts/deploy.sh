@@ -159,6 +159,15 @@ done
 STEP end C5 5 $PRC_ALL "$([ -z "$PROBLEMS" ] && echo PASS || echo FAIL)" "38 项见日志" "${PROBLEMS:-none}"
 [ -z "$PROBLEMS" ] || _fail_note "C5/5-probes($PROBLEMS)"
 [ -z "$PROBLEMS" ] || { echo "⚠ 探针失败:$PROBLEMS —— 按 troubleshooting 对应行处置（EXECUTION_TIMEOUT vs timed out 两形态勿混）"; }
+# v1.3.0 时间预算战役（run22 账本=装完立即 verify 会把同 3 探针冷跑第二遍，浪费 ~240s）：
+# C5 全过 ⇒ 落「探针新鲜 stamp」，verify.sh 在新鲜窗（PROBE_FRESH_BUDGET_S 默认 600s）且同包根时
+# 复用结果只跑终态矩阵。防假绿三防线=①时效窗②同 PKG ③VERIFY_FORCE_PROBE=1 可强制冷跑。
+PROBE_STAMP="${VMDEPLOY_PROBE_STAMP:-$HOME/wbtmp/vmdeploy-probes-stamp.txt}"
+if [ -z "$PROBLEMS" ]; then
+  mkdir -p "$(dirname "$PROBE_STAMP")" 2>/dev/null || true
+  printf 'epoch=%s\npkg=%s\nrun=%s\n' "$(date +%s)" "$PKG" "${VMDEPLOY_RUN_DIR:-}" > "$PROBE_STAMP" 2>/dev/null || true
+  echo "[probe-stamp] 新鲜标记已落 $PROBE_STAMP（verify 600s 内同包根将复用 3 探针结果）"
+fi
 
 # ── Step 6 交付 ──
 STEP begin C6 6.1 "skill 交付判据"
