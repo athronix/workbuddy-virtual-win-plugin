@@ -55,11 +55,28 @@ function parseArgs(argv) {
 
 export const GITEE_API = 'https://gitee.com/api/v5';
 
-/** gitee 令牌解析（与 GitHub 侧同纪律：值绝不打印）：env GITEE_ACCESS_TOKEN → --gitee-token。 */
+/**
+ * gitee 令牌解析（与 GitHub 侧同纪律：值绝不打印）：
+ * env GITEE_ACCESS_TOKEN → --gitee-token → 用户凭据文件回退。
+ * V1.4.26（I-6.35 用户裁定令牌持久化）：回退文件=$HOME/.workbuddy/credentials.env
+ * （workbuddy 个人数据目录，权限 600，仓库外）——行格式 KEY=VALUE，只认 GITEE_ACCESS_TOKEN
+ * 键；文件不存在=静默跳过（旧态零冲击），解析失败绝不打印值。
+ * @param {{env?: Record<string,string|undefined>, tokenArg?: string|null, credContent?: string|null}} opts
+ *   credContent 语义：undefined=生产默认（读文件）；string=直接喂内容（单测零 IO）；null=显式"文件不存在"。
+ */
 export function resolveGiteeToken(opts = {}) {
   const env = opts.env ?? process.env;
   if (env.GITEE_ACCESS_TOKEN && String(env.GITEE_ACCESS_TOKEN).trim()) return { token: String(env.GITEE_ACCESS_TOKEN).trim(), source: 'GITEE_ACCESS_TOKEN' };
   if (opts.tokenArg && String(opts.tokenArg).trim()) return { token: String(opts.tokenArg).trim(), source: '--gitee-token' };
+  let txt = opts.credContent;
+  if (txt === undefined) {
+    const p = join(homedir(), '.workbuddy', 'credentials.env');
+    txt = existsSync(p) ? readFileSync(p, 'utf8') : null;
+  }
+  if (txt) {
+    const m = txt.match(/^\s*(?:export\s+)?GITEE_ACCESS_TOKEN\s*=\s*(\S+)\s*$/m);
+    if (m && m[1]) return { token: m[1], source: '~/.workbuddy/credentials.env' };
+  }
   return { token: null, source: 'none' };
 }
 

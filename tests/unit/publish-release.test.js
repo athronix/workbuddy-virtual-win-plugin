@@ -328,14 +328,36 @@ test('buildHeaders：不传 init.headers 时仅默认头+token；无 token 无 A
 
 /* ============ Gitee 镜像纯函数（deploy.prompt v3.1.0 取包主源配套） ============ */
 
-test('gitee：resolveGiteeToken 优先级 env→--gitee-token→none（值透传但不用于断言外泄）', () => {
+test('gitee：resolveGiteeToken 优先级 env→--gitee-token→文件→none（值透传但不用于断言外泄）', () => {
   const a = resolveGiteeToken({ env: { GITEE_ACCESS_TOKEN: 'tk-env' }, tokenArg: 'tk-arg' });
   assert.equal(a.source, 'GITEE_ACCESS_TOKEN');
   const b = resolveGiteeToken({ env: {}, tokenArg: 'tk-arg' });
   assert.equal(b.source, '--gitee-token');
-  const c = resolveGiteeToken({ env: { GITEE_ACCESS_TOKEN: '   ' }, tokenArg: null });
+  // 隔离真机 credentials.env：credContent:null=显式"文件不存在"（同 resolveToken hostsContent 隔离法）
+  const c = resolveGiteeToken({ env: { GITEE_ACCESS_TOKEN: '   ' }, tokenArg: null, credContent: null });
   assert.equal(c.source, 'none');
   assert.equal(c.token, null);
+});
+
+test('gitee：resolveGiteeToken 文件回退（env 与 arg 皆空 → credentials.env 命中 GITEE_ACCESS_TOKEN）', () => {
+  const r = resolveGiteeToken({ env: {}, tokenArg: null, credContent: '# comment\nGITEE_ACCESS_TOKEN=tk-file\nOTHER=x\n' });
+  assert.equal(r.token, 'tk-file');
+  assert.equal(r.source, '~/.workbuddy/credentials.env');
+});
+
+test('gitee：resolveGiteeToken 文件回退认 export 前缀与多余空白；无该键/空值 → none', () => {
+  const r = resolveGiteeToken({ env: {}, tokenArg: null, credContent: '  export GITEE_ACCESS_TOKEN = tk-x ' });
+  assert.equal(r.token, 'tk-x');
+  const none1 = resolveGiteeToken({ env: {}, tokenArg: null, credContent: 'FOO=bar\nOTHER=1\n' });
+  assert.equal(none1.source, 'none');
+  const none2 = resolveGiteeToken({ env: {}, tokenArg: null, credContent: 'GITEE_ACCESS_TOKEN=\n' });
+  assert.equal(none2.source, 'none');
+});
+
+test('gitee：resolveGiteeToken env 优先级压过文件（env 有值绝不下探文件）', () => {
+  const r = resolveGiteeToken({ env: { GITEE_ACCESS_TOKEN: 'tk-env' }, credContent: 'GITEE_ACCESS_TOKEN=tk-file' });
+  assert.equal(r.token, 'tk-env');
+  assert.equal(r.source, 'GITEE_ACCESS_TOKEN');
 });
 
 test('gitee：giteeMirrorPlan 无 release ⇒ 建 + 全量上传、零删除', () => {
