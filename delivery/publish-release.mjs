@@ -58,7 +58,7 @@ export const GITEE_API = 'https://gitee.com/api/v5';
 /**
  * gitee 令牌解析（与 GitHub 侧同纪律：值绝不打印）：
  * env GITEE_ACCESS_TOKEN → --gitee-token → 用户凭据文件回退。
- * V1.4.26（I-6.35 用户裁定令牌持久化）：回退文件=$HOME/.workbuddy/credentials.env
+ * I-6.35（2026-11-09 用户裁定令牌持久化，V1.4.26 候选入包）：回退文件=$HOME/.workbuddy/credentials.env
  * （workbuddy 个人数据目录，权限 600，仓库外）——行格式 KEY=VALUE，只认 GITEE_ACCESS_TOKEN
  * 键；文件不存在=静默跳过（旧态零冲击），解析失败绝不打印值。
  * @param {{env?: Record<string,string|undefined>, tokenArg?: string|null, credContent?: string|null}} opts

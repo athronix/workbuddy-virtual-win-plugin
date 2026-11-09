@@ -53,7 +53,7 @@
 |---|---|---|---|
 | `GITHUB_REPO` | `athronix/workbuddy-virtual-win-plugin` | 仓库全名 | ☐ |
 | `RELEASE_URL` | `https://github.com/athronix/workbuddy-virtual-win-plugin/releases/latest` | latest 跳转链接 | ☐ |
-| `RELEASE_TAG` | `V1.4.23`（示例值——**以 latest API 现解为准**；2026-11-06 上架；历史 run 用 `V1.4.22`/`V1.4.21`） | 发布标签 | ☐ |
+| `RELEASE_TAG` | `V1.4.25`（示例值——**以 latest API 现解为准**；2026-11-09 双端四资产上架；历史 run 用 `V1.4.23`/`V1.4.22`） | 发布标签 | ☐ |
 | `ZIP_NAME` | `winvm-overall-V1.4.3.zip` | 分发单元（V1.4.3 起含 delivery/tools/ + qa/deploy-probes/ + verify-release.mjs） | ☐ |
 | `ZIP_SHA256` | **不在文档硬编码**（`MANIFEST-sidecar-authoritative`）：release 旁挂 `.zip.sha256` 现取现验（`sha256sum -c`）；V1.4.6 回环样例 `dc417bf2…` | 整包校验值 | ☐ |
 | `PKG_FILES` / `PKG_BYTES` / `PKG_TOTAL` | **不在文档硬编码**（同上 `MANIFEST-sidecar-authoritative`）：包内 `MANIFEST.txt` 头七行为权威，verify-manifest/verify-release 复算即验；历史样例 V1.4.6=881/7606427/`2562a598…`、V1.4.5=879/7580107/`88fd11c1…` | MANIFEST 三元组（重装核对用） | ☐ |
