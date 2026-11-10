@@ -58,3 +58,4 @@ tests/fixtures/cl018-logs/log-*/
 v3-kn2.meta.json
 v3-kn2.req.json
 v3-kn2.resp.json
+deploy/skills/

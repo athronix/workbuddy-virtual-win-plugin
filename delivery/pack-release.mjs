@@ -228,7 +228,24 @@ function ensureDir(p) { mkdirSync(p, { recursive: true }); }
 function copyEntry(src, dest) {
   if (!existsSync(src)) fail(`闭包源缺失：${src}`);
   ensureDir(dirname(dest));
-  cpSync(src, dest, { recursive: true });
+  cpSync(src, dest, { recursive: true, filter: (s) => !/(^|[\\/])\.git([\\/]|$)/.test(s) });
+}
+/**
+ * skill 矩阵规范化（11-10）：canonical 独立仓派生后，deploy/skills/<skill> 变 symlink→
+ * 含 .git/.skill/.gitignore/dist/ 的独立仓。发布包技能复制=**白名单**（只收
+ * SKILL.md + scripts/references/assets 内容件），仓级元数据与本地发布产物结构性
+ * 不可能入包。不用 cpSync filter 黑名单：filter 对 symlink 源的递归语义实测不可靠
+ * （真实路径生效、symlink 路径 107 条 .git 混入）——黑名单漏一项即污染分发面。
+ * ⚠ packages 下 dist 构建物是必收件，与本器语义无关（勿混用）。
+ */
+function copySkillEntry(srcDir, destDir) {
+  if (!existsSync(join(srcDir, 'SKILL.md'))) fail(`技能源缺 SKILL.md：${srcDir}`);
+  ensureDir(destDir);
+  cpSync(join(srcDir, 'SKILL.md'), join(destDir, 'SKILL.md'));
+  for (const sub of ['scripts', 'references', 'assets']) {
+    const s = join(srcDir, sub);
+    if (existsSync(s)) cpSync(s, join(destDir, sub), { recursive: true });
+  }
 }
 function copyList(rels, destRoot) {
   for (const rel of rels) copyEntry(join(ROOT, rel), join(destRoot, rel));
@@ -509,7 +526,7 @@ export function makeDeploySkillZip(destVersionDir, version, commit) {
   const staging = plan.cwd;
   try { rmSync(staging, { recursive: true, force: true }); } catch { /* 首次不存在 */ }
   ensureDir(staging);
-  copyEntry(srcSkillDir, join(staging, SKILL_ZIP_ROOT));
+  copySkillEntry(srcSkillDir, join(staging, SKILL_ZIP_ROOT));
   // 版本指纹（解包后可溯源；skill 加载器不消费此文件，多一个 txt 无害）
   writeFileSync(join(staging, SKILL_ZIP_ROOT, 'RELEASE-VERSION.txt'), `${version}  commit=${commit}\n`);
   const r = spawnSync(plan.cmd, plan.args, { cwd: staging, encoding: 'utf8' });
@@ -816,7 +833,9 @@ function main() {
     if (!existsSync(join(ROOT, src))) fail(`overall 文档源缺失：${src}（请先撰写）`);
     const dst = join(dest, 'overall', 'docs', name);
     ensureDir(dirname(dst)); // name 可含子目录（deploy/xxx.md）
-    copyEntry(join(ROOT, src), dst); // V1.4.23：走 copyEntry=recursive:true，支持目录级条目（技能收编）
+    // V1.4.23：目录级收编走 recursive；V1.4.26 技能矩阵化后技能目录=canonical symlink，
+    // 走 copySkillEntry 排除仓级元数据（.git/.skill/.gitignore/dist）
+    (src.startsWith('deploy/skills/') ? copySkillEntry : copyEntry)(join(ROOT, src), dst);
   }
   writeReadme(join(dest, 'overall'), 'overall', version, {
     title: '整体一键部署发布包（宿主机 + VM + 文档）',
