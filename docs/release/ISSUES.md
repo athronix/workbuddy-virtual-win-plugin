@@ -386,6 +386,14 @@
 | **I-6.36** | P3（时间预算·架构裁定） | **roundtrip.sh 一键往返模板**（动态参数仅 VM_HOST/VM_USER/ACTION/RELEASE_TAG/SKIP_DOWNLOAD；固定链取包→拆→装→验连成一脚本，内部按序调用既有 driver=单一事实源不复制逻辑；统一 RUN_DIR 经 VMDEPLOY_RUN_DIR export 接缝实证；失败即停定点报障；末块 `ROUNDTRIP_RESULT` 机器可读 VERDICT/WALL_S/TOP5=**LLM 介入压缩到「问环境+发一次后台命令+读末块」三处**）+ **探针新鲜复用**（deploy.sh C5 全过落 stamp=epoch/pkg/run 三行；probe-fresh.sh 纯函数判定三防线=600s 时效窗/同包根/VERIFY_FORCE_PROBE 强制冷跑，stamp 缺/损坏/epoch 非法/未来时钟一律保守冷跑；verify.sh 命中⇒3×REUSED 只跑矩阵，**净省 ~240s**）。SKILL v1.3.0（URL 入口章第4步+主流程章 roundtrip 首选+脚本清单+2）；deploy.prompt v3.2.4 段⑤/undeploy.prompt v2.12 头注同步。p8-probe-fresh.test.js +11（临界 age==budget 判死=I-6.9 阈值教训同械/损坏 stamp/CRLF/窗可配/未来时钟）；**真实环境双证**：造新鲜 stamp→verify `3/3 REUSED dur=0s` ✓ + 矩阵独立复核当场抓到 VM 通道灭（health=000）如实 FAIL ✓=**复用绝不掩盖当前故障**设计自证。pack 断言面=技能包结构 need+roundtrip/probe-fresh 两件、**V11j** 深化面两断言（SKILL 含模板指引+包内脚本实体在场，滞后=fail-loud 拒产包）。gate GREEN 2391。 | ✅ 代码+文档+断言齐（commit 35395ef，V1.4.26 随下批 pack） |
 | **I-6.37** | P2（环境观察·非代码缺陷） | **run22 后 7.5h VM 通道灭复发**（11-09 19:23 本地时间）：隧道 state=DEGRADED/start-retry、health=000、connector skills=8 正常、宿主侧无变更操作——与 11-05 WEDGE 持续态定档同族（guest sshd 认证/会话建立段间歇挂起）。按最高红线**未做任何重启处置**，仅只读定位；待用户处置窗口（手动重启宿主机/VM 后 latest 链即恢复）。**注**：本轮防假绿设计恰好当场兑现价值=探针可复用但矩阵恒独立跑，当前故障不会被 stamp 掩盖。 | 观察在册（环境面） |
 
+## 迭代28 · I-6.40（2026-11-11，旧模式降级退役=技能升唯一执行权威——开账即关）
+
+> 动因原文=用户「skill v1.4 应该包含本项目部署、安装、启动、验证、卸载的所有环节的指引和规范。旧模式（用 deploy.prompt 和 undeploy.prompt 指引和规范）就应该完全不要了吧？」→ 执行口径经 AskUserQuestion 确认=**降级退役**（非物理删除；第三选项"只转叙事不动发布链"被否）。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.40** | P3（口径翻转·发布链） | **两 .prompt 退出发布链 + V11 断言族重构**：①pack-release=PACKAGE_REQUIRED.overall 摘两文件条目、OVERALL_DOCS 摘两收编条目（留裁定注记）、**V11 块整体重写**（旧 11 条断言里读 .prompt 内容的全部摘除——随文件退包必 fail-loud 自相矛盾；新 6 断言锚技能本体：四件在场/URL 入口章/roundtrip+末块/脚本实体/通道外委章/四 driver；六项预验 ALL_PASS）；②overall README 生成段改写=技能驱动唯一模式+旧模式退役注记；③SKILL **v1.4.1**：首段与「权威文档关系」翻转为唯一执行权威（出入以技能为准、.prompt 冻结不回改），tag v1.4.1；④两 .prompt 头加退役注记（deploy v3.2.5/undeploy v2.13 版号定格）；⑤README §5.4 整节改写（URL 单指令/包内技能两入口）+文件表退役行；docs-index 10.3a 改写；strategy **v3.22** 版本行；⑥**翻转 11-02「.prompt 必发+V11 内容断言」永久裁定**（MEMORY 永久规则行同步改写）；文件本体保留=ISSUES 台账 60+ 历史引用锚点不断链（物理删除方案经利弊分析被否）。deploy-prompts.md/undeploy-prompts.md 两份总集文档与历史 changelog 行=存档性质保留。 | ✅ 开账即关（V1.4.26 候选随下批 pack=**V11 重构版首验轮**） |
+
 ## 迭代27 · I-6.39（2026-11-11，SSH 免密通道生命周期外委 hos-winvm-ssh-tunnel——开账即关）
 
 > 动因原文=用户「skill 中间有一步需要创建/验证/拆除 鸿蒙宿主机 workbuddy 沙箱端到 VM windows 端的 ssh 免密通道，其中的业务指引和描述直接引用 hos-winvm-ssh-tunnel skill 指引（『请按照 https://raw.githubusercontent.com/athronix/skills/main/INSTALL_PROMPT.md 安装 hos-winvm-ssh-tunnel skill 并在其指引下完成 创建/验证/拆除 …ssh 免密通道』）」。定界=通道**生命周期**（从零建/验证/对称拆除）属 OS 原生能力域，权威在 hos skill（其=空密码纪律/journal 可逆回滚/四段式验收的完整实现）；winvm 技能只保留通道**使用层**（双通道探测/vmssh/vmscp/ssh2 后端/WEDGE 阶梯）。

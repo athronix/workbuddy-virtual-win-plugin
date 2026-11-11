@@ -228,40 +228,17 @@ node delivery/winvm-plugin.mjs tunnel ensure
 
 > 部署期会把 VM 连接信息持久化到 `~/.workbuddy/winvm/vm-conn.json`；宿主侧 `health`/`server`/`command` 无需每次传 `--vm-host/--vm-user`。
 
-### 5.4 用 `.prompt` 一键安装 / 卸载（推荐：整段粘贴给 WorkBuddy）
+### 5.4 安装 / 卸载 / 验证（唯一模式：winvm-plugin-deploy 技能驱动）
 
-发布包（V1.4.6 起）与仓库均自带两份**智能体安装脚本**（本项目定位：安装/卸载的标准交付物，必须随发布包打包发布，pack V11 断言核验其深化内容）——把「总 Prompt + 运行期环境变量」抽成可整段复制的独立文件，粘给 WorkBuddy（鸿蒙宿主）新会话即可自动执行，每一步自带判据、任一判据不过立即停下报告（现象/根因/证据/建议），不会跳步硬推：
+本项目的部署/安装/启动/验证/卸载全部环节由技能 `winvm-plugin-deploy` 承载（**唯一执行权威**，迭代28 用户裁定 2026-11-11）。两种入口任选：
 
-| 脚本 | 用途 | 结构 |
-|---|---|---|
-| `docs/deploy/deploy.prompt`（v2.0） | **从零部署**（前置检查 → 密码建免密 → 取包三重校验 → VM-service → 宿主插件+隧道 → 全维度测试 → 交付引导） | 运行期注入变量段（NODE/PY 自动探测）+ 执行协议 P-1~P-4 + Step 0 前置五项（VM 非空密码/OpenSSH 安装法/虚拟机电源/防火墙 Profile/桥接重试）+ Step 1→6 判据 + 排错速查 |
-| `docs/deploy/undeploy.prompt`（v2.0） | **镜像拆除**（只删安装体系自己放的东西；OS 级与 SSH 密钥默认不动；删除物入 trash 可回滚） | 运行期注入变量段（自动探测+重试封装）+ 执行协议 + U0→U5 判据（DRY-RUN 先行 / POST-CLEANUP 全 PASS + 独立复核防假 PASS / 存留项逐项问用户）+ 排错速查 |
+1. **URL 单指令入口（零前提最省形态）**：对鸿蒙宿主 WorkBuddy 发一句
+   `请依据 skill https://gitee.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-plugin-deploy-skill.zip 安装/卸载/验证 winvm-plugin`
+   （tag 用 `releases/latest` 现解或明说"最新版"）。技能自举→取发布包→roundtrip.sh 一键往返（LLM 仅问 VM_HOST/VM_USER 两个环境事实）。
+2. **包内技能模式（已有 overall 包）**：解压后对 WorkBuddy 说
+   `按 <包根>/docs/deploy/skills/winvm-plugin-deploy 技能部署本包，VM_HOST=<ip> VM_USER=<user> PKG_ROOT=<包根绝对路径>`
 
-**安装步骤**：
-
-1. 取发布包 `winvm-overall-<TAG>.zip`（GitHub Release）解压，解出目录即**包根**（含 `MANIFEST.txt` 与 `delivery/`）；已在本仓库内则包根=仓库构建态亦可。
-2. 打开 `docs/deploy/deploy.prompt`，按其开头【运行期注入】段配置环境变量（执行前 `export`，或改脚本内默认值）：
-   - `VM_HOST` / `VM_USER` / `VM_SSH_PORT`：Windows VM 的 SSH 可达信息；
-   - `WINVM_SSH_PASSWORD`：**仅**从零建免密通道（Step 1）时需要——只走环境变量，禁止写入文件/提交/日志回显；免密已建好则整段跳过 Step 1；
-   - `DEPLOY_ROOT` / `PKG_ROOT`：部署工作目录与包根（`ls $PKG_ROOT/MANIFEST.txt` 判定布局，不对就按注释换值）；
-   - `NODE` / `PY`：宿主运行时绝对路径（鸿蒙沙箱必须绝对路径）——v2.0 起脚本自带**多候选自动探测**，一般无需手改；
-   - **Step 0 前置检查**（v2.0 新增，脚本内自带头部提醒）：VM Windows 账户设非空密码、VM 装好并启动 OpenSSH Server（sshd 默认 shell 保持出厂 cmd.exe 即可，V1.4.9 起无需 Git-Bash）、虚拟机管理端设"从不"自动暂停+开机自启、防火墙 Profile 匹配；执行协议=缺信息问用户、环境缺件审批后自动补齐（prepare-vm --ensure-node）或给方法请辅助；
-   - `RELEASE_TAG` / `ZIP` / `REPO`：下载面参数（包已在本地可跳下载校验段）；
-   - `WINVM_DRY_RUN=0`：⚠ 必须为 0——`=1` 会把 `--apply` 降级为 dry-run（假成功）。
-3. **整段复制全文**粘贴给 WorkBuddy 新会话发送；等它按 Step 1→5 跑完并给出三探针结果（mcp 20/20 + a2a 5/5 + example 13/13）与健康/连接/FRESH/disabledTools=8 判据。
-
-**卸载步骤**：
-
-1. 同样打开 `docs/deploy/undeploy.prompt` 配置运行期变量（不需要密码，除非免密已失效）。
-2. 整段粘贴给 WorkBuddy；它会先跑 U1 **DRY-RUN** 列拆除清单（这一步是安全阀：清单里出现不该删的落点会立即停），核对无误才 `--apply`。
-3. 完成后看 POST-CLEANUP 核验清单全 `[PASS]`（条目随运行态动态 16~19 项）+ 独立复核（18443 拒连、全局 `~/.workbuddy/mcp.json` 无 winvm 键、VM 目录/计划任务 absent、sshd 存活）。
-4. 存留项（SSH 密钥、`C:/WinVMWorkspace`、trash、下载物）按脚本 U5 **逐项征询后处置**——想彻底清或准备 `--wipe` 清场重装，看脚本 §8 衔接说明（拆除阶段保留密钥与下载物，重装从 Step 2 起即可）。
-
-> 两份脚本的"母本"是 `docs/deploy/deploy-prompts.md` / `undeploy-prompts.md` 总集的 §3（含分步 Prompt 与更多论证细节）；脚本历经四轮真机回环（10-27~29）+ 新宿主机复盘收编（v2.0，10-30），V1.4.6 起随发布包分发。
->
-> **校验值权威源口径**：文档不硬编码逐版本 zip sha / MANIFEST 三元组（`MANIFEST-sidecar-authoritative`）——下载后以 release 旁挂 `.zip.sha256` 做 `sha256sum -c`，解包后以包内 `MANIFEST.txt` 头七行为准跑 `verify-manifest.py`；`RELEASE_TAG` 以 releases/latest API 现解为准。V1.4.7 起打包面 V8 断言机械化钉死此口径。
-
----
+> 旧模式已退役（迭代28）：`docs/deploy/deploy.prompt` / `undeploy.prompt` 智能体安装脚本**不再随发布包分发、不再是判据来源**——11-02 裁定（必发+V11 内容断言）已被本裁定翻转，V11 断言族重构为锚定技能在场与深化面。两文件保留在仓库仅作历史决策档案（ISSUES 台账锚点）与无 Agent 场景的纯粘贴参考；内容已冻结不再迭代。
 
 ## 6. 运维
 
@@ -391,7 +368,7 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 | `docs/deploy/deploy-strategy.md` | **部署策略 v2（从零安装，权威）**：六步可行性+变量表+Step 3.0 运行时前置+§2.1-B 空密码预案+§5.0 遇困决策协议+Step 6 交付引导+缺口台账（§9.1）与实测记录 |
 | `docs/deploy/deploy-prompts.md` | **部署 Prompt 总集**：变量确认表+总 Prompt（一键粘贴）+分步 P1~P6+验收速查+§8 异常处置协议 |
 | `docs/deploy/undeploy-prompts.md` | **卸载 Prompt 总集（deploy-prompts 逆向镜像，现 v2.0；回环实测→I-6.3/6.7 修复入包；存留项 AskUserQuestion 三连决策+删密钥子流程附实测脚本）**：十八落点镜像清单+总 Prompt U0~U5（DRY-RUN 先行/POST-CLEANUP 核验/独立复核防假 PASS）+`--wipe` 清场重装衔接 |
-| `docs/deploy/deploy.prompt`（v3.2.1）/ `undeploy.prompt`（v2.9） | **本项目的智能体安装脚本**（用户裁定 2026-11-02：必须随发布包打包发布，pack V11 特征断言机械化钉死）：总集 §3 独立脚本版+运行期注入（自动探测）+执行协议+Step 0 前置检查（undeploy 侧=U5 决策三连+删密钥实测模板+旧包误报兼容）；多轮真机回环+新宿主机双复盘收编；V1.4.6 起随包分发、**V1.4.10 起深化面入 V11 断言**，配置与用法见本文 §5.4 |
+| `docs/deploy/deploy.prompt`（v3.2.5）/ `undeploy.prompt`（v2.13）**【已退役】** | 旧模式智能体安装脚本（迭代28，11-11 用户裁定降级退役：不再随发布包分发、不再是判据来源，翻转 11-02 必发裁定）；仅存仓库作历史决策档案与无 Agent 场景纯粘贴参考，内容冻结。现行模式=winvm-plugin-deploy 技能唯一权威，见 §5.4 |
 | `docs/04-ops/OPS-OVERVIEW.md` | 运维权威手册：部署/运行机制综述+配置逐键穷举+坑速查 |
 | `docs/RELEASE-NOTES.md` | **Release Notes（演进链/能力面/已知限制，权威）**；旧 `V1.0.0-release-notes.md` 已冻结并移至 `docs/archive/legacy-release-notes-V1.0.0.md` |
 | `docs/05-peripherals/DEPLOYMENT.md` | 部署指南（含 §1.7 分发跟批闭环、策略闸执法切换） |

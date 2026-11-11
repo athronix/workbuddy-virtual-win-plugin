@@ -188,8 +188,6 @@ const PACKAGE_REQUIRED = {
     'docs/DEPLOYMENT.md', 'docs/RELEASE-V1.4.0.md', 'docs/issues.md',
     // V1.4.5 收编项（Prompt 总集三篇）的包内存在性（漏收=打包 fail-loud）
     'docs/deploy/deploy-strategy.md', 'docs/deploy/deploy-prompts.md', 'docs/deploy/undeploy-prompts.md',
-    // V1.4.6 收编项（10-29 裁定：纯 Prompt 一键粘贴脚本两篇）
-    'docs/deploy/deploy.prompt', 'docs/deploy/undeploy.prompt',
     // V1.4.23 收编项（部署技能入包；缺=打包 fail-loud）
     'docs/deploy/skills/winvm-plugin-deploy/SKILL.md', 'docs/deploy/skills/winvm-plugin-deploy/scripts/ssh2-conn.mjs',
     'docs/deploy/skills/winvm-plugin-deploy/scripts/vm-conn.sh', 'docs/deploy/skills/winvm-plugin-deploy/references/troubleshooting.md',
@@ -213,10 +211,9 @@ const OVERALL_DOCS = [
   ['docs/deploy/deploy-strategy.md', 'deploy/deploy-strategy.md'],
   ['docs/deploy/deploy-prompts.md', 'deploy/deploy-prompts.md'],
   ['docs/deploy/undeploy-prompts.md', 'deploy/undeploy-prompts.md'],
-  // V1.4.6 收编（10-29 裁定）：纯 Prompt 一键粘贴脚本两篇入包——装机者解包后
-  // 直接把 docs/deploy/deploy.prompt / undeploy.prompt 整段粘给 WorkBuddy 即可部署/拆除。
-  ['docs/deploy/deploy.prompt', 'deploy/deploy.prompt'],
-  ['docs/deploy/undeploy.prompt', 'deploy/undeploy.prompt'],
+  // 迭代28（11-11 用户裁定）：deploy.prompt/undeploy.prompt **退出发布链**（降级退役）——
+  // skill winvm-plugin-deploy = 部署/启动/验证/卸载唯一执行权威；两文件保留在仓库
+  // docs/deploy/ 作历史决策档案（ISSUES 台账锚点）+无 Agent 场景纯粘贴参考，不再随包分发。
   // V1.4.23 收编（11-06 用户裁定「最新版本应该根据 skill 指引进行本项目的部署运维」）：
   // 部署技能本体 winvm-plugin-deploy 整目录入包（SKILL.md+scripts×14+references×2）——纯包装机者
   // 零仓库即可获得「主流程/子流程/问题百科/计时 driver/ssh2 通道后端」完整部署运维能力。
@@ -653,82 +650,31 @@ function verifyPackages(dest, version) {
     results.push({ label: 'V10 uninstall 含 KEEP 误报修复(never existed)', ok: hit8, status: hit8 ? 0 : 1, tail: '' });
     console.log(`  ${hit8 ? '\u2713' : '\u2717'} V10 uninstall 含 KEEP 误报修复(never existed)`);
   }
-  // V11（V1.4.10 起，2026-11-02 用户裁定）：两份 .prompt = 本项目的**智能体安装脚本**，
-  // 必须随发布包分发且为最新深化面——断言包内特征内容（非仅文件存在）：
-  //   deploy.prompt 含 Step 0 前置检查（v2.0 深面）；undeploy.prompt 含 RMKEY 删密钥
-  //   实测模板与旧包 kept 误报兼容判据（v2.2 深面）。滞后深化批未入包 = fail-loud 拒产包，
-  //   「随每迭代收敛」从口头纪律升级为机械化必达。
+  // V11（迭代28 重构，11-11 用户裁定「旧模式降级退役」=I-6.40）：deploy.prompt/undeploy.prompt
+  // 退出发布链后，断言面全部锚到**技能本体在场 + 深化内容在场**（skill=唯一执行权威）。
+  // 旧 V11 族里读 .prompt 文件内容的断言（Step0/RMKEY/避坑清单/URL段⑤/hos引用等）随文件退役摘除；
+  // 其语义职责迁移到 SKILL.md 侧对应断言。滞后深化面未入包 = fail-loud 拒产包（机械化必达不变）。
   {
-    const dpFp = join(dest, 'overall', 'docs', 'deploy', 'deploy.prompt');
-    const dTxt = existsSync(dpFp) ? readFileSync(dpFp, 'utf8') : '';
-    const hit9 = dTxt.includes('Step 0 · 前置检查');
-    results.push({ label: 'V11 deploy.prompt 含 Step 0 前置检查（智能体安装脚本深化面）', ok: hit9, status: hit9 ? 0 : 1, tail: '' });
-    console.log(`  ${hit9 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 Step 0 前置检查（智能体安装脚本深化面）`);
-    // V11c（prompt-verify D1 收编，2026-11-02）：探测循环必带 .mjs 冒烟门禁（NODE_SMOKE_OK 特征）——
-    // 「末位候选覆盖」选中脆弱 node 致隧道段 V8 ENOMEM 的实弹教训机械化入断言面。
-    const hit11 = dTxt.includes('NODE_SMOKE_OK');
-    results.push({ label: 'V11 deploy.prompt 含 NODE 探测冒烟门禁（D1 深化面）', ok: hit11, status: hit11 ? 0 : 1, tail: '' });
-    console.log(`  ${hit11 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 NODE 探测冒烟门禁（D1 深化面）`);
-    // V11d（V1.4.13 发布态补强，run7b）：僵尸 node 免疫强杀→VM 重启应急行必在包内排错面。
-    const hit12 = dTxt.includes('shutdown /r');
-    results.push({ label: 'V11 deploy.prompt 含僵尸实例 VM 重启应急行（I-6.15b 深化面）', ok: hit12, status: hit12 ? 0 : 1, tail: '' });
-    console.log(`  ${hit12 ? '\u2713' : '\u2717'} V11 deploy.prompt 含僵尸实例 VM 重启应急行（I-6.15b 深化面）`);
-    // V11e（V1.4.17，run11 分步计时复盘）：执行者避坑清单必达包内（X-1 source 会话态/X-4 噪音表）。
-    const hit13 = dTxt.includes('执行者避坑清单') && dTxt.includes('source ~/wbtmp/env.sh');
-    // V11f（V1.4.22，run20/21 战役定案）：鸿蒙宿主通道后端 ssh2 指引必达包内（Step 0.6 + 排错分身份）。
-    const hit14 = dTxt.includes('VM_SSH_BACKEND') && dTxt.includes('相位性挂起');
-    results.push({ label: 'V11 deploy.prompt 含执行者避坑清单（run11 X 条款深化面）', ok: hit13, status: hit13 ? 0 : 1, tail: '' });
-    console.log(`  ${hit13 ? '\u2713' : '\u2717'} V11 deploy.prompt 含执行者避坑清单（run11 X 条款深化面）`);
-    results.push({ label: 'V11 deploy.prompt 含 ssh2 通道后端指引（run20/21 定案深化面）', ok: hit14, status: hit14 ? 0 : 1, tail: '' });
-    console.log(`  ${hit14 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 ssh2 通道后端指引（run20/21 定案深化面）`);
-    // V11g（V1.4.23，用户裁定部署技能化必达包内）：winvm-plugin-deploy 技能本体+关键件在场。
     const skDir = join(dest, 'overall', 'docs', 'deploy', 'skills', 'winvm-plugin-deploy');
     const skTxt = existsSync(join(skDir, 'SKILL.md')) ? readFileSync(join(skDir, 'SKILL.md'), 'utf8') : '';
-    const hit15 = skTxt.includes('name: winvm-plugin-deploy') && existsSync(join(skDir, 'scripts', 'ssh2-conn.mjs'))
-      && existsSync(join(skDir, 'scripts', 'undeploy.sh')) && existsSync(join(skDir, 'references', 'troubleshooting.md'));
-    results.push({ label: 'V11 overall 包含 winvm-plugin-deploy 技能（SKILL+ssh2-conn+driver+百科四件，部署技能化面）', ok: hit15, status: hit15 ? 0 : 1, tail: '' });
-    console.log(`  ${hit15 ? '\u2713' : '\u2717'} V11 overall 包含 winvm-plugin-deploy 技能（SKILL+ssh2-conn+driver+百科四件，部署技能化面）`);
-    // V11h（V1.4.24，用户裁定「URL 单指令入口」=安装脚本能力面深化）：技能包独立上架所依赖的
-    // 两段入口指引必达包内——① SKILL.md 含「URL 单指令入口」引导章（新机 WorkBuddy 只凭 skill_url
-    // 即可自助取包→全流程）；② deploy.prompt Step 0.6 含 ⑤ URL 单指令入口段（无技能环境的等效兜底）。
-    // 滞后 = fail-loud 拒产包（同 V11 其余深化面纪律，机械化替代口头声称）。
-    const hit16 = skTxt.includes('URL 单指令入口') && skTxt.includes('winvm-plugin-deploy-skill.zip');
-    results.push({ label: 'V11 SKILL.md 含 URL 单指令入口引导章（≥V1.4.24 深化面）', ok: hit16, status: hit16 ? 0 : 1, tail: '' });
-    console.log(`  ${hit16 ? '\u2713' : '\u2717'} V11 SKILL.md 含 URL 单指令入口引导章（≥V1.4.24 深化面）`);
-    // V11j（V1.4.26，时间预算战役/用户裁定「固定操作连成一脚本、LLM 仅取信息+探测+决策」）：
-    // 包内技能必含一键往返模板面——① SKILL.md 含 roundtrip.sh + ROUNDTRIP_RESULT 末块指引
-    // ② 脚本实体 roundtrip.sh + probe-fresh.sh 在场（缺=退化成 LLM 分段驱动，省时目标失守）。
-    const hitJ1 = skTxt.includes('roundtrip.sh') && skTxt.includes('ROUNDTRIP_RESULT');
-    const hitJ2 = existsSync(join(skDir, 'scripts', 'roundtrip.sh')) && existsSync(join(skDir, 'scripts', 'probe-fresh.sh'));
-    results.push({ label: 'V11 SKILL.md 含 roundtrip 一键往返模板指引（≥V1.4.26 深化面）', ok: hitJ1, status: hitJ1 ? 0 : 1, tail: '' });
-    console.log(`  ${hitJ1 ? '\u2713' : '\u2717'} V11 SKILL.md 含 roundtrip 一键往返模板指引（≥V1.4.26 深化面）`);
-    results.push({ label: 'V11 overall 包内含 roundtrip.sh 脚本实体（≥V1.4.26 深化面）', ok: hitJ2, status: hitJ2 ? 0 : 1, tail: '' });
-    console.log(`  ${hitJ2 ? '\u2713' : '\u2717'} V11 overall 包内含 roundtrip.sh 脚本实体（≥V1.4.26 深化面）`);
-    // V11k（V1.4.27 候选/迭代27，用户裁定「通道生命周期外委 hos-winvm-ssh-tunnel」=I-6.39）：
-    // 三面引用必达包内——① SKILL.md 含「SSH 免密通道生命周期」章+hos 技能名+INSTALL_PROMPT 入口
-    // ② deploy.prompt Step 1 ⚑ 外委引用 ③ undeploy.prompt U5.1 destroy-tunnel 首选（driver 两文案同步）。
-    const hitK1 = skTxt.includes('SSH 免密通道生命周期') && skTxt.includes('hos-winvm-ssh-tunnel') && skTxt.includes('INSTALL_PROMPT.md');
-    results.push({ label: 'V11 SKILL.md 含通道生命周期外委章+INSTALL_PROMPT 入口（≥迭代27 深化面）', ok: hitK1, status: hitK1 ? 0 : 1, tail: '' });
-    console.log(`  ${hitK1 ? '\u2713' : '\u2717'} V11 SKILL.md 含通道生命周期外委章+INSTALL_PROMPT 入口（≥迭代27 深化面）`);
-    const hitK2 = dTxt.includes('hos-winvm-ssh-tunnel') && dTxt.includes('INSTALL_PROMPT.md');
-    results.push({ label: 'V11 deploy.prompt Step 1 含 hos 外委权威引用（≥迭代27 深化面）', ok: hitK2, status: hitK2 ? 0 : 1, tail: '' });
-    console.log(`  ${hitK2 ? '\u2713' : '\u2717'} V11 deploy.prompt Step 1 含 hos 外委权威引用（≥迭代27 深化面）`);
-    const hit17 = dTxt.includes('URL 单指令入口') && dTxt.includes('winvm-plugin-deploy-skill.zip');
-    results.push({ label: 'V11 deploy.prompt 含 URL 单指令入口段⑤（≥V1.4.24 深化面）', ok: hit17, status: hit17 ? 0 : 1, tail: '' });
-    console.log(`  ${hit17 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 URL 单指令入口段⑤（≥V1.4.24 深化面）`);
-    const upFp = join(dest, 'overall', 'docs', 'deploy', 'undeploy.prompt');
-    const uTxt = existsSync(upFp) ? readFileSync(upFp, 'utf8') : '';
-    const hit10 = uTxt.includes('RMKEY') && uTxt.includes('旧包兼容');
-    results.push({ label: 'V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）', ok: hit10, status: hit10 ? 0 : 1, tail: '' });
-    console.log(`  ${hit10 ? '\u2713' : '\u2717'} V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）`);
-    // V11k（迭代27，用户裁定「通道生命周期外委 hos-winvm-ssh-tunnel」=I-6.39）：拆除面 U5.1 首选路径在场。
-    const hitK3 = uTxt.includes('hos-winvm-ssh-tunnel') && uTxt.includes('destroy-tunnel');
-    results.push({ label: 'V11 undeploy.prompt U5.1 含 destroy-tunnel 首选路径（≥迭代27 深化面）', ok: hitK3, status: hitK3 ? 0 : 1, tail: '' });
-    console.log(`  ${hitK3 ? '\u2713' : '\u2717'} V11 undeploy.prompt U5.1 含 destroy-tunnel 首选路径（≥迭代27 深化面）`);
-    // V11i（V1.4.24）：undeploy.prompt ⚑ URL 单指令入口注记在场（拆除面的同族深化，勿只装不拆）。
-    const hit18 = uTxt.includes('URL 单指令入口') && uTxt.includes('winvm-plugin-deploy-skill.zip');
-    results.push({ label: 'V11 undeploy.prompt 含 URL 单指令入口注记（≥V1.4.24 深化面）', ok: hit18, status: hit18 ? 0 : 1, tail: '' });
-    console.log(`  ${hit18 ? '\u2713' : '\u2717'} V11 undeploy.prompt 含 URL 单指令入口注记（≥V1.4.24 深化面）`);
+    const chk = (label, ok) => {
+      results.push({ label, ok, status: ok ? 0 : 1, tail: '' });
+      console.log(`  ${ok ? '\u2713' : '\u2717'} ${label}`);
+    };
+    // V11-1：技能四件在场（SKILL+ssh2-conn+undeploy driver+troubleshooting 百科）
+    chk('V11 overall 含 winvm-plugin-deploy 技能四件（部署技能化面）',
+      skTxt.includes('name: winvm-plugin-deploy') && existsSync(join(skDir, 'scripts', 'ssh2-conn.mjs'))
+      && existsSync(join(skDir, 'scripts', 'undeploy.sh')) && existsSync(join(skDir, 'references', 'troubleshooting.md')));
+    // V11-2：URL 单指令入口引导章（skill_url 自助全流程）
+    chk('V11 SKILL.md 含 URL 单指令入口引导章', skTxt.includes('URL 单指令入口') && skTxt.includes('winvm-plugin-deploy-skill.zip'));
+    // V11-3：roundtrip 一键往返模板（时间预算战役；LLM 介入最小化）
+    chk('V11 SKILL.md 含 roundtrip 一键往返模板指引', skTxt.includes('roundtrip.sh') && skTxt.includes('ROUNDTRIP_RESULT'));
+    chk('V11 包内含 roundtrip.sh+probe-fresh.sh 脚本实体', existsSync(join(skDir, 'scripts', 'roundtrip.sh')) && existsSync(join(skDir, 'scripts', 'probe-fresh.sh')));
+    // V11-4：SSH 免密通道生命周期外委 hos-winvm-ssh-tunnel（I-6.39；迭代28 后此职责仅存于 SKILL 侧）
+    chk('V11 SKILL.md 含 SSH 免密通道生命周期外委章+INSTALL_PROMPT 入口', skTxt.includes('SSH 免密通道生命周期') && skTxt.includes('hos-winvm-ssh-tunnel') && skTxt.includes('INSTALL_PROMPT.md'));
+    // V11-5：主流程四 driver 在场（deploy/undeploy/verify/download-verify）
+    chk('V11 包内含 deploy/undeploy/verify/download-verify 四 driver',
+      ['deploy.sh','undeploy.sh','verify.sh','download-verify.sh'].every((f) => existsSync(join(skDir, 'scripts', f))));
   }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
@@ -857,14 +803,12 @@ function main() {
       '- host 包与 vm 包的全部条目（并集，共享同一闭包）',
       '- `delivery/bootstrap.mjs` / `prepare-vm.mjs`：环境自检 + SSH 信任 + env 生成（备环境）',
       '- `delivery/uninstall.mjs`：双端清场（回收站可恢复）',
-      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账 / **deploy/ 五件**（部署策略 deploy-strategy + 部署 Prompt 总集 deploy-prompts + 卸载 Prompt 总集 undeploy-prompts + **deploy.prompt / undeploy.prompt = 本项目的智能体安装脚本**（整段复制给 WorkBuddy 即可安装/卸载；随包必发、内容必为最新深化面，pack V11 断言机械化钉死），用法见下方「快速部署/卸载」）',
-      '## 快速部署/卸载（零仓库 · 智能体安装脚本）',
+      '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账 / **deploy/ 四件**（部署策略 deploy-strategy + 部署 Prompt 总集 deploy-prompts + 卸载 Prompt 总集 undeploy-prompts + **skills/winvm-plugin-deploy = 本项目部署/启动/验证/卸载的唯一执行权威**（≥V1.4.26；SKILL.md 全流程编排 + scripts/ 一键 driver 族 + references/ 问题百科），用法见下方「快速部署/卸载」）',
+      '## 快速部署/卸载（零仓库 · 技能驱动，唯一模式）',
       '1. 解压本包 → 解出目录即包根（含 `MANIFEST.txt` 与 `delivery/`）。',
-      '2. 打开 `docs/deploy/deploy.prompt`，先把【运行期注入】段里的 `VM_HOST` / `VM_USER` / `PKG_ROOT`（=包根绝对路径）等按实际环境改好。',
-      '3. 整段复制粘贴给 WorkBuddy（鸿蒙宿主）新会话，即按 Step 1→6 自动部署，每步带判据自检。',
-      '4. 卸载同理：整段粘贴 `docs/deploy/undeploy.prompt`（U0→U5，DRY-RUN 先行，默认保留工作区与 SSH 密钥）。',
-      '5. **技能模式（V1.4.23 起推荐）**：对 WorkBuddy 说「按 docs/deploy/skills/winvm-plugin-deploy 技能部署本包（PKG_ROOT=包根绝对路径）」——技能封装主流程/子流程/30+ 问题百科/分步计时 driver/ssh2 通道后端，抗灭相位、可断点续跑，比纯 Prompt 更稳；拆除与复验同理（undeploy.sh/verify.sh）。',
-      '6. **URL 单指令入口（V1.4.24 起，零前提最省形态）**：同一 release 另附独立技能包 `winvm-plugin-deploy-skill.zip`。新机连 overall 包都不用先下——只发一句「请依据 skill https://gitee.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-plugin-deploy-skill.zip 安装 winvm-plugin」，WorkBuddy 下载并安装该技能后按其「URL 单指令入口」引导段自助完成取包→部署→验证；卸载/验证换动词即可。',
+      '2. **技能模式（推荐）**：对 WorkBuddy（鸿蒙宿主）说「按 docs/deploy/skills/winvm-plugin-deploy 技能部署本包，VM_HOST=<ip> VM_USER=<user> PKG_ROOT=包根绝对路径」——技能自带 roundtrip.sh 一键往返模板（取包→拆→装→验连成一脚本，LLM 仅问环境+发一次后台命令+读末块）、30+ 问题百科、分步计时、ssh2 通道后端（抗灭相位）、免密通道生命周期外委 hos-winvm-ssh-tunnel；拆除与复验换动词即可（ACTION=undeploy / verify）。',
+      '3. **URL 单指令入口（零前提最省形态）**：同一 release 另附独立技能包 `winvm-plugin-deploy-skill.zip`。新机连 overall 包都不用先下——只发一句「请依据 skill https://gitee.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-plugin-deploy-skill.zip 安装 winvm-plugin」，WorkBuddy 下载并安装该技能后按其「URL 单指令入口」引导段自助完成取包→部署→验证；卸载/验证换动词即可。',
+      '> 旧模式注记（V1.4.26 起）：deploy.prompt / undeploy.prompt 智能体安装脚本已**降级退役**——不再随包分发，其全部执行职责由上列技能承载（技能=唯一执行权威）。两文件仅存于源码仓库 docs/deploy/ 作历史决策档案与无 Agent 场景的纯粘贴参考。',
       '',
       '## 一键部署',
       '```bash',
