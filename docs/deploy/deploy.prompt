@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.2.4 · 迭代25=时间预算战役：技能 v1.3.0 新增 roundtrip.sh 一键往返模板（固定链 取包→拆→装→验 连成一脚本、动态参数仅 VM_HOST/VM_USER/ACTION/tag、探针新鲜复用省 ~240s、末块 ROUNDTRIP_RESULT 机器可读=LLM 介入最小化——用户裁定 11-09），段⑤路由指引同步；pack **V11j** 断言；v3.2.3 · 迭代24b=V1.4.24 新机模拟抓出技能包 ssh2 候选链缺陷（技能装 ~/.workbuddy/skills/ 后距包根八层深，旧固定候选全不命中=「ssh2 解析失败」假阻）→ V1.4.25 候选链动态化（PKG_ROOT/pkg-root.txt/DEPLOY_ROOT 三级），**URL 单指令入口请用 ≥V1.4.25**；v3.2.2 · 迭代24=URL 单指令入口段⑤（Step 0.6：双端 release 附独立技能包 winvm-plugin-deploy-skill.zip，新机只发「请依据 skill <URL> 安装/卸载/验证 winvm-plugin」即自助全流程；≥V1.4.24）；v3.2.1 · 迭代23=部署技能入包注记（≥V1.4.23 包内含 docs/deploy/skills/winvm-plugin-deploy，推荐技能模式见 Step 0.6④；本 .prompt 保留作无技能环境兜底）；v3.2.0 · run20/21 战役定案=鸿蒙宿主通道后端 ssh2 指引（Step 0.6；V1.4.21 起 delivery 默认 auto 免疫灭相位）；前版=I-6.23 vmssh/vmscp 外层 timeout 硬化、取包 gitee 镜像主+GitHub fallback；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
+WinVM Bridge · 一键部署 Prompt（deploy.prompt v3.2.5 · 迭代27=通道生命周期外委：Step 1 权威指引改引 **hos-winvm-ssh-tunnel skill**（INSTALL_PROMPT.md 一句话装起+三步主线；密钥接线 A/B 与灭窗判读差异=winvm 技能 SKILL.md「SSH 免密通道生命周期」章；1.1~1.5 降为兜底路径）；技能升 v1.4.0，pack **V11k** 断言引用在场；v3.2.4 · 迭代25=时间预算战役：技能 v1.3.0 新增 roundtrip.sh 一键往返模板（固定链 取包→拆→装→验 连成一脚本、动态参数仅 VM_HOST/VM_USER/ACTION/tag、探针新鲜复用省 ~240s、末块 ROUNDTRIP_RESULT 机器可读=LLM 介入最小化——用户裁定 11-09），段⑤路由指引同步；pack **V11j** 断言；v3.2.3 · 迭代24b=V1.4.24 新机模拟抓出技能包 ssh2 候选链缺陷（技能装 ~/.workbuddy/skills/ 后距包根八层深，旧固定候选全不命中=「ssh2 解析失败」假阻）→ V1.4.25 候选链动态化（PKG_ROOT/pkg-root.txt/DEPLOY_ROOT 三级），**URL 单指令入口请用 ≥V1.4.25**；v3.2.2 · 迭代24=URL 单指令入口段⑤（Step 0.6：双端 release 附独立技能包 winvm-plugin-deploy-skill.zip，新机只发「请依据 skill <URL> 安装/卸载/验证 winvm-plugin」即自助全流程；≥V1.4.24）；v3.2.1 · 迭代23=部署技能入包注记（≥V1.4.23 包内含 docs/deploy/skills/winvm-plugin-deploy，推荐技能模式见 Step 0.6④；本 .prompt 保留作无技能环境兜底）；v3.2.0 · run20/21 战役定案=鸿蒙宿主通道后端 ssh2 指引（Step 0.6；V1.4.21 起 delivery 默认 auto 免疫灭相位）；前版=I-6.23 vmssh/vmscp 外层 timeout 硬化、取包 gitee 镜像主+GitHub fallback；前版=run12 回写：X-4 追加噪音捕获纪律（D-2）、X-5 带宽上修深冷档（D-3）、X-6 新增辅助脚本 shebang 全路径（D-1）；v3.0.6=run11 复盘产品化 X-1~X-5；前版=僵尸重启终极解+会话兜底+E7 双闸口径；本脚本=本项目智能体安装脚本，随发布包必发，pack V11 断言核验深化面）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/deploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：纳入新宿主机实跑复盘（deploy.prompt.to-be-improved.md R1~R12）——
@@ -150,6 +150,11 @@ Step 0 · 前置检查（开工前逐项确认；不满足按 P-2 处置）
 
 ────────────────────────────────────────
 Step 1 · 密码登录 → 建立免密通道（已免密可跳过，判据 1.5 复核即可）
+      ⚑ 从零建/重建通道的**权威指引=hos-winvm-ssh-tunnel skill**（athronix 技能矩阵）：
+        「请按照 https://raw.githubusercontent.com/athronix/skills/main/INSTALL_PROMPT.md 安装 hos-winvm-ssh-tunnel skill
+         并在其指引下完成 创建/验证/拆除 鸿蒙宿主机workbuddy 沙箱端 到 VM windows 端的ssh 免密通道」
+        （OS 原生实现+journal 可逆回滚；密钥接线与灭窗判读差异见技能 SKILL.md「SSH 免密通道生命周期」适配注记。
+        本 Step 1.1~1.5 = hos 不在场时的等效兜底路径，继续有效。）
   1.1 造 askpass 脚本（只从环境变量取值）：
       mkdir -p ~/wbtmp
       printf '#!/bin/sh\nprintf "%s\\n" "$WINVM_SSH_PASSWORD"\n' > ~/wbtmp/askpass.sh

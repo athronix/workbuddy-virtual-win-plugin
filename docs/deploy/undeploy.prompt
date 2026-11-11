@@ -1,5 +1,5 @@
 ========================================================================
-WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.12 · 迭代25=时间预算战役：技能 v1.3.0 一键往返模板 `VM_HOST=<ip> ACTION=undeploy bash scripts/roundtrip.sh`=只拆（或 full=拆+装+验一次调用），动态参数仅 VM_HOST/VM_USER/tag，末块 ROUNDTRIP_RESULT 机器可读=LLM 介入最小化；本脚本与 undeploy.sh 留作分步兜底；v2.11 · 迭代24b=URL 入口门槛注记（**请用 ≥V1.4.25 技能包**：V1.4.24 首发实测 ssh2 候选链写死旧路径=新机技能位假阻，v2.10 ⚑ 段同受影响）；v2.10 · 迭代24=URL 单指令入口注记（≥V1.4.24 双端 release 附独立技能包 winvm-plugin-deploy-skill.zip；「请依据 skill <URL> 卸载 winvm-plugin」=按技能 undeploy.sh 全流程，U0.1 特判段后 ⚑ 注记）；v2.9 · 迭代23=技能模式注记（≥V1.4.23 包内 docs/deploy/skills/winvm-plugin-deploy/undeploy.sh 即技能拆除 driver，U0→U5 判据同源，本脚本留作兜底）；v2.8 · run20/21 定案通道后端 ssh2 指引（拆除同样免疫灭相位：V1.4.21 起 uninstall/bootstrap 默认 auto=ssh2 优先；deploy v3.2.0 同规）；v2.7=I-6.23 vmssh/vmscp 外层 timeout 硬化（与 deploy v3.1.1 同规）；v2.6=run12 回写：X-4 噪音捕获纪律/X-6 bash 全路径；v2.5=run11 复盘产品化 X-1~X-4；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
+WinVM Bridge · 一键拆除 Prompt（undeploy.prompt v2.13 · 迭代27=通道生命周期外委：U5.1 存留项"SSH 密钥"删除路径首选 hos destroy-tunnel.sh（journal 对称回滚；灭窗期先 ssh2 ping 复核择窗），vm-rmkey 子流程降为 hos 不在场兜底；deploy v3.2.5 同批；v2.12 · 迭代25=时间预算战役：技能 v1.3.0 一键往返模板 `VM_HOST=<ip> ACTION=undeploy bash scripts/roundtrip.sh`=只拆（或 full=拆+装+验一次调用），动态参数仅 VM_HOST/VM_USER/tag，末块 ROUNDTRIP_RESULT 机器可读=LLM 介入最小化；本脚本与 undeploy.sh 留作分步兜底；v2.11 · 迭代24b=URL 入口门槛注记（**请用 ≥V1.4.25 技能包**：V1.4.24 首发实测 ssh2 候选链写死旧路径=新机技能位假阻，v2.10 ⚑ 段同受影响）；v2.10 · 迭代24=URL 单指令入口注记（≥V1.4.24 双端 release 附独立技能包 winvm-plugin-deploy-skill.zip；「请依据 skill <URL> 卸载 winvm-plugin」=按技能 undeploy.sh 全流程，U0.1 特判段后 ⚑ 注记）；v2.9 · 迭代23=技能模式注记（≥V1.4.23 包内 docs/deploy/skills/winvm-plugin-deploy/undeploy.sh 即技能拆除 driver，U0→U5 判据同源，本脚本留作兜底）；v2.8 · run20/21 定案通道后端 ssh2 指引（拆除同样免疫灭相位：V1.4.21 起 uninstall/bootstrap 默认 auto=ssh2 优先；deploy v3.2.0 同规）；v2.7=I-6.23 vmssh/vmscp 外层 timeout 硬化（与 deploy v3.1.1 同规）；v2.6=run12 回写：X-4 噪音捕获纪律/X-6 bash 全路径；v2.5=run11 复盘产品化 X-1~X-4；v2.4=僵尸 VM 重启应急行；v2.3=D1 探测冒烟/D2 @() 计数/D3 WARN 说明）
 用法：整段复制粘贴给 WorkBuddy（鸿蒙宿主）即可执行；先按【运行期注入】备好变量。
 文档母本：docs/deploy/undeploy-prompts.md §3（本脚本随发布包分发，包内 docs/deploy/）
 v2.0 要点：与 deploy.prompt v2.0 对偶——NODE/PY 自动探测（R5）、ssh/scp 重试封装（R4）、
@@ -160,7 +160,10 @@ U5 · 存留项处置（卸载器按设计**不动**，逐项问用户，不得�
   选"保留下载物"→ 不动 ~/winvm-deploy/。
   ⚠ 本宿主删文件**勿依赖 rm**（部分鸿蒙宿主 rm 被运行时 shim 替换且可能损坏=bad interpreter）：
      统一用 $NODE -e 'require("fs").unlinkSync(...)' / rmSync 或 trash 机制。
-  5.1 SSH 密钥/免密通道：**默认保留**（重装要复用）。用户选"删除"时按子流程：
+  5.1 SSH 密钥/免密通道：**默认保留**（重装要复用）。用户选"删除"时：**首选外委 hos-winvm-ssh-tunnel
+      destroy-tunnel.sh**（journal 逐条对称回滚、他人密钥无损，指引入口=deploy.prompt Step 1 ⚑ 同款；
+      ⚠ 本宿主灭窗期其 ssh 二进制会连不上 VM，先按技能 ssh2 ping 复核再择窗）；下方 vm-rmkey 子流程
+      保留=hos 不在场兜底：
       a) 先抓待删公钥留底：cat ~/.ssh/id_ed25519.pub > ~/wbtmp/hostkey.pub
          （删私钥前先备份 id_ed25519* 到 ~/wbtmp/ssh-backup/ 作可逆安全网）；
       b) **先清 VM 残留**（探针/辅助脚本，此时通道仍在）——删私钥即刻断 publickey；

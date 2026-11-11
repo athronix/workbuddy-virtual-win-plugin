@@ -704,6 +704,15 @@ function verifyPackages(dest, version) {
     console.log(`  ${hitJ1 ? '\u2713' : '\u2717'} V11 SKILL.md 含 roundtrip 一键往返模板指引（≥V1.4.26 深化面）`);
     results.push({ label: 'V11 overall 包内含 roundtrip.sh 脚本实体（≥V1.4.26 深化面）', ok: hitJ2, status: hitJ2 ? 0 : 1, tail: '' });
     console.log(`  ${hitJ2 ? '\u2713' : '\u2717'} V11 overall 包内含 roundtrip.sh 脚本实体（≥V1.4.26 深化面）`);
+    // V11k（V1.4.27 候选/迭代27，用户裁定「通道生命周期外委 hos-winvm-ssh-tunnel」=I-6.39）：
+    // 三面引用必达包内——① SKILL.md 含「SSH 免密通道生命周期」章+hos 技能名+INSTALL_PROMPT 入口
+    // ② deploy.prompt Step 1 ⚑ 外委引用 ③ undeploy.prompt U5.1 destroy-tunnel 首选（driver 两文案同步）。
+    const hitK1 = skTxt.includes('SSH 免密通道生命周期') && skTxt.includes('hos-winvm-ssh-tunnel') && skTxt.includes('INSTALL_PROMPT.md');
+    results.push({ label: 'V11 SKILL.md 含通道生命周期外委章+INSTALL_PROMPT 入口（≥迭代27 深化面）', ok: hitK1, status: hitK1 ? 0 : 1, tail: '' });
+    console.log(`  ${hitK1 ? '\u2713' : '\u2717'} V11 SKILL.md 含通道生命周期外委章+INSTALL_PROMPT 入口（≥迭代27 深化面）`);
+    const hitK2 = dTxt.includes('hos-winvm-ssh-tunnel') && dTxt.includes('INSTALL_PROMPT.md');
+    results.push({ label: 'V11 deploy.prompt Step 1 含 hos 外委权威引用（≥迭代27 深化面）', ok: hitK2, status: hitK2 ? 0 : 1, tail: '' });
+    console.log(`  ${hitK2 ? '\u2713' : '\u2717'} V11 deploy.prompt Step 1 含 hos 外委权威引用（≥迭代27 深化面）`);
     const hit17 = dTxt.includes('URL 单指令入口') && dTxt.includes('winvm-plugin-deploy-skill.zip');
     results.push({ label: 'V11 deploy.prompt 含 URL 单指令入口段⑤（≥V1.4.24 深化面）', ok: hit17, status: hit17 ? 0 : 1, tail: '' });
     console.log(`  ${hit17 ? '\u2713' : '\u2717'} V11 deploy.prompt 含 URL 单指令入口段⑤（≥V1.4.24 深化面）`);
@@ -712,6 +721,10 @@ function verifyPackages(dest, version) {
     const hit10 = uTxt.includes('RMKEY') && uTxt.includes('旧包兼容');
     results.push({ label: 'V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）', ok: hit10, status: hit10 ? 0 : 1, tail: '' });
     console.log(`  ${hit10 ? '\u2713' : '\u2717'} V11 undeploy.prompt 含删密钥模板+旧包误报兼容（v2.2 深化面）`);
+    // V11k（迭代27，用户裁定「通道生命周期外委 hos-winvm-ssh-tunnel」=I-6.39）：拆除面 U5.1 首选路径在场。
+    const hitK3 = uTxt.includes('hos-winvm-ssh-tunnel') && uTxt.includes('destroy-tunnel');
+    results.push({ label: 'V11 undeploy.prompt U5.1 含 destroy-tunnel 首选路径（≥迭代27 深化面）', ok: hitK3, status: hitK3 ? 0 : 1, tail: '' });
+    console.log(`  ${hitK3 ? '\u2713' : '\u2717'} V11 undeploy.prompt U5.1 含 destroy-tunnel 首选路径（≥迭代27 深化面）`);
     // V11i（V1.4.24）：undeploy.prompt ⚑ URL 单指令入口注记在场（拆除面的同族深化，勿只装不拆）。
     const hit18 = uTxt.includes('URL 单指令入口') && uTxt.includes('winvm-plugin-deploy-skill.zip');
     results.push({ label: 'V11 undeploy.prompt 含 URL 单指令入口注记（≥V1.4.24 深化面）', ok: hit18, status: hit18 ? 0 : 1, tail: '' });
