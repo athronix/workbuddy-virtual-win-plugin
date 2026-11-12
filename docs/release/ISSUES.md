@@ -386,6 +386,14 @@
 | **I-6.36** | P3（时间预算·架构裁定） | **roundtrip.sh 一键往返模板**（动态参数仅 VM_HOST/VM_USER/ACTION/RELEASE_TAG/SKIP_DOWNLOAD；固定链取包→拆→装→验连成一脚本，内部按序调用既有 driver=单一事实源不复制逻辑；统一 RUN_DIR 经 VMDEPLOY_RUN_DIR export 接缝实证；失败即停定点报障；末块 `ROUNDTRIP_RESULT` 机器可读 VERDICT/WALL_S/TOP5=**LLM 介入压缩到「问环境+发一次后台命令+读末块」三处**）+ **探针新鲜复用**（deploy.sh C5 全过落 stamp=epoch/pkg/run 三行；probe-fresh.sh 纯函数判定三防线=600s 时效窗/同包根/VERIFY_FORCE_PROBE 强制冷跑，stamp 缺/损坏/epoch 非法/未来时钟一律保守冷跑；verify.sh 命中⇒3×REUSED 只跑矩阵，**净省 ~240s**）。SKILL v1.3.0（URL 入口章第4步+主流程章 roundtrip 首选+脚本清单+2）；deploy.prompt v3.2.4 段⑤/undeploy.prompt v2.12 头注同步。p8-probe-fresh.test.js +11（临界 age==budget 判死=I-6.9 阈值教训同械/损坏 stamp/CRLF/窗可配/未来时钟）；**真实环境双证**：造新鲜 stamp→verify `3/3 REUSED dur=0s` ✓ + 矩阵独立复核当场抓到 VM 通道灭（health=000）如实 FAIL ✓=**复用绝不掩盖当前故障**设计自证。pack 断言面=技能包结构 need+roundtrip/probe-fresh 两件、**V11j** 深化面两断言（SKILL 含模板指引+包内脚本实体在场，滞后=fail-loud 拒产包）。gate GREEN 2391。 | ✅ 代码+文档+断言齐（commit 35395ef，V1.4.26 随下批 pack） |
 | **I-6.37** | P2（环境观察·非代码缺陷） | **run22 后 7.5h VM 通道灭复发**（11-09 19:23 本地时间）：隧道 state=DEGRADED/start-retry、health=000、connector skills=8 正常、宿主侧无变更操作——与 11-05 WEDGE 持续态定档同族（guest sshd 认证/会话建立段间歇挂起）。按最高红线**未做任何重启处置**，仅只读定位；待用户处置窗口（手动重启宿主机/VM 后 latest 链即恢复）。**注**：本轮防假绿设计恰好当场兑现价值=探针可复用但矩阵恒独立跑，当前故障不会被 stamp 掩盖。 | 观察在册（环境面） |
 
+## 迭代29 · V1.4.26（2026-11-12，技能单权威版 pack 轮——开账）
+
+> 状态：**GitHub 侧闭环 / gitee 镜像待用户令牌**。动因=用户「AB 通道怎么是不同版本，都更新同步到最新版本吧」→ pack 欠账四迭代一次收编。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.41** | P3（发布链·pack） | **V1.4.26 pack 全链**：升版文档批先行（RELEASE-NOTES 里程碑行=迭代25~28 四批合一、strategy v3.23 §0.5-B 示例值、deploy-prompts 三处示例、canonical E 表版本线=skill 通道 356a103——10-27"声称≠已改"教训同步面机械清点）→ commit 7830233 双端 → **tag V1.4.26@7830233 双端** → pack rc=0：**V11 重构版六断言首验全绿**（技能四件/URL 章/roundtrip+末块/脚本实体/通道外委章/四 driver）；包体四断言=①docs/deploy/ **零 .prompt**（迭代28 退役兑现）②包内技能 v1.4.1 ③技能 zip RELEASE-VERSION=V1.4.26@7830233 ④结构 20 条零混入；双 zip=overall `fd143ab8a40cc21f…`/skill `32ac75613bd5c4b1…`。publish --mirror-gitee --apply：**GitHub 四资产上架（release 复用+asset 737823441/488/516/557）+ 匿名下载逐字节对账双 true（旁挂匹配）**。gitee 段 **HTTP 401 "Access token does not exist"**=credentials.env 的令牌三连份（同值 sha dd66e74c5d9a，11-09 尚有效）已被撤销/过期→待用户新令牌更新后重跑 `publish --tag V1.4.26 --zip … --mirror-gitee --apply`（幂等：GitHub 先删后传实证过；gitee latest 现仍=V1.4.25 旧技能 v1.2.2，单指令 B 句暂只有 GitHub URL 可达最新版=私有仓需 PAT）。 | GitHub ✅ / gitee ⏳ 待令牌 |
+
 ## 迭代28 · I-6.40（2026-11-11，旧模式降级退役=技能升唯一执行权威——开账即关）
 
 > 动因原文=用户「skill v1.4 应该包含本项目部署、安装、启动、验证、卸载的所有环节的指引和规范。旧模式（用 deploy.prompt 和 undeploy.prompt 指引和规范）就应该完全不要了吧？」→ 执行口径经 AskUserQuestion 确认=**降级退役**（非物理删除；第三选项"只转叙事不动发布链"被否）。
