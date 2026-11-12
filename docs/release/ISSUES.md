@@ -386,6 +386,14 @@
 | **I-6.36** | P3（时间预算·架构裁定） | **roundtrip.sh 一键往返模板**（动态参数仅 VM_HOST/VM_USER/ACTION/RELEASE_TAG/SKIP_DOWNLOAD；固定链取包→拆→装→验连成一脚本，内部按序调用既有 driver=单一事实源不复制逻辑；统一 RUN_DIR 经 VMDEPLOY_RUN_DIR export 接缝实证；失败即停定点报障；末块 `ROUNDTRIP_RESULT` 机器可读 VERDICT/WALL_S/TOP5=**LLM 介入压缩到「问环境+发一次后台命令+读末块」三处**）+ **探针新鲜复用**（deploy.sh C5 全过落 stamp=epoch/pkg/run 三行；probe-fresh.sh 纯函数判定三防线=600s 时效窗/同包根/VERIFY_FORCE_PROBE 强制冷跑，stamp 缺/损坏/epoch 非法/未来时钟一律保守冷跑；verify.sh 命中⇒3×REUSED 只跑矩阵，**净省 ~240s**）。SKILL v1.3.0（URL 入口章第4步+主流程章 roundtrip 首选+脚本清单+2）；deploy.prompt v3.2.4 段⑤/undeploy.prompt v2.12 头注同步。p8-probe-fresh.test.js +11（临界 age==budget 判死=I-6.9 阈值教训同械/损坏 stamp/CRLF/窗可配/未来时钟）；**真实环境双证**：造新鲜 stamp→verify `3/3 REUSED dur=0s` ✓ + 矩阵独立复核当场抓到 VM 通道灭（health=000）如实 FAIL ✓=**复用绝不掩盖当前故障**设计自证。pack 断言面=技能包结构 need+roundtrip/probe-fresh 两件、**V11j** 深化面两断言（SKILL 含模板指引+包内脚本实体在场，滞后=fail-loud 拒产包）。gate GREEN 2391。 | ✅ 代码+文档+断言齐（commit 35395ef，V1.4.26 随下批 pack） |
 | **I-6.37** | P2（环境观察·非代码缺陷） | **run22 后 7.5h VM 通道灭复发**（11-09 19:23 本地时间）：隧道 state=DEGRADED/start-retry、health=000、connector skills=8 正常、宿主侧无变更操作——与 11-05 WEDGE 持续态定档同族（guest sshd 认证/会话建立段间歇挂起）。按最高红线**未做任何重启处置**，仅只读定位；待用户处置窗口（手动重启宿主机/VM 后 latest 链即恢复）。**注**：本轮防假绿设计恰好当场兑现价值=探针可复用但矩阵恒独立跑，当前故障不会被 stamp 掩盖。 | 观察在册（环境面） |
 
+## 迭代31 · E2E（2026-11-12，技能全程实跑验证+整改批 v1.4.2——开账即关）
+
+> 动因原文=用户「请执行一次 E2E 测试，验证 winvm-plugin-deploy skill 是否能正确、高效地指导 workbuddy 完成 winvm-plugin 的卸载、安装部署和验证的整改过程」（两句话入口=INSTALL_PROMPT 装技能→严格按技能指引跑 拆→装→验，记录时长/结果/问题/预期符合度）。报告=`qa/real-test-2026-11-12-e2e.md`。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.42** | P2（E2E 实跑） | **全程账本**：S1 装技能 6s（link.json→private asset API→备份覆盖→三判据）✓；S2 取包 7s（latest=V1.4.26+隔离旧包）✓；S3 preflight 75s YELLOW 正确指引 ensure-node ✓；S4 拆 139s 全绿（19 项+独立复核）✓；S5 装首跑 C3.2 FAIL=**真环境故障**（VM node 缺失+装 node 的远端 exec 超 300s 窗+回落二进制因默认钥无授权静默败）→S5b 照表重跑 prepare 呈 rc=0 **假完成**（zip 已下载/解压截断）→人工 .ps1 补解压装成 v24.21.0→S5c 复跑 885s 幂等续跑 C3~C6 全过（C5 38 探针 295s）+health=200；S6 verify **23s**（3/3 REUSED 新鲜复用首程实证，省 ~240s）VERIFY=PASS。四元组：Q1 钥迁移事实未消费（有效钥=id_ed25519_winvm，driver 默认+vm-conn.json 旧值→**整改 R1 三级链+二进制 -i 注入**+当场固化 vm-conn.json）；Q2 ensure-node 超时假完成（**R3 表行**，delivery 异步化=backlog）；Q3 env-check 重载假 FAIL（**R3 表行**判读）；Q4 DB-4 人工项埋 log（**R2 C6 交付待办显形**；VM codebuddy 登录态实探=未登录在册）。用户追问 hos 人工步骤=Q5：仅从零建/毁通道需要（本轮通道在场零人工=设计正确，分支未触发如实记录）。**总判=PASS WITH FINDINGS：主链指导充分（零流程反问/幂等续跑/假绿防御/三大效率设计兑现），三缺口当场修=技能 v1.4.2（gh 主链双端发布+marketplace/Gitee 追平）+gate 2391 GREEN。墙钟 33min（含真故障处置；无故障基线 ~16-20min）** | ✅ 开账即关 |
+
 ## 迭代29 · V1.4.26（2026-11-12，技能单权威版 pack 轮——开账）
 
 > 状态：**双端闭环销账**（gitee 新令牌到位后幂等重跑成功+latest/对账终验全绿）。动因=用户「AB 通道怎么是不同版本，都更新同步到最新版本吧」→ pack 欠账四迭代一次收编。
