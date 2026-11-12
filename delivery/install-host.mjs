@@ -985,11 +985,20 @@ async function main() {
    * 显式 `--vm-key` 优先；否则走默认私钥探测链（与 winvm-plugin.mjs 一致）。
    * 全部缺失时保持 undefined，交由运行时（winvm-plugin）兜底探测。 */
   const explicitVmKey = args.vmKey;
-  const effectiveVmKey = explicitVmKey || probeDefaultSshKey();
+  /* e2e2R5（11-12）：探测链与既有事实的优先级=D5 同款修正——既有 vm-conn.json.identityFile
+   * （运行期被 host/user 同族问题修过的持久化事实，含 R4 快照恢复值）优先于盲探测序
+   * （id_ed25519→ecdsa→rsa 固定序会把 winvm 专用钥环境回写成中毒值=两层钥语义分裂根因）。 */
+  const persistedVmKey = (() => {
+    try {
+      const v = JSON.parse(readFileSync(join(args.home, '.workbuddy', 'winvm', 'vm-conn.json'), 'utf8')).identityFile;
+      return v && existsSync(v) ? v : undefined;
+    } catch { return undefined; }
+  })();
+  const effectiveVmKey = explicitVmKey || persistedVmKey || probeDefaultSshKey();
   const vmKeyNote = explicitVmKey
     ? `${explicitVmKey}（显式 --vm-key）`
     : effectiveVmKey
-      ? `${effectiveVmKey}（探测）`
+      ? `${effectiveVmKey}（${effectiveVmKey === persistedVmKey ? '既有 vm-conn.json' : '探测'}）`
       : '未探测到，将走运行时兜底（winvm-plugin 调用时探测）';
 
   const ctx = {

@@ -386,6 +386,14 @@
 | **I-6.36** | P3（时间预算·架构裁定） | **roundtrip.sh 一键往返模板**（动态参数仅 VM_HOST/VM_USER/ACTION/RELEASE_TAG/SKIP_DOWNLOAD；固定链取包→拆→装→验连成一脚本，内部按序调用既有 driver=单一事实源不复制逻辑；统一 RUN_DIR 经 VMDEPLOY_RUN_DIR export 接缝实证；失败即停定点报障；末块 `ROUNDTRIP_RESULT` 机器可读 VERDICT/WALL_S/TOP5=**LLM 介入压缩到「问环境+发一次后台命令+读末块」三处**）+ **探针新鲜复用**（deploy.sh C5 全过落 stamp=epoch/pkg/run 三行；probe-fresh.sh 纯函数判定三防线=600s 时效窗/同包根/VERIFY_FORCE_PROBE 强制冷跑，stamp 缺/损坏/epoch 非法/未来时钟一律保守冷跑；verify.sh 命中⇒3×REUSED 只跑矩阵，**净省 ~240s**）。SKILL v1.3.0（URL 入口章第4步+主流程章 roundtrip 首选+脚本清单+2）；deploy.prompt v3.2.4 段⑤/undeploy.prompt v2.12 头注同步。p8-probe-fresh.test.js +11（临界 age==budget 判死=I-6.9 阈值教训同械/损坏 stamp/CRLF/窗可配/未来时钟）；**真实环境双证**：造新鲜 stamp→verify `3/3 REUSED dur=0s` ✓ + 矩阵独立复核当场抓到 VM 通道灭（health=000）如实 FAIL ✓=**复用绝不掩盖当前故障**设计自证。pack 断言面=技能包结构 need+roundtrip/probe-fresh 两件、**V11j** 深化面两断言（SKILL 含模板指引+包内脚本实体在场，滞后=fail-loud 拒产包）。gate GREEN 2391。 | ✅ 代码+文档+断言齐（commit 35395ef，V1.4.26 随下批 pack） |
 | **I-6.37** | P2（环境观察·非代码缺陷） | **run22 后 7.5h VM 通道灭复发**（11-09 19:23 本地时间）：隧道 state=DEGRADED/start-retry、health=000、connector skills=8 正常、宿主侧无变更操作——与 11-05 WEDGE 持续态定档同族（guest sshd 认证/会话建立段间歇挂起）。按最高红线**未做任何重启处置**，仅只读定位；待用户处置窗口（手动重启宿主机/VM 后 latest 链即恢复）。**注**：本轮防假绿设计恰好当场兑现价值=探针可复用但矩阵恒独立跑，当前故障不会被 stamp 掩盖。 | 观察在册（环境面） |
 
+## 迭代32 · E2E 第二轮（2026-11-12，原子操作级往返重跑——开账即关）
+
+> 动因原文=用户「重新再来一遍。。步骤的记录要更细到原子操作。。」「先 卸载再安装」。台账=`qa/e2e2-ops-ledger.md`（60 原子行：时刻/步/动作/命令/rc/耗时/输出）；报告=`qa/real-test-2026-11-12-e2e2.md`。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.43** | P2（E2E 往返·真坑三连） | **R1 正向实证+R4/R5/R6 新坑全修**：S2.0 不 export 钥→三级链自动命中 winvm 钥 whoami 3s ✓（首轮 Q1 修复实证）。纯 driver 往返（拆后立装，无手工掩盖）暴露三连坑：**R4**=uninstall 删 vm-conn.json（通道运行态被当安装残留清）→往返 RED 早退→undeploy 自动 `.roundtrip` 快照+deploy P0 前恢复（R4b=初版放 Step 1 后被 S7 实锤位置错，preflight 上游先消费；移位修正后 S9.2 打印恢复行+钥正确=实效）；**R5**=包内 install-host probeDefaultSshKey 固定序不读既有事实→部署期把正确钥回写污染（S8.3 抓到；runtime winvm-plugin.mjs 早有正确链=两层语义分裂）→母项目侧 explicit>persisted>probe 对齐，gate GREEN，**待 V1.4.27 pack**（当前每轮装后手工复位在册）；**R6**=roundtrip full 拆→装背靠背零判稳+灭窗光谱三形态（124 挂起/111 瞬拒/255 公钥拒，旧文案只写"VM 开机期"覆盖不全；S8/S9/S10 三例打全）→full 插 R2.5 wait-channel 2×4+A 表新行"勿据此查钥/重建通道"。附带 LOGD 统一 RUN_DIR（R2 交付待办扫描落空根因；S10 止于 C3.3 未达 C4=显形验证移交 pack 后回归，非缺陷如实）。S11 干净窗终判 **VERIFY=PASS**+health=200 ready=系统终态健康。技能 **v1.4.3** 双端发布（marketplace github/gitee=1.4.3 核验 ✓；sync timeout 假象=CDN 负缓存族第三例，API 实时读定论）。执行自纠入册：探针构造错两例如实 noop 行/VERIFY 误读当场更正/红线零违例。**方法学结论：首轮测"单程+熟练执行者"，本轮测"往返+白纸执行者"——后者的坑更深，E2E 应默认含往返**。 | ✅ 开账即关（R5 生效面=下 pack） |
+
 ## 迭代31 · E2E（2026-11-12，技能全程实跑验证+整改批 v1.4.2——开账即关）
 
 > 动因原文=用户「请执行一次 E2E 测试，验证 winvm-plugin-deploy skill 是否能正确、高效地指导 workbuddy 完成 winvm-plugin 的卸载、安装部署和验证的整改过程」（两句话入口=INSTALL_PROMPT 装技能→严格按技能指引跑 拆→装→验，记录时长/结果/问题/预期符合度）。报告=`qa/real-test-2026-11-12-e2e.md`。
