@@ -388,11 +388,11 @@
 
 ## 迭代29 · V1.4.26（2026-11-12，技能单权威版 pack 轮——开账）
 
-> 状态：**GitHub 侧闭环 / gitee 镜像待用户令牌**。动因=用户「AB 通道怎么是不同版本，都更新同步到最新版本吧」→ pack 欠账四迭代一次收编。
+> 状态：**双端闭环销账**（gitee 新令牌到位后幂等重跑成功+latest/对账终验全绿）。动因=用户「AB 通道怎么是不同版本，都更新同步到最新版本吧」→ pack 欠账四迭代一次收编。
 
 | ID | 级别 | 内容 | 状态 |
 |---|---|---|---|
-| **I-6.41** | P3（发布链·pack） | **V1.4.26 pack 全链**：升版文档批先行（RELEASE-NOTES 里程碑行=迭代25~28 四批合一、strategy v3.23 §0.5-B 示例值、deploy-prompts 三处示例、canonical E 表版本线=skill 通道 356a103——10-27"声称≠已改"教训同步面机械清点）→ commit 7830233 双端 → **tag V1.4.26@7830233 双端** → pack rc=0：**V11 重构版六断言首验全绿**（技能四件/URL 章/roundtrip+末块/脚本实体/通道外委章/四 driver）；包体四断言=①docs/deploy/ **零 .prompt**（迭代28 退役兑现）②包内技能 v1.4.1 ③技能 zip RELEASE-VERSION=V1.4.26@7830233 ④结构 20 条零混入；双 zip=overall `fd143ab8a40cc21f…`/skill `32ac75613bd5c4b1…`。publish --mirror-gitee --apply：**GitHub 四资产上架（release 复用+asset 737823441/488/516/557）+ 匿名下载逐字节对账双 true（旁挂匹配）**。gitee 段 **HTTP 401 "Access token does not exist"**=credentials.env 的令牌三连份（同值 sha dd66e74c5d9a，11-09 尚有效）已被撤销/过期→待用户新令牌更新后重跑 `publish --tag V1.4.26 --zip … --mirror-gitee --apply`（幂等：GitHub 先删后传实证过；gitee latest 现仍=V1.4.25 旧技能 v1.2.2，单指令 B 句暂只有 GitHub URL 可达最新版=私有仓需 PAT）。 | GitHub ✅ / gitee ⏳ 待令牌 |
+| **I-6.41** | P3（发布链·pack） | **V1.4.26 pack 全链**：升版文档批先行（RELEASE-NOTES 里程碑行=迭代25~28 四批合一、strategy v3.23 §0.5-B 示例值、deploy-prompts 三处示例、canonical E 表版本线=skill 通道 356a103——10-27"声称≠已改"教训同步面机械清点）→ commit 7830233 双端 → **tag V1.4.26@7830233 双端** → pack rc=0：**V11 重构版六断言首验全绿**（技能四件/URL 章/roundtrip+末块/脚本实体/通道外委章/四 driver）；包体四断言=①docs/deploy/ **零 .prompt**（迭代28 退役兑现）②包内技能 v1.4.1 ③技能 zip RELEASE-VERSION=V1.4.26@7830233 ④结构 20 条零混入；双 zip=overall `fd143ab8a4…`/skill `32ac75613b…`。publish --mirror-gitee --apply：**GitHub 四资产上架+匿名下载逐字节对账双 true**；gitee 首轮 **HTTP 401**=credentials.env 旧令牌被撤销/过期（三连份同值 sha dd66e74c5d9a，11-09 尚有效）→用户换新令牌（sha 0da55a5ec8fd，三连份同步）后重跑同命令**幂等成功**（rc=0，release id=1300232，四 asset 3671672~75）；终验=**gitee latest 现解 V1.4.26+匿名下载技能包逐字节=本地+包内 v1.4.1 指纹 V1.4.26@7830233**。教训补录：gitee API 通道用 curl/node fetch（python urllib 在本沙箱 SSL 错位勿用）。 | ✅ 开账即关（双端四资产对账闭环） |
 
 ## 迭代28 · I-6.40（2026-11-11，旧模式降级退役=技能升唯一执行权威——开账即关）
 
