@@ -82,6 +82,29 @@ Out 'CLI_PATH' $cliPath
 Out 'CLI_VERSION' (OrMissing $cliVer)
 Out 'CLI_OK' $cliOk.ToString().ToLower()
 
+# ---------- 5) verdict (emitted BEFORE the slow informational probes) -----
+# 11-13 real-machine evidence (V1.4.27 deploy stuck at C3.0): the old layout put the
+# verdict AFTER `npm ls` / `npm config get prefix` / auth scan. Those PowerShell shim
+# calls measure 21-35s each on this box, cumulatively hugging the 300s exec window, so
+# the probe got truncated: the log had NODE_OK/CLI_OK but NO ENV_PRECHECK line => the
+# C3.0 hard gate judged FAIL and the whole deploy went red for nothing.
+# The verdict only depends on nodeOk/npmCmd/cliOk, so moving it up is semantics-
+# preserving; a truncated tail can no longer eat the gate decision (GLOBAL_PKG /
+# NPM_PREFIX / AUTH_* below are informational only).
+$blockers = @()
+if (-not $nodeOk) { $blockers += 'node' }
+if (-not $npmCmd) { $blockers += 'npm' }
+if (-not $cliOk) { $blockers += 'cli' }
+
+if ($blockers.Count -eq 0) {
+  Out 'BLOCKERS' 'none'
+  Out 'ENV_PRECHECK' 'PASS'
+} else {
+  Out 'BLOCKERS' ($blockers -join ',')
+  Out 'ENV_PRECHECK' 'FAIL'
+}
+
+
 if ($cliOk) {
   $ls = & npm ls -g --depth=0 --json 2>$null
   if ($ls) {
@@ -113,20 +136,7 @@ $markers = if ($found.Count -gt 0) { $found -join ',' } else { 'none' }
 Out 'AUTH_MARKERS' $markers
 Out 'AUTH_VERDICT' $authVerdict
 
-# ---------- 5) verdict + remedies ----------------------------------------
-$blockers = @()
-if (-not $nodeOk) { $blockers += 'node' }
-if (-not $npmCmd) { $blockers += 'npm' }
-if (-not $cliOk) { $blockers += 'cli' }
-
-if ($blockers.Count -eq 0) {
-  Out 'BLOCKERS' 'none'
-  Out 'ENV_PRECHECK' 'PASS'
-} else {
-  Out 'BLOCKERS' ($blockers -join ',')
-  Out 'ENV_PRECHECK' 'FAIL'
-}
-
+# ---------- 6) remedies (verdict already emitted above) -------------------
 if (-not $nodeOk -or -not $npmCmd) {
   Out 'NEEDS_RUNTIME' 'true'
   if ($nvm) {

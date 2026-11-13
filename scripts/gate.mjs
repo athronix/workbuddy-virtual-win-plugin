@@ -113,6 +113,11 @@ export const GATE_GUARD_FILES = [
     why: 'P4-N-2 契约码登记漂移钉：errors.ts 封闭码集 ↔ INTERFACES §2.6 表双向对账（加码欠登记/表私加幽灵码/retryable 漂移皆红）——同病再发两次的码表只有机检能终结（Phase 4 批9 处方）',
   },
   {
+    file: 'deploy-probe-verdict-first.test.js',
+    id: 'probe-verdict-first',
+    why: 'C3.0 硬门禁的可判定性：判据行必须早于 21-35s 的 PowerShell 垫片探测，否则 300s exec 窗把它截断 → deploy 整链假红（11-13 V1.4.27 真机实证）；判据=代码面(剔注释)顺序 + ASCII + PASS/FAIL 双分支',
+  },
+  {
     file: 'winvm-prepare-ps1.test.js',
     id: 'winvm-prepare-ps1',
     why: 'REL-11 发布链：tools/winvm-prepare.ps1 = 铠大师执行的**磁盘静态资产**（无生成器兜底），PS 5.1 无 BOM UTF-8 码页乱码是本仓反复踩的坑；ASCII/CRLF/无BOM + KV 输出契约八键 + G1 双文件注入锚点被文档 §4.2 承诺解析——静默改名=双端分叉，只有机检能拦',
