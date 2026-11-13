@@ -537,7 +537,12 @@ export function makeDeploySkillZip(destVersionDir, version, commit) {
   }
   const entries = list.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
   const bad = entries.filter((e) => !e.startsWith(`${SKILL_ZIP_ROOT}/`));
-  const need = [`${SKILL_ZIP_ROOT}/SKILL.md`, `${SKILL_ZIP_ROOT}/scripts/ssh2-conn.mjs`, `${SKILL_ZIP_ROOT}/scripts/undeploy.sh`, `${SKILL_ZIP_ROOT}/references/troubleshooting.md`, `${SKILL_ZIP_ROOT}/RELEASE-VERSION.txt`, `${SKILL_ZIP_ROOT}/scripts/roundtrip.sh`, `${SKILL_ZIP_ROOT}/scripts/probe-fresh.sh`];
+  const need = [`${SKILL_ZIP_ROOT}/SKILL.md`, `${SKILL_ZIP_ROOT}/scripts/ssh2-conn.mjs`, `${SKILL_ZIP_ROOT}/scripts/undeploy.sh`, `${SKILL_ZIP_ROOT}/references/troubleshooting.md`, `${SKILL_ZIP_ROOT}/RELEASE-VERSION.txt`, `${SKILL_ZIP_ROOT}/scripts/roundtrip.sh`, `${SKILL_ZIP_ROOT}/scripts/probe-fresh.sh`,
+    // V1.4.27：把技能 v1.7.0 的统一入口四件 + v1.8.0 自检门禁显式钉进必需件（此前靠目录白名单自动收，
+    // 白名单逻辑一变就会静默漏件；钉死后缺件即 fail-loud 拒产包）
+    `${SKILL_ZIP_ROOT}/scripts/run-flow.sh`, `${SKILL_ZIP_ROOT}/scripts/context.sh`,
+    `${SKILL_ZIP_ROOT}/scripts/action-report.sh`, `${SKILL_ZIP_ROOT}/scripts/action-catalog.tsv`,
+    `${SKILL_ZIP_ROOT}/scripts/selfcheck.sh`];
   const missing = need.filter((p) => !entries.includes(p));
   if (bad.length || missing.length) {
     try { rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
@@ -675,6 +680,11 @@ function verifyPackages(dest, version) {
     // V11-5：主流程四 driver 在场（deploy/undeploy/verify/download-verify）
     chk('V11 包内含 deploy/undeploy/verify/download-verify 四 driver',
       ['deploy.sh','undeploy.sh','verify.sh','download-verify.sh'].every((f) => existsSync(join(skDir, 'scripts', f))));
+    // V11-6（V1.4.27）：自检门禁随技能包分发——拿到包的人无需母项目即可自验完整性。
+    // 断言两面：脚本实体在场 + SKILL.md 写明用法（否则包里有个没人知道怎么用的文件）。
+    chk('V11 包内含 selfcheck.sh 自检门禁且 SKILL.md 有用法章',
+      existsSync(join(skDir, 'scripts', 'selfcheck.sh'))
+      && skTxt.includes('selfcheck.sh') && skTxt.includes('SELFCHECK=ALL_GREEN'));
   }
   // V4 能力面：overall 的 @winvm/vm-capabilities 实体副本可 import 且计数=54
   const capPkg = join(dest, 'overall', 'packages', 'vm-capabilities', 'package.json');
