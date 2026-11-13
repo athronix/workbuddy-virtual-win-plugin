@@ -14,6 +14,7 @@
 - **大文档多轮 Edit 必静默缩水/回退**：改前 `git show HEAD:` 留基线；批量改动=一次性脚本+每处 assert count==1+不匹配整体拒写；写后 `wc -l`+锚点 grep+扫控制字符；commit 前后各核一次。
 - 版本升版批必须 grep 全仓旧 tag 清点同步面（声称≠已改）；搜索假阴性：Grep/git grep 都漏过→`grep -rn` 交叉 + `git ls-files`。
 - **动作级观测链三坑**（v1.7.0 E2E3 实证）：① `grep … | cut || echo "-"` 的 `||` 永不触发（管道退码取末命令）→ 先捕获再归一；② 日志名按**动作**（`env-check`）而环节号是 **`3.0`**，不建索引则 `log_path` 恒 `-` → `logs/.index` 记 epoch→名 + 时间窗解析；③ 沙箱每次 bash 启动的 `getcwd/chdir` 提示含 `error` 关键字，会污染 PASS 行错误摘录 → deny-list。
+- **鸿蒙沙箱批量删除护栏（11-13 实证）**：单回合删除 >50 个文件会拦 `SAFE_DELETE_BULK_CONFIRM_REQUIRED`，拦到的是**进程内 unlink/rmtree**（python shutil 也会被拦），表现为「子进程 rc=1 但一行 FAIL 都没打」→ 极易被误读成断言失效。对策：工具/门禁**默认零删除**（每例独立目录 + 原位还原，工作区保留并打印路径），要清才显式开；凡是「批量造→删」型测试脚本都要先算删除量。
 - **探针口径必须可证伪**：「首跑 FAIL 复跑即稳」若含阈值临界（45s 心跳 vs 46s 冷）即确定性缺陷；客户端超时窗贴能力耗时跑=假 FAIL（判据窗须带实测耗时+余量）。
 - **绝不自启 VM/guest 重启（最高红线）**：通道坏=探测利用健康窗跑最短链或止损上报。
 - **WEDGE 持久态**：真凶=guest sshd 认证/会话建立段间歇挂起（banner 后 rc=124 空 stderr；网络层无罪）。窗口判定必用**新建连接实测**（长连健康≠新建可用）。**ssh2 后端**（`VM_SSH_BACKEND=ssh2` / ssh2-conn.mjs）是 WB 沙箱相位挂的正解（同秒 124 vs READY 654ms 实锤）；delivery 层已 ssh2 化（V1.4.21，三级默认 auto）。宿主重启可擦除 connector skills（mtime 取证）→`install-host --yes` 幂等恢复。
@@ -25,7 +26,7 @@
 - **跨技能写接线契约前必实核双方代码**（迭代27 第一版三处臆测全错）；URL 分发形态改变路径拓扑，相对自身定位仓库的硬编码候选必走状态文件/env 单一事实源。
 
 ## 口径与纪律
-- 测试基线权威=`qa/p3-batch-sweep/` 最新 gate-*.txt 汇总行（文档禁硬编码）；门禁 `npm run gate`。**当前线上 V1.4.26**（迭代29：roundtrip+skill 矩阵化+通道外委+旧模式退役四批合一；包内技能 v1.4.1；双端 release/tag 逐字节对账；gitee 镜像 401 换新令牌幂等重跑成功）。发布链断言面=V1–V11（V11 重构版六断言，钉技能四件+URL 章+roundtrip+通道外委章+四 driver）。旧包 `release/V<ver>.superseded-itN`；每迭代 `--wipe` 重验；完成必 push origin；发布顺序 pack→push origin→push gitee main+tag→publish --apply --mirror-gitee。
+- 测试基线权威=`qa/p3-batch-sweep/` 最新 gate-*.txt 汇总行（文档禁硬编码）；门禁 `npm run gate`。**当前线上 V1.4.27**（技能包同步 v1.8.0）（迭代29：roundtrip+skill 矩阵化+通道外委+旧模式退役四批合一；包内技能 v1.4.1；双端 release/tag 逐字节对账；gitee 镜像 401 换新令牌幂等重跑成功）。发布链断言面=V1–V11（V11 重构版六断言，钉技能四件+URL 章+roundtrip+通道外委章+四 driver）。旧包 `release/V<ver>.superseded-itN`；每迭代 `--wipe` 重验；完成必 push origin；发布顺序 pack→push origin→push gitee main+tag→publish --apply --mirror-gitee。
 - 文档：导航权威 `.dev/docs-index.md`；归档 `docs/archive/{changes,audit,test}`；**qa/ 保原位**（setup/pack-release 活引用）；改路径前先查活引用。证据每轮一份 `real-test-<date>-runN.md`；FAIL 四元组（现象/根因/证据/处置）；裁决落档再引用。⚠ hmdfs `core.ignorecase=true`：git mv 改大小写磁盘名可能不变。
 - 团队派发：fresh Agent+窄任务书+即 commit+按 HEAD 独立核验；worker 静默 20min 熔断（主理人巡检 mtime+探针）。
 
