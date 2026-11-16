@@ -239,9 +239,16 @@ function copySkillEntry(srcDir, destDir) {
   if (!existsSync(join(srcDir, 'SKILL.md'))) fail(`技能源缺 SKILL.md：${srcDir}`);
   ensureDir(destDir);
   cpSync(join(srcDir, 'SKILL.md'), join(destDir, 'SKILL.md'));
+  // 正向枚举（不用 cpSync filter 黑名单：对 symlink 源不可靠，见 hos-pitfalls）。
+  // legacy/ = v1.x 编排层与旧通道文档留档，**不进发布包**（旧判据会误导使用者）。
   for (const sub of ['scripts', 'references', 'assets']) {
     const s = join(srcDir, sub);
-    if (existsSync(s)) cpSync(s, join(destDir, sub), { recursive: true });
+    if (!existsSync(s)) continue;
+    ensureDir(join(destDir, sub));
+    for (const name of readdirSync(s)) {
+      if (name === 'legacy') continue;
+      cpSync(join(s, name), join(destDir, sub, name), { recursive: true });
+    }
   }
 }
 function copyList(rels, destRoot) {
@@ -537,12 +544,25 @@ export function makeDeploySkillZip(destVersionDir, version, commit) {
   }
   const entries = list.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
   const bad = entries.filter((e) => !e.startsWith(`${SKILL_ZIP_ROOT}/`));
-  const need = [`${SKILL_ZIP_ROOT}/SKILL.md`, `${SKILL_ZIP_ROOT}/scripts/ssh2-conn.mjs`, `${SKILL_ZIP_ROOT}/scripts/undeploy.sh`, `${SKILL_ZIP_ROOT}/references/troubleshooting.md`, `${SKILL_ZIP_ROOT}/RELEASE-VERSION.txt`, `${SKILL_ZIP_ROOT}/scripts/roundtrip.sh`, `${SKILL_ZIP_ROOT}/scripts/probe-fresh.sh`,
-    // V1.4.27：把技能 v1.7.0 的统一入口四件 + v1.8.0 自检门禁显式钉进必需件（此前靠目录白名单自动收，
-    // 白名单逻辑一变就会静默漏件；钉死后缺件即 fail-loud 拒产包）
-    `${SKILL_ZIP_ROOT}/scripts/run-flow.sh`, `${SKILL_ZIP_ROOT}/scripts/context.sh`,
-    `${SKILL_ZIP_ROOT}/scripts/action-report.sh`, `${SKILL_ZIP_ROOT}/scripts/action-catalog.tsv`,
-    `${SKILL_ZIP_ROOT}/scripts/selfcheck.sh`];
+  // v2.0.0 重构：5 步 deploy + 3 步 undeploy 的 8 个步脚本 + 地基 + VM 单脚本全部钉死。
+  // 靠目录枚举自动收 = 白名单逻辑一变就静默漏件；钉死后缺件即 fail-loud 拒产包。
+  const SK = [`${SKILL_ZIP_ROOT}/scripts/`];
+  const need = [`${SKILL_ZIP_ROOT}/SKILL.md`, `${SKILL_ZIP_ROOT}/references/troubleshooting.md`,
+    `${SKILL_ZIP_ROOT}/RELEASE-VERSION.txt`, `${SKILL_ZIP_ROOT}/scripts/ssh2-conn.mjs`,
+    `${SKILL_ZIP_ROOT}/scripts/_common.sh`, `${SKILL_ZIP_ROOT}/scripts/selfcheck.sh`,
+    // 5 步 deploy
+    `${SKILL_ZIP_ROOT}/scripts/deploy.sh`, `${SKILL_ZIP_ROOT}/scripts/deploy-1-ssh.sh`,
+    `${SKILL_ZIP_ROOT}/scripts/deploy-2-host.sh`, `${SKILL_ZIP_ROOT}/scripts/deploy-3-tunnel.sh`,
+    `${SKILL_ZIP_ROOT}/scripts/deploy-4-vm.sh`, `${SKILL_ZIP_ROOT}/scripts/deploy-5-verify.sh`,
+    // 3 步 undeploy
+    `${SKILL_ZIP_ROOT}/scripts/undeploy.sh`, `${SKILL_ZIP_ROOT}/scripts/undeploy-1-host.sh`,
+    `${SKILL_ZIP_ROOT}/scripts/undeploy-2-vm.sh`, `${SKILL_ZIP_ROOT}/scripts/undeploy-3-ssh.sh`,
+    // VM 侧单脚本 + 卸载件 + 通道/取包底座
+    `${SKILL_ZIP_ROOT}/scripts/winvm-sshd-oneclick.ps1`, `${SKILL_ZIP_ROOT}/scripts/vm-remove-local.ps1`,
+    `${SKILL_ZIP_ROOT}/scripts/verify.sh`, `${SKILL_ZIP_ROOT}/scripts/download-verify.sh`,
+    `${SKILL_ZIP_ROOT}/scripts/vm-conn.sh`, `${SKILL_ZIP_ROOT}/scripts/ps-run.sh`,
+    `${SKILL_ZIP_ROOT}/scripts/pkg-root.sh`];
+  if (SK.length !== 1) fail('SK 常量异常');
   const missing = need.filter((p) => !entries.includes(p));
   if (bad.length || missing.length) {
     try { rmSync(plan.outPath, { force: true }); } catch { /* ignore */ }
@@ -551,6 +571,13 @@ export function makeDeploySkillZip(destVersionDir, version, commit) {
   const zip = { path: plan.outPath, zipName: SKILL_ZIP_NAME, sha256: sha256File(plan.outPath), bytes: statSync(plan.outPath).size, entries: entries.filter((e) => !e.endsWith('/')).length };
   // 中间物收尾：staging 目录只服务 zip，不留残（zip 已独立可验；防后续工具把 staging 当包内容）
   try { rmSync(staging, { recursive: true, force: true }); } catch { /* 留手工排查余地，不阻断 */ }
+  // v2.0.0：VM 侧单脚本作为**独立资产**产出（deploy 第 1 步让 VM 直接 iwr 它；
+  // 技能源仓 private ⇒ raw 匿名 404，只能走 release 资产）。
+  const sshdSrc = join(srcSkillDir, 'scripts', 'winvm-sshd-oneclick.ps1');
+  if (!existsSync(sshdSrc)) fail('技能源缺 scripts/winvm-sshd-oneclick.ps1（deploy 第 1 步必需件）');
+  const sshdDst = join(destVersionDir, 'winvm-sshd-oneclick.ps1');
+  writeFileSync(sshdDst, readFileSync(sshdSrc));
+  console.log(`  单脚本资产 ${relative(ROOT, sshdDst)}（VM 端 deploy-1 下载源）`);
   zip.sidecarName = sha256SidecarNameFor(SKILL_ZIP_NAME);
   zip.sidecarPath = join(destVersionDir, zip.sidecarName);
   writeFileSync(zip.sidecarPath, sha256SidecarContent(SKILL_ZIP_NAME, zip.sha256));
@@ -670,13 +697,23 @@ function verifyPackages(dest, version) {
     chk('V11 overall 含 winvm-plugin-deploy 技能四件（部署技能化面）',
       skTxt.includes('name: winvm-plugin-deploy') && existsSync(join(skDir, 'scripts', 'ssh2-conn.mjs'))
       && existsSync(join(skDir, 'scripts', 'undeploy.sh')) && existsSync(join(skDir, 'references', 'troubleshooting.md')));
-    // V11-2：URL 单指令入口引导章（skill_url 自助全流程）
-    chk('V11 SKILL.md 含 URL 单指令入口引导章', skTxt.includes('URL 单指令入口') && skTxt.includes('winvm-plugin-deploy-skill.zip'));
-    // V11-3：roundtrip 一键往返模板（时间预算战役；LLM 介入最小化）
-    chk('V11 SKILL.md 含 roundtrip 一键往返模板指引', skTxt.includes('roundtrip.sh') && skTxt.includes('ROUNDTRIP_RESULT'));
-    chk('V11 包内含 roundtrip.sh+probe-fresh.sh 脚本实体', existsSync(join(skDir, 'scripts', 'roundtrip.sh')) && existsSync(join(skDir, 'scripts', 'probe-fresh.sh')));
-    // V11-4：SSH 免密通道生命周期外委 hos-winvm-ssh-tunnel（I-6.39；迭代28 后此职责仅存于 SKILL 侧）
-    chk('V11 SKILL.md 含 SSH 免密通道生命周期外委章+INSTALL_PROMPT 入口', skTxt.includes('SSH 免密通道生命周期') && skTxt.includes('hos-winvm-ssh-tunnel') && skTxt.includes('INSTALL_PROMPT.md'));
+    // V11-2（v2.0.0）：5 步部署 / 3 步卸载 结构章 + 八个步脚本实体齐全
+    chk('V11 SKILL.md 含「部署 = 5 步」「卸载 = 3 步」结构章',
+      skTxt.includes('部署 = 5 步') && skTxt.includes('卸载 = 3 步'));
+    chk('V11 包内含 5 步 deploy + 3 步 undeploy 全部步脚本',
+      ['deploy-1-ssh.sh','deploy-2-host.sh','deploy-3-tunnel.sh','deploy-4-vm.sh','deploy-5-verify.sh',
+       'undeploy-1-host.sh','undeploy-2-vm.sh','undeploy-3-ssh.sh'].every((f) => existsSync(join(skDir, 'scripts', f))));
+    // V11-3（v2.0.0）：VM 侧单脚本 = 远端下载 + 就地留存 + -Rollback
+    chk('V11 包内含 winvm-sshd-oneclick.ps1 且 SKILL.md 写明远端下载与外留路径',
+      existsSync(join(skDir, 'scripts', 'winvm-sshd-oneclick.ps1'))
+      && skTxt.includes('winvm-sshd-oneclick.ps1')
+      && skTxt.includes('C:\\ProgramData\\WinVMDeploy'));
+    // V11-4（v2.0.0）：通道生命周期内置且可选择性拆除（默认保留）
+    chk('V11 SKILL.md 含通道拆除参数 --remove-ssh-tunnel 与默认 no 语义',
+      skTxt.includes('--remove-ssh-tunnel') && skTxt.includes('默认 no'));
+    // V11-4b（v2.0.0）：legacy 留档绝不入包（旧编排层会误导使用者）
+    chk('V11 技能包不含 scripts/legacy 与 references/legacy',
+      !existsSync(join(skDir, 'scripts', 'legacy')) && !existsSync(join(skDir, 'references', 'legacy')));
     // V11-5：主流程四 driver 在场（deploy/undeploy/verify/download-verify）
     chk('V11 包内含 deploy/undeploy/verify/download-verify 四 driver',
       ['deploy.sh','undeploy.sh','verify.sh','download-verify.sh'].every((f) => existsSync(join(skDir, 'scripts', f))));
@@ -816,7 +853,7 @@ function main() {
       '- `docs/`：DEPLOYMENT / INSTALL-GUIDE / USER-MANUAL / SCENARIOS / RELEASE-NOTES / 发布设计 / 发布说明 / issues 台账 / **deploy/ 四件**（部署策略 deploy-strategy + 部署 Prompt 总集 deploy-prompts + 卸载 Prompt 总集 undeploy-prompts + **skills/winvm-plugin-deploy = 本项目部署/启动/验证/卸载的唯一执行权威**（≥V1.4.26；SKILL.md 全流程编排 + scripts/ 一键 driver 族 + references/ 问题百科），用法见下方「快速部署/卸载」）',
       '## 快速部署/卸载（零仓库 · 技能驱动，唯一模式）',
       '1. 解压本包 → 解出目录即包根（含 `MANIFEST.txt` 与 `delivery/`）。',
-      '2. **技能模式（推荐）**：对 WorkBuddy（鸿蒙宿主）说「按 docs/deploy/skills/winvm-plugin-deploy 技能部署本包，VM_HOST=<ip> VM_USER=<user> PKG_ROOT=包根绝对路径」——技能自带 roundtrip.sh 一键往返模板（取包→拆→装→验连成一脚本，LLM 仅问环境+发一次后台命令+读末块）、30+ 问题百科、分步计时、ssh2 通道后端（抗灭相位）、免密通道生命周期外委 hos-winvm-ssh-tunnel；拆除与复验换动词即可（ACTION=undeploy / verify）。',
+      '2. **技能模式（推荐）**：对 WorkBuddy（鸿蒙宿主）说「按 docs/deploy/skills/winvm-plugin-deploy 技能部署本包，VM_HOST=<ip> VM_USER=<user> PKG_ROOT=包根绝对路径」——技能 v2.0.0 结构为 **5 步部署**（①建 ssh 免密通道 ②取包装 host 端 ③起 tunnel 并验证 ④装 VM 端并起 mcp/a2a ⑤verify）+ **3 步卸载**（①卸 host ②卸 VM ③拆通道 `--remove-ssh-tunnel yes|no` 默认 no），每步一个脚本、可单独重跑；从零部署只需用户粘贴一条 VM 管理员 PowerShell 命令（脚本由 VM 从 release 资产下载并就近留存）。换 `--only N` 定点重跑，`verify.sh` 独立复验。',
       '3. **URL 单指令入口（零前提最省形态）**：同一 release 另附独立技能包 `winvm-plugin-deploy-skill.zip`。新机连 overall 包都不用先下——只发一句「请依据 skill https://gitee.com/athronix/workbuddy-virtual-win-plugin/releases/download/<tag>/winvm-plugin-deploy-skill.zip 安装 winvm-plugin」，WorkBuddy 下载并安装该技能后按其「URL 单指令入口」引导段自助完成取包→部署→验证；卸载/验证换动词即可。',
       '> 旧模式注记（V1.4.26 起）：deploy.prompt / undeploy.prompt 智能体安装脚本已**降级退役**——不再随包分发，其全部执行职责由上列技能承载（技能=唯一执行权威）。两文件仅存于源码仓库 docs/deploy/ 作历史决策档案与无 Agent 场景的纯粘贴参考。',
       '',
