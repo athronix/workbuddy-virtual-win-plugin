@@ -6,12 +6,14 @@ try { $prevOc = [Console]::OutputEncoding; [Console]::OutputEncoding = [System.T
 $out = [ordered]@{}
 # v1.9.1 perf (e2e5 audit): Get-ScheduledTask is CIM-backed and does a full task
 # enumeration on first module import (measured 20-35s). `schtasks /query /fo CSV`
-# has NO field names, so field POSITION is language-independent (zh-CN status text
-# and en "Ready" both land in column 3). Keep this file ASCII-only.
-$csv = @(schtasks /query /tn 'WinVMBridge.Service' /fo CSV /nh 2>$null)
-if ($LASTEXITCODE -eq 0 -and $csv.Count -gt 0) {
-  $cells = ($csv[0] -split '","')
-  $out.task_state = if ($cells.Count -ge 3) { ($cells[2] -replace '"', '').Trim() } else { 'UNKNOWN' }
+# has NO field names, so we bind positions with -Header: column order is fixed by
+# schtasks and therefore language-independent (zh-CN status text and en "Ready"
+# both land in column 3). ConvertFrom-Csv handles quoting/commas correctly.
+# Keep this file ASCII-only.
+$rows = @(schtasks /query /tn 'WinVMBridge.Service' /fo CSV /nh 2>$null |
+  ConvertFrom-Csv -Header 'n', 'next', 'status')
+if ($LASTEXITCODE -eq 0 -and $rows.Count -gt 0) {
+  $out.task_state = [string]$rows[0].status
 } else { $out.task_state = 'NOT_FOUND' }
 # Get-NetTCPConnection is CIM-backed (3-8s); .NET GetActiveTcpListeners() is
 # millisecond-level and already returns only listening sockets (same semantics).
