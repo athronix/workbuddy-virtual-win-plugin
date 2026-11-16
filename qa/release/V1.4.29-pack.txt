@@ -1,15 +1,15 @@
 # pack-release 证据 · V1.4.29
-commit: ee433ad
-date: 2026-11-16T02:47:33.985Z
+commit: ff00f08
+date: 2026-11-16T02:48:23.833Z
 node: v24.13.0
 verify: PASS (V2/V3/V4)
 
-host    : files=850 bytes=6950443 total-sha256=206a7ee31cb0fe334644a87110c0e636a3dfb65b20a8db3cb347e225d760219a
-vm      : files=348 bytes=2985317 total-sha256=a39d68ba78e695aae51eaf12e0304687dc8c4649167bc2c8ad08896a1a02dea0
-overall : files=921 bytes=8324106 total-sha256=1f45f28f7aaba7eb5fcd5bc1e2cb0e66f49051a84b1c88fd58e92e377ad02ae5
-overall-zip: release/V1.4.29/winvm-overall-V1.4.29.zip sha256=81099bf43d6bb8820b67f4e73c34d034bdd2e16a09bd0948aa00ce9c9d8ff84a bytes=3165996
+host    : files=850 bytes=6950443 total-sha256=1c942c359b1570589344a71a1fe94d535a964099f25debbd8424785e2828d408
+vm      : files=348 bytes=2985317 total-sha256=13afffa474d6592c9e2a1afaec33617cf6465c8e3b80e2a2bd7edbe4f18ba30b
+overall : files=921 bytes=8324181 total-sha256=234804f77ff57e1354230d0dd1748eb28eb82622802efde1dc14af127c123764
+overall-zip: release/V1.4.29/winvm-overall-V1.4.29.zip sha256=13a813999c688e6774aeb0258d259bfd445cf63cd6d0a017aca035375755e188 bytes=3166011
 overall-zip-sha256-file: release/V1.4.29/winvm-overall-V1.4.29.zip.sha256
-deploy-skill-zip: release/V1.4.29/winvm-plugin-deploy-skill.zip sha256=e96d896b879e717d1f0656284db617be20c80688371bef604db2b5f8032daec3 bytes=232813
+deploy-skill-zip: release/V1.4.29/winvm-plugin-deploy-skill.zip sha256=0ea5d5f232decb924691e49a319ccf1b0ae6eae0f804f306340d8d685b612a9b bytes=232813
 deploy-skill-zip-sha256-file: release/V1.4.29/winvm-plugin-deploy-skill.zip.sha256
 
 # 目录树（release/V1.4.29）
