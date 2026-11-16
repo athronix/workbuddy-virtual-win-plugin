@@ -389,6 +389,23 @@
 | 发布面 | — | 技能 **v1.9.0**（tag v1.9.0 / GitHub Release asset / marketplace 1.9.0 / Gitee 聚合追平）与母项目 **V1.4.28**（tag / GitHub 4 资产 / Gitee release `id=1305949` 4 资产）**分开提交、分开发布**；pack `V11` 全绿（含新增「包内含 `selfcheck.sh` 且 SKILL.md 有用法章」）；`gate --quick` 15 件 302 断言 GREEN。 | ✅ |
 | 遗留 | — | ①`NEED_USER_ACTION=1` 合并包路径（通道坏→交用户在 VM 本机跑 `RUN-ME.ps1`）仍只有静态验证，缺一次真机演练（需用户配合）②`ps-run.sh -c` 输出仍夹带 CLIXML progress 流（低优，不影响判据 grep） | 在册 |
 
+## 迭代34 · V1.4.29（2026-11-16，性能战役：23 动作逐项评判 + 四处优化 + e2e6 真机复验——开账即关）
+
+> 状态：**代码面双端闭环**（技能 v1.9.1/v1.9.2/v1.9.3；母项目 V1.4.29 已 pack 待发布）；**e2e6 真机 `VERDICT=YES`**。
+> 动因原文=用户「感觉很多步骤都多余了，你对 23 步骤重新一步一步评判，看对于 undeploy、deploy&verify 两个任务，哪些步骤是必须的、哪些是多余的……对于超过 10s 的动作进一步拆解分析……目标：不算用户交互，scripts+llm 决策判断 deploy 时长不超过 30s，verify 不超过 30s（需要的话还可并行验证），undeploy 不超过 20s」。
+> 评判表与时间去向=`skills/winvm-plugin-deploy/references/performance-audit.md`；真机报告=`qa/real-test-2026-11-16-e2e6.md`；证据=`~/wbtmp/e2e6-1429/`。
+
+| ID | 级别 | 内容 | 状态 |
+|---|---|---|---|
+| **I-6.47** | P1（性能·TUNNEL 80.9s→11.3s） | **80.9s 全在判定链，不在启动**：`tunnel ensure` 本体仅 0.7s，时间被 `probeTunnelHttp`（curl `max-time 5` + 外层 8s）与 ensure 后的退避（2000ms×10=20s）吃满。修=新增 `readDaemonState()` 直读 `tunnel.state.json`/`tunnel.pid`（毫秒级；`TUNNEL_STATUS_CLI=1` 可回退旧 `pluginTunnelStatus` 路径）+ curl 5→3s / 外层 8→5s + 退避改 200×5+1000×5（≤6.5s）。 | ✅ `delivery/setup.mjs`（V1.4.29）；真机 **11.3s** |
+| **I-6.48** | P1（性能·CIM 全枚举） | **`Get-ScheduledTask`/`Get-NetTCPConnection` 是慢探测元凶**（首次模块导入 20–35s）：`vmcheck.ps1` 71s、`verify.sh` VERIFY/6 42s、`undeploy.sh` U4 26s 皆因此。修=换原生原语 `schtasks /query /fo CSV` + `ConvertFrom-Csv -Header`（列位置语言无关，**不可手工 `-split '","'`**——字段含逗号会错位）与 `.NET IPGlobalProperties::GetActiveTcpListeners()`。 | ✅ 真机 vmcheck **14s** / VERIFY6 5s / U4 6s |
+| **I-6.49** | P2（性能·探针分级） | **38 探针 269s 中 4 项占 ~165s**（a2a E4 真实 LLM 委派 ~30s、example E7 盘扫族 ~100s、E8 事件日志 ~15s、E9 文件搜索 ~20s）。用户裁定「砍 25/33/34/35，其余全留」⇒ 默认 34 项，`PROBE_DEEP=1` 恢复 38 项。**分级绝不允许静默**：探针自身打印 `[SKIP] <id> <name> :: deep（实测 ~Ns）；PROBE_DEEP=1 启用` 并计入 RESULT 的 `N SKIP deep`。 | ✅ 技能 **v1.9.2** `ffd0443`；真机 C5 **21s**（268→21） |
+| **I-6.50** | P2（假绿·判据可证伪） | **C5 判据是静态字符串「38 项见日志」**：e2e6 实测只跑 34 项 + 4 SKIP，判据字面不符——探针若静默少测（漏 case / 分级失效）照样 PASS，属典型字符串存在式假绿。修=解析三探针日志 `SUMMARY/RESULT` 的真实 `x/y` 与 `N SKIP deep` 累加为判据 `PROBES <pass>/<total> SKIP=<n> deep=<0\|1>`；**取不到计数即 FAIL**（无法核验=假绿风险）；按 `PROBE_DEEP` 校验 34/4 或 38/0，不符即 FAIL（探针项数变动强制同步）。踩坑：末行恒为裸 `RESULT: PASS`（无计数），不能 `tail -1` 取计数行。 | ✅ 技能 **v1.9.3** `5d09ad3`；离线变异 M1/M2 均被拦（`M1→no-count total-14!=34`、`M2→skip-3!=4`）。**真机端到端未做**（e2e6b 起跑时 VM 掉线） |
+| **I-6.51** | P3（观测·计数虚高） | `R4 PASS（探针复用=4/3）`：`awk /REUSED/` 把汇总行 `[probe-reuse] 3/3 REUSED` 也计入。修=`grep -cE '^\[[a-z0-9]+-probe REUSED\]'`——**字符类须含数字**，否则漏 `a2a-probe`（首次修成 `[a-z]+` 只数出 2）。 | ✅ 技能 v1.9.3；e2e6 日志回放 4→3 |
+| **I-6.52** | P1（通道·单点脆弱） | **VM `authorized_keys` 一变隧道即全断**：VM 恢复后仅保留 `id_ed25519_winvm`（`74Ke…`），而 `vm-conn.json` 指向 `id_ed25519`（`SxrQ…`）⇒ 隧道 `All configured authentication methods failed` 连续 436 次尝试，health 恒 000。`identityFile` 是**单值无回退链**，与 ssh `IdentityFile` 多值语义不一致。当场处置=改 `vm-conn.json` 指向 winvm 钥 + `tunnel restart` ⇒ health=200。 | ⚠ **运行态已修，代码面未修**：建议 `identityFile` 支持候选列表逐把试（待裁定） |
+| **I-6.53** | P1（真机·复验） | **e2e6 全链**：`ACTION=full RELEASE_TAG=V1.4.29`（本地包装配入 `$DEPLOY_ROOT/pkg` + 解包根，R1 缓存命中 1s）→ **23/23 动作 PASS、失败 0、失败四元组 0 条**，`UNDEPLOY=PASS DEPLOY=PASS VERIFY=PASS WALL_S=297`、`VERDICT=YES`。**红线保持**（未重启 VM、未重建通道，`C1 channel=key 复用 2s`）。目标：deploy **196s ✅**（≤250s）/ verify **21s ✅**（≤30s）/ undeploy **32s ❌**（≤20s，差 12s）。相对 e2e5 的 1245s **降 76%**。 | ✅ 开账即关 |
+| 遗留 | — | ①**undeploy 32s→20s 差 12s**：可行路径=U1/U2 并行（-4s）+ U4 五点复核并入 U2 同一 PS 会话（-5s），仍差 ~3s 须动 U2 本体 ②**系统级冷装**（VM 全新，DB-1/2/3 需真装）未测，`≤250s` 仅在应用级口径成立 ③`PROBE_DEEP=1` 全 38 项路径未跑 ④`NEED_USER_ACTION=1` 合并包路径仍缺真机演练 | 在册 |
+
 ## 迭代25 · V1.4.26 候选（2026-11-09，时间预算战役=roundtrip 一键往返模板+探针新鲜复用——开账即关）
 
 > 状态：**已关闭（代码面 commit 35395ef 已推双端；随下批 pack 入 V1.4.26）**。动因原文=用户「安装和部署时间都太长了，看看时间都花在哪里了。可以考虑将相连固定的操作（提取出动态参数）都连接成一个脚本来执行，尽可能少的调用 llm 及与用户交互。llm 调用与用户交互仅仅是获取必要信息和探测环境信息（这个如果固定也可以抽象为脚本）及作一些必要的决策，llm 用获取到的环境信息、决策与用户交互信息在脚本模板的基础上生成可执行的脚本」。run22 账本解剖结论：真往返 954s 中 **S5 验证 260s 里探针 243s=与 deploy C5 完全重复**（最大单项浪费 25%）；LLM 分段介入（run22 主回合 8+ 次调用）=另一冗余面。
