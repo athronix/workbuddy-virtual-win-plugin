@@ -1094,9 +1094,40 @@ async function pluginTunnelStatus(cfg) {
   }
 }
 
+/**
+ * v1.9.1 perf（e2e5 审计：TUNNEL 相位实测 80.9s，其中两次 pluginTunnelStatus 各起一个
+ * node 进程加载整个 plugin bundle ≈20s/次）。
+ *
+ * OBS-1 已明确：**daemon 自报态仅作信息，`/health` 打通才是唯一硬判据**。因此自报态
+ * 不必走 CLI 求值——直接读 daemon 自己原子写出的 `tunnel.state.json` + `tunnel.pid`
+ * （毫秒级）语义完全等价，且不会在 VM 不可达时被 node 冷启动拖慢。
+ *
+ * 需要 CLI 权威态做排查时置 `TUNNEL_STATUS_CLI=1` 回退旧路径。
+ * @returns {Promise<{state?: string, healthy: boolean, pid: number|null, raw: string}>}
+ */
+async function readDaemonState(cfg) {
+  if (process.env.TUNNEL_STATUS_CLI === '1') return pluginTunnelStatus(cfg);
+  const dir = join(homedir(), '.workbuddy', 'winvm');
+  try {
+    const raw = readFileSync(join(dir, 'tunnel.state.json'), 'utf8');
+    const j = JSON.parse(raw);
+    let pid = Number(j.pid) || null;
+    if (!pid) {
+      try {
+        pid = Number(JSON.parse(readFileSync(join(dir, 'tunnel.pid'), 'utf8')).pid) || null;
+      } catch { /* pidfile 可能已被原子 rename 掉（daemon 退出中） */ }
+    }
+    return { state: j.state, healthy: j.state === 'RUNNING' && j.alive !== false, pid, raw };
+  } catch {
+    return { state: undefined, healthy: false, pid: null, raw: '' };
+  }
+}
+
 /** 经本地回环端口探测 VM `/health`（验证「已有隧道确实打通」，而非仅端口被占用）。 */
-async function probeTunnelHttp(port, timeoutMs = 8_000) {
-  const r = await run('curl', ['-s', '--noproxy', '127.0.0.1', '--max-time', '5', `http://127.0.0.1:${port}/health`], { timeoutMs });
+async function probeTunnelHttp(port, timeoutMs = 5_000) {
+  // v1.9.1 perf: --max-time 5 -> 3。本地回环 /health 正常 <100ms；失败探测每发省 2s，
+  // 而 TUNNEL 相位失败探测会连发多次。判据最终仍由 HEALTH 相位（max-time 30）复核。
+  const r = await run('curl', ['-s', '--noproxy', '127.0.0.1', '--max-time', '3', `http://127.0.0.1:${port}/health`], { timeoutMs });
   if (!r.ok || !r.out) return false;
   try {
     const j = JSON.parse(r.out);
@@ -1156,7 +1187,7 @@ async function runTunnelPhase(cfg) {
     const t0 = Date.now();
     const httpOk = await probeTunnelHttp(port);
     const probeMs = Date.now() - t0;
-    const st = daemonOk ? await pluginTunnelStatus(cfg) : null;
+    const st = daemonOk ? await readDaemonState(cfg) : null;
     const verdict = evaluateTunnelReuse(st?.healthy === true, httpOk);
     if (verdict.reusable) {
       const who = daemonOk
@@ -1182,14 +1213,17 @@ async function runTunnelPhase(cfg) {
     const t0 = Date.now();
     const r = await run(process.execPath, [PLUGIN_CLI, 'tunnel', 'ensure', ...pluginVmArgs(cfg)], { timeoutMs: 90_000 });
     const elapsedMs = Date.now() - t0;
-    const st = await pluginTunnelStatus(cfg);
+    const st = await readDaemonState(cfg);
     // OBS-1：daemon 自报 healthy 仅作信息，就绪判据=后端 /health 打通。
     // I-6.10（2026-11-02 run5）：清场重装时 VM-START 刚触发、VM 服务冷启动要 ~30s，
     // 单发+1×2s 的旧窗口必然探空 → 误回落自建 → EADDRINUSE 假败（rc=1 而 HEALTH 相位
     // 随后 200）。ensure 成功返回后给 **20s 退避窗口**反复探测（服务预热期容忍）。
     let httpOk = await probeTunnelHttp(port);
-    for (let i = 0; !httpOk && r.ok && i < 10; i++) {
-      await sleep(2_000);
+    // v1.9.1 perf: 200ms x5 then 1000ms x5 (max ~6.5s) instead of 2000ms x10 (20s).
+    // 服务预热期最先几百毫秒就是最可能翻绿的窗口，前密后疏比等额 2s 更早命中。
+    const BACKOFF = [200, 200, 200, 200, 200, 1000, 1000, 1000, 1000, 1000];
+    for (let i = 0; !httpOk && r.ok && i < BACKOFF.length; i++) {
+      await sleep(BACKOFF[i]);
       httpOk = await probeTunnelHttp(port);
     }
     if (httpOk) {

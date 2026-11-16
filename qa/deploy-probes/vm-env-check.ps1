@@ -105,7 +105,12 @@ if ($blockers.Count -eq 0) {
 }
 
 
-if ($cliOk) {
+# v1.9.1 perf (e2e5 audit): `npm ls -g` measured 20-35s (cmd/PowerShell) and
+# `npm config get prefix` another 2-5s, yet both only feed the informational
+# GLOBAL_PKG / NPM_PREFIX lines -- they never participate in the BLOCKERS verdict
+# (which is emitted ABOVE, before this block). Default: skip. Set VM_ENVCHECK_NPM=1
+# to restore the original behaviour when diagnosing global npm package issues.
+if ($cliOk -and $env:VM_ENVCHECK_NPM -eq '1') {
   $ls = & npm ls -g --depth=0 --json 2>$null
   if ($ls) {
     try {
@@ -117,6 +122,9 @@ if ($cliOk) {
   } else { Out 'GLOBAL_PKG' 'NPM_LS_EMPTY' }
   $prefix = ("$(& npm config get prefix 2>$null)").Trim()
   Out 'NPM_PREFIX' $prefix
+} elseif ($cliOk) {
+  Out 'GLOBAL_PKG' 'SKIPPED_PERF'
+  Out 'NPM_PREFIX' 'SKIPPED_PERF'
 }
 
 # ---------- 4) login state (aligns with preflight.evaluateAgentLogin) -----
