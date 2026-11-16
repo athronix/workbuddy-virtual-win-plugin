@@ -12,6 +12,7 @@ import sys
 import time
 
 RESULTS = []
+SKIPPED = []   # v1.9.1：深度项跳过清单（必须显式计数，防静默少测被读成全绿）
 
 
 def rec(name, ok, detail=""):
@@ -101,17 +102,24 @@ def main():
         htext = "".join(c.get("text", "") for c in hres.get("content", []) if c.get("type") == "text")
         rec("E3 a2a.health", not hres.get("isError"), htext[:200].replace("\n", " "))
 
-        d = cli.rpc("tools/call", {
-            "name": "a2a.delegate",
-            "arguments": {
-                "goal": "查询当前 Windows 机器的系统信息：主机名、当前登录用户、操作系统版本。只读，不要修改任何设置。",
-                "maxRisk": "L1",
-            },
-        }, timeout=240)
-        dres = d.get("result", {})
-        dtext = "".join(c.get("text", "") for c in dres.get("content", []) if c.get("type") == "text")
-        ok = (not dres.get("isError")) and ('"ok": true' in dtext or '"ok":true' in dtext)
-        rec("E4 a2a.delegate system.info.get", ok, dtext[:260].replace("\n", " "))
+        # v1.9.1 perf（e2e5 审计：E4 实测 ~30s，是全链最慢的委派项）：默认 SKIP。
+        # E4 验证的是「真实 LLM 委派完整回合」，属深度功能面；PROBE_DEEP=1 全跑。
+        # SKIP 显式打印并计入 SUMMARY —— 静默少测被读成全绿是最危险的假绿形态。
+        if os.environ.get("PROBE_DEEP") == "1":
+            d = cli.rpc("tools/call", {
+                "name": "a2a.delegate",
+                "arguments": {
+                    "goal": "查询当前 Windows 机器的系统信息：主机名、当前登录用户、操作系统版本。只读，不要修改任何设置。",
+                    "maxRisk": "L1",
+                },
+            }, timeout=240)
+            dres = d.get("result", {})
+            dtext = "".join(c.get("text", "") for c in dres.get("content", []) if c.get("type") == "text")
+            ok = (not dres.get("isError")) and ('"ok": true' in dtext or '"ok":true' in dtext)
+            rec("E4 a2a.delegate system.info.get", ok, dtext[:260].replace("\n", " "))
+        else:
+            SKIPPED.append("E4 a2a.delegate")
+            print("[SKIP] E4 a2a.delegate system.info.get  :: deep（真实 LLM 委派，实测 ~30s）；PROBE_DEEP=1 启用")
     except Exception as e:
         rec("E1~E4 A2A 冒烟", False, f"ERR {type(e).__name__}: {e}")
     finally:
@@ -119,7 +127,8 @@ def main():
 
     fails = [r for r in RESULTS if not r[1]]
     print()
-    print(f"SUMMARY: {len(RESULTS) - len(fails)}/{len(RESULTS)} PASS, {len(fails)} FAIL")
+    suffix = f", {len(SKIPPED)} SKIP deep" if SKIPPED else ""
+    print(f"SUMMARY: {len(RESULTS) - len(fails)}/{len(RESULTS)} PASS, {len(fails)} FAIL{suffix}")
     print("RESULT:", "FAIL" if fails else "PASS")
     return 1 if fails else 0
 

@@ -35,12 +35,22 @@ except Exception as e:
     sys.exit(2)
 
 results = []
+skipped = []
+# v1.9.1 perf（e2e5 审计：本探针 13 项实测 ~190s，其中 E7/E8/E9 合计 ~135s）：
+# 三项属"深度能力面"（盘扫族/事件日志/文件搜索），默认 SKIP；PROBE_DEEP=1 全跑。
+# 关键：SKIP 必须显式打印并计入 RESULT 行 —— 静默少测被读成全绿是最危险的假绿形态。
+DEEP = os.environ.get("PROBE_DEEP") == "1"
 E7_TIMEOUT = 330  # I-6.13+I-6.14：服务端能力闸 300s（V1.4.13 起盘扫族 120→300s），客户端窗必须 > 之保留余量（冷态实测带：暖 62~85s / 冷触闸 120.08s 时代证据见 run6/run7）
 
 
 def rec(name, ok, detail=""):
     results.append(ok)
     print(("[PASS] " if ok else "[FAIL] ") + name + ("  :: " + detail if detail else ""))
+
+
+def skip(name, why):
+    skipped.append(name)
+    print("[SKIP] " + name + "  :: " + why)
 
 
 def call(tool, arguments, label, timeout=120):
@@ -68,12 +78,18 @@ call("gui.screen.capture", {}, "E3c gui.screen.capture")
 # E5 排障第一步：服务清单
 call("system.service.list", {}, "E5 system.service.list")
 # ---- 2026-10-27 Step 6.3 全矩阵补测新增（保持只读/零副作用口径）----
-# E7 清理建议分析（cleanup.analyze：仅分析不删，L0）
-call("storage.cleanup.analyze", {"topLargeFiles": 5}, "E7 storage.cleanup.analyze", timeout=E7_TIMEOUT)
-# E8 事件日志（排障场景 S5 只读面）
-call("system.eventlog.query", {"logName": "System", "maxEvents": 5, "level": "Error"}, "E8 system.eventlog.query")
-# E9 文件搜索（跨端取文件链 S9 第一环，只读）
-call("storage.search.query", {"path": "C:\\Users\\User\\Desktop", "pattern": "*", "maxResults": 5}, "E9 storage.search.query")
+# E7/E8/E9 为深度能力面（v1.9.1 起默认 SKIP，见文件头 DEEP 说明）。
+if DEEP:
+    # E7 清理建议分析（cleanup.analyze：仅分析不删，L0）
+    call("storage.cleanup.analyze", {"topLargeFiles": 5}, "E7 storage.cleanup.analyze", timeout=E7_TIMEOUT)
+    # E8 事件日志（排障场景 S5 只读面）
+    call("system.eventlog.query", {"logName": "System", "maxEvents": 5, "level": "Error"}, "E8 system.eventlog.query")
+    # E9 文件搜索（跨端取文件链 S9 第一环，只读）
+    call("storage.search.query", {"path": "C:\\Users\\User\\Desktop", "pattern": "*", "maxResults": 5}, "E9 storage.search.query")
+else:
+    skip("E7 storage.cleanup.analyze", "deep（盘扫族，实测 ~100s）；PROBE_DEEP=1 启用")
+    skip("E8 system.eventlog.query", "deep（实测 ~15s）；PROBE_DEEP=1 启用")
+    skip("E9 storage.search.query", "deep（实测 ~20s）；PROBE_DEEP=1 启用")
 # E10 winget 安装 dry-run（装软件场景 S4 语义面：supportsDryRun=true，零安装副作用；
 #     判据=能力层如实回报——ok:true 或带 exitCode 的如实失败均算链路通，winget=MSIX 空壳约束见 MEMORY）
 try:
@@ -125,5 +141,7 @@ else:
         rec("E6 disabledTools 覆盖全部 L2/L3（8 项）", len(missing) == 0 and len(dis) == 8,
             "entry=%s count=%d missing=%s" % (key, len(dis), missing or "none"))
 
-print("\nRESULT: %s (%d/%d)" % ("PASS" if all(results) else "FAIL", sum(results), len(results)))
+print("\nRESULT: %s (%d/%d%s)" % (
+    "PASS" if all(results) else "FAIL", sum(results), len(results),
+    (", %d SKIP deep" % len(skipped)) if skipped else ""))
 sys.exit(0 if all(results) else 1)
