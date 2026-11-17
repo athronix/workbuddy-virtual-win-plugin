@@ -221,8 +221,18 @@ const OVERALL_DOCS = [
 ];
 
 /* ------------------------------ 组装 ------------------------------ */
+/**
+ * 两仓独立打包（2026-11-17 用户裁定）：技能仓与项目仓仅靠
+ * `deploy/skills/winvm-plugin-deploy -> 技能仓` 这条 symlink 关联，**没有别的耦合**。
+ * 只想发项目本体（或没克隆技能仓、symlink 悬空）时置 `PACK_SKIP_SKILL=1`：
+ * 跳过技能入包与独立技能 zip，其余断言与证据链不变。
+ */
+const SKIP_SKILL = /^(1|true|yes)$/i.test(process.env.PACK_SKIP_SKILL || '');
+function isSkillPath(p) { return /(^|[\\/])deploy[\\/]skills([\\/]|$)/.test(String(p)); }
+
 function ensureDir(p) { mkdirSync(p, { recursive: true }); }
 function copyEntry(src, dest) {
+  if (SKIP_SKILL && isSkillPath(src)) { console.log(`  [skip-skill] ${src}`); return; }
   if (!existsSync(src)) fail(`闭包源缺失：${src}`);
   ensureDir(dirname(dest));
   cpSync(src, dest, { recursive: true, filter: (s) => !/(^|[\\/])\.git([\\/]|$)/.test(s) });
@@ -236,7 +246,11 @@ function copyEntry(src, dest) {
  * ⚠ packages 下 dist 构建物是必收件，与本器语义无关（勿混用）。
  */
 function copySkillEntry(srcDir, destDir) {
-  if (!existsSync(join(srcDir, 'SKILL.md'))) fail(`技能源缺 SKILL.md：${srcDir}`);
+  if (SKIP_SKILL) { console.log(`  [skip-skill] ${srcDir}`); return; }
+  if (!existsSync(join(srcDir, 'SKILL.md'))) {
+    fail(`技能源缺 SKILL.md：${srcDir}
+  提示：该路径是指向**独立技能仓**的 symlink；两仓独立打包时置 PACK_SKIP_SKILL=1 跳过技能入包。`);
+  }
   ensureDir(destDir);
   cpSync(join(srcDir, 'SKILL.md'), join(destDir, 'SKILL.md'));
   // 正向枚举（不用 cpSync filter 黑名单：对 symlink 源不可靠，见 hos-pitfalls）。
@@ -523,6 +537,7 @@ export function skillZipSha256EvidenceLine(relPathFromRoot) {
  * 任何缺失/混入 fail-loud（删半成品，不落残缺证据）。
  */
 export function makeDeploySkillZip(destVersionDir, version, commit) {
+  if (SKIP_SKILL) { console.log('  [skip-skill] 独立技能包 zip 跳过（PACK_SKIP_SKILL=1）'); return null; }
   const srcSkillDir = join(ROOT, SKILL_DIR_REL);
   if (!existsSync(join(srcSkillDir, 'SKILL.md'))) fail(`技能源缺失：${SKILL_DIR_REL}/SKILL.md`);
   const plan = buildSkillZipSpawn(destVersionDir);
@@ -571,13 +586,10 @@ export function makeDeploySkillZip(destVersionDir, version, commit) {
   const zip = { path: plan.outPath, zipName: SKILL_ZIP_NAME, sha256: sha256File(plan.outPath), bytes: statSync(plan.outPath).size, entries: entries.filter((e) => !e.endsWith('/')).length };
   // 中间物收尾：staging 目录只服务 zip，不留残（zip 已独立可验；防后续工具把 staging 当包内容）
   try { rmSync(staging, { recursive: true, force: true }); } catch { /* 留手工排查余地，不阻断 */ }
-  // v2.0.0：VM 侧单脚本作为**独立资产**产出（deploy 第 1 步让 VM 直接 iwr 它；
-  // 技能源仓 private ⇒ raw 匿名 404，只能走 release 资产）。
-  const sshdSrc = join(srcSkillDir, 'scripts', 'winvm-sshd-oneclick.ps1');
-  if (!existsSync(sshdSrc)) fail('技能源缺 scripts/winvm-sshd-oneclick.ps1（deploy 第 1 步必需件）');
-  const sshdDst = join(destVersionDir, 'winvm-sshd-oneclick.ps1');
-  writeFileSync(sshdDst, readFileSync(sshdSrc));
-  console.log(`  单脚本资产 ${relative(ROOT, sshdDst)}（VM 端 deploy-1 下载源）`);
+  // 2026-11-17 用户裁定：oneclick **不再**作为母项目 release 资产上架。
+  // 技能仓 GitHub/Gitee 双端 public ⇒ raw 匿名可下，deploy 第 1 步只从技能仓取；
+  // 母项目侧保留它只会造成跨仓耦合 + 「资产滞后于脚本」的实测陷阱。
+  // 脚本仍随技能包 zip 分发（包内 deploy/skills/winvm-plugin-deploy/scripts/）。
   zip.sidecarName = sha256SidecarNameFor(SKILL_ZIP_NAME);
   zip.sidecarPath = join(destVersionDir, zip.sidecarName);
   writeFileSync(zip.sidecarPath, sha256SidecarContent(SKILL_ZIP_NAME, zip.sha256));
@@ -921,8 +933,10 @@ function main() {
     `overall : files=${overallMan.files} bytes=${overallMan.bytes} total-sha256=${overallMan.total}`,
     overallZipEvidenceLine(relative(ROOT, overallZip.path), overallZip),
     overallZipSha256EvidenceLine(relative(ROOT, overallZip.sidecarPath)),
-    skillZipEvidenceLine(relative(ROOT, skillZip.path), skillZip),
-    skillZipSha256EvidenceLine(relative(ROOT, skillZip.sidecarPath)),
+    ...(skillZip
+      ? [skillZipEvidenceLine(relative(ROOT, skillZip.path), skillZip),
+         skillZipSha256EvidenceLine(relative(ROOT, skillZip.sidecarPath))]
+      : ['deploy-skill-zip: SKIPPED (PACK_SKIP_SKILL=1)']),
     '',
     '# 目录树（release/' + version + '）',
     ...treeOf(join(dest)),

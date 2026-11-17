@@ -177,11 +177,6 @@ export function buildAssetList(zipPath, sidecarExists, opts = {}) {
   } else {
     warns.push(`旁挂校验文件 ${zipName}.sha256 缺失——仅上架 zip（兼容旧包；新机侧回退 MANIFEST/pack 证据校验）`);
   }
-  // v2.0.0：VM 侧单脚本 winvm-sshd-oneclick.ps1（deploy 第 1 步的下载源）单独上架
-  if (opts.sshdScriptPath && existsSync(opts.sshdScriptPath)) {
-    const n = opts.sshdScriptPath.split(/[\\/]/).pop();
-    assets.push({ path: opts.sshdScriptPath, name: n, contentType: 'text/plain' });
-  }
   if (opts.skillZipPath && existsSync(opts.skillZipPath)) {
     const sName = opts.skillZipPath.split(/[\\/]/).pop();
     assets.push({ path: opts.skillZipPath, name: sName, contentType: 'application/zip' });
@@ -410,7 +405,6 @@ export async function main(argv = process.argv.slice(2)) {
   const sidecarPath = `${zipPath}.sha256`;
   const sidecarExists = existsSync(sidecarPath);
   const { assets, warn: assetWarn } = buildAssetList(zipPath, sidecarExists, {
-    sshdScriptPath: join(dir, 'winvm-sshd-oneclick.ps1'),
     skillZipPath,
     skillSidecarExists: existsSync(`${skillZipPath}.sha256`),
     warnSkillMissing: !existsSync(skillZipPath),
