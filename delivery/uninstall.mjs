@@ -89,9 +89,13 @@ import { resolveSshBackend, resolveVmKeyPath, syncVmBackend } from './ssh2-backe
 /* ------------------------------ constants ------------------------------ */
 
 const PLUGIN_KEY = 'winvm-bridge@winvm';
-const CONNECTOR_KEYS = ['connector:winvm', 'connector:winvm-a2a'];
+/* 四个连接器 = 主 MCP + A2A 桥 + 两个上游工具面（agent-browser / agent-desktop）。
+ * 键表按包版本固化 ⇒ **旧包卸载新包装的插件**会漏掉后两个（2026-11-17 真机实测：
+ * undeploy 1c 报 mcp.json 仍留 winvm-browser,winvm-desktop）。部署技能层另有
+ * `^winvm$|^winvm-` 命名空间兜底，此处保持与 install-host 的 ourKeys 一一对齐。 */
+const CONNECTOR_KEYS = ['connector:winvm', 'connector:winvm-a2a', 'connector:winvm-browser', 'connector:winvm-desktop'];
 // install-host 全局注册面（~/.workbuddy/mcp.json）用的键名与账户级不同（无 connector: 前缀）。
-const GLOBAL_MCP_KEYS = ['winvm', 'winvm-a2a'];
+const GLOBAL_MCP_KEYS = ['winvm', 'winvm-a2a', 'winvm-browser', 'winvm-desktop'];
 const SERVICE_TASK = 'WinVMBridge.Service';
 const SERVICE_PORT = 18443;
 const VM_BRIDGE_DIR = 'C:/WinVMBridge';
