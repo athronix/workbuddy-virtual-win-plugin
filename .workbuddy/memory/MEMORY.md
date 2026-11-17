@@ -37,16 +37,16 @@
 - 团队派发：fresh Agent + 窄任务书 + 即 commit + 按 HEAD 独立核验；worker 静默 20min 熔断。
 - 发布顺序：pack → push origin → push gitee main+tag → `publish --apply --mirror-gitee`；**tag 打在 pack 提交**，不是 pack 后的 HEAD；旧包 `release/V<ver>.superseded-itN`；每迭代 `--wipe` 重验。
 
-## 当前态（2026-11-17 17:05）
-- **母项目线上 V1.4.30**（tag `V1.4.30`，GitHub/Gitee 各 5 资产）。母项目 release 已恢复 **4 资产**结构（oneclick 不再作独立资产），`PACK_SKIP_SKILL=1` 支持无技能仓独立打包。
-- **技能仓 main = v2.0.3（未打 tag、marketplace 仍 2.0.0）**：结构=5 步部署 + 3 步卸载（`--remove-ssh-tunnel` 默认 no），地基 `_common.sh`，编排层 8 脚本，包 26 文件/124K。
-  - 11-17 双端已推：`2e4e815`（只从技能仓取 + MSI 缓存）、`6d8b81e`（**去 BOM + 去 #requires + 换行归一化** + 门禁 `iex-safe`/M21/M22）、`30faa78`（**版本解析冒号/等号兼容** + 门禁 `pkg-version`/M23 + 三轮账本回填）。
-  - **门禁 `ALL_GREEN checks=23 fails=0` / `ALL_CAUGHT 23/23`**。
-- **11-17 真机三轮**（同一 VM）：deploy **126s / 135s / 274s**，全部 `DEPLOY=PASS`+`VERIFY=PASS`+探针 34/34；undeploy **105s / 79s**；1d 阶段 2 从 **72s→8s**（MSI 缓存命中，下载实测波动 2.9~60.2s）。
-  - **274s 那轮非回归**：4b 61→155s（`[VM]` 95.6 + `[VM-START]` 44.0 + `[QA-PROBE]` 15.3，覆盖式重装），4a 27→65s（六项全 `[SKIP]` 仍 65s 往返）。分解见技能 `references/deploy-timeline.md` §四。
+## 当前态（2026-11-17 20:05）
+- **母项目线上 V1.4.30**；本地已打 **`release/V1.4.31`**（overall 3179K，含两个上游技能面 + `uninstall` 键表修复），**未 push/未打 tag/未上架**。母项目 release 已恢复 4 资产结构，`PACK_SKIP_SKILL=1` 支持无技能仓独立打包。
+- **技能仓 main = v2.1.0（未打 tag、marketplace 仍 2.0.0）**：5 步部署（4 步含 4d、5 步含 5e）+ 3 步卸载（`--keep-upstreams`），包 27 文件/164K。
+  - 11-17 双端已推：`2e4e815`（只从技能仓取 + MSI 缓存）、`6d8b81e`（去 BOM/去 #requires/换行归一）、`30faa78`（版本解析 `[:=]`）、`c52e63a`+`5e819f9`（**上游装/卸/验闭环 + 1c 命名空间兜底**）。
+  - **门禁 `ALL_GREEN checks=24 fails=0` / `ALL_CAUGHT 25/25`**。
+- **上游 MCP 工具面**：`agent-browser`(33) / `agent-desktop`(75，白名单 10) 由 vm-service 反代为 `/mcp/browser`、`/mcp/desktop`，与主连接器共用同一条隧道（只差 `mcpPath`）。宿主 connector skills 8 → **10**（新增 `agent-browser-skill`/`agent-desktop-skill`，各带 `references/` 逐工具 33/75 份；入 `HOST_ONLY_SKILLS`）。
+- **11-17 真机**：deploy **126/135/274/413s**（413s = 先 undeploy 再全新 deploy）全 `PASS`；undeploy **105/79s**；V1.4.31 轮 undeploy 首跑 FAIL 于 1c（旧包卸载新装留 `winvm-browser/desktop`）→ 兜底修复后 `--only 1` PASS 5s。
 - **待办**：
-  1. 🔴 **母项目 backlog：`4b` 缺「内容未变则短路」** —— 每轮无条件 tar+scp 8MB+install+重启，实测 140s。正解=VM 侧 `MANIFEST-deploy-*.txt` 记 `total-sha256` 与本地比（实测该文件目前只有 deployedAt/archive/installLog/probes，**无哈希字段**）。预计省 100~140s/轮。技能层用 host stamp 外挂属近似、风险高，**不做**。
-  2. 技能 v2.0.3 打 tag + marketplace 同步 + 母项目 V1.4.31（刷新 5 资产里的旧 oneclick）。
-  3. 第 1 步「从零通道」失败分支（1b~1d：无管理员权限/无外网/MSI 被拦）仍需一次真拆演练。
-  4. 低优：VM 内 codebuddy 交互登录、假绿残留 CLIXML 噪音、pkg-root bash 冒烟、Task #201 三处挂载 symlink 化收尾。
+  1. 🔴 **母项目 backlog：`4b` 缺「内容未变则短路」** —— 每轮无条件 tar+scp 8MB+install+重启，实测 140~166s。正解=VM 侧 `MANIFEST-deploy-*.txt` 记 `total-sha256` 与本地比（该文件目前**无哈希字段**）。预计省 100~140s/轮。另 `4a` 只读探测可合并往返（实测 20~76s）。
+  2. 🔴 **V1.4.31 + 技能 v2.1.0 发布**：push 双端 → 打 tag → `publish --apply --mirror-gitee` → marketplace 版本比对（当前 2.0.0）。
+  3. 上游 `npm i -g` 首装 47.9s：不需要时用 `SKIP_UPSTREAMS=1`（同时管不装+不验）。
+  4. 第 1 步「从零通道」失败分支仍需一次真拆演练；低优：codebuddy 交互登录、CLIXML 噪音、pkg-root bash 冒烟、Task #201 symlink 化。
 - **合并口径**：`Documents/Projects` 与 `Documents/projects` 同 inode；hos 无 assets/templates；运行期状态目录 `$HOME/.workbuddy/.state/hos-winvm-ssh-tunnel/` 刻意共用。
