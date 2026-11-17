@@ -113,6 +113,7 @@ function parseArgs(argv) {
     skipInstall: false,
     skipLinks: false,
     skipSkills: false,
+    skipUpstreams: false,
     noPreflight: false,
     config: undefined,
     port: 18443,
@@ -149,6 +150,7 @@ function parseArgs(argv) {
       case '--skip-install': out.skipInstall = true; break;
       case '--skip-links': out.skipLinks = true; break;
       case '--skip-skills': out.skipSkills = true; break;
+      case '--skip-upstreams': out.skipUpstreams = true; break;
       case '--no-preflight': out.noPreflight = true; break;
       case '--config': out.config = argv[++i]; break;
       case '--port': out.port = Number(argv[++i]); break;
@@ -374,6 +376,10 @@ function planSteps(args, cfgPath) {
   if (!args.skipBuild) steps.push('npm run build （编译所有 packages → dist/）');
   steps.push(`生成运行配置: ${runtimeConfig}（强制 host=127.0.0.1, port=${args.port}）`);
   steps.push(`部署共享 Skills: 仓库 skills/ → 共享根（${args.skillsRoot || 'C:/WinVMBridge/shared-skills'}），并为各候选 Agent 建 symlink 引用${args.skipSkills ? '  [跳过 --skip-skills]' : ''}`);
+  steps.push(
+    `安装 MCP 上游 CLI: agent-browser + agent-desktop（npm i -g；供 /mcp/browser、/mcp/desktop 工具面。` +
+      `**可选依赖，失败不阻断部署**）${args.skipUpstreams ? '  [跳过 --skip-upstreams]' : ''}`,
+  );
   steps.push(`注册任务计划程序任务: ${args.taskName}（开机自启 + 登录即启 / 崩溃重启 / 仅交互式会话 / 隐藏窗口，避免误关）`);
   steps.push(`自检: node ${cliEntry} --self-test`);
   // 运维端点开关状态随计划显式打印，避免"以为开了其实没开 / 反之"的误判
@@ -811,6 +817,47 @@ async function main() {
     await deploySkillsStep(args, cfg, provider);
   }
   mark('step 4/6 共享 Skills 完成');
+
+  /* 4b. MCP 上游 CLI（agent-browser / agent-desktop）
+   *
+   * 这两个是 vm-service 的**可选**上游：装上了 `/mcp/browser`、`/mcp/desktop` 才有工具面，
+   * 装不上只影响这两个子路由（返回 502），主 54 能力与 A2A 通道**逐字不受影响**。
+   * 因此本步**失败不阻断部署**，只打告警 —— 「可选依赖」不能变成「部署单点」。
+   *
+   * 采用全局安装（用户裁定）：`npm i -g`，`C:\nodejs\<name>.cmd`。
+   * npm 11 的 `allow-scripts` 默认策略会拦掉 postinstall（实测两个包的 CLI 仍正常，
+   * 原生二进制走平台子包），故不加 `--allow-scripts`，保持安装行为可预测。 */
+  console.log('[4b/6] 安装 MCP 上游 CLI（agent-browser / agent-desktop）...');
+  if (args.skipUpstreams) {
+    console.log('      跳过（--skip-upstreams）');
+  } else if (args.dryRun) {
+    console.log('      [dry-run] 将执行 npm install -g agent-browser agent-desktop');
+  } else {
+    const detect = spawnSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-Command',
+        "$o=@(); foreach($c in @('agent-browser','agent-desktop')){ $g=Get-Command $c -ErrorAction SilentlyContinue; if($g){ $o += ($c + '=' + $g.Source) } }; $o -join ';'",
+      ],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    const found = String(detect.stdout ?? '').trim();
+    if (found) console.log(`      已安装：${found}`);
+    for (const pkg of ['agent-browser', 'agent-desktop']) {
+      if (found.includes(`${pkg}=`)) continue;
+      console.log(`      npm install -g ${pkg} ...`);
+      const r = spawnSync('npm', ['install', '-g', pkg, '--no-fund', '--no-audit'], {
+        stdio: 'inherit',
+        shell: true,
+        windowsHide: true,
+      });
+      if (r.status !== 0) {
+        console.log(`      ⚠ ${pkg} 安装失败（status=${r.status ?? '?'}）—— 不阻断部署；对应子路由将返回 502`);
+      }
+    }
+  }
+  mark('step 4b/6 MCP 上游 CLI 完成');
 
   /* 5. 注册任务计划程序 */
   console.log('[5/6] 注册任务计划程序任务 ...');

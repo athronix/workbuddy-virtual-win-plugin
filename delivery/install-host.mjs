@@ -5,7 +5,7 @@
  * 把中性 Skills 与连接器声明渲染并安装到 WorkBuddy：
  *   ~/.workbuddy/plugins/cache/winvm/winvm-bridge/<ver>/   （插件清单 + A2A 桥，含自带 node_modules）
  *   ~/.workbuddy/plugins/marketplaces/winvm/               （市场清单）
- *   ~/.workbuddy/connectors/skills/connector-winvm/<skill>/ （8 个 Skills：1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派）
+ *   ~/.workbuddy/connectors/skills/connector-winvm/<skill>/ （10 个 Skills：1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派 + 2 上游工具面）
  *   ~/.workbuddy/connectors/<account>/mcp.json              （增量合并，不覆盖：
  *                                                              connector:winvm     = MCP 直调通道
  *                                                              connector:winvm-a2a = A2A 委派桥）
@@ -831,7 +831,8 @@ function uninstallRegistry(home, dryRun) {
 function uninstallConnectors(home, dryRun) {
   const root = join(home, '.workbuddy', 'connectors');
   if (!existsSync(root)) { console.log('连接器注册 : 目录不存在（无需改动）'); return; }
-  const ourKeys = ['connector:winvm', 'connector:winvm-a2a'];
+  // 含额外工具面连接器（agent-browser / agent-desktop），否则卸载会留下孤儿条目
+  const ourKeys = ['connector:winvm', 'connector:winvm-a2a', 'connector:winvm-browser', 'connector:winvm-desktop'];
   let any = false;
   for (const acct of readdirSync(root, { withFileTypes: true })
     .filter((d) => d.isDirectory() && !NON_ACCOUNT_DIRS.has(d.name))
@@ -864,7 +865,7 @@ function uninstallGlobalMcp(home, dryRun) {
   try { json = JSON.parse(readFileSync(p, 'utf8')); } catch { console.log('全局 mcp.json : 解析失败，跳过'); return; }
   const servers = json.mcpServers;
   if (!servers || typeof servers !== 'object') return;
-  const ourKeys = ['winvm', 'winvm-a2a'];
+  const ourKeys = ['winvm', 'winvm-a2a', 'winvm-browser', 'winvm-desktop'];
   const had = ourKeys.filter((k) => k in servers);
   if (had.length === 0) { console.log('全局 mcp.json : 无本项目条目（无需改动）'); return; }
   if (dryRun) { console.log(`全局 mcp.json : ${p}  [dry-run 将移除 ${had.join(', ')}]`); return; }
@@ -1196,6 +1197,45 @@ async function main() {
     timeoutMs: args.a2aTimeoutMs,
   };
 
+  /* ---- 额外 MCP 工具面：agent-browser / agent-desktop（纯附加）----
+   *
+   * 与主连接器**共用同一条隧道**（同 host/localPort），仅以 `mcpPath` 区分工具面：
+   *   connector:winvm         → /mcp            54 个结构性能力
+   *   connector:winvm-browser → /mcp/browser    agent-browser（默认全量 33 工具）
+   *   connector:winvm-desktop → /mcp/desktop    agent-desktop（VM 侧白名单 10 工具）
+   *
+   * VM 侧由 vm-service 反向代理到 stdio 上游，上游子进程继承 vm-service 的 Session 1
+   * ⇒ agent-desktop 能读真实桌面（SSH 直启只能拿到空桌面）。
+   * 上游未安装时这两个路由返回 502，**不影响**主连接器与 A2A 通道。 */
+  const upstreamTransport = {
+    kind: 'ssh-tunnel',
+    host: args.host,
+    user: args.user,
+    localPort: args.localPort,
+    remotePort: args.remotePort,
+    identityFile: effectiveVmKey || undefined,
+    serverAliveInterval: 30,
+    serverAliveCountMax: 3,
+  };
+  plugin.extraConnectors = [
+    {
+      id: 'winvm-browser',
+      displayName: 'Windows 虚拟机 · 浏览器自动化（agent-browser）',
+      mcpPath: '/mcp/browser',
+      transports: [upstreamTransport],
+      disabledTools: [],
+      timeoutMs: 180000,
+    },
+    {
+      id: 'winvm-desktop',
+      displayName: 'Windows 虚拟机 · 桌面应用自动化（agent-desktop）',
+      mcpPath: '/mcp/desktop',
+      transports: [upstreamTransport],
+      disabledTools: [],
+      timeoutMs: 120000,
+    },
+  ];
+
   const bridgeReport = validateNeutralPlugin(plugin);
   for (const i of bridgeReport.issues) console.log(`  [${i.level}] ${i.message}`);
   if (!bridgeReport.ok) throw new Error('中性插件模型校验失败（含 A2A 委派桥），已中止');
@@ -1249,6 +1289,13 @@ async function main() {
     const entryDirect = renderConnectorEntry(plugin.connector, plugin.connector.transports[0]);
     const entryA2a = renderConnectorEntry(plugin.a2aBridge, plugin.a2aBridge.transports[0]);
     const ourServers = { 'winvm': entryDirect, 'winvm-a2a': entryA2a };
+    // 额外工具面（agent-browser / agent-desktop）：全局命名不带 `connector:` 前缀，
+    // 直接用 ConnectorDecl.id（`winvm-browser` / `winvm-desktop`）。
+    for (const extra of plugin.extraConnectors ?? []) {
+      const t = extra.transports[0];
+      if (t) ourServers[extra.id] = renderConnectorEntry(extra, t);
+    }
+    const ourNames = Object.keys(ourServers).join(' / ');
     let globalJson = { mcpServers: {} };
     if (existsSync(globalMcpPath)) {
       try { globalJson = JSON.parse(readFileSync(globalMcpPath, 'utf8')); }
@@ -1263,14 +1310,14 @@ async function main() {
         if (prev !== next) { globalJson.mcpServers[k] = v; changed = true; }
       }
       if (args.dryRun) {
-        console.log(`全局 mcp.json : ${changed ? '[dry-run 将增量合并 winvm / winvm-a2a]' : 'winvm / winvm-a2a 已就位（无变化）'} → ${globalMcpPath}`);
+        console.log(`全局 mcp.json : ${changed ? `[dry-run 将增量合并 ${ourNames}]` : `${ourNames} 已就位（无变化）`} → ${globalMcpPath}`);
       } else if (changed || !existsSync(globalMcpPath)) {
         const bak = backupFile(globalMcpPath);
         writeFileSync(globalMcpPath, JSON.stringify(globalJson, null, 2) + '\n', 'utf8');
-        console.log(`全局 mcp.json : 已增量合并 winvm / winvm-a2a → ${globalMcpPath}${bak ? `（备份 ${bak}）` : ''}`);
+        console.log(`全局 mcp.json : 已增量合并 ${ourNames} → ${globalMcpPath}${bak ? `（备份 ${bak}）` : ''}`);
         patchedFiles.push(globalMcpPath);
       } else {
-        console.log(`全局 mcp.json : winvm / winvm-a2a 已就位（无变化）`);
+        console.log(`全局 mcp.json : ${ourNames} 已就位（无变化）`);
       }
     }
   }

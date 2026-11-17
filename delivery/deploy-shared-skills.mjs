@@ -37,7 +37,7 @@ export const DEFAULT_SHARED_SKILLS_ROOT = 'C:/WinVMBridge/shared-skills';
  *  - 链接段：各 Agent 目录中指向共享源的历史 junction/symlink 摘除（remove-link）。
  * 新增宿主侧技能时加入本名单（两侧交付脚本与测试同源引用，勿在别处硬编码名单）。
  */
-export const HOST_ONLY_SKILLS = ['hos-win-skill'];
+export const HOST_ONLY_SKILLS = ['hos-win-skill', 'agent-browser-skill', 'agent-desktop-skill'];
 
 /**
  * 解析各候选 Agent 的原生 skills 目录（支持 %ENV% 展开）。

@@ -30,8 +30,12 @@ export class McpClientError extends Error {
 
 export interface McpToolInfo {
   readonly name: string;
+  /** 人读标题（部分 MCP server 提供，如 agent-browser 的 "MCP tool profiles"） */
+  readonly title?: string;
   readonly description?: string;
   readonly inputSchema?: Record<string, unknown>;
+  /** 输出结构声明（可选；上游提供时透传给宿主，便于宿主侧做结果校验） */
+  readonly outputSchema?: Record<string, unknown>;
   readonly annotations?: Record<string, boolean>;
 }
 

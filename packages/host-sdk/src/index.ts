@@ -101,6 +101,39 @@ export function validateNeutralPlugin(plugin: NeutralPlugin): ValidationReport {
     }
   }
 
+  /* ---- extraConnectors（可选）：额外 MCP 工具面连接器 ---- */
+  const extras = plugin.extraConnectors ?? [];
+  const seenConnectorIds = new Set<string>([c.id, ...(b ? [b.id] : [])]);
+  for (const [i, ex] of extras.entries()) {
+    const base = `extraConnectors[${i}]`;
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(ex.id)) {
+      push('error', `${base}.id 非法（需小写字母数字与连字符）：${ex.id}`, `${base}.id`);
+    }
+    if (seenConnectorIds.has(ex.id)) {
+      push('error', `${base}.id 与已有连接器重复：${ex.id}`, `${base}.id`);
+    }
+    seenConnectorIds.add(ex.id);
+    if (ex.transports.length === 0) push('error', `${base}.transports 为空`, `${base}.transports`);
+    // 额外工具面必定在 VM 侧，本地 stdio 无意义（且会让宿主误以为需要本地运行时）
+    if (ex.transports.some((t) => t.kind === 'stdio')) {
+      push('error', `${base} 不支持 stdio 传输（额外工具面在 VM 侧）`, `${base}.transports`);
+    }
+    if (ex.mcpPath !== undefined && !ex.mcpPath.startsWith('/')) {
+      push('error', `${base}.mcpPath 必须以 / 开头：${ex.mcpPath}`, `${base}.mcpPath`);
+    }
+    for (const [j, t] of ex.transports.entries()) {
+      const p = `${base}.transports[${j}]`;
+      if (t.kind === 'ssh-tunnel') {
+        if (!t.host) push('error', 'ssh-tunnel 缺少 host', p);
+        if (!t.user) push('error', 'ssh-tunnel 缺少 user', p);
+        if (t.localPort < 1 || t.localPort > 65535) push('error', `localPort 非法：${t.localPort}`, p);
+        if (t.remotePort < 1 || t.remotePort > 65535) push('error', `remotePort 非法：${t.remotePort}`, p);
+      } else if (t.kind === 'streamable-http') {
+        if (!/^https?:\/\//.test(t.url)) push('error', `url 非法：${t.url}`, p);
+      }
+    }
+  }
+
   // 凭据红线：任何传输都不得内联明文凭据
   const serialized = JSON.stringify(plugin);
   for (const marker of ['"password"', '"token":', '"secret"', '"apiKey"']) {

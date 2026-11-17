@@ -47,6 +47,15 @@ export interface ConnectorDecl {
   readonly timeoutMs: number;
   /** 环境变量声明（占位符，禁止明文） */
   readonly env?: Readonly<Record<string, string>>;
+  /**
+   * MCP 端点路径（**纯附加可选**，默认 `/mcp`）。
+   *
+   * 为什么需要：一条 SSH 隧道（同一 localPort）可以承载**多个** MCP 工具面，
+   * 只要服务端按路径分流（如 `/mcp`、`/mcp/browser`、`/mcp/desktop`）。
+   * 宿主的 `streamableHttp` 条目本来就是「基址 + 路径」，把路径做成声明式字段
+   * 即可让多个 connector 复用同一条隧道，避免为每个工具面各开一条 SSH 连接。
+   */
+  readonly mcpPath?: string;
 }
 
 export interface LifecycleHooks {
@@ -69,6 +78,17 @@ export interface NeutralPlugin {
    * A2A client 调 VM 侧 /a2a，并把 A2A 的进度 / 产物 / 审批事件翻译回 MCP 结果。
    */
   readonly a2aBridge?: ConnectorDecl;
+  /**
+   * 额外连接器（**纯附加可选**）：把 VM 内的第三方 MCP 工具面独立暴露给宿主。
+   *
+   * 首个用途（2026-11-17）：`/mcp/browser`（agent-browser，33 工具）与
+   * `/mcp/desktop`（agent-desktop，75 工具）。独立成 connector 而不并入主 `connector`
+   * 的理由是**工具面隔离**：宿主一次加载 162 个工具会显著挤占上下文，且桌面自动化的
+   * 权限等级远高于结构性能力，需要单独的 `disabledTools` 与超时策略。
+   *
+   * 与 `connector` / `a2aBridge` 同一套声明与渲染规则（含 `mcpPath`），可复用同一条隧道。
+   */
+  readonly extraConnectors?: readonly ConnectorDecl[];
   readonly lifecycle?: LifecycleHooks;
 }
 

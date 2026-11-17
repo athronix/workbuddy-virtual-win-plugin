@@ -119,6 +119,10 @@ import {
 // `mcp-transport.ts` 是 T4 新建的零反向依赖传输层模块；本文件是 Phase 2 的 server.ts 唯一
 // 授权写者窗口，接线两行（signal 取用 + reqCtx 装配）与 4 处同源守卫**必须同批**（否则红）。
 import { watchClientDisconnect, buildMcpRequestContext } from './mcp-transport.js';
+// MCP 上游代理（2026-11-17）：把 VM 内第三方 stdio MCP server（agent-browser / agent-desktop）
+// 挂到本服务的 HTTP 工具面上（`POST /mcp/browser`、`POST /mcp/desktop`），宿主侧只多两个
+// connector 条目即可。上游由本进程 spawn ⇒ **继承 Session 1** ⇒ agent-desktop 能读真实桌面。
+import { UpstreamRegistry, defaultUpstreamSpecs, type UpstreamStatus } from './mcp-upstream.js';
 import {
   LedgerRegistry,
   ReceiptCache,
@@ -2053,6 +2057,75 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     scopeRegistry.sweepExpired();
   });
 
+  /* ---- MCP 上游代理（纯附加）：`/mcp/browser`、`/mcp/desktop` ----
+   *
+   * 只在**首次被请求**时拉起子进程（懒启动），因此上游 CLI 未安装也**不影响服务启动**；
+   * 未装时该路由返回 502 并带可辨识错误，其余 54 能力逐字不受影响。
+   * `WINVM_UPSTREAM_OFF=browser,desktop` 可整体关掉（运维回滚位）。
+   */
+  const upstreamOff = new Set(
+    (process.env['WINVM_UPSTREAM_OFF'] ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  const upstreamRegistry = new UpstreamRegistry(
+    defaultUpstreamSpecs().filter((s) => !upstreamOff.has(s.id)),
+    (m) => logger.info(m),
+  );
+  /**
+   * 上游工具面 → `McpServer` 的**惰性构造缓存**。
+   *
+   * 为什么不预构造：工具表要 `tools/list` 之后才知道；启动期拉两个上游会把服务启动拖慢
+   * 且放大「上游缺失 ⇒ 服务起不来」的耦合。缓存键带上游 `restarts` —— 上游崩溃重建后
+   * 工具表可能变化，必须换一个新的 McpServer 实例，否则旧工具名会被固化。
+   */
+  const upstreamMcpCache = new Map<string, { key: string; server: McpServer }>();
+
+  async function upstreamMcp(id: string): Promise<McpServer> {
+    const up = upstreamRegistry.get(id);
+    if (!up) throw new Error(`未注册的 MCP 上游：${id}`);
+    const tools = await up.ensureReady();
+    const st = up.status();
+    const key = `${st.restarts ?? 0}:${tools.length}`;
+    const cached = upstreamMcpCache.get(id);
+    if (cached && cached.key === key) return cached.server;
+
+    const server = new McpServer({
+      name: `winvm-${id}`,
+      version: '0.1.0',
+      tools: tools.map((t) => ({
+        name: t.name,
+        ...(t.title ? { title: t.title } : {}),
+        description: t.description ?? `${up.spec.label} · ${t.name}`,
+        inputSchema: t.inputSchema ?? { type: 'object', properties: {} },
+        ...(t.outputSchema ? { outputSchema: t.outputSchema } : {}),
+        ...(t.annotations ? { annotations: t.annotations } : {}),
+        // 参数与结果**原样透传**：上游已经把自己的 JSON 信封放在 content[].text 里（POC 实测
+        // desktop_snapshot 返回完整无障碍树）。此处若二次包装会破坏宿主侧既有解析习惯。
+        handler: async (params: Record<string, unknown>) => {
+          const r = await up.callTool(t.name, params);
+          return {
+            content: r.content.map((c) =>
+              c.type === 'image' && c.data
+                ? { type: 'image' as const, data: c.data, mimeType: c.mimeType ?? 'image/png' }
+                : { type: 'text' as const, text: c.text ?? JSON.stringify(c) },
+            ),
+            ...(r.structuredContent !== undefined ? { structuredContent: r.structuredContent } : {}),
+            ...(r.isError ? { isError: true } : {}),
+          };
+        },
+      })),
+      logger,
+      instructions:
+        id === 'browser'
+          ? 'agent-browser：浏览器自动化（打开页面、无障碍快照、点击/填表/截图）。工具名形如 agent_browser_open。'
+          : 'agent-desktop：桌面应用自动化（无障碍树快照 + ref 定位点击/输入）。ref 属于产生它的快照，UI 变化后须重新 snapshot。',
+    });
+    upstreamMcpCache.set(id, { key, server });
+    return server;
+  }
+
   /* ================================ HTTP ================================ */
 
   const server = createServer((req, res) => {
@@ -2163,6 +2236,44 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
             receiptLookup: (ids: readonly string[]) => receiptCache.getAll(ids),
           }));
           return;
+        }
+
+        // ---- MCP 上游代理（纯附加）：POST /mcp/browser、POST /mcp/desktop ----
+        // 与 `/mcp` 同构：同一套断连侦测、同一套 JSON-RPC 语义，只是工具面来自 stdio 上游。
+        // 守卫已在上方统一执行（本路径不在豁免表内 ⇒ 默认 fail-closed 受保护）。
+        const upstreamId = path.startsWith('/mcp/') ? path.slice('/mcp/'.length) : '';
+        if (upstreamId && req.method === 'POST') {
+          if (!upstreamRegistry.get(upstreamId)) {
+            sendJson(res, 404, { error: `unknown mcp upstream: ${upstreamId}` });
+            return;
+          }
+          const upstreamDisconnect = watchClientDisconnect(res);
+          try {
+            const body = await readBody(req);
+            const parsed = body ? JSON.parse(body) : null;
+            const upstreamServer = await upstreamMcp(upstreamId);
+            const result = await upstreamServer.handleRequest(
+              parsed,
+              buildMcpRequestContext(undefined, upstreamDisconnect.signal),
+            );
+            if (result === null) {
+              res.writeHead(202).end();
+              return;
+            }
+            sendJson(res, 200, result);
+            return;
+          } catch (e) {
+            const msg = (e as Error)?.message ?? String(e);
+            logger.warn(`MCP 上游 ${upstreamId} 请求失败：${msg}`);
+            sendJson(res, 502, {
+              jsonrpc: '2.0',
+              id: null,
+              error: { code: -32000, message: `upstream ${upstreamId} unavailable: ${msg}` },
+            });
+            return;
+          } finally {
+            upstreamDisconnect.dispose();
+          }
         }
 
         if (path === '/a2a' && req.method === 'POST') {
@@ -2334,6 +2445,8 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       capabilitiesProfile?: CapabilitiesProfile;
       /** 批1（纯附加）：双闸灰度/(c) 策略化/scope 表运行态显形 */
       policyGate?: PolicyGateHealthView;
+      /** MCP 上游代理（agent-browser / agent-desktop）运行态，纯附加 */
+      upstreams?: readonly UpstreamStatus[];
     }
   > {
     const probeTimeoutMs = resolveHealthProbeTimeoutMs();
@@ -2445,6 +2558,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
         : {}),
       session,
       psBridge,
+      // MCP 上游代理（纯附加）：`/mcp/browser`、`/mcp/desktop` 的运行态。
+      // 未首启的上游报 `state:'idle'`（懒启动语义，不是故障）。
+      upstreams: upstreamRegistry.statuses(),
       capabilities: { count: registry.size(), available: exposedIds.size },
       // D30：透出断裂定位与原因（向后兼容：entries / chainValid 字段保留）
       // ARCH-06（判据③）：追加**校验范围**四字段。`freshChainOnStart:true` ⇒ `scope:'session'`，
@@ -2624,6 +2740,9 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       pendingApprovals.close();
       if (provider) await provider.shutdown().catch(() => undefined);
       await runtime.bridge.stop().catch(() => undefined);
+      // MCP 上游子进程（agent-browser / agent-desktop）：随服务退出关闭，避免孤儿。
+      // agent-browser 自带 daemon，其自身 idle 也会退出；此处主动 close 是主路径。
+      await upstreamRegistry.disposeAll().catch(() => undefined);
       await new Promise<void>((resolve) => server.close(() => resolve()));
       logger.info('WinVM Bridge 服务已停止');
       // CL-018 C3：刷盘并停止轮转定时器（避免缓冲日志丢失 / 阻碍进程退出）

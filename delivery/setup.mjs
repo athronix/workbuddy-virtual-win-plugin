@@ -747,6 +747,10 @@ export function buildVmInstallPs1(cfg, dateStr) {
     cfg.policyGateWiring === 'on' || cfg.policyGateWiring === 'off'
       ? `--policy-gate-wiring ${cfg.policyGateWiring} `
       : '';
+  /* 上游 MCP CLI（agent-browser / agent-desktop）：默认随 VM 端安装一起装（install-vm 的 [4b/6]）。
+   * WINVM_SKIP_UPSTREAMS=1 时透传 --skip-upstreams，与部署技能的 SKIP_UPSTREAMS 判据同源
+   * ——一条 env 同时管「不装」与「不验」，避免装了就一定要验、或验了却没装的错配。 */
+  const upstreamArg = process.env.WINVM_SKIP_UPSTREAMS === '1' ? '--skip-upstreams ' : '';
   const lines = [
     "$ErrorActionPreference = 'Stop'",
     `Set-Location -LiteralPath '${cfg.vmDeployDir}'`,
@@ -758,7 +762,7 @@ export function buildVmInstallPs1(cfg, dateStr) {
     `Remove-Item -LiteralPath '${VM_ARCHIVE}' -Force -ErrorAction SilentlyContinue`,
     "$ErrorActionPreference = 'Continue'",
     `node delivery/install-vm.mjs --skip-install --skip-build ` +
-      `${wiringArg}` +
+      `${wiringArg}${upstreamArg}` +
       `--provider ${cfg.vmProvider} --cli ${resolveVmCli(cfg)} 2>&1 | Tee-Object -FilePath $log`,
     'if ($LASTEXITCODE -eq 0) { Write-Output "VM_INSTALL_DONE"; exit 0 }',
     'Write-Output ("VM_INSTALL_FAILED exit=" + $LASTEXITCODE)',

@@ -134,13 +134,16 @@ export function renderConnectorEntry(
       return {
         ...base,
         type: 'streamableHttp',
-        url: `http://127.0.0.1:${transport.localPort}/mcp`,
+        // `mcpPath` 让多个 connector 复用**同一条**隧道的不同工具面（默认 `/mcp`）。
+        // 例：主能力面 `/mcp`、agent-browser `/mcp/browser`、agent-desktop `/mcp/desktop`
+        // 全部落在同一个 localPort 上，无需为每个工具面各开一条 SSH 连接。
+        url: `http://127.0.0.1:${transport.localPort}${connector.mcpPath ?? '/mcp'}`,
       };
     case 'streamable-http':
       return {
         ...base,
         type: 'streamableHttp',
-        url: `${transport.url.replace(/\/+$/, '')}/mcp`,
+        url: `${transport.url.replace(/\/+$/, '')}${connector.mcpPath ?? '/mcp'}`,
         headers: { Authorization: `Bearer \${${transport.tokenEnv}}` },
       };
     case 'stdio':
@@ -313,6 +316,26 @@ export class WorkBuddyRenderer implements HostRenderer {
       warnings.push(
         `已注册 A2A 委派桥连接器 connector:${bridge.id}：复杂 / 开放性任务用 a2a.delegate 交给 VM 内 AI Agent；` +
           `单步、结构化任务仍走 connector:${plugin.connector.id} 的 MCP 能力工具（点分能力 ID）。`,
+      );
+    }
+
+    /* ---- 4c. 额外 MCP 工具面连接器（可选，纯附加） ----
+     * 典型：`/mcp/browser`（agent-browser）、`/mcp/desktop`（agent-desktop）。
+     * 它们复用**主连接器的同一条隧道**，只靠 `mcpPath` 区分工具面 —— 因此这里不做
+     * 任何隧道相关动作，只往 mcp.json 里追加条目。 */
+    for (const extra of plugin.extraConnectors ?? []) {
+      const extraTransport = extra.transports[0];
+      if (!extraTransport) {
+        throw new Error(`extraConnectors(${extra.id}).transports 为空，无法生成连接器配置`);
+      }
+      jsonPatches.push({
+        path: paths.connectorMcpJson,
+        pointer: `/mcpServers/connector:${extra.id}`,
+        value: renderConnectorEntry(extra, extraTransport),
+      });
+      warnings.push(
+        `已注册额外工具面连接器 connector:${extra.id}（${extra.mcpPath ?? '/mcp'}，` +
+          `${extra.disabledTools.length} 个工具被静态禁用）：${extra.displayName}。`,
       );
     }
 
@@ -502,8 +525,13 @@ export class WorkBuddyRenderer implements HostRenderer {
         if (json['mcpServers'] && typeof json['mcpServers'] === 'object') {
           const servers = json['mcpServers'] as Record<string, unknown>;
           // 仅当命中本插件 key 才写回，避免对无关键的用户 mcp.json 产生多余写盘（写放大）
-          const keys = [`connector:${pluginId}`, `connector:${pluginId}-a2a`];
-          if (keys.some((k) => k in servers)) {
+          // 匹配口径（2026-11-17 扩展）：`connector:<id>` 或 `connector:<id>-*` ——
+          // 后者覆盖 a2a 桥（`-a2a`）与额外工具面（`-browser` / `-desktop`）。
+          // 用 `-` 分隔而非纯前缀，避免误删名为 `connector:winvmXXX` 的第三方连接器。
+          const own = (k: string): boolean =>
+            k === `connector:${pluginId}` || k.startsWith(`connector:${pluginId}-`);
+          const keys = Object.keys(servers).filter(own);
+          if (keys.length > 0) {
             for (const k of keys) delete servers[k];
             await writeFile(mcpPath, JSON.stringify(json, null, 2) + '\n', 'utf8');
           }

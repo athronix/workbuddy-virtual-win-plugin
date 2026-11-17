@@ -1,0 +1,31 @@
+# `desktop_scroll`
+
+> 归属 **agent-desktop** · 宿主 connector `connector:winvm-desktop` → `POST /mcp/desktop`
+> 默认暴露：⛔ 否（在白名单外，需解禁后才能调，见 SKILL.md §5）
+
+## 用途
+
+按方向与步长滚动元素或页面。
+
+## 参数
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `amount` | integer |  | `3` | Number of scroll units |
+| `direction` | string |  | `"down"` | Direction: up, down, left, right |
+| `ref_id` | string | ★ |  | Qualified ref from snapshot (@<snapshot_id>:eN) |
+| `timeout_ms` | integer |  | `5000` | Maximum ref-resolution and transient-actionability wait in milliseconds; terminal failures return immediately |
+
+## 调用示例
+
+```json
+{
+  "ref_id": "e3",
+  "direction": "down",
+  "amount": 3
+}
+```
+
+## 上游原始描述
+
+agent-desktop scroll: Scroll element (--direction up/down/left/right, --amount N)
