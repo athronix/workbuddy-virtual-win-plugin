@@ -59,3 +59,6 @@ v3-kn2.meta.json
 v3-kn2.req.json
 v3-kn2.resp.json
 deploy/skills/
+
+# 记忆精简时的旧版全文备份（运行态，可再生；挂在 untracked 会挡 pack-release 的干净树判据）
+.workbuddy/memory/MEMORY-full-*.md
