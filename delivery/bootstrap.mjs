@@ -615,41 +615,145 @@ async function cmdEnv(argv) {
 }
 
 /**
+ * 端口字段归一（v1.4.32 修）：`resolveConfig` 出来的 cfg 里 SSH 端口叫 **`vmSshPort`**，
+ * 而本模块的探测构造器收的是 `sshPort`。二者错位会让 `'WinVM-SSH-' + undefined` 变成
+ * **`WinVM-SSH-undefined`**——一条永远不存在的规则名 ⇒ 防火墙判据**恒定假红**
+ * （真机实测：直调脚本传对键得 true，prepare-vm 传 cfg 得 MISSING）。
+ * 这里同时接受两种形状；两个端口都非法时**直接抛**，宁可早崩也不许静默假红。
+ * @param {{sshPort?:number,vmSshPort?:number,servicePort?:number}} cfg
+ * @returns {{sshPort:number,servicePort:number}}
+ */
+function normalizePorts(cfg = {}) {
+  const rawSsh = cfg.sshPort ?? cfg.vmSshPort;
+  const rawSvc = cfg.servicePort;
+  const ok = (v) => Number.isInteger(Number(v)) && Number(v) > 0 && Number(v) <= 65535;
+  if (!ok(rawSsh)) throw new Error('探测脚本构造：sshPort 缺失/非法（收到 ' + String(rawSsh) + '）');
+  if (!ok(rawSvc)) throw new Error('探测脚本构造：servicePort 缺失/非法（收到 ' + String(rawSvc) + '）');
+  return { sshPort: Number(rawSsh), servicePort: Number(rawSvc) };
+}
+
+/**
+ * 防火墙规则的**注册表直读**片段（v1.4.32 性能改造，真机实测 243ms vs 10.6s）。
+ *
+ * 为什么不用 `Get-NetFirewallRule`：它是 CIM 查询，**单发 3~3.6s**，两条就是 6.8s，
+ * 再叠加 `Import-Module NetSecurity` 的 5.8s ⇒ 光「只看防火墙在不在」就吃掉 12.5s。
+ * 而规则本体就躺在 `HKLM\...\FirewallPolicy\FirewallRules` 下，每条 value 的 pipe 串形如
+ *   `v2.33|Action=Allow|Active=TRUE|Dir=In|Protocol=6|LPort=22|Name=WinVM-SSH-22|`
+ * 其中 **`Name=` 是 DisplayName**（不是注册表 value 名，value 名是 GUID）。整键读只要 243ms，
+ * 顺带还拿到 Active/Dir/Action/Port —— 判据比「存在」更强（禁用的规则不再被误判 OK）。
+ *
+ * 兜底：注册表读不出来（键缺失/权限）→ 回落 `Get-NetFirewallRule -DisplayName`（慢但正确）。
+ * 返回 PS 语句数组，调用方自己决定塞进哪个脚本；约定产出 `$fwm`（DisplayName → 是否生效）。
+ * @param {number} sshPort
+ * @param {number} servicePort
+ * @returns {string[]}
+ */
+function fwProbePsLines(sshPort, servicePort) {
+  const q = (v) => "'" + String(v).replace(/'/g, "''") + "'";
+  const nameSsh = q('WinVM-SSH-' + sshPort);
+  const nameSvc = q('WinVM-Service-' + servicePort);
+  return [
+    // FirewallRules 键下 value 名=规则 GUID，value 数据=pipe 串（含 Name=DisplayName）
+    "$fwr=Get-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\\FirewallRules' -ErrorAction SilentlyContinue",
+    '$fwm=@{}',
+    'if($null -ne $fwr){',
+    'foreach($pp in $fwr.PSObject.Properties){',
+    "if($pp.Name -like 'PS*'){continue}",
+    '$v=[string]$pp.Value',
+    "if($v -notlike '*Name=WinVM-*'){continue}",
+    '$f=@{}',
+    "foreach($seg in $v.Split('|')){$kv=$seg.Split('=',2); if($kv.Count -eq 2){$f[$kv[0]]=$kv[1]}}",
+    "if(-not $f.ContainsKey('Name')){continue}",
+    // 生效判据：Active 非 FALSE（缺省视为 TRUE）且方向入站且动作放行
+    "$act=($f['Active'] -ne 'FALSE')",
+    "$din=($f['Dir'] -eq 'In')",
+    "$acl=($f['Action'] -eq 'Allow')",
+    '$fwm[[string]$f["Name"]]=($act -and $din -and $acl)',
+    '}',
+    '}',
+    // 判据来源标记：reg=注册表直读；cim=回落 CIM
+    "$o.fwSrc='reg'",
+    'if($null -eq $fwr){',
+    "$o.fwSrc='cim'",
+    ('$fwm[' + nameSsh + ']=[bool](Get-NetFirewallRule -DisplayName ' + nameSsh + ' -ErrorAction SilentlyContinue)'),
+    ('$fwm[' + nameSvc + ']=[bool](Get-NetFirewallRule -DisplayName ' + nameSvc + ' -ErrorAction SilentlyContinue)'),
+    '}',
+    ('$o.fwSsh=[bool]$fwm[' + nameSsh + ']'),
+    ('$o.fwSvc=[bool]$fwm[' + nameSvc + ']'),
+    // 存在但未生效（禁用/出站/阻断）= 需要动作，日志要能区分「缺失」与「废的」
+    ('$o.fwSshPresent=[bool]$fwm.ContainsKey(' + nameSsh + ')'),
+    ('$o.fwSvcPresent=[bool]$fwm.ContainsKey(' + nameSvc + ')'),
+  ];
+}
+
+/**
  * prepare-vm 的**单往返**只读探测脚本（v1.4.32）。
  *
  * 原实现是 7 条独立 ssh：`net session` / `sc query sshd` / `sc qc sshd` /
  * `netsh ... ×2` / `node -v` / `<cli> --version` / 1 条 EncodedCommand。
  * 每条都要**新建一次连接 + 一次 PowerShell 冷启**（本 VM 上 Defender 逐进程扫描使
- * 冷启 5~8s）⇒ 实测该段 40s+，与「只读探测」的语义完全不匹配。
+ * 冷启 6.6~7.7s）⇒ 实测该段 76s，与「只读探测」的语义完全不匹配。
  *
  * 这里一次采集全部事实、输出单行 JSON；调用方解析失败时自动退回逐条实现
  * （降级安全：老 PS / 策略限制 / JSON 被日志污染都不会让部署变红）。
  *
- * @param {{servicePort:number,sshPort:number,workbuddyCli:string}} cfg
+ * 真机分步耗时（合计 27.5s wall，v1.4.31 口径）与本次改造：
+ *   PS 冷启 7.7s（不可省，唯一一次进程启动）
+ *   Import-Module NetSecurity 5.8s → **删掉**（注册表直读不需要 NetSecurity）
+ *   Get-NetFirewallRule ×2     6.8s → **243ms**（注册表直读）
+ *   Get-CimInstance Win32_Service 2.2s → **93ms**（改用 Get-Service 的 StartType）
+ *   & node -v 0.42s / Get-Command 0.11s / Test-Path 0.08s（保留）
+ *
+ * @param {{servicePort:number,sshPort?:number,vmSshPort?:number,workbuddyCli:string}} cfg
  * @returns {string} 单行 PowerShell 脚本
  */
-export function buildPrepareProbePs({ servicePort, sshPort, workbuddyCli }) {
+export function buildPrepareProbePs(cfg) {
+  const { sshPort, servicePort } = normalizePorts(cfg);
+  const workbuddyCli = cfg.workbuddyCli;
   const q = (v) => "'" + String(v).replace(/'/g, "''") + "'";
-  const fwSsh = q('WinVM-SSH-' + sshPort);
-  const fwSvc = q('WinVM-Service-' + servicePort);
   return [
     "$ErrorActionPreference='SilentlyContinue'",
     '$o=[ordered]@{}',
     // admin：与 net session 同义，但不需要起 cmd.exe 子进程
     '$pr=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())',
     '$o.admin=$pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)',
-    // sshd 服务（installed/state/startMode 三项一次拿全）
-    '$s=Get-Service -Name sshd',
+    // sshd 服务：Get-Service 已带 StartType（PS 5.1+），不必再走 CIM（省 2.1s）
+    '$s=Get-Service -Name sshd -ErrorAction SilentlyContinue',
     '$o.sshdInstalled=($null -ne $s)',
     '$o.sshdState=[string]$s.Status',
-    '$o.sshdStart=[string](Get-CimInstance Win32_Service -Filter "Name=\'sshd\'").StartMode',
-    // 防火墙两条规则
-    ('$o.fwSsh=[bool](Get-NetFirewallRule -DisplayName ' + fwSsh + ' -ErrorAction SilentlyContinue)'),
-    ('$o.fwSvc=[bool](Get-NetFirewallRule -DisplayName ' + fwSvc + ' -ErrorAction SilentlyContinue)'),
+    '$o.sshdStart=[string]$s.StartType',
+    // 防火墙两条规则（注册表直读，见 fwProbePsLines 注释）
+    ...fwProbePsLines(sshPort, servicePort),
     // node 与 workbuddy CLI（Get-Command 比执行 --version 快且无副作用）
     '$o.nodeVer=[string](& node -v 2>$null)',
     ('$o.cli=[bool](Get-Command ' + q(workbuddyCli) + ' -ErrorAction SilentlyContinue)'),
     // codebuddy 登录态标记
+    "$d=Join-Path $env:USERPROFILE '.codebuddy'",
+    "$o.cfg=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json')))",
+    '$o|ConvertTo-Json -Compress',
+  ].join('; ');
+}
+
+/**
+ * prepare-vm **降级路径**用的第二发 PS（v1.4.32）：防火墙两条规则 + codebuddy 登录态标记。
+ *
+ * 为什么必须换掉 `netsh advfirewall firewall show rule name=...`：
+ * 该规则的 **Name 是 GUID**（`{e76c0ed1-…}`），`WinVM-SSH-22` 只是 **DisplayName**；
+ * `netsh ... name=` 匹配的是 Name ⇒ 恒 "No rules match" ⇒ 判据**恒定假红**（真机取证：
+ * `[{D:"WinVM-SSH-22", N:"{e76c0ed1-…}"}, …]`）。假红的代价是每轮都多跑一遍幂等 DO 动作。
+ * `Get-NetFirewallRule -DisplayName` 才对；顺带把原本单独一发 EncodedCommand 的登录态
+ * 标记也并进来（降级路径 7 发 → 6 发）。
+ *
+ * @param {{servicePort:number,sshPort?:number,vmSshPort?:number}} cfg
+ * @returns {string} 单行 PowerShell 脚本
+ */
+export function buildFallbackFactsPs(cfg) {
+  const { sshPort, servicePort } = normalizePorts(cfg);
+  return [
+    "$ErrorActionPreference='SilentlyContinue'",
+    '$o=[ordered]@{}',
+    // 与合并探测**同一套判据**（注册表直读 + CIM 兜底），避免两条路径口径漂移。
+    ...fwProbePsLines(sshPort, servicePort),
     "$d=Join-Path $env:USERPROFILE '.codebuddy'",
     "$o.cfg=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json')))",
     '$o|ConvertTo-Json -Compress',
@@ -712,6 +816,7 @@ async function cmdPrepareVm(argv) {
   const _probeTimeout = new Promise((res) => {
     _probeTimer = setTimeout(() => res({ ok: false, code: 124, out: '', err: 'combined-probe-timeout' }), 75_000);
   });
+  const _tProbe0 = Date.now();
   const rProbe = await Promise.race([
     runSshPs(sshBase, buildPrepareProbePs(cfg), { timeoutMs: 90_000, backend: cfg.vmSshBackend }),
     _probeTimeout,
@@ -723,21 +828,24 @@ async function cmdPrepareVm(argv) {
     try { J = JSON.parse(line); } catch { J = null; }
   }
   const usedCombined = !!(J && typeof J === 'object' && 'admin' in J);
-  let rAdmin, rSshdQ, rSshdC, rFwSsh, rFwSvc, rNode, rCli, rMarker;
+  let rAdmin, rSshdQ, rSshdC, rNode, rCli, rFacts, J2 = null;
   if (!usedCombined) {
-    log('   [probe] 合并探测不可用 → 退回逐条（7 次往返，较慢）');
+    log('   [probe] 合并探测不可用 → 退回逐条（6 次往返，较慢）');
     rAdmin = await probe('net session', 15_000); // 非管理员必 access denied(错误5)
     rSshdQ = await probe('sc query sshd');
     rSshdC = await probe('sc qc sshd');
-    rFwSsh = await probe(`netsh advfirewall firewall show rule name=WinVM-SSH-${cfg.vmSshPort}`);
-    rFwSvc = await probe(`netsh advfirewall firewall show rule name=WinVM-Service-${cfg.servicePort}`);
     // DB-5 轻探测**不可行**（实测）：powercfg 的 /query 斜杠参数被远端 Git-Bash/MSYS 路径转换吞改
     //（"invalid parameter" 乱码），而项目铁律禁 ssh 内联 PowerShell。⇒ 现状判定让位给
     // apply .ps1 通道（powershell -File 无 MSYS 干扰；powercfg /change 本身幂等无害）。
     rNode = await probe('node -v');
     rCli = await probe(cfg.workbuddyCli + ' --version');
-    // R8 fix: bash `test -f` → 跨壳 PS（EncodedCommand），判据仍用退出码（ok=exit 0）。
-    rMarker = await runSshPs(sshBase, "$d=Join-Path $env:USERPROFILE '.codebuddy'; $ok=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json'))); Write-Output $ok; if(-not $ok){exit 1}", { timeoutMs: 15_000, backend: cfg.vmSshBackend });
+    // 防火墙两条 + 登录态标记**一发拿全**（v1.4.32：原两条 netsh `name=` 匹配的是规则 Name
+    //（GUID）而非 DisplayName ⇒ 恒假红，已改 Get-NetFirewallRule -DisplayName）。
+    rFacts = await runSshPs(sshBase, buildFallbackFactsPs(cfg), { timeoutMs: 30_000, backend: cfg.vmSshBackend });
+    if (rFacts.ok) {
+      const line = String(rFacts.out).split(/\r?\n/).map((x) => x.trim()).filter(Boolean).pop() || '';
+      try { J2 = JSON.parse(line); } catch { J2 = null; }
+    }
   }
 
   const sshdInstalled = usedCombined
@@ -747,30 +855,39 @@ async function cmdPrepareVm(argv) {
     ? /RUNNING/i.test(String(J.sshdState || ''))
     : /RUNNING/i.test(rSshdQ.out);
   const mStart = usedCombined ? null : rSshdC.out.match(/START_TYPE\s*:\s*(\d)/);
+  // 合并路径的来源是 Get-Service 的 StartType（**Automatic**），降级路径是 sc qc 的数字。
+  // 这里必须 /^auto/i（前缀匹配）：早先写成 /^auto$/i ⇒ 'Automatic' 被判成非自启 ⇒ 每轮多跑一次幂等 DO。
   const sshdAuto = usedCombined
-    ? /^auto$/i.test(String(J.sshdStart || ''))
+    ? /^auto/i.test(String(J.sshdStart || ''))
     : (mStart ? mStart[1] === '2' : false);
-  const fwHas = (r) => r.ok && !/No rules match/i.test(r.out);
 
   const nodeVerStr = usedCombined ? firstVersion(String(J.nodeVer || '')) : firstVersion(rNode.out);
   const state = {
     admin: usedCombined ? !!J.admin : rAdmin.ok,
     sshd: { installed: sshdInstalled, state: sshdRunning ? 'Running' : 'Stopped', startMode: sshdAuto ? 'Auto' : 'Manual/Unknown' },
     firewall: usedCombined
-      ? { ssh: !!J.fwSsh, service: !!J.fwSvc }
-      : { ssh: fwHas(rFwSsh), service: fwHas(rFwSvc) },
+      ? { ssh: !!J.fwSsh, service: !!J.fwSvc, sshPresent: !!J.fwSshPresent, servicePresent: !!J.fwSvcPresent }
+      // 降级路径若连第二发 PS 也解析失败，判据=未知；此时**宁可报 MISSING**（会多跑一次幂等
+      // DO，代价可接受）也不报 OK（假绿会让防火墙真缺时无人补）。
+      : { ssh: J2 ? !!J2.fwSsh : false, service: J2 ? !!J2.fwSvc : false, sshPresent: J2 ? !!J2.fwSshPresent : false, servicePresent: J2 ? !!J2.fwSvcPresent : false },
     node: { present: usedCombined ? !!nodeVerStr : rNode.ok, version: nodeVerStr },
     agentCli: usedCombined ? !!J.cli : rCli.ok,
-    agentConfigDir: usedCombined ? !!J.cfg : rMarker.ok,
+    agentConfigDir: usedCombined ? !!J.cfg : (J2 ? !!J2.cfg : false),
     standbyLine: 'deferred-to-apply (MSYS 吞 powercfg 斜杠参数，现状判定走 .ps1 通道)',
     defenderRead: true, // 轻探测面不含 Get-MpPreference（需 PS）；apply .ps1 内做幂等 delta
   };
 
   log('');
+  // 诊断口径：合并/逐条 + 耗时。既是性能观测点，也是「降级有没有发生」的唯一证据
+  // （降级路径的判据来源不同，v1.4.32 起两边已统一到 Get-NetFirewallRule -DisplayName）。
+  log(` [probe] ${usedCombined ? '合并单往返' : '逐条兜底'} ${((Date.now() - _tProbe0) / 1000).toFixed(1)}s`);
   log(' [1/3] 探测现状（只读，零写入）：');
   log('   ADMIN(elevated)  = ' + state.admin + (state.admin ? '' : '   (DB-1 服务面/DB-2 防火墙/DB-6 Defender 需管理员；apply 会打印手工配方)'));
   log('   DB-1 sshd        = ' + (sshdInstalled ? `installed, ${state.sshd.state}, ${state.sshd.startMode}` : 'NOT installed (见上鸡生蛋配方，需 VM 内首装一次)'));
-  log('   DB-2 firewall    = ssh:' + (state.firewall.ssh ? 'OK' : 'MISSING') + ' service:' + (state.firewall.service ? 'OK' : 'MISSING'));
+  // 三态：OK（存在且生效）/ INACTIVE（存在但被禁用/方向反/阻断）/ MISSING（根本没建）
+  const fwWord = (ok, present) => (ok ? 'OK' : (present ? 'INACTIVE' : 'MISSING'));
+  log('   DB-2 firewall    = ssh:' + fwWord(state.firewall.ssh, state.firewall.sshPresent) +
+      ' service:' + fwWord(state.firewall.service, state.firewall.servicePresent));
   log('   DB-5 powercfg    = ' + state.standbyLine + '  (apply 无条件幂等置 0，改后 --apply 复跑即收敛)');
   log('   DB-3 node        = ' + (state.node.present ? 'v' + state.node.version : 'MISSING') + (ensureNode ? '  (--ensure-node 已开)' : ''));
   log('   DB-6 defender    = (轻探测跳过 Get-MpPreference，apply .ps1 内幂等处理)');

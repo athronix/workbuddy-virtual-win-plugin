@@ -80,7 +80,16 @@ export function syncVmBackend(obj, home = homedir()) {
 
 /**
  * 默认私钥探测链（与 setup.mjs resolveTunnelIdentityFile / winvm-plugin probeDefaultSshKey 同语义，
- * 收敛为共享实现供无 setup 依赖的调用方使用）：env WINVM_VM_KEY > ~/.ssh/id_ed25519 > id_ecdsa > id_rsa。
+ * 收敛为共享实现供无 setup 依赖的调用方使用）：
+ *   env WINVM_VM_KEY > ~/.ssh/id_ed25519_winvm > id_ed25519 > id_ecdsa > id_rsa
+ *
+ * `id_ed25519_winvm` **必须排在最前**（v1.4.32 修）：本项目约定的 VM 专用钥叫该名，
+ * 技能层由 `_common.sh` 统一注入 `WINVM_VM_KEY=$HOME/.ssh/id_ed25519_winvm`；一旦绕过
+ * `_common.sh` 直调（如 `node delivery/bootstrap.mjs prepare-vm`），env 缺失就落到通用
+ * `id_ed25519`——那是**另一把钥**（GitHub）⇒ ssh2 报 `All configured authentication methods
+ * failed` ⇒ auto 后端回落二进制 ⇒ 判据来源被静默改写（netsh `name=` 恒 MISSING 假红）。
+ * 真机实测：同一命令仅补上该候选即从「认证失败+裸崩」变为全项 OK。
+ *
  * 只返回**路径**，绝读密钥内容（凭据纪律由 ssh2-client 建连时执行）。
  * @param {Record<string,string|undefined>} [env] 默认 process.env
  * @param {string} [home] 宿主 home
@@ -89,7 +98,7 @@ export function syncVmBackend(obj, home = homedir()) {
 export function resolveVmKeyPath(env = process.env, home = homedir()) {
   const envKey = String(env['WINVM_VM_KEY'] || '').trim();
   if (envKey) return envKey;
-  for (const name of ['id_ed25519', 'id_ecdsa', 'id_rsa']) {
+  for (const name of ['id_ed25519_winvm', 'id_ed25519', 'id_ecdsa', 'id_rsa']) {
     const p = join(home, '.ssh', name);
     if (existsSync(p)) return p;
   }

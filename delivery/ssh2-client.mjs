@@ -312,6 +312,13 @@ export class Ssh2Runner {
     if (this._conn && this._ready) return;
     const conn = new this._Ctor();
     const opts = this._options;
+    // 持久 error 监听**必须先于 connect 挂上**（v1.4.32 修）：原先挂在 await 之后，
+    // 而连接失败时 `await` 直接抛，那两行**永远执行不到** ⇒ 认证失败后的 socket 收尾错误
+    // （ECONNRESET）在「once('error') 已被第一个错误消耗掉」的 Client 上无监听 ⇒
+    // EventEmitter 裸 throw 打崩整个进程（真机实测：prepare-vm 2.1s 带栈退出）。
+    // 顺序：先 no-op 兜底（吞掉「无人认领」的后续错误），再 once('error') 做首个错误的失败归因。
+    conn.on('error', () => { /* 归下条流的 stream error / 重连处理，绝不裸崩进程 */ });
+    conn.on('close', () => { this._ready = false; });
     await new Promise((resolve, reject) => {
       let settled = false;
       const fail = (err) => {
@@ -342,10 +349,7 @@ export class Ssh2Runner {
     });
     this._conn = conn;
     this._ready = true;
-    // ready 之后的连接级错误不打断（由 stream 级处理器呈现/由下次 op 的重连兜底），
-    // 但必须挂监听，避免 EventEmitter 无 'error' 监听直接 throw（oh-tunnel 同款崩溃面）。
-    conn.on('error', () => { /* 归下条流的 stream error / 重连处理，绝不裸崩进程 */ });
-    conn.on('close', () => { this._ready = false; });
+    // 连接级 error/close 监听已在 connect 之前挂好（见上方注释），此处无需重复注册。
   }
 
   /** 懒建 sftp 通道（单连接复用）；打不开=infra。 */
