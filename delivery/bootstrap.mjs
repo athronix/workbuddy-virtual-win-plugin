@@ -614,6 +614,48 @@ async function cmdEnv(argv) {
   return true;
 }
 
+/**
+ * prepare-vm 的**单往返**只读探测脚本（v1.4.32）。
+ *
+ * 原实现是 7 条独立 ssh：`net session` / `sc query sshd` / `sc qc sshd` /
+ * `netsh ... ×2` / `node -v` / `<cli> --version` / 1 条 EncodedCommand。
+ * 每条都要**新建一次连接 + 一次 PowerShell 冷启**（本 VM 上 Defender 逐进程扫描使
+ * 冷启 5~8s）⇒ 实测该段 40s+，与「只读探测」的语义完全不匹配。
+ *
+ * 这里一次采集全部事实、输出单行 JSON；调用方解析失败时自动退回逐条实现
+ * （降级安全：老 PS / 策略限制 / JSON 被日志污染都不会让部署变红）。
+ *
+ * @param {{servicePort:number,sshPort:number,workbuddyCli:string}} cfg
+ * @returns {string} 单行 PowerShell 脚本
+ */
+export function buildPrepareProbePs({ servicePort, sshPort, workbuddyCli }) {
+  const q = (v) => "'" + String(v).replace(/'/g, "''") + "'";
+  const fwSsh = q('WinVM-SSH-' + sshPort);
+  const fwSvc = q('WinVM-Service-' + servicePort);
+  return [
+    "$ErrorActionPreference='SilentlyContinue'",
+    '$o=[ordered]@{}',
+    // admin：与 net session 同义，但不需要起 cmd.exe 子进程
+    '$pr=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())',
+    '$o.admin=$pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)',
+    // sshd 服务（installed/state/startMode 三项一次拿全）
+    '$s=Get-Service -Name sshd',
+    '$o.sshdInstalled=($null -ne $s)',
+    '$o.sshdState=[string]$s.Status',
+    '$o.sshdStart=[string](Get-CimInstance Win32_Service -Filter "Name=\'sshd\'").StartMode',
+    // 防火墙两条规则
+    ('$o.fwSsh=[bool](Get-NetFirewallRule -DisplayName ' + fwSsh + ' -ErrorAction SilentlyContinue)'),
+    ('$o.fwSvc=[bool](Get-NetFirewallRule -DisplayName ' + fwSvc + ' -ErrorAction SilentlyContinue)'),
+    // node 与 workbuddy CLI（Get-Command 比执行 --version 快且无副作用）
+    '$o.nodeVer=[string](& node -v 2>$null)',
+    ('$o.cli=[bool](Get-Command ' + q(workbuddyCli) + ' -ErrorAction SilentlyContinue)'),
+    // codebuddy 登录态标记
+    "$d=Join-Path $env:USERPROFILE '.codebuddy'",
+    "$o.cfg=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json')))",
+    '$o|ConvertTo-Json -Compress',
+  ].join('; ');
+}
+
 /* ----------------------------- cmd: prepare-vm (Phase 3 批2 · P0-2) ----------------------------- */
 
 /**
@@ -659,35 +701,67 @@ async function cmdPrepareVm(argv) {
   const sshBase = ['-p', String(cfg.vmSshPort), target];
   const probe = async (cmd, timeoutMs = 20_000) => runSsh([...sshBase, cmd], { timeoutMs, backend: cfg.vmSshBackend });
 
-  // —— 只读轻探测（每条独立容错；判据只用退出码+输出正则，绝不信 stderr 单独定性）——
-  // 迭代21 D-2：探测经 runSsh 双后端（ssh2 优先/auto 回落），逐条串行 await 保序。
-  const rAdmin = await probe('net session', 15_000); // 非管理员必 access denied(错误5)
-  const rSshdQ = await probe('sc query sshd');
-  const rSshdC = await probe('sc qc sshd');
-  const rFwSsh = await probe(`netsh advfirewall firewall show rule name=WinVM-SSH-${cfg.vmSshPort}`);
-  const rFwSvc = await probe(`netsh advfirewall firewall show rule name=WinVM-Service-${cfg.servicePort}`);
-  // DB-5 轻探测**不可行**（实测）：powercfg 的 /query 斜杠参数被远端 Git-Bash/MSYS 路径转换吞改
-  //（"invalid parameter" 乱码），而项目铁律禁 ssh 内联 PowerShell。⇒ 现状判定让位给
-  // apply .ps1 通道（powershell -File 无 MSYS 干扰；powercfg /change 本身幂等无害）。
-  const rNode = await probe('node -v');
-  const rCli = await probe(cfg.workbuddyCli + ' --version');
-  // R8 fix: bash `test -f` → 跨壳 PS（EncodedCommand），判据仍用退出码（ok=exit 0）。
-  const rMarker = await runSshPs(sshBase, "$d=Join-Path $env:USERPROFILE '.codebuddy'; $ok=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json'))); Write-Output $ok; if(-not $ok){exit 1}", { timeoutMs: 15_000, backend: cfg.vmSshBackend });
+  // —— 只读轻探测：**单往返优先**，逐条兜底（v1.4.32）——
+  // 7 条独立 ssh 在 VM 上每条都要新建连接 + 一次 PowerShell 冷启（Defender 逐进程扫描
+  // 使冷启 5~8s），实测该段 40s+。改成一个 EncodedCommand 采集全部事实、输出单行 JSON；
+  // 解析失败/旧环境自动退回逐条（降级安全，判据不变）。
+  // 硬超时兜底：ssh2 在「exec 通道打开失败」后可能留下**永不 resolve** 的 promise；
+  // 而没有 pending handle 时 node 会直接退出（实测表现 = rc=0 + 零输出，最危险的假绿）。
+  // 这里 race 一个真 timer（不 unref：它必须保持事件循环），超时即判「合并探测不可用」→ 逐条兜底。
+  let _probeTimer = null;
+  const _probeTimeout = new Promise((res) => {
+    _probeTimer = setTimeout(() => res({ ok: false, code: 124, out: '', err: 'combined-probe-timeout' }), 75_000);
+  });
+  const rProbe = await Promise.race([
+    runSshPs(sshBase, buildPrepareProbePs(cfg), { timeoutMs: 90_000, backend: cfg.vmSshBackend }),
+    _probeTimeout,
+  ]);
+  if (_probeTimer) clearTimeout(_probeTimer);
+  let J = null;
+  if (rProbe.ok) {
+    const line = String(rProbe.out).split(/\r?\n/).map((x) => x.trim()).filter(Boolean).pop() || '';
+    try { J = JSON.parse(line); } catch { J = null; }
+  }
+  const usedCombined = !!(J && typeof J === 'object' && 'admin' in J);
+  let rAdmin, rSshdQ, rSshdC, rFwSsh, rFwSvc, rNode, rCli, rMarker;
+  if (!usedCombined) {
+    log('   [probe] 合并探测不可用 → 退回逐条（7 次往返，较慢）');
+    rAdmin = await probe('net session', 15_000); // 非管理员必 access denied(错误5)
+    rSshdQ = await probe('sc query sshd');
+    rSshdC = await probe('sc qc sshd');
+    rFwSsh = await probe(`netsh advfirewall firewall show rule name=WinVM-SSH-${cfg.vmSshPort}`);
+    rFwSvc = await probe(`netsh advfirewall firewall show rule name=WinVM-Service-${cfg.servicePort}`);
+    // DB-5 轻探测**不可行**（实测）：powercfg 的 /query 斜杠参数被远端 Git-Bash/MSYS 路径转换吞改
+    //（"invalid parameter" 乱码），而项目铁律禁 ssh 内联 PowerShell。⇒ 现状判定让位给
+    // apply .ps1 通道（powershell -File 无 MSYS 干扰；powercfg /change 本身幂等无害）。
+    rNode = await probe('node -v');
+    rCli = await probe(cfg.workbuddyCli + ' --version');
+    // R8 fix: bash `test -f` → 跨壳 PS（EncodedCommand），判据仍用退出码（ok=exit 0）。
+    rMarker = await runSshPs(sshBase, "$d=Join-Path $env:USERPROFILE '.codebuddy'; $ok=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json'))); Write-Output $ok; if(-not $ok){exit 1}", { timeoutMs: 15_000, backend: cfg.vmSshBackend });
+  }
 
-  const sshdInstalled = !/1060|does not exist/i.test(rSshdQ.out + rSshdQ.err);
-  const sshdRunning = /RUNNING/i.test(rSshdQ.out);
-  const mStart = rSshdC.out.match(/START_TYPE\s*:\s*(\d)/);
-  const sshdAuto = mStart ? mStart[1] === '2' : false;
+  const sshdInstalled = usedCombined
+    ? !!J.sshdInstalled
+    : !/1060|does not exist/i.test(rSshdQ.out + rSshdQ.err);
+  const sshdRunning = usedCombined
+    ? /RUNNING/i.test(String(J.sshdState || ''))
+    : /RUNNING/i.test(rSshdQ.out);
+  const mStart = usedCombined ? null : rSshdC.out.match(/START_TYPE\s*:\s*(\d)/);
+  const sshdAuto = usedCombined
+    ? /^auto$/i.test(String(J.sshdStart || ''))
+    : (mStart ? mStart[1] === '2' : false);
   const fwHas = (r) => r.ok && !/No rules match/i.test(r.out);
 
-  const nodeVerStr = firstVersion(rNode.out);
+  const nodeVerStr = usedCombined ? firstVersion(String(J.nodeVer || '')) : firstVersion(rNode.out);
   const state = {
-    admin: rAdmin.ok,
+    admin: usedCombined ? !!J.admin : rAdmin.ok,
     sshd: { installed: sshdInstalled, state: sshdRunning ? 'Running' : 'Stopped', startMode: sshdAuto ? 'Auto' : 'Manual/Unknown' },
-    firewall: { ssh: fwHas(rFwSsh), service: fwHas(rFwSvc) },
-    node: { present: rNode.ok, version: nodeVerStr },
-    agentCli: rCli.ok,
-    agentConfigDir: rMarker.ok,
+    firewall: usedCombined
+      ? { ssh: !!J.fwSsh, service: !!J.fwSvc }
+      : { ssh: fwHas(rFwSsh), service: fwHas(rFwSvc) },
+    node: { present: usedCombined ? !!nodeVerStr : rNode.ok, version: nodeVerStr },
+    agentCli: usedCombined ? !!J.cli : rCli.ok,
+    agentConfigDir: usedCombined ? !!J.cfg : rMarker.ok,
     standbyLine: 'deferred-to-apply (MSYS 吞 powercfg 斜杠参数，现状判定走 .ps1 通道)',
     defenderRead: true, // 轻探测面不含 Get-MpPreference（需 PS）；apply .ps1 内做幂等 delta
   };

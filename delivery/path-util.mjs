@@ -226,15 +226,68 @@ export function setUserPathRaw(raw) {
  * Windows → 用户 PATH 注册表（PowerShell）；其它平台（鸿蒙/Linux/macOS）→ shell profile（T08）。
  * @returns {boolean} 是否发生了变更（dryRun 时返回「将会变更」但不写盘）
  */
+/**
+ * 单次 PowerShell 完成「读 PATH → 幂等判断 → 写注册表 → 广播 WM_SETTINGCHANGE」。
+ *
+ * 为什么合并（v1.4.32）：原实现是 3 次独立 powershell 进程（Get / Set / 广播），
+ * 而 VM 上每次 PowerShell 冷启被 Defender 逐进程扫描拖到 5~8s ⇒ 实测该步 19.8s。
+ * 语义与原 applyPathOp('add') 严格对齐：按 ';' 切分 → trim → 去空项 →
+ * 规范化（去尾 \ /）后**大小写敏感**比较（PS 用 -ceq，对齐 JS 的 ===）。
+ */
+function buildUserPathAddScript(dir, { dryRun }) {
+  const q = quotePowerShell(dir);
+  const lines = [
+    `$dir = ${q}`,
+    "$cur = [Environment]::GetEnvironmentVariable('Path','User')",
+    "if ($null -eq $cur) { $cur = '' }",
+    // 规范化：去尾部反斜杠/斜杠 + trim（对齐 normalizePathEntry）
+    "$n = { param($p) ($p -replace '[\\/]+$','').Trim() }",
+    "$parts = @($cur -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })",
+    '$hit = $false',
+    'foreach ($p in $parts) { if ((& $n $p) -ceq (& $n $dir)) { $hit = $true; break } }',
+    "if ($hit) { Write-Output 'CHANGED=0'; exit 0 }",
+  ];
+  if (dryRun) {
+    lines.push("Write-Output 'CHANGED=1'", 'exit 0');
+  } else {
+    lines.push(
+      "$next = (($parts + $dir) -join ';')",
+      '[Environment]::SetEnvironmentVariable("Path", $next, "User")',
+      // 广播段 best-effort：无桌面/超时都不影响「PATH 已写入」这一主干结果
+      "$ErrorActionPreference='SilentlyContinue'",
+      "Add-Type -TypeDefinition @'",
+      'using System;',
+      'using System.Runtime.InteropServices;',
+      'public class Win32EnvBroadcast2 {',
+      '  [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]',
+      '  public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);',
+      '}',
+      "'@",
+      '$r = [UIntPtr]::Zero',
+      "[Win32EnvBroadcast2]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 0x2, 5000, [ref]$r) | Out-Null",
+      "Write-Output 'CHANGED=1'",
+    );
+  }
+  return lines.join('\r\n');
+}
+
 export function addToUserPath(dir, { dryRun = false } = {}) {
   if (process.platform !== 'win32') {
     return setProfilePathRaw(dir, { op: 'add', dryRun });
   }
-  const raw = getUserPathRaw();
-  const next = applyPathOp(raw, dir, 'add');
-  if (next === raw) return false;
-  if (!dryRun) setUserPathRaw(next);
-  return true;
+  const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', buildUserPathAddScript(dir, { dryRun })], {
+    encoding: 'utf8',
+  });
+  const out = String(r.stdout ?? '');
+  // 单次通道异常（老 PS / 策略拦截 here-string）→ 退回原三步实现（行为逐字不变）
+  if (r.status !== 0 || !/CHANGED=[01]/.test(out)) {
+    const raw = getUserPathRaw();
+    const next = applyPathOp(raw, dir, 'add');
+    if (next === raw) return false;
+    if (!dryRun) setUserPathRaw(next);
+    return true;
+  }
+  return /CHANGED=1/.test(out);
 }
 
 /**

@@ -844,16 +844,34 @@ async function main() {
     );
     const found = String(detect.stdout ?? '').trim();
     if (found) console.log(`      已安装：${found}`);
-    for (const pkg of ['agent-browser', 'agent-desktop']) {
-      if (found.includes(`${pkg}=`)) continue;
-      console.log(`      npm install -g ${pkg} ...`);
-      const r = spawnSync('npm', ['install', '-g', pkg, '--no-fund', '--no-audit'], {
+    // v1.4.32：两个包合并成**一次** npm 调用。
+    // 实测两次独立 `npm i -g`（17s + 12s = 29s）里有 ~9s 是 npm 自身的启动 +
+    // registry 元数据往返（与包无关）；合并后一次往返即可，`--prefer-offline`
+    // 让已缓存的 tarball 不再走网络探测。
+    const missing = ['agent-browser', 'agent-desktop'].filter((pkg) => !found.includes(`${pkg}=`));
+    if (missing.length === 0) {
+      console.log('      两个上游 CLI 均已就位，跳过安装');
+    } else {
+      console.log(`      npm install -g ${missing.join(' ')} ...`);
+      const r = spawnSync('npm', ['install', '-g', ...missing, '--no-fund', '--no-audit', '--prefer-offline'], {
         stdio: 'inherit',
         shell: true,
         windowsHide: true,
       });
       if (r.status !== 0) {
-        console.log(`      ⚠ ${pkg} 安装失败（status=${r.status ?? '?'}）—— 不阻断部署；对应子路由将返回 502`);
+        // 合并安装失败时逐个重试：单个包坏掉不该拖死另一个（可选依赖的容错语义）。
+        console.log(`      ⚠ 合并安装失败（status=${r.status ?? '?'}）→ 逐个重试`);
+        for (const pkg of missing) {
+          console.log(`      npm install -g ${pkg} ...`);
+          const r1 = spawnSync('npm', ['install', '-g', pkg, '--no-fund', '--no-audit', '--prefer-offline'], {
+            stdio: 'inherit',
+            shell: true,
+            windowsHide: true,
+          });
+          if (r1.status !== 0) {
+            console.log(`      ⚠ ${pkg} 安装失败（status=${r1.status ?? '?'}）—— 不阻断部署；对应子路由将返回 502`);
+          }
+        }
       }
     }
   }

@@ -59,22 +59,58 @@ export interface UpstreamStatus {
 }
 
 /**
- * agent-desktop 默认暴露的高频子集（10 个）。
+ * agent-desktop 默认暴露的高频子集（25 个，四组闭环）。
  *
- * 选取依据 = 「观察 → 定位 → 交互 → 等待」闭环所需的最小面：
- *   snapshot/find/screenshot 观察；click/type/set-value 交互；press 键盘；wait 同步；
- *   list-apps 目标发现。破坏性动作（close-app / clipboard-set / drag / sandbox）默认不给。
+ * v2.2.0 按场景调宽（原 10 项＝「观察→定位→交互→等待」最小面，实测缺口见各组注释）：
+ *
+ *   A 目标发现与窗口（5）：snapshot / find / screenshot / list_apps / list_windows
+ *      —— 观察面基础，缺一不可。
+ *   B 启动与窗口管理（4）：launch / focus_window / maximize / resize_window
+ *      —— 原白名单只有「看窗口」没有「开应用/切窗口/摆窗口」：多窗口场景下
+ *         click 的坐标会因窗口位置漂移而打错目标；maximize 是最廉价的坐标稳定器。
+ *   C 指针与滚动（5）：click / double_click / right_click / hover / scroll / scroll_to
+ *      —— 列表项打开要 double_click，上下文菜单要 right_click，长页/树要 scroll；
+ *         scroll_to 让「滚动到某元素」一次到位，避免盲滚多次截图。
+ *   D 键盘与表单（4）：type / set_value / press / check / uncheck / select / toggle
+ *      —— 复选框/单选/下拉在真实业务里比纯 type 更高频，且都天然幂等。
+ *   E 读取与等待（3）：get / is / wait
+ *      —— get 读元素值（校验「输入框里到底是什么」），is 做存在/可见/可用断言，
+ *         两者让「操作后校验」不必再截图做视觉比对。
+ *
+ * 仍**不**默认暴露：破坏性动作（close_app / drag / clipboard_set / clipboard_clear /
+ * sandbox_*）、鼠标原始事件（mouse_down/up/move/click/wheel）、通知与会话管理、
+ * trace 导出。需要时按 SKILL 「解禁三步」显式加白名单，不要整体放开 75 个。
  */
 export const DEFAULT_DESKTOP_TOOL_ALLOWLIST: readonly string[] = Object.freeze([
+  // A 目标发现与窗口
   'desktop_snapshot',
   'desktop_find',
   'desktop_screenshot',
   'desktop_list_apps',
   'desktop_list_windows',
+  // B 启动与窗口管理
+  'desktop_launch',
+  'desktop_focus_window',
+  'desktop_maximize',
+  'desktop_resize_window',
+  // C 指针与滚动
   'desktop_click',
+  'desktop_double_click',
+  'desktop_right_click',
+  'desktop_hover',
+  'desktop_scroll',
+  'desktop_scroll_to',
+  // D 键盘与表单
   'desktop_type',
   'desktop_set_value',
   'desktop_press',
+  'desktop_check',
+  'desktop_uncheck',
+  'desktop_select',
+  'desktop_toggle',
+  // E 读取与等待
+  'desktop_get',
+  'desktop_is',
   'desktop_wait',
 ]);
 

@@ -143,14 +143,29 @@ describe('上游声明与通道构造', () => {
     // 浏览器工具面全量（33 个，无白名单）；桌面默认只放高频子集
     assert.equal(byId.get('browser').toolAllowlist, undefined);
     assert.ok(Array.isArray(byId.get('desktop').toolAllowlist));
-    assert.equal(byId.get('desktop').toolAllowlist.length, 10);
+    assert.equal(byId.get('desktop').toolAllowlist.length, 25);
   });
 
   test('桌面白名单只含观察/交互闭环工具，不含破坏性动作', () => {
     for (const name of ['desktop_snapshot', 'desktop_click', 'desktop_type', 'desktop_wait']) {
       assert.ok(DEFAULT_DESKTOP_TOOL_ALLOWLIST.includes(name), `缺少 ${name}`);
     }
-    for (const name of ['desktop_close_app', 'desktop_clipboard_set', 'desktop_sandbox']) {
+    // v2.2.0 按场景调宽的四组（启动/窗口、指针/滚动、表单控件、读取校验）
+    for (const name of [
+      'desktop_launch', 'desktop_focus_window', 'desktop_maximize', 'desktop_resize_window',
+      'desktop_double_click', 'desktop_right_click', 'desktop_hover',
+      'desktop_scroll', 'desktop_scroll_to',
+      'desktop_check', 'desktop_uncheck', 'desktop_select', 'desktop_toggle',
+      'desktop_get', 'desktop_is',
+    ]) {
+      assert.ok(DEFAULT_DESKTOP_TOOL_ALLOWLIST.includes(name), `缺少场景扩展项 ${name}`);
+    }
+    // 破坏性/原始事件/沙箱面必须留在白名单外（调宽不等于放开 75 个）
+    for (const name of [
+      'desktop_close_app', 'desktop_clipboard_set', 'desktop_clipboard_clear',
+      'desktop_drag', 'desktop_mouse_click', 'desktop_mouse_wheel',
+      'desktop_sandbox_create', 'desktop_sandbox_exec', 'desktop_trace_export',
+    ]) {
       assert.ok(!DEFAULT_DESKTOP_TOOL_ALLOWLIST.includes(name), `不应默认暴露 ${name}`);
     }
   });
