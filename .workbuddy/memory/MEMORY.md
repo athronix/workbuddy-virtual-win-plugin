@@ -37,16 +37,16 @@
 - 团队派发：fresh Agent + 窄任务书 + 即 commit + 按 HEAD 独立核验；worker 静默 20min 熔断。
 - 发布顺序：pack → push origin → push gitee main+tag → `publish --apply --mirror-gitee`；**tag 打在 pack 提交**，不是 pack 后的 HEAD；旧包 `release/V<ver>.superseded-itN`；每迭代 `--wipe` 重验。
 
-## 当前态（2026-11-17 20:05）
-- **母项目线上 V1.4.30**；本地已打 **`release/V1.4.31`**（overall 3179K，含两个上游技能面 + `uninstall` 键表修复），**未 push/未打 tag/未上架**。母项目 release 已恢复 4 资产结构，`PACK_SKIP_SKILL=1` 支持无技能仓独立打包。
-- **技能仓 main = v2.1.0（未打 tag、marketplace 仍 2.0.0）**：5 步部署（4 步含 4d、5 步含 5e）+ 3 步卸载（`--keep-upstreams`），包 27 文件/164K。
-  - 11-17 双端已推：`2e4e815`（只从技能仓取 + MSI 缓存）、`6d8b81e`（去 BOM/去 #requires/换行归一）、`30faa78`（版本解析 `[:=]`）、`c52e63a`+`5e819f9`（**上游装/卸/验闭环 + 1c 命名空间兜底**）。
-  - **门禁 `ALL_GREEN checks=24 fails=0` / `ALL_CAUGHT 25/25`**。
-- **上游 MCP 工具面**：`agent-browser`(33) / `agent-desktop`(75，白名单 10) 由 vm-service 反代为 `/mcp/browser`、`/mcp/desktop`，与主连接器共用同一条隧道（只差 `mcpPath`）。宿主 connector skills 8 → **10**（新增 `agent-browser-skill`/`agent-desktop-skill`，各带 `references/` 逐工具 33/75 份；入 `HOST_ONLY_SKILLS`）。
-- **11-17 真机**：deploy **126/135/274/413s**（413s = 先 undeploy 再全新 deploy）全 `PASS`；undeploy **105/79s**；V1.4.31 轮 undeploy 首跑 FAIL 于 1c（旧包卸载新装留 `winvm-browser/desktop`）→ 兜底修复后 `--only 1` PASS 5s。
+## 当前态（2026-11-18 11:55）
+- **母项目线上 V1.4.32**（tag `V1.4.32`=`e63300e`，双端一致）：overall 3285135B / sha256 `018f8ff4…`；GitHub 4 资产（overall asset 761824572）+ Gitee release id=1322433。内容 = 桌面白名单 **10→25**、两个上游技能面、`uninstall` 键表修复、4a 合并探测 + 上游 npm 合并 + PATH 单次 PS + **防火墙注册表直读**。
+- **技能仓 main = v2.3.0**（tag 由 `skill_dev.py release` 创建；marketplace **已追平 2.3.0**；Gitee 镜像 HEAD `ab02cfa2`），包 **28 文件/184K**。5 步部署（4 步含 4d、5 步含 5e）+ 3 步卸载。
+  - **门禁 `ALL_GREEN checks=25 fails=0` / `ALL_CAUGHT 29/29`**。
+- **1p 三级策略（v2.3.0）**：准入只看「能登录」（口令 **或** 空口令 `WINVM_SSH_PASSWORD_EMPTY=1`）→ `net session` 判身份选授权文件（管理员→`%ProgramData%\ssh\administrators_authorized_keys`；否则→用户级 `.ssh`）→ **ACL 用 SID、不重启 sshd** ⇒ S1 约 3~5s 不断连；S1 回验不通过才 S2 oneclick；仍不通 S3 退 2 回人工 1c。
+- **11-18 真机**：`deploy.sh --only 4` → `DEPLOY=PASS` WALL **323s**（4.0=2s / 4a=60s / **4b=218s**[VM 155.7+VM-START 47.3+QA-PROBE 14.8] / 4c=34s / 4d=8s，**desktop=25** 已确认）。
 - **待办**：
-  1. 🔴 **母项目 backlog：`4b` 缺「内容未变则短路」** —— 每轮无条件 tar+scp 8MB+install+重启，实测 140~166s。正解=VM 侧 `MANIFEST-deploy-*.txt` 记 `total-sha256` 与本地比（该文件目前**无哈希字段**）。预计省 100~140s/轮。另 `4a` 只读探测可合并往返（实测 20~76s）。
-  2. 🔴 **V1.4.31 + 技能 v2.1.0 发布**：push 双端 → 打 tag → `publish --apply --mirror-gitee` → marketplace 版本比对（当前 2.0.0）。
-  3. 上游 `npm i -g` 首装 47.9s：不需要时用 `SKIP_UPSTREAMS=1`（同时管不装+不验）。
-  4. 第 1 步「从零通道」失败分支仍需一次真拆演练；低优：codebuddy 交互登录、CLIXML 噪音、pkg-root bash 冒烟、Task #201 symlink 化。
+  1. 🔴 **`4b` 加「内容未变则短路」** —— 仍是最大头：每轮无条件 tar+scp+install+重启。正解=VM 侧 `MANIFEST-deploy-*.txt` 补 `total-sha256`（源内容哈希，与 tar 时间戳无关）比对后短路，预计 **-100~140s/轮**。
+  2. 小项：QA-PROBE 两次 scp + MANIFEST 写两遍（日志重复两行）≈ -5s；4a 的 `--apply` 段 43s 未拆；VM-START 轮询细化 -3~5s（收益不抵风险）。
+  3. 上游 `npm i -g` 首装 47.9s：不需要时 `SKIP_UPSTREAMS=1`。
+  4. 第 1 步「从零通道」真实演练（1p 的 S1 是直调载荷验证 + 口令错误/空口令降级验证，**未在真·从零机器上端到端跑过**）；低优：codebuddy 交互登录、CLIXML 噪音、pkg-root bash 冒烟、Task #201 symlink 化。
+- **坑**：`skill_dev.py release` 自己建 tag，**先手动打 tag 会报 `tag already exists — bump frontmatter version`**（正确顺序：commit/push → release 建 tag）。项目门禁 `RED` 要先做 `git stash` 归因实验（11-18 实测 5 文件/17 用例为沙箱缺 fixture 的既有失败，如 `p8-probe-fresh` 依赖的 `deploy/skills/.../probe-fresh.sh` 不存在 ⇒ `status=127`）。
 - **合并口径**：`Documents/Projects` 与 `Documents/projects` 同 inode；hos 无 assets/templates；运行期状态目录 `$HOME/.workbuddy/.state/hos-winvm-ssh-tunnel/` 刻意共用。
