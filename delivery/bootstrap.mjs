@@ -713,6 +713,10 @@ export function buildPrepareProbePs(cfg) {
   const q = (v) => "'" + String(v).replace(/'/g, "''") + "'";
   return [
     "$ErrorActionPreference='SilentlyContinue'",
+    // SSH 会话的 PATH 只有 Machine 段（node/npm/codebuddy 常在 User 段或 C:\nodejs），
+    // 不显式拼 Machine;User 会让 Get-Command 恒空 ⇒ 每轮都误判"未安装"并重装。
+    // 这是 v2.3.0 卸上游 CLI 时踩过的同款坑（vm-remove-local 段 8），此处前移。
+    '$env:Path=[Environment]::GetEnvironmentVariable("Path","Machine")+";"+[Environment]::GetEnvironmentVariable("Path","User")',
     '$o=[ordered]@{}',
     // admin：与 net session 同义，但不需要起 cmd.exe 子进程
     '$pr=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())',
@@ -726,7 +730,11 @@ export function buildPrepareProbePs(cfg) {
     ...fwProbePsLines(sshPort, servicePort),
     // node 与 workbuddy CLI（Get-Command 比执行 --version 快且无副作用）
     '$o.nodeVer=[string](& node -v 2>$null)',
+    '$o.npm=[bool](Get-Command npm -ErrorAction SilentlyContinue)',
     ('$o.cli=[bool](Get-Command ' + q(workbuddyCli) + ' -ErrorAction SilentlyContinue)'),
+    // DB-7 两个上游 CLI（v2.4.0 起由 4a 负责检查/安装，不再等 4b 的 npm 段）
+    '$o.browserCli=[bool](Get-Command agent-browser -ErrorAction SilentlyContinue)',
+    '$o.desktopCli=[bool](Get-Command agent-desktop -ErrorAction SilentlyContinue)',
     // codebuddy 登录态标记
     "$d=Join-Path $env:USERPROFILE '.codebuddy'",
     "$o.cfg=((Test-Path (Join-Path $d 'settings.json')) -or (Test-Path (Join-Path $d 'user-state.json')))",
@@ -780,8 +788,12 @@ export function buildFallbackFactsPs(cfg) {
  */
 async function cmdPrepareVm(argv) {
   const apply = argv.includes('--apply');
-  const ensureNode = argv.includes('--ensure-node');
-  hr('WinVM Bridge bootstrap prepare-vm (P0-2: DB-1/2/5/6 one-shot VM provisioning)' +
+  // --ensure-deps 隐含 --ensure-node：node 是 npm 的前提，不先有 node 就装不了全局 CLI。
+  const ensureDeps = argv.includes('--ensure-deps');
+  const ensureNode = ensureDeps || argv.includes('--ensure-node');
+  // 上游两个工具面由别处负责（或本轮明确不要）时，DB-7 只装 codebuddy。
+  const skipUpstreamDeps = argv.includes('--skip-upstream-deps');
+  hr('WinVM Bridge bootstrap prepare-vm (P0-2: DB-1/2/5/6 + DB-3/DB-7 one-shot VM provisioning)' +
      (apply ? ' [APPLY]' : ' [READ-ONLY PROBE]'));
   const { env, source, isFallback } = loadEnvOrTemplate();
   log('  env source: ' + source + (isFallback ? '  (fallback; run `env` to write a real .env)' : ''));
@@ -890,9 +902,13 @@ async function cmdPrepareVm(argv) {
       ' service:' + fwWord(state.firewall.service, state.firewall.servicePresent));
   log('   DB-5 powercfg    = ' + state.standbyLine + '  (apply 无条件幂等置 0，改后 --apply 复跑即收敛)');
   log('   DB-3 node        = ' + (state.node.present ? 'v' + state.node.version : 'MISSING') + (ensureNode ? '  (--ensure-node 已开)' : ''));
+  log('   DB-7 global CLI   = codebuddy:' + (state.agentCli ? 'OK' : 'MISSING') +
+      ' desktop:' + (state.cliDesktop ? 'OK' : 'MISSING') +
+      ' browser:' + (state.cliBrowser ? 'OK' : 'MISSING') +
+      (ensureDeps ? '  (--ensure-deps 已开)' : '  (--ensure-deps 未开：只查不装)'));
   log('   DB-6 defender    = (轻探测跳过 Get-MpPreference，apply .ps1 内幂等处理)');
 
-  const plan = planPrepareVm({ servicePort: cfg.servicePort, sshPort: cfg.vmSshPort, ensureNode }, state);
+  const plan = planPrepareVm({ servicePort: cfg.servicePort, sshPort: cfg.vmSshPort, ensureNode, ensureDeps }, state);
   log('');
   log(' [2/3] 计划（幂等判据：全部就绪 ⇒ 第二遍全 [SKIP]）：');
   for (const p of plan) {
@@ -916,9 +932,9 @@ async function cmdPrepareVm(argv) {
   if (!apply) {
     log('');
     log(' [3/3] READ-ONLY 完成（本模式绝不改 VM）。执行改动：');
-    log('   node delivery/bootstrap.mjs prepare-vm --apply' + (ensureNode ? ' --ensure-node' : ''));
+    log('   node delivery/bootstrap.mjs prepare-vm --apply' + (ensureDeps ? ' --ensure-deps' : '') + (skipUpstreamDeps ? ' --skip-upstream-deps' : ''));
     log('   （apply 经 runRemotePs1 推 .ps1：DB-1 Automatic+Start / DB-2 防火墙 / DB-5 powercfg 三件套 /');
-    log('     DB-6 Defender delta / 可选 DB-3 winget node；每项先探测再动作=幂等）');
+    log('     DB-6 Defender delta / 可选 DB-3 node / 可选 DB-7 全局 CLI（codebuddy+两上游）；每项先探测再动作=幂等）');
     return true;
   }
 
@@ -929,8 +945,12 @@ async function cmdPrepareVm(argv) {
     sshPort: cfg.vmSshPort,
     vmDeployDir: cfg.vmDeployDir,
     ensureNode,
+    ensureDeps,
+    skipUpstreamDeps,
   });
-  const r = await runRemotePs1(cfg, ps1, { timeoutMs: 300_000, log: (m) => log('   ' + m) });
+  // DB-7 首次全装（尤其 codebuddy ~2 分钟）会显著拉长本次载荷，300s 不够 ⇒ 600s。
+  // 已装环境整段只有 3 次 Get-Command，实测 +0.3s，不会拖慢常态轮次。
+  const r = await runRemotePs1(cfg, ps1, { timeoutMs: ensureDeps ? 900_000 : 300_000, log: (m) => log('   ' + m) });
   log(String(r.out || '').trimEnd());
   if (!r.ok) {
     log(' [FAIL] apply .ps1 非零退出（code=' + r.code + '）。逐行看上方 [DB-x] 标记定位；权限面不足时按 [MANUAL] 配方手工补齐。');

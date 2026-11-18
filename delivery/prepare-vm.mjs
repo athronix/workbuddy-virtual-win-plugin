@@ -76,6 +76,11 @@ export function buildPrepareVmProbePs1(cfg) {
     '# DB-4 agent CLI + login markers (read-only; see preflight.evaluateAgentLogin limits)',
     '$cb = Get-Command codebuddy -ErrorAction SilentlyContinue',
     'if ($cb) { Write-Output "AGENT_CLI=True" } else { Write-Output "AGENT_CLI=False" }',
+    // DB-7：两个上游 CLI 的命令存在性（v2.4.0 起由 4a 负责装，故 check 也要能看见）。
+    // 必须先把 Machine;User 拼进 PATH：SSH 会话默认只有 Machine 段。
+    "$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')",
+    'Write-Output ("CLI_BROWSER=" + [bool](Get-Command agent-browser -ErrorAction SilentlyContinue))',
+    'Write-Output ("CLI_DESKTOP=" + [bool](Get-Command agent-desktop -ErrorAction SilentlyContinue))',
     '$cdir = Join-Path $env:USERPROFILE ".codebuddy"',
     '$sjson = Join-Path $cdir "settings.json"',
     '$ustate = Join-Path $cdir "user-state.json"',
@@ -96,6 +101,8 @@ export function buildPrepareVmApplyPs1(cfg) {
   const sshPort = Number(cfg.sshPort) || 22;
   const deployDir = (cfg.vmDeployDir || 'C:/WinVMBridge').replace(/\//g, '\\');
   const ensureNode = !!cfg.ensureNode;
+  const ensureDeps = !!cfg.ensureDeps;
+  const skipUpstreamDeps = !!cfg.skipUpstreamDeps;
   const lines = [
     '$ErrorActionPreference = "Continue"',
     '# WinVM prepare-vm APPLY (idempotent: each step probes before acting)',
@@ -198,6 +205,48 @@ export function buildPrepareVmApplyPs1(cfg) {
       ]
       : ['  Write-Output "[DB-3] node provisioning not requested (pass --ensure-node to enable winget/zip install)"']),
     '',
+    '# ---- DB-7 global CLIs (v2.4.0): node -> codebuddy -> agent-desktop -> agent-browser ----',
+    // 依赖顺序是硬约束：node 是 npm 的前提；codebuddy 与两个上游互相独立。
+    // 判据一律用 `Get-Command <命令名>` 而非 `npm ls -g`：本 VM 上 npm prefix 是
+    // C:\\nodejs，而 codebuddy 实际装在 nvm 的 node 目录（两套 prefix 并存）。
+    // 只查 npm 全局清单会把"已装但不在当前 prefix"误判成缺失 ⇒ 每轮重装几百 MB。
+    // 包名与命令名也不同名：codebuddy 的包是 @tencent-ai/codebuddy-code（真机取证 2.176.0）。
+    ...(ensureDeps
+      ? [
+        "$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')",
+        'if (-not (Get-Command node -ErrorAction SilentlyContinue)) {',
+        '  Write-Output "[DB-7][MANUAL] node missing; DB-3 must succeed first (npm comes with node)"',
+        '} elseif (-not (Get-Command npm -ErrorAction SilentlyContinue)) {',
+        '  Write-Output "[DB-7][MANUAL] npm not on PATH (node installed without npm?)"',
+        '} else {',
+        '  $pairs = New-Object System.Collections.ArrayList',
+        "  [void]$pairs.Add(@('codebuddy','@tencent-ai/codebuddy-code'))",
+        ...(skipUpstreamDeps
+          ? ['  Write-Output "[DB-7] upstream CLIs handled elsewhere / skipped (--skip-upstream-deps)"']
+          : [
+            "  [void]$pairs.Add(@('agent-desktop','agent-desktop'))",
+            "  [void]$pairs.Add(@('agent-browser','agent-browser'))",
+          ]),
+        '  $miss = @()',
+        '  foreach ($p in $pairs) {',
+        '    if (Get-Command $p[0] -ErrorAction SilentlyContinue) { Write-Output ("[DB-7] " + $p[0] + " present [SKIP]") }',
+        '    else { $miss += $p[1]; Write-Output ("[DB-7] missing " + $p[0] + " -> " + $p[1]) }',
+        '  }',
+        '  if ($miss.Count -eq 0) { Write-Output "[DB-7] all global CLIs present [SKIP]" }',
+        '  else {',
+        '    Write-Output ("[DB-7] npm install -g " + ($miss -join " ") + " (first install can take minutes)")',
+        '    & npm install -g @miss --no-fund --no-audit --prefer-offline 2>&1 | Select-Object -Last 10',
+        // npm 写完盘后 PS 的命令缓存可能仍看不到新 shim；重拼 PATH 再逐项复验。
+        "    $env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [Environment]::GetEnvironmentVariable('Path','User')",
+        '    foreach ($p in $pairs) {',
+        '      if (Get-Command $p[0] -ErrorAction SilentlyContinue) { Write-Output ("[DB-7] OK " + $p[0]) }',
+        '      else { Write-Output ("[DB-7][WARN] still missing after install: " + $p[0] + " -- rerun 4a; deployment continues (optional dependency)") }',
+        '    }',
+        '  }',
+        '}',
+      ]
+      : ['  Write-Output "[DB-7] dependency provisioning not requested (pass --ensure-deps to enable)"']),
+    '',
     'Write-Output "PREPARE_VM_DONE"',
   ];
   return lines.join('\r\n');
@@ -222,6 +271,8 @@ export function parsePrepareVmProbe(probeOut) {
     defenderRead: !/DEFENDER_READ_FAILED/.test(probeOut || ''),
     node: { present: g(/NODE=(\w+)/) === 'True', version: g(/NODE=True (v[\d.]+)/) },
     agentCli: g(/AGENT_CLI=(\w+)/) === 'True',
+    cliBrowser: g(/CLI_BROWSER=(\w+)/) === 'True',
+    cliDesktop: g(/CLI_DESKTOP=(\w+)/) === 'True',
     agentConfigDir: g(/AGENT_CONFIG_DIR=(\w+)/) === 'True',
     standbyLine: g(/STANDBY_AC_LINE=(.*)/) || '',
   };
@@ -280,6 +331,21 @@ export function planPrepareVm(cfg, probe) {
     action: '[MANUAL] interactive login cannot be scripted (structural)',
     needsAdmin: false,
     manual: true,
+  });
+  /* DB-7（v2.4.0）：全局 CLI 三件套的统一检查/安装，从 4b 的 [4b/6] 前移到 4a。
+   * 缺失项按 node → codebuddy → agent-desktop → agent-browser 的依赖顺序一次装完。 */
+  const missCli = [];
+  if (!probe.agentCli) missCli.push('codebuddy');
+  if (!probe.cliDesktop) missCli.push('agent-desktop');
+  if (!probe.cliBrowser) missCli.push('agent-browser');
+  plan.push({
+    db: 'DB-7',
+    item: 'global CLIs (codebuddy/agent-desktop/agent-browser)',
+    action: !cfg.ensureDeps
+      ? '[SKIP] not requested (--ensure-deps)'
+      : (missCli.length ? 'npm i -g ' + missCli.join(' + ') : '[SKIP] all present'),
+    needsAdmin: false,
+    manual: false,
   });
   return plan;
 }

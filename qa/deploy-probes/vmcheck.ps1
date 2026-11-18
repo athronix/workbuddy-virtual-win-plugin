@@ -36,4 +36,43 @@ try {
   $out.health_http = 'ERR'
   $out.health_body = $_.Exception.Message
 }
+# ---- MCP upstream tool faces (v2.4.0; former step 4d merged into 4c) ----
+# The verdict MUST be a real tools/list count. /health.upstreams[] is a lazily
+# started observation (always 'idle' right after boot), so asserting on it turns
+# "not called yet" into "installed badly" (false red). Conversely "route exists"
+# does not mean "upstream usable": a missing upstream answers 502 on that route.
+# Here we POST /mcp/<id> on 127.0.0.1 from inside the guest, which also exercises
+# the lazy-start path (first desktop call legitimately takes 8-12s).
+# Returns an int count, or 'ERR:http-502' / 'ERR:rpc-<code>' / 'ERR:<exception>'.
+# Keep this file ASCII-only (ps-run.sh hard-fails on any byte > 127).
+function Get-McpToolCount([string]$id) {
+  # Why Stop: the script-level $ErrorActionPreference='SilentlyContinue' makes
+  # Invoke-WebRequest swallow 4xx/5xx and return $null (no exception thrown), so a
+  # 502 would surface as "empty body, parse failed" and we could not tell
+  # "upstream not installed" from "route missing".
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Stop'
+  $payload = '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+  try {
+    $r = Invoke-WebRequest -Uri ('http://127.0.0.1:18443/mcp/' + $id) -Method POST -Body $payload `
+      -ContentType 'application/json' -Headers @{ 'Accept' = 'application/json, text/event-stream' } `
+      -UseBasicParsing -TimeoutSec 60
+    $b = [System.Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())
+    # SSE frame tolerance: keep the last data: line only
+    if ($b -match '(?m)^data:\s*(\{.*)$') { $b = $Matches[1] }
+    $d = $b | ConvertFrom-Json
+    if ($d.error) { return ('ERR:rpc-' + $d.error.code) }
+    return @($d.result.tools).Count
+  } catch [System.Net.WebException] {
+    $resp = $_.Exception.Response
+    if ($resp) { return ('ERR:http-' + [int]$resp.StatusCode) }
+    return 'ERR:http-none'
+  } catch {
+    return ('ERR:' + $_.Exception.Message)
+  } finally {
+    $ErrorActionPreference = $prevEap
+  }
+}
+$out.browser_tools = [string](Get-McpToolCount 'browser')
+$out.desktop_tools = [string](Get-McpToolCount 'desktop')
 $out | ConvertTo-Json -Compress

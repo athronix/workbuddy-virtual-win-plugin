@@ -130,4 +130,4 @@ agent_browser_close {all:true}          ← 收尾，释放 VM 资源
 |---|---|
 | `hos-win-skill` | 上层分派：判定何时该走浏览器而不是别的手段 |
 | `agent-desktop-skill` | 平级：原生应用界面归它；二者共用同一条隧道 |
-| `winvm-plugin-deploy` | 本 MCP 的装机/卸载/复验权威（第 4 步装上游、4d 判据、第 2 步卸载清理） |
+| `winvm-plugin-deploy` | 本 MCP 的装机/卸载/复验权威（第 4 步 4a 装上游、4c 判据、第 2 步卸载清理） |

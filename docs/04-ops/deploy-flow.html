@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WinVM Bridge · 安装部署 / 卸载 动作流程图</title>
+<style>
+:root{
+  --bg:#f4f6f8; --panel:#ffffff; --line:#e3e7ee; --line-2:#cfd6e2;
+  --ink:#141a22; --ink2:#55606f; --ink3:#8892a2;
+  --blue:#2563eb; --blue-bg:#edf2ff; --blue-line:#c7d7ff;
+  --amber:#b45309; --amber-bg:#fdf5e8; --amber-line:#f2ddb8;
+  --red:#b42318; --red-bg:#fdf2f0; --red-line:#f3d3ce;
+  --green:#067647; --green-bg:#ecfdf3; --green-line:#c3ead6;
+  --gray:#5b6573; --gray-bg:#f1f3f6;
+  --code-bg:#f8f9fb;
+  --mono:"SF Mono",SFMono-Regular,"JetBrains Mono","Cascadia Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+  font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1460px; margin:0 auto; padding:0 22px 90px}
+
+/* ── 头部 ── */
+header.top{padding:30px 0 18px; border-bottom:1px solid var(--line)}
+.top-row{display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap}
+h1{font-size:21px; font-weight:650; margin:0 0 4px; letter-spacing:-.2px}
+.sub{color:var(--ink2); font-size:13px; margin:0}
+.sub code{font-family:var(--mono); font-size:12px; background:#eaeef4; padding:1px 5px; border-radius:4px}
+.tabs{display:inline-flex; gap:4px; margin:18px 0 0; padding:4px; background:#e8ecf3; border-radius:11px}
+.tab{
+  appearance:none; border:0; background:transparent; color:var(--ink2);
+  padding:7px 16px; border-radius:8px; font-size:13.5px; font-weight:600; cursor:pointer;
+  font-family:inherit; transition:color .15s, background .15s, box-shadow .15s;
+}
+.tab:hover{color:var(--ink)}
+.tab.on{background:#fff; box-shadow:0 1px 3px rgba(20,30,50,.12)}
+.tab.on[data-k="deploy"]{color:var(--blue)}
+.tab.on[data-k="undeploy"]{color:var(--amber)}
+.tab .n{font-family:var(--mono); font-size:11px; opacity:.65; margin-left:6px}
+
+/* ── 工具条 ── */
+.bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 0 16px}
+.search{
+  flex:1 1 240px; min-width:180px; display:flex; align-items:center; gap:8px;
+  background:#fff; border:1px solid var(--line-2); border-radius:8px; padding:6px 10px;
+}
+.search input{border:0; outline:0; font-family:inherit; font-size:13px; width:100%; background:transparent; color:var(--ink)}
+.search svg{flex:0 0 auto; opacity:.45}
+.btn{
+  appearance:none; font-family:inherit; font-size:12.5px; font-weight:550; cursor:pointer;
+  background:#fff; color:var(--ink2); border:1px solid var(--line-2); border-radius:7px; padding:6px 12px;
+}
+.btn:hover{color:var(--ink); border-color:#b9c2d0; background:#fbfcfe}
+.legend{display:flex; gap:12px; align-items:center; margin-left:auto; font-size:11.5px; color:var(--ink3)}
+.dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:1px}
+.dot.f{background:var(--green)} .dot.m{background:var(--amber)} .dot.s{background:var(--red)} .dot.k{background:var(--gray)}
+
+/* ── 主区 ── */
+.main{display:grid; grid-template-columns:minmax(0,1fr) 442px; gap:20px; align-items:start}
+.flow{min-width:0}
+
+/* ── 阶段 ── */
+.stage{margin:0 0 14px}
+.stage-head{display:flex; align-items:center; gap:10px; margin:0 0 8px 2px}
+.stage-tag{
+  font-size:11px; font-weight:700; letter-spacing:.4px; text-transform:uppercase;
+  color:var(--blue); background:var(--blue-bg); border:1px solid var(--blue-line);
+  padding:2px 8px; border-radius:5px;
+}
+.ud .stage-tag{color:var(--amber); background:var(--amber-bg); border-color:var(--amber-line)}
+.stage-desc{font-size:12.5px; color:var(--ink3)}
+.stage-body{display:flex; flex-direction:column; gap:8px}
+
+/* ── 节点 ── */
+.node{min-width:0}
+.node-head{
+  display:grid; grid-template-columns:18px 52px minmax(0,1fr) auto auto;
+  align-items:center; gap:9px; width:100%; text-align:left;
+  background:var(--panel); border:1px solid var(--line-2); border-radius:9px;
+  padding:9px 12px 9px 8px; cursor:pointer; font-family:inherit; color:inherit;
+  transition:border-color .14s, box-shadow .14s, background .14s;
+  position:relative;
+}
+.node-head:hover{border-color:#a9b5c8; box-shadow:0 1px 3px rgba(20,30,50,.06)}
+.node-head.sel{border-color:var(--blue); background:var(--blue-bg); box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.ud .node-head.sel{border-color:var(--amber); background:var(--amber-bg); box-shadow:0 0 0 3px rgba(180,83,9,.1)}
+.tw{
+  width:18px; height:18px; display:flex; align-items:center; justify-content:center;
+  color:var(--ink3); font-size:10px; transition:transform .16s;
+}
+.node.open > .node-head .tw{transform:rotate(90deg)}
+.node.leaf > .node-head .tw::after{content:""; width:5px; height:5px; border-radius:50%; background:var(--line-2)}
+.node.open.leaf > .node-head .tw::after{background:var(--blue)}
+.ncode{
+  font-family:var(--mono); font-size:11.5px; font-weight:600; color:var(--ink2);
+  background:#eef1f6; border-radius:4px; padding:1px 0; text-align:center;
+  white-space:nowrap; overflow:hidden;
+}
+.node-head.sel .ncode{background:rgba(255,255,255,.75)}
+.node.lvl-top > .node-head .ncode{background:var(--ink); color:#fff; font-size:13px; padding:3px 0; font-weight:700}
+.node-head.sel .ncode{color:var(--ink)}
+.nname{font-size:13.5px; font-weight:560; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.node.lvl-top > .node-head .nname{font-size:14.5px; font-weight:650}
+.nmeta{
+  font-family:var(--mono); font-size:10.5px; color:var(--ink3);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:230px;
+}
+.chip{
+  font-family:var(--mono); font-size:11px; font-weight:600; padding:2px 7px; border-radius:20px;
+  white-space:nowrap; border:1px solid transparent;
+  max-width:210px; overflow:hidden; text-overflow:ellipsis;
+}
+.chip.f{color:var(--green); background:var(--green-bg); border-color:var(--green-line)}
+.chip.m{color:var(--amber); background:var(--amber-bg); border-color:var(--amber-line)}
+.chip.s{color:var(--red); background:var(--red-bg); border-color:var(--red-line)}
+.chip.k{color:var(--gray); background:var(--gray-bg); border-color:#dfe3ea}
+
+.node-kids{
+  display:none; margin:7px 0 4px 26px; padding-left:14px;
+  border-left:1px dashed var(--line-2);
+  flex-direction:column; gap:7px;
+}
+.node.open > .node-kids{display:flex}
+.node-kids .node-head{padding:7px 10px 7px 7px; border-radius:7px; border-color:var(--line)}
+.node-kids .nname{font-size:12.8px}
+.node-kids .ncode{font-size:10.5px; background:#f1f4f9}
+
+/* ── 详情面板 ── */
+.panel{
+  position:sticky; top:14px; background:var(--panel); border:1px solid var(--line-2);
+  border-radius:12px; max-height:calc(100vh - 28px); overflow:auto;
+  box-shadow:0 2px 10px rgba(20,30,50,.05);
+}
+.panel-in{padding:18px 18px 24px}
+.p-empty{padding:40px 24px; text-align:center; color:var(--ink3); font-size:13px; line-height:1.9}
+.p-empty b{display:block; color:var(--ink2); font-size:13.5px; margin-bottom:6px}
+.crumb{font-family:var(--mono); font-size:10.5px; color:var(--ink3); margin-bottom:7px; letter-spacing:.2px}
+.crumb i{font-style:normal; padding:0 3px; opacity:.5}
+.p-title{font-size:17px; font-weight:660; line-height:1.4; margin:0 0 10px; letter-spacing:-.2px}
+.p-durline{display:flex; align-items:baseline; gap:9px; padding:9px 12px; background:var(--code-bg); border-radius:8px; margin-bottom:16px; border:1px solid var(--line)}
+.p-durline b{font-family:var(--mono); font-size:15px; color:var(--ink); word-break:break-word; line-height:1.4}
+.p-durline span{font-size:11.5px; color:var(--ink3)}
+.sec{margin:0 0 16px}
+.sec > h3{
+  font-size:11px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
+  color:var(--ink3); margin:0 0 7px; padding-bottom:5px; border-bottom:1px solid var(--line);
+}
+.sec p{margin:0; font-size:13px; line-height:1.75; color:var(--ink2)}
+.sec ul{margin:0; padding:0; list-style:none}
+.sec li{
+  position:relative; padding-left:16px; font-size:12.8px; line-height:1.7; color:var(--ink2); margin-bottom:3px;
+}
+.sec li::before{content:""; position:absolute; left:3px; top:9px; width:4px; height:4px; border-radius:50%; background:var(--line-2)}
+.cmd{margin:0 0 8px; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--code-bg)}
+.cmd-top{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 8px 4px 10px; border-bottom:1px solid var(--line); background:#fbfcfe}
+.cmd-top span{font-size:11px; color:var(--ink3); font-weight:550}
+.copy{
+  appearance:none; border:1px solid var(--line-2); background:#fff; color:var(--ink3);
+  font-family:inherit; font-size:10.5px; padding:1px 7px; border-radius:4px; cursor:pointer;
+}
+.copy:hover{color:var(--blue); border-color:var(--blue-line)}
+.copy.ok{color:var(--green); border-color:var(--green-line); background:var(--green-bg)}
+.cmd pre{
+  margin:0; padding:9px 11px; font-family:var(--mono); font-size:11.5px; line-height:1.72;
+  color:#1f2937; white-space:pre-wrap; word-break:break-word; overflow-x:auto;
+}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.schip{
+  display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:11px;
+  background:var(--code-bg); border:1px solid var(--line); border-radius:6px; padding:3px 8px; color:var(--ink2);
+}
+.schip em{font-style:normal; color:var(--ink3); font-size:10px; font-family:-apple-system,sans-serif}
+.bar{display:flex; height:16px; border-radius:5px; overflow:hidden; border:1px solid var(--line); margin-bottom:9px}
+.bar i{display:block; height:100%}
+.barleg{display:flex; flex-direction:column; gap:3px}
+.barleg div{display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--ink2)}
+.barleg b{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--ink); font-weight:600}
+.barleg .sw{width:8px; height:8px; border-radius:2px; flex:0 0 auto}
+.note{
+  font-size:12px; color:var(--ink2); background:var(--amber-bg); border:1px solid var(--amber-line);
+  border-radius:8px; padding:9px 11px; line-height:1.7;
+}
+.tip{font-size:11.5px; color:var(--ink3); margin:8px 0 0; line-height:1.7}
+
+/* ── 隐藏 / 过滤 ── */
+.hide{display:none !important}
+.mark{background:#fff3bf; border-radius:3px}
+
+@media (max-width:1080px){
+  .main{grid-template-columns:1fr}
+  .panel{position:relative; top:0; max-height:none}
+  .nmeta{display:none}
+  .node-head{grid-template-columns:18px 52px minmax(0,1fr) auto}
+  .legend{display:none}
+}
+@media (max-width:620px){
+  .wrap{padding:0 14px 60px}
+  h1{font-size:18px}
+  .ncode{font-size:10.5px}
+  .node-kids{margin-left:12px; padding-left:10px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="top-row">
+    <div style="flex:1 1 420px">
+      <h1>WinVM Bridge · 安装部署 / 卸载 动作流程图</h1>
+      <p class="sub">
+        <code>winvm-plugin-deploy</code> v2.4.0 · 5 步 deploy + 3 步 undeploy ·
+        点击任一环节逐层展开，右侧显示该环节的<b>前置条件 / 动作命令 / 依赖脚本 / 预估耗时</b>
+      </p>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab on" data-k="deploy">安装部署<span class="n">5 步 · 47 环节</span></button>
+    <button class="tab" data-k="undeploy">卸载<span class="n">3 步 · 17 环节</span></button>
+  </div>
+</header>
+
+<div class="bar">
+  <label class="search">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+      <circle cx="7" cy="7" r="4.6"></circle><path d="M10.6 10.6 14 14"></path>
+    </svg>
+    <input id="q" type="search" placeholder="搜索环节 / 脚本名 / 命令关键字…">
+  </label>
+  <button class="btn" id="expandAll">全部展开</button>
+  <button class="btn" id="collapseAll">全部收起</button>
+  <div class="legend">
+    <span><i class="dot f"></i>&lt;5s</span>
+    <span><i class="dot m"></i>5–30s</span>
+    <span><i class="dot s"></i>&gt;30s</span>
+    <span><i class="dot k"></i>SKIP / 无操作</span>
+  </div>
+</div>
+
+<main class="main">
+  <div class="flow" id="flow"></div>
+  <aside class="panel" id="panel">
+    <div class="p-empty">
+      <b>选一个环节</b>
+      左侧点任意卡片即可展开下一层<br>并在本面板查看 5 项要素
+    </div>
+  </aside>
+</main>
+
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   数据源：skills/winvm-plugin-deploy（v2.4.0）
+   —— 步骤/子环节取自 scripts/*.sh 的 st_begin 标识；
+   —— 命令取自脚本实际执行行；
+   —— 耗时取自 references/deploy-timeline.md 的真机实测（真机实测）与
+      V1.4.32 分步计时（§7.3 / §7.4）。
+   ══════════════════════════════════════════════════════════════════ */
+
+const T = (label, ms) => ({ label, ms });
+
+const DEPLOY = {
+  key: 'deploy',
+  stages: [
+    { tag: '阶段 A', desc: '第 1 ‖ 2 步 并行执行（互不依赖）', ids: ['d1', 'd2'] },
+    { tag: '阶段 B', desc: '第 3 ‖ 4 步 并行执行（需阶段 A 完成）', ids: ['d3', 'd4'] },
+    { tag: '阶段 C', desc: '第 5 步 单跑（需 3 + 4 完成）', ids: ['d5'] }
+  ],
+  nodes: {
+
+  /* ─────────────── 第 1 步 ─────────────── */
+  d1: {
+    code: '1', name: '建 host ↔ VM 免密 SSH 通道',
+    dur: T('1s（已 READY）/ 15s + 7s（需建）', 1500),
+    summary: '让宿主能无口令登录 VM。先判（1a）：通道 READY 就整步 SKIP；DOWN 就进 1p 用凭据自动建 —— 1p 一旦成功即整步结束，1b/1c/1d 一个都不跑；只有 1p 也失败才退回「打印一条命令让用户在 VM 粘」。',
+    pre: [
+      'VM 已开机且 TCP 22 可达（SSH 服务在跑）',
+      '宿主有 node（ssh2 运行时）与 ssh-keygen',
+      'VM_HOST / VM_USER / VM_SSH_PORT 已设置（或来自 deploy-state.env）'
+    ],
+    cmds: [
+      { label: '整步入口', code: 'VM_HOST=172.16.100.2 bash scripts/deploy.sh --only 1' },
+      { label: '状态判据（_common.sh）', code: 'channel_ready 5000   # → ssh2-conn.mjs ping，退出码 0 = READY' }
+    ],
+    scripts: [
+      { n: 'deploy-1-ssh.sh', d: '1a~1d 主流程与重试循环' },
+      { n: 'deploy-1p-autokey.sh', d: '凭据自动建通道 1p.1~1p.7' },
+      { n: '_common.sh', d: 'channel_ready / key_facts / 状态与计时' },
+      { n: 'ssh2-conn.mjs', d: 'ssh2 后端实体（ping / exec）' },
+      { n: 'winvm-sshd-oneclick.ps1', d: 'VM 侧单脚本：建通道 / -Rollback' }
+    ],
+    children: ['d1a', 'd1p', 'd1b', 'd1c', 'd1d', 'd1v']
+  },
+
+  d1a: {
+    code: '1a', name: '判断通道是否 READY（整步总闸）',
+    dur: T('1s（READY）/ 15s（DOWN）', 1000),
+    summary: '判据是「新建连接真的能通」，不是 /health 长连口径 —— WEDGE 时两者可长期背离（health 恒 200 而新建全死）。READY 时还顺带确认「是本技能这把钥」并补写回滚基线。',
+    pre: ['WINVM_VM_KEY 指向的私钥存在', '后端 auto（ssh2 优先，二进制仅兜底）'],
+    cmds: [
+      { label: '判据', code: 'if channel_ready 5000; then ... exit 0; fi   # READY 即 1b~1d 全 SKIP' },
+      { label: '钥归属 + 回滚基线', code: 'read -r _ex _ours _kh <<<"$(key_facts)"\nwrite_baseline_if_absent "$_ex" "$_ours" "$_kh"   # 供 undeploy 精确删钥' }
+    ],
+    scripts: [{ n: '_common.sh', d: 'channel_ready：判据唯一入口' }, { n: 'ssh2-conn.mjs', d: 'ping 子命令（5s 窗）' }],
+    parts: [{ n: 'ssh2 建连 + auth + ping', ms: 1000 }],
+    fail: 'DOWN 不算失败：转 1p；1p 也不成则进 1b~1d 人工路径。'
+  },
+
+  d1p: {
+    code: '1p', name: '凭据自动建通道（S1 / S2 / S3 三级）',
+    dur: T('3~5s（S1 命中）/ 7s（凭据不可用）/ 25~40s（S2）', 4000),
+    summary: '准入判据只有一条：只要「用户名 + 口令」或「用户名 + 空口令」任一能登录，就全自动建通道。登录后如何拿到管理员能力由本脚本自己解决，不必劳烦用户粘命令。',
+    pre: [
+      'sshd 仍允许口令认证（PasswordAuthentication yes）',
+      '账户在 Administrators 组（写 ProgramData 授权文件需要完整令牌）',
+      '通道后端必须是 ssh2 —— 二进制后端在口令认证段会相位挂起',
+      '空口令账户：需 WINVM_SSH_ALLOW_EMPTY=1 显式开启尝试'
+    ],
+    cmds: [
+      { label: '入口（口令）', code: 'WINVM_SSH_PASSWORD=<pwd> bash scripts/deploy-1p-autokey.sh' },
+      { label: '入口（无密码账户）', code: 'WINVM_SSH_ALLOW_EMPTY=1 bash scripts/deploy-1p-autokey.sh' },
+      { label: '退出码语义', code: 'exit 0 = 通道已建好（CHANNEL_READY 落 state）\nexit 2 = 不可用 → 回退 1b 备钥 + 1c 人工命令（零行为倒退）' }
+    ],
+    scripts: [
+      { n: 'deploy-1p-autokey.sh', d: '1p.1~1p.7 全部逻辑' },
+      { n: 'ssh2-conn.mjs', d: 'WINVM_SSH_AUTH=password 分支' },
+      { n: '_common.sh', d: '透传 WINVM_SSH_AUTH / WINVM_SSH_PASSWORD' },
+      { n: 'winvm-sshd-oneclick.ps1', d: '仅 S2 降级时才用' }
+    ],
+    parts: [
+      { n: '1p.1 凭据可达性（2 发 ping）', ms: 7000 },
+      { n: '1p.2 身份判定（net session）', ms: 1000 },
+      { n: '1p.3 公钥就位（命中已存在）', ms: 0 },
+      { n: '1p.4 S1 直写授权文件', ms: 3000 },
+      { n: '1p.5 S1 免密回验（≤12s 窗）', ms: 2000 }
+    ],
+    fail: 'S1 回验不通才跑 S2（oneclick 修 sshd_config + 重启 sshd，25~40s）；S2 也不通退 2，回 1c 人工。',
+    children: ['d1p1', 'd1p2', 'd1p3', 'd1p4', 'd1p5', 'd1p6', 'd1p7']
+  },
+
+  d1p1: {
+    code: '1p.1', name: '登录凭据可达性（口令 / 空口令）',
+    dur: T('7s（不可用）/ 1s（可用）', 7000),
+    summary: '先发 2 发 ping 判「能不能登录」，不吃 vmssh 的 3 次重试 —— 这决定失败时 7s 就止损而不是 15s 后才降级。',
+    pre: ['已解析到口令来源（env > VM_PASSWORD > 密码文件 > tty）', '空口令需 WINVM_SSH_PASSWORD_EMPTY=1 与「未提供口令」区分'],
+    cmds: [
+      { label: '进入口令模式并探测', code: 'enter_password_mode   # export WINVM_SSH_AUTH=password\nping_password_auth    # 2 × ssh2-conn.mjs ping' },
+      { label: '身份兜底验证', code: 'vmssh \'whoami\' | tail -1   # 空/含 denied 即判失败' }
+    ],
+    scripts: [{ n: 'deploy-1p-autokey.sh', d: 'enter_password_mode / ping_password_auth' }, { n: 'vm-conn.sh', d: '_askpass_env _ssh_t 顺序（timeout 不能包函数）' }],
+    parts: [{ n: '2 × ssh2 握手 + 口令 auth', ms: 7000 }],
+    fail: 'PASSWORD_AUTH_UNAVAILABLE=1 → exit 2。空口令被拒会打印 Windows 出厂两道策略与放开配方。'
+  },
+
+  d1p2: {
+    code: '1p.2', name: '身份判定（决定写哪个授权文件）',
+    dur: T('<1s', 900),
+    summary: 'net session 即代表「已持管理员完整令牌」—— Windows OpenSSH 对 Administrators 组成员不做 UAC 分裂，不弹窗、不需要提权。据此选授权文件，选错了等于白写。',
+    pre: ['1p.1 已 PASS（能 exec 命令）'],
+    cmds: [
+      { label: '判据', code: "vmssh 'net session >nul 2>&1 && echo ADMIN_YES || echo ADMIN_NO'" }
+    ],
+    scripts: [{ n: 'deploy-1p-autokey.sh', d: 'IS_ADMIN → AK_ADMIN / AK_USER 选择' }],
+    parts: [{ n: '一次 cmd.exe 往返', ms: 900 }],
+    fail: 'ADMIN_NO 不算失败：改走用户级 .ssh\\authorized_keys（该分支本就不需管理员），免密可达；但后续需管理员能力的步骤仍需人工。'
+  },
+
+  d1p3: {
+    code: '1p.3', name: '本机公钥就位',
+    dur: T('0s（复用）/ &lt;1s（新建）', 300),
+    summary: '确保 ~/.ssh/id_ed25519_winvm 与 .pub 存在；已存在则复用，不覆盖（覆盖会让已部署的授权失效）。',
+    pre: ['宿主有 ssh-keygen（openssh-client）', '~/.ssh 可写'],
+    cmds: [
+      { label: '生成 / 复用', code: "ssh-keygen -t ed25519 -N '' -C 'workbuddy-winvm' -f \"$WINVM_VM_KEY\"   # 仅当不存在\nPUB=\"$(cat \"$KEY.pub\")\"" }
+    ],
+    scripts: [{ n: 'deploy-1p-autokey.sh', d: '1p.3 段' }],
+    parts: [{ n: '文件存在性判定 + 读取', ms: 300 }]
+  },
+
+  d1p4: {
+    code: '1p.4', name: 'S1 直写授权文件（不重启 sshd）',
+    dur: T('3~5s', 4000),
+    summary: '本设计的关键一步：把公钥追加进「真正被读取的那份文件」，ACL 用 SID 收紧，且不重启 sshd —— 于是当前会话不断，免密立即可用。',
+    pre: ['1p.2 已判定身份（决定 AK 路径）', '管理员 → %ProgramData%\\ssh\\administrators_authorized_keys；否则 → 用户级 ~\\.ssh\\authorized_keys'],
+    cmds: [
+      { label: '下发形式（单行 PS，EncodedCommand）', code: 'powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand <base64 UTF-16LE>' },
+      { label: 'PS 载荷要点（幂等 + SID 收紧 ACL）', code: "$cur=[IO.File]::ReadAllText($ak)\nif($cur -notlike ('*'+$pub+'*')){ [IO.File]::AppendAllText($ak, $sep+$pub+NL); 'APPENDED' } else { 'ALREADY' }\nicacls.exe $ak /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F'" }
+    ],
+    scripts: [{ n: 'deploy-1p-autokey.sh', d: 'PS_WRITE 变量 + ps_encoded' }, { n: 'vm-conn.sh', d: 'vmssh（enc 通道 exec）' }],
+    parts: [{ n: 'PS 冷启 + 文件读写 + icacls', ms: 4000 }],
+    fail: '写失败或输出不含 APPENDED/ALREADY → 降级 S2（oneclick）。'
+  },
+
+  d1p5: {
+    code: '1p.5', name: 'S1 免密回验（切回 key 认证）',
+    dur: T('2~5s（≤12s 窗）', 2500),
+    summary: '切回 key 认证立即验：因为没重启 sshd，authorized_keys 的改动是即时生效的。通了就 PASS 收工（这是常态路径）。',
+    pre: ['1p.4 已 APPENDED 或 ALREADY'],
+    cmds: [
+      { label: '回验', code: 'leave_password_mode   # unset WINVM_SSH_AUTH\nwhile [ $waited -lt 12 ]; do channel_ready 6000 && exit 0; sleep 2; done' }
+    ],
+    scripts: [{ n: '_common.sh', d: 'channel_ready' }, { n: 'ssh2-conn.mjs', d: 'key 认证 ping' }],
+    parts: [{ n: 'key 认证建连', ms: 2500 }],
+    fail: '12s 未通 → S2。常见原因：AuthorizedKeysFile 指到别处 / PubkeyAuthentication no / ACL 策略拦。'
+  },
+
+  d1p6: {
+    code: '1p.6', name: 'S2 跑 oneclick 修 sshd 配置',
+    dur: T('25~40s（会重启 sshd）', 32000),
+    summary: '重锤降级：把 oneclick 下发到 VM 执行，修 AuthorizedKeysFile / PubkeyAuthentication / 防火墙，然后重启 sshd。重启会断当前会话，属预期。',
+    pre: ['S1 回验失败', '仍能用口令登录（重启前需要凭据）'],
+    cmds: [
+      { label: '优先 scp 本地脚本再执行', code: "vmscp scripts/winvm-sshd-oneclick.ps1 user@host:winvm-sshd-oneclick.ps1\npowershell -EncodedCommand <& '.\\winvm-sshd-oneclick.ps1' -PublicKey <PUB> -User <U> -Port 22>" },
+      { label: '本地无脚本时先下载', code: "Invoke-WebRequest -UseBasicParsing -Uri <Gitee raw> -OutFile $f -TimeoutSec 45" }
+    ],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: 'VM 侧建通道 + -Rollback' }, { n: 'vm-conn.sh', d: 'vmscp 双后端一致' }],
+    parts: [{ n: 'scp 下发', ms: 4000 }, { n: 'oneclick 9 阶段（含重启 sshd）', ms: 28000 }],
+    fail: '找不到脚本或执行失败 → 退 2，打印用户命令回 1c。'
+  },
+
+  d1p7: {
+    code: '1p.7', name: 'S2 免密通道回验（默认 SKIP）',
+    dur: T('0s（默认 SKIP）/ ≤90s（开启时）', 0),
+    summary: '重启 sshd 后等它真正恢复监听再验 key 认证（每 5s 一次，最长 90s）。默认关闭：oneclick 的 [9/9] 已做过本机回环复验，再等一轮只买到「更确定的结论」而不买「更快的部署」，真判据留给 4.0 通道门禁。所以关闭时绝不落 CHANNEL_READY=1 —— 没验过的通道不许标成「已就绪」。',
+    pre: ['1p.6 已下发', 'AUTOKEY_VERIFY_AFTER_S2=1（仅测试/查验时开）'],
+    cmds: [
+      { label: '开关（_common.sh，唯一实现）', code: 'oneclick_verify_enabled() { [ "${AUTOKEY_VERIFY_AFTER_S2:-0}" = "1" ]; }' },
+      { label: '关闭时直接收尾', code: 'st_end 0 SKIP "默认跳过（oneclick 已做 [9/9] 回环复验）"\nstate_set WINVM_VM_KEY "$KEY"\necho "AUTOKEY_RESULT=PASS_UNVERIFIED strategy=S2"; steps_report; exit 0' },
+      { label: '开启时轮询', code: 'waited="$(wait_channel_ready 90)" || exit 2   # 每 5s 一次，每 15s 打一次进度' }
+    ],
+    scripts: [{ n: '_common.sh', d: 'oneclick_verify_enabled / wait_channel_ready' }],
+    parts: [{ n: '关闭：零操作（SKIP 即返回）', ms: 0 }, { n: '开启：sshd 恢复监听 + 建连（20~40s）', ms: 30000 }],
+    fail: '开启且 90s 仍未通 → exit 2，回 1c 人工（AUTOKEY_RESULT=FAIL strategy=S2）。'
+  },
+
+  d1b: {
+    code: '1b', name: '准备 host 端密钥 + 写回滚基线',
+    dur: T('0s', 300),
+    summary: '通道 DOWN 且 1p 未成时的人工路径第一步：备钥、记录基线，让 undeploy 之后能判断「这把钥是不是本技能建的」。',
+    pre: ['1p 已 exit 2（凭据路径不可用）'],
+    cmds: [{ label: '备钥', code: "prepare_key \"$ROT\"   # ssh-keygen -t ed25519 -N '' -C workbuddy-winvm -f \"$KEY\"" }],
+    scripts: [{ n: 'deploy-1-ssh.sh', d: 'prepare_key()' }, { n: '_common.sh', d: 'write_baseline_if_absent / host-state.json' }],
+    parts: [{ n: '文件判定 + 基线写入', ms: 300 }],
+    fail: '失败回 1b 换钥重来（最多 3 轮）。'
+  },
+
+  d1c: {
+    code: '1c', name: '打印 VM 侧一键命令（双源回退）',
+    dur: T('3s（含双源 HEAD 探测）', 3000),
+    summary: '生成「一整行、全单引号、分号连接」的 PowerShell 命令，用户粘贴即跑。宿主侧先逐源 HEAD 探测，两源都不可达就直接失败 —— 不会假装通道建好了。',
+    pre: ['技能仓 public（Gitee / GitHub 双源，匿名可下）', '至少一源 HEAD=200'],
+    cmds: [
+      { label: '拼命令（节选）', code: "$ErrorActionPreference='Stop';$d=Join-Path $env:ProgramData 'WinVMDeploy'\niwr -UseBasicParsing -Uri '<远端直链>' -OutFile \"$d\\winvm-sshd-oneclick.ps1\"\nUnblock-File ...; powershell -NoProfile -ExecutionPolicy Bypass -File \"$d\\winvm-sshd-oneclick.ps1\" -PublicKey '<pub>' -User 'User' -Port 22" },
+      { label: '双源探测', code: 'for u in <Gitee raw main> <GitHub raw main>; do url_reachable "$u" && echo "[200] $u" || echo "[---] $u"; done' }
+    ],
+    scripts: [{ n: 'deploy-1-ssh.sh', d: 'print_user_command / sshd_script_urls' }, { n: '_common.sh', d: 'url_reachable' }],
+    parts: [{ n: '2 源 HEAD 探测', ms: 3000 }],
+    fail: '全源不可达 → st_end FAIL 并逐源打印 [200]/[---]，提示 SSHD_SCRIPT_URL 指定直链。'
+  },
+
+  d1d: {
+    code: '1d', name: '用户粘贴执行（唯一人工步骤）',
+    dur: T('23s（脚本内 9 阶段）', 23000),
+    summary: '用户在 VM 的管理员 PowerShell 粘那一行。命令零双引号、单行化，避免 Git-Bash 吞引号与多行折叠。执行完重跑 deploy 即越过本步（已完成步骤全幂等）。',
+    pre: ['用户能在 VM 里开管理员 PowerShell', 'VM 出口能访问至少一个 raw 源'],
+    cmds: [
+      { label: '回到宿主后重跑（1a 判到 READY 即跳过）', code: 'VM_HOST=... bash scripts/deploy.sh' },
+      { label: '可选：原地等用户粘贴', code: 'CHANNEL_WAIT_S=600 VM_HOST=... bash scripts/deploy.sh' }
+    ],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '9 阶段全在这里执行' }],
+    parts: [
+      { n: '[1/9] 基线采集（journal + 快照）', ms: 9000 },
+      { n: '[2/9] 装 OpenSSH（MSI 缓存命中 8s / 首装 72s）', ms: 8000 },
+      { n: '[3/9] 启动并自启（幂等短路）', ms: 0 },
+      { n: '[4/9] sshd_config（留档 + 预览 + 写 + 再校验）', ms: 1000 },
+      { n: '[5/9] 公钥 + ACL', ms: 0 },
+      { n: '[6/9] 网络配置档（两档均 Private）', ms: 0 },
+      { n: '[7/9] 防火墙（主规则 + 兜底）', ms: 2000 },
+      { n: '[8/9] 自检 5 项断言', ms: 0 },
+      { n: '[9/9] 重启 sshd + 本机回环复验', ms: 3000 }
+    ],
+    fail: '粘错会满屏 ParseException；命令已做去 BOM / 去 #requires / Join 归一化，仍有问题按 troubleshoot 1c 条处理。',
+    children: ['d1d1', 'd1d2', 'd1d3', 'd1d4', 'd1d5', 'd1d6', 'd1d7', 'd1d8', 'd1d9']
+  },
+
+  d1d1: {
+    code: '[1/9]', name: '基线采集（journal 归档 + 快照）',
+    dur: T('9s', 9000),
+    summary: '动手前先记录 sshd_config 原件、服务状态、防火墙规则、现有授权文件 —— 这是 -Rollback 能逆序还原的前提。固定成本，无法压缩。',
+    pre: ['管理员 PowerShell', 'C:\\ProgramData\\WinVMDeploy 可写'],
+    cmds: [{ label: '脚本内动作', code: 'New-Item -ItemType Directory -Force C:\\ProgramData\\WinVMDeploy\\journal\nCopy-Item $sshdConfig "$journal\\sshd_config.bak-$(Get-Date -f yyyyMMddHHmmss)"' }],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '阶段 [1/9]' }],
+    parts: [{ n: '目录创建 + 4 份快照落盘', ms: 9000 }]
+  },
+
+  d1d2: {
+    code: '[2/9]', name: '装 OpenSSH（MSI 缓存命中则秒过）',
+    dur: T('8s（缓存命中）/ 72s（首装，含 60s 下载）', 8000),
+    summary: '本轮最大单项收益点：同一 6.6MB MSI 跨时段实测 2.9s~60.2s（差 20 倍），所以做了本地缓存 —— 阶段 2 从 72s 降到 8s。',
+    pre: ['VM 出口能下载 MSI（首装时）', '缓存路径 C:\\ProgramData\\WinVMDeploy\\cache\\OpenSSH-Win64.msi'],
+    cmds: [
+      { label: '缓存校验（防半截文件）', code: '文件头 D0CF11E0 + 大小 >1MB → 命中则跳过下载' },
+      { label: '安装', code: 'msiexec /i OpenSSH-Win64.msi /quiet   # 8.1s（首次）→ 6.1s（缓存）' },
+      { label: '强制重下', code: 'winvm-sshd-oneclick.ps1 ... -NoMsiCache' }
+    ],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: 'Restore-MsiCache / Save-MsiCache' }],
+    parts: [{ n: '缓存命中判定', ms: 2000 }, { n: 'msiexec 安装', ms: 6000 }],
+    note: '-Rollback 刻意不删 cache：重建通道直接复用。'
+  },
+
+  d1d3: {
+    code: '[3/9]', name: '启动服务并设自启',
+    dur: T('0s（幂等短路）', 0),
+    summary: '已是 Automatic + Running 就直接跳过 —— 幂等短路，重复执行不产生任何动作。',
+    pre: ['OpenSSH 已安装'],
+    cmds: [{ label: '命令', code: 'Set-Service sshd -StartupType Automatic\nStart-Service sshd   # 已 Running 则跳过' }],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '阶段 [3/9]' }],
+    parts: [{ n: '状态判定（已就绪，零动作）', ms: 0 }]
+  },
+
+  d1d4: {
+    code: '[4/9]', name: 'sshd_config（留档 → 预览校验 → 真写 → 再校验）',
+    dur: T('1s', 1000),
+    summary: '改配置四步走：先留档，再把改动渲染成预览给人看，然后真写，最后再读一遍校验。避免「改了但没生效」这种最难查的状态。',
+    pre: ['[1/9] 已留档原件'],
+    cmds: [{ label: '关键项', code: 'PubkeyAuthentication yes\nPasswordAuthentication 保持原值（1p 依赖它）\nAuthorizedKeysFile 按需修正' }],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '阶段 [4/9]' }],
+    parts: [{ n: '留档 + 写 + 回读校验', ms: 1000 }]
+  },
+
+  d1d5: {
+    code: '[5/9]', name: '写公钥 + 收紧 ACL',
+    dur: T('0s', 500),
+    summary: '把公钥写进 administrators_authorized_keys（Match Group administrators 分支真正读的那份），ACL 用 SID 收紧到 Administrators + SYSTEM 全权。',
+    pre: ['config 已确保 AuthorizedKeysFile 指向该文件'],
+    cmds: [{ label: '动作', code: "[IO.File]::AppendAllText($ak, $pub+NL)\nicacls.exe $ak /inheritance:r /grant '*S-1-5-32-544:F' /grant '*S-1-5-18:F'" }],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '阶段 [5/9]' }],
+    parts: [{ n: '追加 + icacls（本地文件操作，极快）', ms: 500 }]
+  },
+
+  d1d6: {
+    code: '[6/9]', name: '网络配置档（Public → Private）',
+    dur: T('0s（两档均 Private，无需改）', 0),
+    summary: 'Windows 防火墙按「配置档」决定规则是否生效。若网卡被判为 Public，即便规则存在也不放行 —— 这里确保两档都是 Private。',
+    pre: [],
+    cmds: [{ label: '命令', code: 'Get-NetConnectionProfile | Set-NetConnectionProfile -NetworkCategory Private' }],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '阶段 [6/9]' }],
+    parts: [{ n: '配置档判定（已满足）', ms: 0 }]
+  },
+
+  d1d7: {
+    code: '[7/9]', name: '防火墙规则（主规则 + 兜底规则）',
+    dur: T('2s', 2000),
+    summary: '建两条入站规则：主规则按端口与 DisplayName 命名，兜底规则防「主规则被策略删了」。这两条正是 4a 探测时读注册表要判定的对象。',
+    pre: ['[6/9] 网络档已 Private'],
+    cmds: [{ label: '命令', code: 'New-NetFirewallRule -DisplayName "WinVM-SSH-22" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 22\n# 兜底规则同名族，注册表 value 内 Active=TRUE|Dir=In|Action=Allow' }],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '阶段 [7/9]' }],
+    parts: [{ n: 'New-NetFirewallRule ×2（含 NetSecurity 加载）', ms: 2000 }]
+  },
+
+  d1d8: {
+    code: '[8/9]', name: '自检 5 项断言',
+    dur: T('0s', 0),
+    summary: '脚本自己验自己：服务在跑、config 关键项在位、公钥含目标 key、ACL 只含 544/18、规则存在。任一不满足就不往下走。',
+    pre: ['[1/9]~[7/9] 已执行'],
+    cmds: [{ label: '断言面', code: 'service running / PubkeyAuthentication yes / key in authorized_keys / ACL SIDs / firewall rule exists' }],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '阶段 [8/9]' }],
+    parts: [{ n: '5 项内存断言', ms: 0 }]
+  },
+
+  d1d9: {
+    code: '[9/9]', name: '重启 sshd + 本机回环复验',
+    dur: T('3s', 3000),
+    summary: '最后一步才重启 sshd（前面全程不动服务）。重启后立刻从本机 127.0.0.1 回环验证端口在听 —— 本机能连上，宿主才可能连上。',
+    pre: ['[8/9] 全绿'],
+    cmds: [{ label: '命令', code: 'Restart-Service sshd\nTest-NetConnection 127.0.0.1 -Port 22   # 回环复验' }],
+    scripts: [{ n: 'winvm-sshd-oneclick.ps1', d: '阶段 [9/9]' }],
+    parts: [{ n: '重启服务 + 回环 TCP 握手', ms: 3000 }],
+    note: '这一步会断开当前 SSH 会话（若正在用口令通道）—— 1p 的 S2 路径正因此才要 90s 回验窗。'
+  },
+
+  d1v: {
+    code: '1d·回验', name: '免密通道回验（1d 之后的追加步，默认 SKIP）',
+    dur: T('0s（默认 SKIP）/ ≤90s（开启时）', 0),
+    summary: '用户跑完 oneclick 后，宿主侧再确认一次「通道真的通了」。与 1p.7 复用同一个 wait_channel_ready —— 同一份判据两处调用，不做第二套实现。同样默认关闭：用户下次重跑 deploy 时 1a 判到 READY，那本身就是最省的一次回验。',
+    pre: ['1d 已让用户执行完命令', 'CHANNEL_WAIT_S>0 或 AUTOKEY_VERIFY_AFTER_S2=1'],
+    cmds: [
+      { label: '进入条件（默认不进）', code: 'if [ "$WAIT_S" -gt 0 ] || oneclick_verify_enabled; then ... fi' },
+      { label: '轮询', code: 'wait_channel_ready "${WIN_D}"   # 窗长 CHANNEL_WAIT_S，未给则 AUTOKEY_WAIT_S=90' }
+    ],
+    scripts: [{ n: 'deploy-1-ssh.sh', d: '1d 段的条件进入' }, { n: '_common.sh', d: 'wait_channel_ready（与 1p.7 共用）' }],
+    parts: [{ n: '关闭：不进本步', ms: 0 }, { n: '开启：通道恢复 + 新建连接实测', ms: 30000 }],
+    fail: '超时 → st_end 2 WAIT_USER（不是 FAIL）：命令已打印，用户粘完重跑即继续。'
+  },
+
+  /* ─────────────── 第 2 步 ─────────────── */
+  d2: {
+    code: '2', name: '取发布包 + 装 host 端插件',
+    dur: T('3s（缓存命中）', 3000),
+    summary: '取 zip（sha256 校验 + 隔离解压）→ MANIFEST 对账 → 结构自检 → install-host 装插件/连接器/skills → 交付判据。与第 1 步并行，互不依赖。',
+    pre: ['能访问 GitHub / Gitee release 资产（或已缓存）', '宿主 node ≥18'],
+    cmds: [{ label: '整步入口', code: 'VM_HOST=... bash scripts/deploy.sh --only 2' }],
+    scripts: [{ n: 'deploy-2-host.sh', d: '2a~2e' }, { n: 'download-verify.sh', d: '取包三件套' }, { n: 'pkg-root.sh', d: '包根单一事实源' }],
+    parts: [
+      { n: '2a 取包（缓存命中）', ms: 1000 },
+      { n: '2b MANIFEST 对账', ms: 1000 },
+      { n: '2c 结构检查', ms: 0 },
+      { n: '2d install-host（幂等）', ms: 0 },
+      { n: '2e 交付判据', ms: 1000 }
+    ],
+    children: ['d2a', 'd2b', 'd2c', 'd2d', 'd2e']
+  },
+
+  d2a: {
+    code: '2a', name: '取发布包（sha256 + 隔离解压）',
+    dur: T('1s（缓存）/ 5~30s（首下 8MB）', 1000),
+    summary: '下载 release zip 并校验 sha256，解压到隔离目录，输出 PKG_ROOT。后续所有步骤都用这个包根，不混用别的层。',
+    pre: ['RELEASE_TAG 可解析（默认 latest）', '磁盘可写 DEPLOY_ROOT'],
+    cmds: [{ label: '取包', code: 'bash scripts/download-verify.sh --tag V1.4.32   # 输出 PKG_ROOT=...' }],
+    scripts: [{ n: 'download-verify.sh', d: '下载 / sha256 / 解压' }, { n: 'pkg-root.sh', d: '包根解析与校验' }],
+    parts: [{ n: '缓存命中 + 解压', ms: 1000 }],
+    fail: 'rc≠0 → 打印日志末 12 行；离线时 SKIP_DOWNLOAD=1 复用本地包。'
+  },
+
+  d2b: {
+    code: '2b', name: 'MANIFEST 对账',
+    dur: T('1s', 1000),
+    summary: '逐文件比对包内容与 MANIFEST。多出（undeclared）意味着陈旧层或发布漂移 —— 直接硬失败，不许静默放过。',
+    pre: ['2a 已产出合法 PKG_ROOT'],
+    cmds: [{ label: '对账', code: 'python3 qa/deploy-probes/verify-manifest.py .   # 末行 RESULT: PASS/FAIL' }],
+    scripts: [{ n: 'qa/deploy-probes/verify-manifest.py', d: '清单比对器' }],
+    parts: [{ n: '11 项文件哈希比对', ms: 1000 }],
+    fail: '失败要重新取包，不许 SKIP_DOWNLOAD。'
+  },
+
+  d2c: {
+    code: '2c', name: '两端结构就位检查',
+    dur: T('0s', 200),
+    summary: '前置拦截：host 端 4 个交付脚本必须在场，否则到第 4 步才炸会浪费一整轮。',
+    pre: ['2a/2b 已 PASS'],
+    cmds: [{ label: '检查', code: 'for f in delivery/install-host.mjs delivery/setup.mjs delivery/uninstall.mjs delivery/winvm-plugin.mjs; do [ -f "$PKG/$f" ] || MISS="$MISS $f"; done' }],
+    scripts: [{ n: 'deploy-2-host.sh', d: '2c 段' }],
+    parts: [{ n: '4 次 stat', ms: 200 }]
+  },
+
+  d2d: {
+    code: '2d', name: 'install-host --yes --no-tunnel',
+    dur: T('0s（幂等）/ 10~20s（首装）', 500),
+    summary: '装宿主插件三件套：插件缓存分发、连接器注册、connector skills 落盘。--no-tunnel 把隧道留给第 3 步，避免与第 4 步抢 ssh 握手槽。',
+    pre: ['包根就位（2c PASS）', '宿主可写 ~/.workbuddy'],
+    cmds: [{ label: '安装', code: 'node delivery/install-host.mjs --yes --no-tunnel \\\n  --vm-host "$VM_HOST" --vm-user "$VM_USER" --vm-ssh-port "$VM_SSH_PORT"' }],
+    scripts: [{ n: 'delivery/install-host.mjs', d: '插件 / 连接器 / skills 分发' }],
+    parts: [{ n: '逐文件 SHA256 比对（全命中即短路）', ms: 500 }],
+    fail: 'errno=12 是内存压力；connector-states ⚠ 属平台账户噪声可忽略。'
+  },
+
+  d2e: {
+    code: '2e', name: 'host 端交付判据（connector skills 计数）',
+    dur: T('1s', 1000),
+    summary: '「装完不知道装没装」的解法：硬断言 connector skills 数量。这条曾经救过一次 —— 宿主重启把 connectors/skills 擦空，2e 判 0 后重跑本步恢复。',
+    pre: ['2d rc=0'],
+    cmds: [{ label: '计数（禁 grep -c ... || echo 0）', code: 'ls ~/.workbuddy/connectors/skills/connector-winvm/ | awk \'END{print NR+0}\'   # 需 ≥8' }],
+    scripts: [{ n: 'deploy-2-host.sh', d: '2e 段' }],
+    parts: [{ n: '目录计数', ms: 1000 }],
+    fail: '<8 → 重跑 node delivery/deploy-shared-skills.mjs。'
+  },
+
+  /* ─────────────── 第 3 步 ─────────────── */
+  d3: {
+    code: '3', name: '起隧道并验证',
+    dur: T('2s', 2000),
+    summary: '对齐 vm-conn.json 的 identityFile → 起 winvm-tunnel service（已监听则幂等短路）→ 判据只认「本地端口在监听 + daemon 存活」。与第 4 步并行。',
+    pre: ['第 1 步通道 READY', '第 2 步包根就位 + 插件已装'],
+    cmds: [{ label: '整步入口', code: 'VM_HOST=... bash scripts/deploy.sh --only 3' }],
+    scripts: [{ n: 'deploy-3-tunnel.sh', d: '3a~3c' }, { n: 'delivery/winvm-plugin.mjs', d: 'tunnel restart / stop' }],
+    parts: [{ n: '3a 对齐 identityFile', ms: 0 }, { n: '3b 起隧道（幂等短路）', ms: 1000 }, { n: '3c 判据', ms: 1000 }],
+    children: ['d3a', 'd3b', 'd3c']
+  },
+
+  d3a: {
+    code: '3a', name: '对齐 vm-conn.json 的 identityFile',
+    dur: T('0s', 100),
+    summary: '把隧道要用的私钥指向本技能这把。指错了的症状是连续 All configured authentication methods failed —— 看起来像通道坏，其实是钥不对。',
+    pre: ['WINVM_VM_KEY 已确定且文件存在'],
+    cmds: [{ label: '改写', code: 'node -e \'...j.identityFile=k; fs.writeFileSync(p, JSON.stringify(j,null,2)+"\\n")\' "$VMC" "$WANT"' }],
+    scripts: [{ n: 'deploy-3-tunnel.sh', d: '3a 段' }],
+    parts: [{ n: 'JSON 读改写', ms: 100 }]
+  },
+
+  d3b: {
+    code: '3b', name: '起隧道服务（幂等：已监听则不重启）',
+    dur: T('1s（短路）/ 5~15s（冷启）', 1000),
+    summary: '刻意做成幂等短路：restart 会重建到 VM 的 ssh 连接，与并行第 4 步的新建连接抢 sshd 握手槽，实测把第 4 步打成 Connection lost before handshake。',
+    pre: ['3a 已对齐', 'vm-conn.json 可读'],
+    cmds: [{ label: '起服务', code: 'node delivery/winvm-plugin.mjs tunnel restart' }, { label: '短路判据', code: 'port_listening 18443 && [ "$(tunnel_pid)" != "0" ] && kill -0 "$(tunnel_pid)"' }],
+    scripts: [{ n: 'delivery/winvm-plugin.mjs', d: 'tunnel 子命令' }, { n: '_common.sh', d: 'port_listening / tunnel_pid / tunnel_alive' }],
+    parts: [{ n: '短路判定（无进程启动）', ms: 1000 }]
+  },
+
+  d3c: {
+    code: '3c', name: '验证隧道（端口监听 + daemon 存活）',
+    dur: T('0s（旧版 123s 假 FAIL）', 500),
+    summary: '判据刻意不含 /health=200：从零部署时 VM 端服务由并行第 4 步安装，此刻 18443 后面没人应答，health=000 是合法中间态。旧判据空等 30 轮才假 FAIL，123s。',
+    pre: ['3b 已执行'],
+    cmds: [{ label: '判据', code: 'port_listening 18443   # 最多等 30 × 2s\ntunnel_pid → kill -0   # daemon 存活\nhealth_code 18443 3    # 仅信息位，不参与 PASS/FAIL' }],
+    scripts: [{ n: '_common.sh', d: 'port_listening / health_code' }],
+    parts: [{ n: '端口探测', ms: 500 }],
+    note: '「后端不在隧道会不会死」已用受控实验证实（2026-11-18，5 阶段）：① 基线 listen=yes health=200 pid=N → ② schtasks /End 停掉任务壳，node 子进程仍在（僵尸），health 仍 200 → ③ 按端口反查强杀进程：VM 端 0 监听、health=000，隧道 pid 不变仍 RUNNING → ④ 断连 28s 后隧道 pid 不变、无 error → ⑤ /Run 后 35s：VM 端重新监听，health 自动回到 200，隧道 pid 仍未变。结论：隧道是 SSH 本地端口转发，后端消失只让 health 变 000，不会杀隧道；后端恢复即自动接上，无需重启隧道。',
+    fail: 'listen=no 或 daemon=no → FAIL，看 ~/.workbuddy/winvm/tunnel.log；不许重启 VM。health=000 单独出现不是本步失败。'
+  },
+
+  /* ─────────────── 第 4 步 ─────────────── */
+  d4: {
+    code: '4', name: '装 VM 端 + 起 mcp/a2a service',
+    dur: T('102s（稳态）/ 322s（重装轮）', 322000),
+    summary: '全链最大的一步：4.0 通道门禁 → 4a 补齐运行时与四个全局 CLI → 4b 推包并起服务 → 4c 七判据（含两个上游工具面，真实 tools/list）。',
+    pre: ['第 1 步通道 READY（4.0 会再验一次）', '第 2 步包根就位'],
+    cmds: [{ label: '整步入口', code: 'VM_HOST=... bash scripts/deploy.sh --only 4' }, { label: '跳过上游工具面', code: 'SKIP_UPSTREAMS=1 VM_HOST=... bash scripts/deploy.sh --only 4' }],
+    scripts: [{ n: 'deploy-4-vm.sh', d: '4.0 / 4a~4c' }, { n: 'delivery/bootstrap.mjs', d: 'prepare-vm（依赖 + 探测）' }, { n: 'delivery/setup.mjs', d: '--only-vm 相位编排' }, { n: 'delivery/install-vm.mjs', d: 'VM 端安装 6 段' }, { n: 'ps-run.sh', d: '远端 PS 执行器（含载荷预算）' }],
+    parts: [
+      { n: '4.0 通道门禁', ms: 2000 },
+      { n: '4a prepare-vm', ms: 60000 },
+      { n: '4b setup 装 VM 端', ms: 218000 },
+      { n: '4c 七判据（含两上游工具面）', ms: 34000 }
+    ],
+    note: '61s / 218s 是同一环节的两个口径：11-17 稳态轮 61s，11-18 重装轮 218s（VM 负载 + 全量重装）。',
+    children: ['d40', 'd4a', 'd4b', 'd4c']
+  },
+
+  d40: {
+    code: '4.0', name: '通道门禁（有界等健康窗）',
+    dur: T('2s（READY）/ ≤60s（WEDGE 时）', 2000),
+    summary: '前面步骤若把 sshd 打挂，本步会连吃 3 次超时。这里先做有界健康窗：只等「新建连接可用」，绝不重启 VM。',
+    pre: ['VM 未在 WEDGE 相位'],
+    cmds: [{ label: '门禁', code: 'while :; do channel_ready 8000 && break; [ $waited -ge 60 ] && die; sleep 10; done' }],
+    scripts: [{ n: 'deploy-4-vm.sh', d: '4.0 段' }, { n: '_common.sh', d: 'channel_ready' }],
+    parts: [{ n: '一次新建连接实测', ms: 2000 }],
+    fail: '60s 内不可用 = WEDGE（ping 通但握手超时）。等健康窗后重跑 --only 4，前 3 步不必重来。'
+  },
+
+  d4a: {
+    code: '4a', name: 'prepare-vm --ensure-deps（运行时 + 四个全局 CLI）',
+    dur: T('60s（只读 17.2s + apply 43s）/ 首装上游再 +48s', 60000),
+    summary: '补齐 VM 端运行时并采集现状事实。v2.4.0 起本段接管全部依赖：node → codebuddy → agent-desktop → agent-browser，四个一律全局装且顺序固定（后三个都靠 npm，node 不先就位就一个都装不上）。V1.4.32 把 7 条独立 ssh 合并成 1 条 EncodedCommand，只读探测从 27.5s 降到 17.2s。',
+    pre: ['通道可用（4.0 PASS）', 'VM 内允许执行 PowerShell'],
+    cmds: [
+      { label: '执行（含上游）', code: 'node delivery/bootstrap.mjs prepare-vm --apply --ensure-deps \\\n  --vm-host "$VM_HOST" --vm-user "$VM_USER" --vm-ssh-port "$VM_SSH_PORT"' },
+      { label: '只要 node', code: '... prepare-vm --apply --ensure-deps --skip-upstream-deps   # SKIP_UPSTREAMS=1 时' }
+    ],
+    scripts: [{ n: 'delivery/bootstrap.mjs', d: 'buildPrepareProbePs / cmdPrepareVm（--ensure-deps）' }, { n: 'delivery/prepare-vm.mjs', d: 'DB-7：四个全局 CLI 幂等安装' }, { n: 'delivery/ssh2-backend.mjs', d: '钥候选链（id_ed25519_winvm 优先）' }],
+    parts: [
+      { n: '只读合并探测（1 发）', ms: 17200 },
+      { n: 'apply 载荷（防火墙/登录态/依赖幂等修复）', ms: 43000 },
+      { n: 'DB-7 四个全局 CLI（已装则逐个 SKIP）', ms: 0 }
+    ],
+    note: 'V1.4.31 时本段 76s（7 条往返 × 一次 PS 冷启 5~8s）。DB-7 首装实测 47.9s，已装则秒回。',
+    fail: '建连瞬态（handshake / ready 超时）给一次 15s 后重试（幂等只读）。',
+    children: ['d4a1', 'd4a2', 'd4a3']
+  },
+
+  d4a1: {
+    code: '4a-1', name: '只读合并探测（单发 EncodedCommand）',
+    dur: T('17.2s（原 27.5s）', 17200),
+    summary: '一次 PS 采集 9 个事实并输出单行 JSON。失败自动退回逐条 7 发 —— 降级安全：老 PS / 策略限制 / JSON 被日志污染都不会让部署变红。',
+    pre: ['通道可用', '请求体为 UTF-16LE base64（避开引号 / BOM / MSYS 路径转换）'],
+    cmds: [{ label: '载荷骨架', code: "$ErrorActionPreference='SilentlyContinue'; $o=[ordered]@{}\n$pr=New-Object Security.Principal.WindowsPrincipal(...); $o.admin=$pr.IsInRole(...)\n$o.sshdStart=[string](Get-Service sshd).StartType\n$o.fwSsh/fwSvc = 注册表直读 FirewallRules\n$o.nodeVer=[string](& node -v); $o.cli=[bool](Get-Command codebuddy)\n$o|ConvertTo-Json -Compress" }, { label: '硬超时（防假绿）', code: 'Promise.race([runSshPs(...), 75s timer])   # ssh2 挂起时 promise 永不 resolve' }],
+    scripts: [{ n: 'delivery/bootstrap.mjs', d: 'buildPrepareProbePs()' }, { n: 'delivery/ssh2-client.mjs', d: 'exec 通道' }],
+    parts: [
+      { n: 'PowerShell 冷启（Defender 逐进程扫描 · 地板）', ms: 7000 },
+      { n: '防火墙规则（注册表直读，原 10.6s）', ms: 250 },
+      { n: 'Get-Service .StartType（原 CIM 2.15s）', ms: 100 },
+      { n: 'node -v + Get-Command + Test-Path', ms: 600 },
+      { n: '建连 / auth / 编解码 / JSON 回传', ms: 9250 }
+    ],
+    fail: '解析不出 admin 键 → 判「合并不可用」，退回逐条（7 发，慢但结果等价）。'
+  },
+
+  d4a2: {
+    code: '4a-2', name: 'apply 载荷（幂等修复）',
+    dur: T('43s', 43000),
+    summary: '按探测结果做幂等动作：缺 node 就装、防火墙规则缺失/失效就补、登录态标记检查。全 SKIP 时只有一次 PS 往返。',
+    pre: ['4a-1 已给出 state（admin / sshd / firewall / node / cli / cfg）'],
+    cmds: [{ label: '远端载荷', code: 'bash scripts/ps-run.sh <step>.ps1   # 复合逻辑 .ps1 → scp → powershell -File\n# 短片段：powershell -EncodedCommand' }],
+    scripts: [{ n: 'delivery/bootstrap.mjs', d: 'cmdApplyVm' }, { n: 'scripts/ps-run.sh', d: '_payload：VM_PS_TIMEOUT=180s，2 试' }],
+    parts: [{ n: '一次 PS 冷启 + 幂等动作（多数 SKIP）', ms: 43000 }],
+    fail: 'rc=124 且零输出 = 载荷超预算（VM_PS_TIMEOUT），不是通道坏 —— 先量载荷耗时，别抬 VM_SSH_TIMEOUT。'
+  },
+
+  d4a3: {
+    code: '4a·DB-7', name: '四个全局 CLI：node → codebuddy → agent-desktop → agent-browser',
+    dur: T('0s（全已装）/ 48s（首装）', 0),
+    summary: '顺序不能变：后三个都靠 npm，node 不在 PATH 就一个都装不上。判据一律 Get-Command <命令名>，不查 npm ls -g —— 本 VM 上 npm 有两个 prefix（C:\\nodejs 装着 agent-browser/agent-desktop，nvm 的 node 目录装着 codebuddy），查全局树必漏判并每轮重装几百 MB。',
+    pre: ['node 已就位（DB-7 内部先判）', 'SSH 会话 PATH 已拼 Machine;User（否则 Get-Command 恒为空）'],
+    cmds: [
+      { label: '顺序与包名', code: "[void]$pairs.Add(@('codebuddy','@tencent-ai/codebuddy-code'))\n[void]$pairs.Add(@('agent-desktop','agent-desktop'))\n[void]$pairs.Add(@('agent-browser','agent-browser'))" },
+      { label: '幂等安装（已存在即跳过）', code: 'if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {\n  & npm install -g $pkg --no-fund --no-audit --prefer-offline\n}' }
+    ],
+    scripts: [{ n: 'delivery/prepare-vm.mjs', d: 'DB-7 段' }, { n: 'delivery/bootstrap.mjs', d: 'DB-7 探测与规划行' }],
+    parts: [
+      { n: 'node（多数已装）', ms: 0 },
+      { n: 'codebuddy（@tencent-ai/codebuddy-code）', ms: 18000 },
+      { n: 'agent-desktop', ms: 15000 },
+      { n: 'agent-browser', ms: 15000 }
+    ],
+    note: '首装实测 47.9s（三包合计，含 npm 冷启）。不需要上游时 SKIP_UPSTREAMS=1 → 传 --skip-upstream-deps，本段退化为只补 node。',
+    fail: '单包失败不阻断（可选依赖），但 4c 立刻把它变硬判据 —— 日志里能看见是哪个包掉的。'
+  },
+
+  d4b: {
+    code: '4b', name: 'setup --only-vm --skip-build（推包 + 装 VM 端 + 起服务）',
+    dur: T('61s（稳态）/ 218s（重装）', 218000),
+    summary: '全链最大项。宿主打 tar → scp 到 VM → install-vm 六段安装 → 注册并启动计划任务服务 → QA 探针旁路。内容未变也全量重装，是当前最大的可优化项。',
+    pre: ['4a 依赖就绪', 'VM 上 C:\\WinVMBridge 可写', '全局 npm 可用（上游可选依赖）'],
+    cmds: [{ label: '执行', code: 'node delivery/setup.mjs --apply --skip-build --only-vm' }],
+    scripts: [{ n: 'delivery/setup.mjs', d: '相位编排：BUILD / VM / VM-START / QA-PROBE' }, { n: 'delivery/install-vm.mjs', d: 'install-vm 六段' }, { n: 'ps-bridge.ps1', d: 'VM 侧服务主体' }],
+    parts: [
+      { n: '[VM] 推包 + 安装（宿主 ~34s + 远端 ~122s）', ms: 155700 },
+      { n: '[VM-START] 换实例 + 轮询端口', ms: 47300 },
+      { n: '[QA-PROBE] 2 探针逐个 scp', ms: 14800 }
+    ],
+    note: '已知可优化：给 MANIFEST-deploy-*.txt 补 total-sha256，内容未变即短路，预计 -100~140s/轮。',
+    fail: '420s 未监听 = 僵尸 start：schtasks /End 后 /Run，再重跑本步。',
+    children: ['d4b1', 'd4b2', 'd4b3']
+  },
+
+  d4b1: {
+    code: '4b·VM', name: '[VM] 推包 + VM 端安装',
+    dur: T('155.7s', 155700),
+    summary: '宿主侧打 8MB tar 并 scp；远端 install-vm 六段：依赖解析与软链、共享 skills 发布、上游 CLI 安装、计划任务注册、自检、PATH 写入。',
+    pre: ['通道可用', 'VM 有 node/npm'],
+    cmds: [{ label: '宿主侧', code: 'tar czf winvm-dist.tgz dist/ ...   # ≈8MB\nscp winvm-dist.tgz user@vm:C:/WinVMWorkspace/' }, { label: '远端', code: 'node delivery/install-vm.mjs --apply --skip-upstreams?' }],
+    scripts: [{ n: 'delivery/install-vm.mjs', d: '六段安装主体' }, { n: 'delivery/path-util.mjs', d: '用户 PATH 单次 PS 写入' }],
+    parts: [
+      { n: '宿主：BUILD tar + scp', ms: 34000 },
+      { n: '[1/6] 依赖解析 + 12 workspace 软链 + 运行配置', ms: 8200 },
+      { n: '[2/6] 共享 skills 发布 7 + 链接 7', ms: 600 },
+      { n: '[4b/6] 上游 npm（合并为 1 次调用，原 47.9s）', ms: 38000 },
+      { n: '计划任务注册（停旧实例 → 杀端口 → XML → 注册 → 启动器）', ms: 18600 },
+      { n: '[6/6] 自检（ps-bridge 冷启 + 6 模块探针）', ms: 35600 },
+      { n: '管理命令 + 用户 PATH（单次 PS，原 20.2s）', ms: 7000 }
+    ],
+    note: '六段编号来自 install-vm 自身 [t+Xs] 打点日志；[3/6] 与 [5/6] 在 V1.4.32 中已并入相邻段。'
+  },
+
+  d4b2: {
+    code: '4b·START', name: '[VM-START] 换实例 + 等端口监听',
+    dur: T('47.3s', 47300),
+    summary: '结束旧服务实例 → 端口反查强杀 → 命令行签名清扫 → schtasks /run → 轮询到 18443 真的在听。轮询是必需语义（服务真在听才算成），冷启本身占大头。',
+    pre: ['安装完成（4b·VM 已落盘）', '计划任务 WinVMBridge.Service 已注册'],
+    cmds: [{ label: '启动', code: 'schtasks /End /TN WinVMBridge.Service\nschtasks /Run /TN WinVMBridge.Service\n# 轮询 127.0.0.1:18443 直到监听' }],
+    scripts: [{ n: 'delivery/setup.mjs', d: 'VM-START 相位' }, { n: 'ps-bridge.ps1', d: '服务主体（Session 1 / InteractiveToken）' }],
+    parts: [
+      { n: '结束旧实例 + 端口强杀 + 签名清扫', ms: 12000 },
+      { n: 'schtasks /run + ps-bridge 冷启（provider 预热）', ms: 28000 },
+      { n: '轮询发现延迟（3~5s 可压缩，收益不抵风险）', ms: 7300 }
+    ],
+    fail: '>420s 未监听 = 僵尸服务壳，按 schtasks /End → /Run 处理。'
+  },
+
+  d4b3: {
+    code: '4b·QA', name: '[QA-PROBE] 旁路探针上传',
+    dur: T('14.8s', 14800),
+    summary: '两个探针文件逐个 scp 到 VM。探针缺失只 WARN 不阻断，属旁路。合并成一次上传可省 ~8s（已记入已知可优化）。',
+    pre: ['通道可用'],
+    cmds: [{ label: '上传', code: 'vmscp qa/deploy-probes/<probe>.py user@vm:C:/WinVMWorkspace/   # ×2' }],
+    scripts: [{ n: 'delivery/setup.mjs', d: 'QA-PROBE 相位' }],
+    parts: [{ n: '2 次 scp（每次新建连接 + 落盘）', ms: 14800 }]
+  },
+
+  d4c: {
+    code: '4c', name: 'vmcheck 七判据（含两上游工具面）',
+    dur: T('34s + 上游 3~12s（11-17 为 14s）', 34000),
+    summary: '铁律：vmcheck.ps1 是纯报告器，rc=0 只说明「脚本跑完了」。判据必须由本步自己解析 JSON 并逐项断言，否则「拿不到判据也 PASS」= 假绿。v2.4.0 起原 4d 的两上游工具面并进本步 —— 同一次 VM 内载荷里连带取 tools/list，省一次宿主往返。',
+    pre: ['4b 已起服务', 'ps-run 通道正常', 'SKIP_UPSTREAMS=1 时跳过两项上游判据'],
+    cmds: [
+      { label: '执行 + 逐项断言', code: 'bash scripts/ps-run.sh "$PKG/qa/deploy-probes/vmcheck.ps1" | grep -o \'{.*}\'\npython3 -c \'...assert task_state / listen_count / side_json / bridge_dir / health_http / browser_tools / desktop_tools\'' },
+      { label: '期望值只从 _common.sh 取', code: 'EXP_BROWSER_TOOLS="$UPSTREAM_EXP_BROWSER" EXP_DESKTOP_TOOLS="$UPSTREAM_EXP_DESKTOP"' },
+      { label: '判据点', code: 'POST /mcp/browser  {"method":"tools/list"}   → expect 33\nPOST /mcp/desktop  {"method":"tools/list"}   → expect 25' }
+    ],
+    scripts: [{ n: 'qa/deploy-probes/vmcheck.ps1', d: 'VM 侧体检报告器（含 Get-McpToolCount）' }, { n: 'scripts/ps-run.sh', d: '执行器（载荷预算 180s）' }, { n: '_common.sh', d: 'UPSTREAM_EXP_* 唯一期望值来源' }],
+    parts: [
+      { n: 'PS 冷启 + 七项采集 + JSON 回传', ms: 34000 },
+      { n: '两上游 tools/list（懒启动 3~12s）', ms: 8000 }
+    ],
+    note: 'vmcheck 内读 502 必须临时把 $ErrorActionPreference 改成 Stop —— 脚本级 SilentlyContinue 会把 4xx/5xx 静默吞成 $null，误报成「空 body 解析失败」。',
+    fail: 'rc=124 且零输出 = 载荷超预算，不是通道坏；http-502=上游未装、http-404=vm-service 旧版无路由、rpc-*=上游启动失败。'
+  },
+
+  d5: {
+    code: '5', name: 'verify（三探针 + 上游 + 终态矩阵）',
+    dur: T('24s（冷跑）/ 1s（stamp 复用）', 24000),
+    summary: '唯一 verify 实现。三探针 34 项（PROBE_DEEP=1 跑 38）+ 上游工具面 33/25（v2.4.0 起并入同一步，不再单列 5e）+ 终态矩阵五维。deploy 全链零失败才升 stamp，600s 内同包根可只跑矩阵。',
+    pre: ['第 3 步隧道可用', '第 4 步 VM 端服务在听'],
+    cmds: [{ label: '单独复验', code: 'VM_HOST=... bash scripts/verify.sh' }, { label: '强制冷跑探针', code: 'VERIFY_FORCE_PROBE=1 VM_HOST=... bash scripts/deploy.sh --only 5' }],
+    scripts: [{ n: 'deploy-5-verify.sh', d: '5（含上游）/ 5d' }, { n: 'qa/deploy-probes/*.py', d: 'mcp / a2a / example 三探针' }],
+    parts: [{ n: '三探针 34 项', ms: 16000 }, { n: '上游 browser=33 desktop=25', ms: 3000 }, { n: '5d 终态矩阵', ms: 8000 }],
+    children: ['d5a', 'd5d']
+  },
+
+  d5a: {
+    code: '5', name: '三探针（34 项，项数即断言）',
+    dur: T('16s（冷跑）/ 1s（复用）', 16000),
+    summary: 'mcp / a2a / example 三探针实跑，随后在同一 st_begin 内跑 upstream_probe（宿主侧直打 /mcp/<id>）。项数漂移（38↔34）会让汇总判据失去意义，所以 EXP_TOTAL / EXP_SKIP 是硬编码同步面 —— 改了探针必须同步改这里。三组数字并列输出：探针 34 项 · browser 33 · desktop 25。',
+    pre: ['隧道 health=200', 'VM 端 mcp/a2a 服务在跑'],
+    cmds: [{ label: '跑三个探针', code: 'python3 qa/deploy-probes/mcp-probe.py\npython3 qa/deploy-probes/a2a-probe.py\npython3 qa/deploy-probes/example-probe.py\n# 断言 PROBES 34/34 SKIP=4' },
+      { label: '上游判据（同一步内）', code: 'upstream_probe   # → upstream_judge：browser=33 desktop=25\n# st_end summary 追加 "| browser=33 desktop=25"' }],
+    scripts: [{ n: '_common.sh', d: 'upstream_judge（唯一判定口径）' }, { n: 'qa/deploy-probes/mcp-probe.py', d: 'MCP 能力面' }, { n: 'qa/deploy-probes/a2a-probe.py', d: 'A2A 委派面' }, { n: 'qa/deploy-probes/example-probe.py', d: '示例工作流' }],
+    parts: [{ n: '三探针串行（各含建连 + 多轮 RPC）', ms: 16000 }],
+    fail: 'total-N!=34 或 skip-N!=4 → 探针被改动，别放宽，同步改 EXP_TOTAL。'
+  },
+
+  d5d: {
+    code: '5d', name: '终态矩阵（fresh / mcp / health / skills / VM）',
+    dur: T('8s', 8000),
+    summary: '一次给齐五维：缓存与仓库构建物是否 fresh（防「装的是旧代码」）、disabledTools、health=200、connector skills≥10、VM 三态。',
+    pre: ['插件与 VM 端均已就位'],
+    cmds: [
+      { label: 'fresh 对账', code: 'node delivery/install-host.mjs --check-fresh' },
+      { label: '其余四维', code: "node -e 'require(HOME+\"/.workbuddy/mcp.json\")...disabledTools'\nhealth_code 18443 15      # 期望 200\nls connectors/skills/connector-winvm | wc -l   # ≥10" }
+    ],
+    scripts: [{ n: 'deploy-5-verify.sh', d: '5d 段' }, { n: 'delivery/install-host.mjs', d: '--check-fresh' }],
+    parts: [{ n: '逐文件 SHA256 + 4 项探测', ms: 8000 }],
+    fail: 'VM 终态行取不到 → 记 ENV_WINDOW=1（通道瞬态窗，非功能失败）。'
+  },
+
+
+  }
+};
+
+const UNDEPLOY = {
+  key: 'undeploy',
+  stages: [
+    { tag: '阶段 A', desc: '第 1 ‖ 2 步 并行（互不依赖）', ids: ['u1', 'u2'] },
+    { tag: '阶段 B', desc: '第 3 步 单跑（需第 2 步完成）', ids: ['u3'] }
+  ],
+  nodes: {
+
+  u1: {
+    code: '1', name: '停隧道 + 卸 host 端插件',
+    dur: T('4s', 4000),
+    summary: '停 winvm-tunnel service（CLI + pid 兜底双路）→ host-only 卸载插件 → 清空复核。不需通道，与第 2 步并行。',
+    pre: ['宿主可写 ~/.workbuddy', '不要求 VM 可达 —— 通道不在是卸载的正常输入'],
+    cmds: [{ label: '整步入口', code: 'VM_HOST=... bash scripts/undeploy.sh --only 1' }],
+    scripts: [{ n: 'undeploy-1-host.sh', d: '1a~1c' }, { n: 'delivery/uninstall.mjs', d: 'host-only 卸载' }],
+    parts: [{ n: '1a 停隧道', ms: 2000 }, { n: '1b 卸插件', ms: 2000 }, { n: '1c 清空复核', ms: 0 }],
+    children: ['u1a', 'u1b', 'u1c']
+  },
+
+  u1a: {
+    code: '1a', name: '停 winvm-tunnel service',
+    dur: T('2s', 2000),
+    summary: '先走 CLI tunnel stop；无包根或失败时按 pid 兜底（不用 kill -f，会误伤同命令行的其它进程）。tunnel.pid 是 JSON，必须走 tunnel_pid 解析。',
+    pre: ['包根可解析（否则只走 pid 兜底）'],
+    cmds: [{ label: '停服务', code: 'timeout 90 node delivery/winvm-plugin.mjs tunnel stop' }, { label: 'pid 兜底', code: '_pid="$(tunnel_pid)"; kill "$_pid"\nhealth_code 18443 6   # 期望 000' }],
+    scripts: [{ n: 'undeploy-1-host.sh', d: '1a 段' }, { n: '_common.sh', d: 'tunnel_pid / health_code' }],
+    parts: [{ n: 'CLI stop + health 复判', ms: 2000 }],
+    note: '早期 bug：curl 失败自吐 000 再 || echo 000 ⇒ 000000，判据恒假。现 health_code 归一为恒 3 字符。'
+  },
+
+  u1b: {
+    code: '1b', name: '卸 host 端插件（uninstall.mjs host-only）',
+    dur: T('2s', 2000),
+    summary: '关键前置动作：临时屏蔽三处 VM 目标（vm-conn.json / .env 等），否则 host-only 卸载会顺带把 VM 端一起卸掉。trap 保证任何退出路径都还原。',
+    pre: ['1a 已停隧道（避免卸载时隧道自愈）'],
+    cmds: [{ label: '卸载', code: 'node delivery/uninstall.mjs --apply --host-only' }, { label: '屏蔽（trap 还原）', code: 'trap restore_targets EXIT INT TERM\nmv -f "$VMC" "$VMC.undeploy-host-hidden"' }],
+    scripts: [{ n: 'undeploy-1-host.sh', d: 'restore_targets / 屏蔽段' }, { n: 'delivery/uninstall.mjs', d: '--host-only 卸载器' }],
+    parts: [{ n: '屏蔽 2 处 + 卸载 + 还原', ms: 2000 }],
+    fail: '断言 VM_PHASE=0：若 host-only 仍然进 VM 相位，说明屏蔽失效（会误删 VM 端）。'
+  },
+
+  u1c: {
+    code: '1c', name: 'host 端清空复核（含命名空间兜底）',
+    dur: T('0s', 500),
+    summary: '复核 health=000 + mcp_left=none。另加 ^winvm$|^winvm- 命名空间兜底：旧包卸载新装必留 winvm-browser / winvm-desktop（卸载器键表按包版本固化）。',
+    pre: ['1b 已完成'],
+    cmds: [{ label: '复核 + 兜底', code: 'health_code 18443 5      # 期望 000\nnode -e \'...Object.keys(mcp.json.mcpServers).filter(k=>/^winvm$|^winvm-/.test(k))\'   # 逐条移除并打印' }],
+    scripts: [{ n: 'undeploy-1-host.sh', d: '1c 段' }],
+    parts: [{ n: 'health 探测 + mcp.json 键扫描', ms: 500 }],
+    note: '实测兜底移除过 2 条死条目（winvm-browser / winvm-desktop），否则下次部署会双开。'
+  },
+
+  u2: {
+    code: '2', name: '停 VM 端 service + 卸模块 + 卸上游 CLI',
+    dur: T('93s（70 + 19 + 4）', 93000),
+    summary: '判通道状态（只判不建）→ scp 卸载脚本 → vm-remove-local.ps1 -Apply 停任务/杀进程/删目录/清 PATH/side.json/卸上游 → VM 终态六点复核。',
+    pre: ['通道 READY 才能做（不在则退 2，打印手工命令）', 'VM_USER 有管理员权限'],
+    cmds: [{ label: '整步入口', code: 'VM_HOST=... bash scripts/undeploy.sh --only 2' }, { label: '保留上游 CLI', code: 'VM_HOST=... bash scripts/undeploy.sh --only 2 --keep-upstreams' }],
+    scripts: [{ n: 'undeploy-2-vm.sh', d: '2a~2d' }, { n: 'vm-remove-local.ps1', d: 'VM 端本地卸载主体' }, { n: 'ps-run.sh', d: '远端 PS 执行器' }],
+    parts: [{ n: '2a 通道判定', ms: 1000 }, { n: '2b scp 卸载脚本', ms: 3000 }, { n: '2c 停服务 + 卸模块 + 卸上游', ms: 70000 }, { n: '2d VM 终态六点', ms: 19000 }],
+    children: ['u2a', 'u2b', 'u2c', 'u2d']
+  },
+
+  u2a: {
+    code: '2a', name: '通道状态（只判不建）',
+    dur: T('1s', 1000),
+    summary: '红线：卸载绝不重建通道。通道 DOWN 就打印手工命令并 exit 2 —— 这是卸载的正常输入，不是故障。',
+    pre: [],
+    cmds: [{ label: '判据', code: 'channel_ready 6000 || { echo "VM_SIDE_PENDING=1"; exit 2; }' }],
+    scripts: [{ n: '_common.sh', d: 'channel_ready' }],
+    parts: [{ n: '一次建连', ms: 1000 }],
+    fail: 'DOWN 时打印 schtasks /End + Delete + Remove-Item 三条手工命令。'
+  },
+
+  u2b: {
+    code: '2b', name: '推 VM 侧卸载脚本',
+    dur: T('3s', 3000),
+    summary: '把 vm-remove-local.ps1 推到 VM 家目录，随后就地执行 —— 远端脚本缺失只能干等，所以先推再跑。',
+    pre: ['2a PASS（通道 READY）'],
+    cmds: [{ label: 'scp（双后端一致）', code: '. scripts/vm-conn.sh; vmscp scripts/vm-remove-local.ps1 "${VM_USER}@${VM_HOST}:vm-remove-local.ps1"' }],
+    scripts: [{ n: 'vm-conn.sh', d: 'vmscp 双后端' }, { n: 'vm-remove-local.ps1', d: '被推的卸载脚本' }],
+    parts: [{ n: '一次 scp（含建连）', ms: 3000 }]
+  },
+
+  u2c: {
+    code: '2c', name: '停服务 + 卸模块（vm-remove-local.ps1 -Apply）',
+    dur: T('70s（含卸上游）', 70000),
+    summary: '卸载主体，最慢的一段：僵尸 node 进程不绑端口、taskkill 免疫；且 SSH 会话 PATH 只有 Machine 段，Get-Command npm 为空会让上游清理静默降级 —— 所以脚本自拼 Machine;User PATH。',
+    pre: ['2b 脚本已就位', '以管理员身份执行（否则停不掉服务/删不动目录）'],
+    cmds: [{ label: '执行', code: 'bash scripts/ps-run.sh -c "& .\\vm-remove-local.ps1 -Apply [-PurgeWorkspace] [-KeepUpstreams]"' }],
+    scripts: [{ n: 'vm-remove-local.ps1', d: '段 1~8：任务/进程/目录/PATH/side.json/上游' }, { n: 'ps-run.sh', d: 'ps-run（载荷预算）' }],
+    parts: [
+      { n: 'schtasks /End + /Delete（停服务、删任务）', ms: 12000 },
+      { n: '端口反查 + 僵尸 node 强杀', ms: 15000 },
+      { n: '删 C:\\WinVMBridge + workspaces（文件占用重试）', ms: 25000 },
+      { n: '清用户 PATH 条目 + side.json', ms: 6000 },
+      { n: '段 8：杀孤儿上游进程 + npm uninstall -g ×2', ms: 12000 }
+    ],
+    children: ['u2c1', 'u2c2', 'u2c3', 'u2c4', 'u2c5'],
+    fail: 'UPSTREAM_LEFT≠NONE → FAIL（或 --keep-upstreams 显式保留）。'
+  },
+
+  u2c1: {
+    code: '2c-1', name: '停计划任务服务',
+    dur: T('12s', 12000),
+    summary: '先 End 再 Delete：End 结束正在跑的实例（ps-bridge 与它的 node 子进程），Delete 移除任务定义，避免下次开机自启。',
+    pre: ['管理员令牌'],
+    cmds: [{ label: '命令', code: 'schtasks /End /TN WinVMBridge.Service\nschtasks /Delete /TN WinVMBridge.Service /F' }],
+    scripts: [{ n: 'vm-remove-local.ps1', d: '段 1' }],
+    parts: [{ n: 'schtasks ×2（WMI/任务计划往返较慢）', ms: 12000 }]
+  },
+
+  u2c2: {
+    code: '2c-2', name: '端口反查 + 僵尸进程强杀',
+    dur: T('15s', 15000),
+    summary: '僵尸 node 进程的典型形态：不绑端口、taskkill 免疫、服务壳已死但进程还在。按 18443 反查 owner 再按命令行签名清扫，两步都要。',
+    pre: ['服务已 End'],
+    cmds: [{ label: '反查 + 强杀', code: 'Get-NetTCPConnection -LocalPort 18443 → OwningProcess → Stop-Process -Force\nGet-CimInstance Win32_Process -Filter "Name=\'node.exe\'" → 按命令行签名匹配 → Invoke-CimMethod Terminate' }],
+    scripts: [{ n: 'vm-remove-local.ps1', d: '段 2~3' }],
+    parts: [{ n: 'TCP 表查询 + CIM 枚举 + Terminate', ms: 15000 }],
+    note: 'PS5.1 的 CIM 对象没有 .Terminate()，必须 Invoke-CimMethod -InputObject。'
+  },
+
+  u2c3: {
+    code: '2c-3', name: '删程序目录（C:\\WinVMBridge）',
+    dur: T('25s', 25000),
+    summary: '删掉程序目录；--purge-workspace 时连 C:\\WinVMWorkspace 一起删。文件占用会重试，失败留 WARN 不阻断（终态复核会抓）。',
+    pre: ['进程已杀（否则文件占用）'],
+    cmds: [{ label: '删除', code: 'Remove-Item C:\\WinVMBridge -Recurse -Force -ErrorAction SilentlyContinue\n# --purge-workspace 时追加 C:\\WinVMWorkspace' }],
+    scripts: [{ n: 'vm-remove-local.ps1', d: '段 4' }],
+    parts: [{ n: '递归删除（含 node_modules 大量小文件）', ms: 25000 }]
+  },
+
+  u2c4: {
+    code: '2c-4', name: '清用户 PATH 条目 + side.json',
+    dur: T('6s', 6000),
+    summary: '把安装期加进用户 PATH 的条目摘掉（否则残留死路径），并清 ~/.workbuddy/winvm/side.json。写注册表后广播 WM_SETTINGCHANGE。',
+    pre: ['知道安装期写入的条目名'],
+    cmds: [{ label: '命令', code: '[Environment]::SetEnvironmentVariable("Path", $new, "User")   # 移除 C:\\WinVMBridge\\bin\nRemove-Item ~\\.workbuddy\\winvm\\side.json' }],
+    scripts: [{ n: 'vm-remove-local.ps1', d: '段 5~6' }],
+    parts: [{ n: '注册表读改写 + 广播', ms: 6000 }]
+  },
+
+  u2c5: {
+    code: '2c-5', name: '段 8：卸全局上游 CLI',
+    dur: T('12s', 12000),
+    summary: '杀孤儿上游进程后 npm uninstall -g agent-browser agent-desktop。PATH 必须自拼 Machine;User —— SSH 会话只有 Machine 段，npm 在 User 段，不自拼就会静默降级成 WARN。',
+    pre: ['--keep-upstreams 未开启'],
+    cmds: [{ label: '命令', code: '$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")\nnpm uninstall -g agent-browser agent-desktop\n# 断言 UPSTREAM_LEFT=NONE' }],
+    scripts: [{ n: 'vm-remove-local.ps1', d: '段 8' }],
+    parts: [{ n: '杀孤儿进程 + 2 次 npm uninstall', ms: 12000 }],
+    fail: 'UPSTREAM_LEFT=agent-desktop → npm 失败或文件占用，看 [WARN] 行手工卸。'
+  },
+
+  u2d: {
+    code: '2d', name: 'VM 终态六点复核',
+    dur: T('19s', 19000),
+    summary: '「删了但没删干净」的唯一防线：任务/端口/进程/目录/服务 + 上游六点一次给齐。上游不看就永远发现不了 CLI 残留。',
+    pre: ['2c 已执行'],
+    cmds: [{ label: '复核', code: 'schtasks /query /tn WinVMBridge.Service\nGet-NetTCPConnection -LocalPort 18443\n# => False False 0 Running True NONE' }],
+    scripts: [{ n: 'undeploy-2-vm.sh', d: '2d 段' }, { n: 'ps-run.sh', d: '单次载荷取六点' }],
+    parts: [{ n: '一次 PS 载荷（六点）', ms: 19000 }],
+    fail: '任一项非 clean → FAIL。'
+  },
+
+  u3: {
+    code: '3', name: '拆 ssh 通道（默认不拆）',
+    dur: T('0s（默认 no）/ 78s（yes）', 0),
+    summary: '--remove-ssh-tunnel 默认 no。要拆时两条路：通道在 → 派生 SYSTEM 计划任务跑 oneclick -Rollback（避免自断会话）；通道不在 → 打印用户在 VM 执行的那一条。拆完只做判据，不再等通道消失、也不再动宿主私钥（v2.4.0 删掉原 3c/3d）。',
+    pre: ['第 2 步完成（VM 端已卸）'],
+    cmds: [{ label: '默认保留', code: 'VM_HOST=... bash scripts/undeploy.sh            # 3a → SKIP' }, { label: '连通道一起拆', code: 'VM_HOST=... bash scripts/undeploy.sh --remove-ssh-tunnel yes' }],
+    scripts: [{ n: 'undeploy-3-ssh.sh', d: '3a~3b' }, { n: 'winvm-sshd-oneclick.ps1', d: '-Rollback 逆序还原' }],
+    parts: [{ n: '3a 通道状态', ms: 1000 }, { n: '3b SYSTEM post 动作（下发 + 执行）', ms: 70000 }],
+    note: '原 3c（宿主侧回滚删私钥）与 3d（等通道消失）已删除：私钥是可复用资产，钥归属与安全边界由 1a/1b 写的 host-state.json 基线保证；不主动删就不存在误删风险。拆通道本身是异步的，终态记 TUNNEL=SCHEDULED。',
+    children: ['u3a', 'u3b']
+  },
+
+  u3a: {
+    code: '3a', name: '通道状态（只判不建）',
+    dur: T('1s（默认 SKIP）', 1000),
+    summary: '在/不在走两条完全不同的路，所以先判。默认 --remove-ssh-tunnel no 时本段直接 SKIP，只打印「通道保留」。',
+    pre: [],
+    cmds: [{ label: '判据', code: 'channel_ready 6000 && CH=1 || CH=0\n# no 分支：st_end SKIP "通道保留（下次 deploy 第 1 步直接判 READY）"' }],
+    scripts: [{ n: '_common.sh', d: 'channel_ready' }],
+    parts: [{ n: '一次建连', ms: 1000 }]
+  },
+
+  u3b: {
+    code: '3b', name: 'VM SYSTEM post 动作（下发 + oneclick -Rollback 执行）',
+    dur: T('70s（下发 18s + 执行 52s）', 70000),
+    summary: '拆 sshd 会自断正在执行的会话，所以必须派生一个 SYSTEM 计划任务去做：宿主下发完就断，VM 自己跑完还原。两段是一个环节的「下发」与「执行」—— 不是重复动作，拆掉任一段都拿不到结果。',
+    pre: ['3a 判定通道 READY', 'VM 上已存 C:\\ProgramData\\WinVMDeploy\\winvm-sshd-oneclick.ps1（缺则先多源下载）'],
+    cmds: [
+      { label: '派生 SYSTEM 任务', code: "$tr = 'powershell -NoProfile -ExecutionPolicy Bypass -File ' + $rb + ' -Rollback'\n& schtasks.exe @('/Create','/TN','WbTunnelRollback','/TR',$tr,'/SC','ONCE','/ST','00:00','/RL','HIGHEST','/RU','SYSTEM','/F')\n& schtasks.exe @('/Run','/TN','WbTunnelRollback')" },
+      { label: '通道不在时给用户的一条', code: 'powershell -NoProfile -ExecutionPolicy Bypass -File C:\\ProgramData\\WinVMDeploy\\winvm-sshd-oneclick.ps1 -Rollback' }
+    ],
+    scripts: [{ n: 'undeploy-3-ssh.sh', d: '3b 段' }, { n: 'winvm-sshd-oneclick.ps1', d: '-Rollback 逆序还原' }],
+    parts: [
+      { n: '组 PS 脚本 + scp + 派生任务', ms: 18000 },
+      { n: 'SYSTEM 任务排队 + oneclick -Rollback 执行', ms: 52000 }
+    ],
+    note: '三段可观测：POST_ROLLBACK_SCHEDULED=1（派生成功）→ SYSTEM 任务排队 → oneclick -Rollback 逆序还原（config → authorized_keys → firewall → 停服务）。MSI 缓存刻意不删，重建通道可直接复用。',
+    fail: '派生失败 → 转「打印用户命令」路径（TUNNEL_REMOVE_PENDING_USER）。'
+  },
+
+
+  }
+};
+
+/* ══════════════════ 渲染 ══════════════════ */
+const PALETTE = ['#2563eb','#0ea5a4','#f59e0b','#8b5cf6','#ef4444','#64748b','#10b981','#e11d48'];
+
+const specs = { deploy: DEPLOY, undeploy: UNDEPLOY };
+Object.values(specs).forEach(sp => {
+  Object.entries(sp.nodes).forEach(([id, n]) => { n.id = id; });
+  Object.entries(sp.nodes).forEach(([id, n]) => {
+    (n.children || []).forEach(cid => { if (sp.nodes[cid]) sp.nodes[cid].parent = id; });
+  });
+  // 顶层标注
+  sp.stages.forEach(st => st.ids.forEach(id => { if (sp.nodes[id]) sp.nodes[id].top = true; }));
+});
+
+function durClass(ms) {
+  if (ms === 0) return 'k';
+  if (ms < 5000) return 'f';
+  if (ms <= 30000) return 'm';
+  return 's';
+}
+
+function nodeHTML(sp, id, depth) {
+  const n = sp.nodes[id];
+  if (!n) return '';
+  const kids = n.children && n.children.length ? n.children : null;
+  const cls = ['node'];
+  if (!kids) cls.push('leaf');
+  if (n.top) cls.push('lvl-top');
+  return `<div class="${cls.join(' ')}" data-id="${id}" data-key="${sp.key}">
+    <button class="node-head" type="button">
+      <span class="tw"></span>
+      <span class="ncode">${n.code}</span>
+      <span class="nname">${n.name}</span>
+      <span class="nmeta">${n.scripts && n.scripts[0] ? n.scripts[0].n : ''}</span>
+      <span class="chip ${durClass(n.dur.ms)}">${n.dur.label}</span>
+    </button>
+    ${kids ? `<div class="node-kids">${kids.map(k => nodeHTML(sp, k, depth + 1)).join('')}</div>` : ''}
+  </div>`;
+}
+
+function renderAll() {
+  const flow = document.getElementById('flow');
+  flow.innerHTML = ['deploy', 'undeploy'].map(key => {
+    const sp = specs[key];
+    const stages = sp.stages.map(st => `
+      <section class="stage ${key === 'undeploy' ? 'ud' : ''}">
+        <div class="stage-head">
+          <span class="stage-tag">${st.tag}</span>
+          <span class="stage-desc">${st.desc}</span>
+        </div>
+        <div class="stage-body">${st.ids.map(id => nodeHTML(sp, id, 0)).join('')}</div>
+      </section>`).join('');
+    return `<div class="flowpane ${key === 'undeploy' ? 'ud' : ''}" data-key="${key}" ${key === 'undeploy' ? 'style="display:none"' : ''}>${stages}</div>`;
+  }).join('');
+}
+
+renderAll();
+
+/* 默认展开：每个流程的第一个顶层节点 */
+function openDefault(key) {
+  const sp = specs[key];
+  const first = sp.stages[0].ids[0];
+  const el = document.querySelector(`.flowpane[data-key="${key}"] .node[data-id="${first}"]`);
+  if (el) el.classList.add('open');
+}
+openDefault('deploy');
+openDefault('undeploy');
+
+/* ══════════════════ 详情面板 ══════════════════ */
+const panel = document.getElementById('panel');
+let currentKey = 'deploy';
+let selId = null;
+
+function crumbs(sp, n) {
+  const chain = [];
+  let cur = n;
+  while (cur) { chain.unshift(cur.code); cur = cur.parent ? sp.nodes[cur.parent] : null; }
+  return `${sp.key}<i>›</i>` + chain.join('<i>›</i>');
+}
+
+function partsHTML(n) {
+  const parts = (n.parts || []).filter(p => p.ms > 0);
+  if (!parts.length) return '<p style="color:var(--ink3);font-size:12.5px">该环节为单次原子调用，无内部拆分。</p>';
+  const total = parts.reduce((a, b) => a + b.ms, 0);
+  const bar = parts.map((p, i) =>
+    `<i style="width:${(p.ms / total * 100).toFixed(2)}%;background:${PALETTE[i % PALETTE.length]}"></i>`).join('');
+  const leg = parts.map((p, i) => `
+    <div><span class="sw" style="background:${PALETTE[i % PALETTE.length]}"></span>
+      <span>${p.n}</span><b>${(p.ms / 1000).toFixed(p.ms < 1000 ? 2 : 1)}s</b></div>`).join('');
+  return `<div class="bar">${bar}</div><div class="barleg">${leg}</div>
+    <p class="tip">合计 ${(total / 1000).toFixed(1)}s（按实测占比）</p>`;
+}
+
+function showDetail(key, id) {
+  const sp = specs[key];
+  const n = sp.nodes[id];
+  if (!n) return;
+  selId = id;
+  document.querySelectorAll('.node-head.sel').forEach(e => e.classList.remove('sel'));
+  const head = document.querySelector(`.flowpane[data-key="${key}"] .node[data-id="${id}"] > .node-head`);
+  if (head) head.classList.add('sel');
+
+  const cmds = (n.cmds || []).map((c, i) => `
+    <div class="cmd">
+      <div class="cmd-top"><span>${c.label || '命令'}</span>
+        <button class="copy" data-i="${key}-${id}-${i}" type="button">复制</button></div>
+      <pre data-code="${key}-${id}-${i}">${c.code.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</pre>
+    </div>`).join('');
+
+  const scripts = (n.scripts || []).map(s =>
+    `<span class="schip">${s.n}<em>${s.d || ''}</em></span>`).join('');
+
+  const pres = (n.pre && n.pre.length)
+    ? `<ul>${n.pre.map(p => `<li>${p}</li>`).join('')}</ul>`
+    : `<p style="color:var(--ink3);font-size:12.5px">无前置条件 —— 本环节可从任意状态进入。</p>`;
+
+  panel.innerHTML = `<div class="panel-in">
+    <div class="crumb">${crumbs(sp, n)}</div>
+    <h2 class="p-title">${n.name}</h2>
+    <div class="p-durline"><b>${n.dur.label}</b><span>预估执行时长${n.dur.ms > 0 && n.dur.ms < 500 ? '（毫秒级）' : ''}</span></div>
+    <div class="sec"><h3>职责</h3><p>${n.summary}</p></div>
+    <div class="sec"><h3>前置条件</h3>${pres}</div>
+    <div class="sec"><h3>动作命令</h3>${cmds || '<p style="color:var(--ink3);font-size:12.5px">无独立命令（由上层脚本驱动）。</p>'}</div>
+    <div class="sec"><h3>依赖脚本</h3><div class="chips">${scripts || '<span class="schip">—</span>'}</div></div>
+    <div class="sec"><h3>耗时构成</h3>${partsHTML(n)}</div>
+    ${n.fail ? `<div class="sec"><h3>失败 / 降级</h3><div class="note">${n.fail}</div></div>` : ''}
+    ${n.note ? `<div class="sec"><h3>备注</h3><p style="font-size:12.5px;color:var(--ink3)">${n.note}</p></div>` : ''}
+  </div>`;
+
+  panel.scrollTop = 0;   // 换节点时详情面板回到顶部，避免停在上一段中间
+  panel.querySelectorAll('.copy').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const code = panel.querySelector(`pre[data-code="${btn.dataset.i}"]`).textContent;
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); } catch (_) {}
+        document.body.removeChild(ta);
+      }
+      btn.textContent = '已复制'; btn.classList.add('ok');
+      setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('ok'); }, 1400);
+    });
+  });
+}
+
+/* ══════════════════ 事件 ══════════════════ */
+document.getElementById('flow').addEventListener('click', e => {
+  const head = e.target.closest('.node-head');
+  if (!head) return;
+  const nodeEl = head.parentElement;
+  const id = nodeEl.dataset.id;
+  const key = nodeEl.dataset.key;
+  const hasKids = nodeEl.querySelector(':scope > .node-kids');
+  const wasSel = head.classList.contains('sel');
+  if (hasKids) {
+    // 首次点某节点 = 展开（不收起，避免"刚打开就被折叠"）；
+    // 再点已选中的节点 = 折叠，给一个明确的收起手势。
+    if (wasSel) nodeEl.classList.toggle('open');
+    else nodeEl.classList.add('open');
+  }
+  showDetail(key, id);
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+    tab.classList.add('on');
+    currentKey = tab.dataset.k;
+    document.querySelectorAll('.flowpane').forEach(p => {
+      p.style.display = p.dataset.key === currentKey ? '' : 'none';
+    });
+    const sp = specs[currentKey];
+    showDetail(currentKey, sp.stages[0].ids[0]);
+    document.querySelector(`.flowpane[data-key="${currentKey}"] .node[data-id="${sp.stages[0].ids[0]}"]`)?.classList.add('open');
+  });
+});
+
+document.getElementById('expandAll').addEventListener('click', () => {
+  document.querySelectorAll(`.flowpane[data-key="${currentKey}"] .node`).forEach(n => n.classList.add('open'));
+});
+document.getElementById('collapseAll').addEventListener('click', () => {
+  const pane = document.querySelector(`.flowpane[data-key="${currentKey}"]`);
+  pane.querySelectorAll('.node').forEach(n => n.classList.remove('open'));
+  pane.querySelectorAll('.lvl-top').forEach(n => n.classList.add('open'));
+});
+
+/* 搜索：命中则展开其所有祖先 */
+const q = document.getElementById('q');
+q.addEventListener('search', () => { q.dispatchEvent(new Event('input')); });
+q.addEventListener('input', () => {
+  const kw = q.value.trim().toLowerCase();
+  const pane = document.querySelector(`.flowpane[data-key="${currentKey}"]`);
+  if (!kw) {
+    pane.querySelectorAll('.node').forEach(n => {
+      n.classList.remove('dim');
+      n.style.opacity = '';
+    });
+    return;
+  }
+  const sp = specs[currentKey];
+  pane.querySelectorAll('.node').forEach(n => {
+    const d = sp.nodes[n.dataset.id];
+    if (!d) return;
+    const hay = [d.code, d.name, d.summary, (d.scripts || []).map(s => s.n).join(' '),
+                 (d.cmds || []).map(c => c.code).join(' '), (d.pre || []).join(' ')].join(' ').toLowerCase();
+    const hit = hay.includes(kw);
+    n.classList.toggle('dim', !hit);
+    n.style.opacity = hit ? '1' : '.34';
+    if (hit) { let p = n.parentElement.closest('.node'); while (p) { p.classList.add('open'); p = p.parentElement.closest('.node'); } }
+  });
+});
+
+/* 初始详情 */
+showDetail('deploy', 'd1');
+</script>
+</body>
+</html>

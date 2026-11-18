@@ -170,4 +170,4 @@ desktop_snapshot                        ← 校验结果（或 desktop_get / des
 | `hos-win-skill` | 上层分派：判定走不走向 Windows、走哪条通道（MCP 直调 / A2A 委派） |
 | `agent-browser-skill` | 平级：网页内的一切操作归它；二者都经同一条隧道 |
 | `winvm-orchestrator` / `winvm-gui-automation` | VM 侧的总控与 GUI 域细则；跨多能力编排时以它们为准 |
-| `winvm-plugin-deploy` | 本 MCP 的装机/卸载/复验权威（第 4 步装上游、4d 判据、第 2 步卸载清理） |
+| `winvm-plugin-deploy` | 本 MCP 的装机/卸载/复验权威（第 4 步 4a 装上游、4c 判据、第 2 步卸载清理） |

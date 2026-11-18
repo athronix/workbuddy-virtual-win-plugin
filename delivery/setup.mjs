@@ -750,7 +750,12 @@ export function buildVmInstallPs1(cfg, dateStr) {
   /* 上游 MCP CLI（agent-browser / agent-desktop）：默认随 VM 端安装一起装（install-vm 的 [4b/6]）。
    * WINVM_SKIP_UPSTREAMS=1 时透传 --skip-upstreams，与部署技能的 SKIP_UPSTREAMS 判据同源
    * ——一条 env 同时管「不装」与「不验」，避免装了就一定要验、或验了却没装的错配。 */
-  const upstreamArg = process.env.WINVM_SKIP_UPSTREAMS === '1' ? '--skip-upstreams ' : '';
+  // 两条来源都收敛到 --skip-upstreams（语义都是「install-vm 本轮不要碰上游 CLI」）：
+  //   · WINVM_SKIP_UPSTREAMS=1    用户明确不要这两个工具面（4c/5 也记 SKIP）；
+  //   · WINVM_UPSTREAMS_HANDLED=1 v2.4.0 默认：4a 的 DB-7 已检查/安装过，4b 不重复。
+  const skipUpstreams =
+    process.env.WINVM_SKIP_UPSTREAMS === '1' || process.env.WINVM_UPSTREAMS_HANDLED === '1';
+  const upstreamArg = skipUpstreams ? '--skip-upstreams ' : '';
   const lines = [
     "$ErrorActionPreference = 'Stop'",
     `Set-Location -LiteralPath '${cfg.vmDeployDir}'`,
