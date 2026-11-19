@@ -1,9 +1,14 @@
 # 彻底卸载 → 从零部署 演练报告（2026-11-18 ~ 11-19）
 
 > 目标：按 `winvm-plugin-deploy` 技能指引，验证「卸载彻底（含 sshd 与密钥）」与「从零部署」两条路径。
-> 状态：**卸载侧已全部闭环（`--purge-all` 真机 PASS 到裸机）；部署侧第 1 步已验，第 2~5 步待用户粘命令后执行。**
 > 要求：逐节点记时长与问题，问题给根因与处置，最后总结完善技能。
-> 状态：**阶段 A 完成 · 阶段 B 完成 · 阶段 C 阻塞在人工粘一条命令**
+>
+> **状态（2026-11-19 17:0x 定稿）**：
+> **阶段 A（卸载到裸机）✅** · **阶段 B（通道重建）✅** · **阶段 C（从零部署 1→5）✅**
+> —— V1.4.34 全链真机 PASS（第 4 步 245s / 第 5 步 33s `VERIFY=PASS`），
+> 暴露并修完 **P1~P18** 共 18 项缺陷。其中 **P14/P15/P16/P18 是同一族**：
+> 「活干对了、报告说错了」的**判据面缺陷**（假红 / 歧义 / 自伤 / 假绿混在失败行里）。
+> **未做**：V1.4.34（母项目）与技能 v2.5.5 的发布 —— 见 §7 待办 1。
 
 ---
 
@@ -13,8 +18,8 @@
 |---|---|
 | 宿主 | 鸿蒙 WorkBuddy 沙箱（uid 20020171） |
 | VM | `172.16.100.2`，用户 `User` |
-| 技能 | `winvm-plugin-deploy`（演练起点 v2.4.0，演练中因暴露缺口升至 **v2.5.0**） |
-| 母项目包根 | `~/wbtmp/rel-v1433/V1.4.33/overall`（`PKG_ROOT` 覆盖；旧值指向 V1.4.31 旧包，见坑 3） |
+| 技能 | `winvm-plugin-deploy`（演练起点 v2.4.0 → 暴露缺口升 **v2.5.0** → 补 P12/P13 升 v2.5.3 → 补 P14/P15 排错表升 **v2.5.4**） |
+| 母项目包根 | 首跑 `~/wbtmp/rel-v1433/V1.4.33/overall`；**验收用 `~/wbtmp/overall-root/overall` = V1.4.34**（`commit b173cbf`，overall 1029 文件 / sha256 `52b0908e…`） |
 | 「彻底」的定义 | winvm 程序/服务/任务/工作区 + agent-browser + agent-desktop + codebuddy + node 运行时（`C:\nodejs` 与 nvm）+ OpenSSH MSI + `C:\Program Files\OpenSSH` + `C:\ProgramData\ssh`（含两处 `authorized_keys`）+ VM 侧 `~/.ssh` + `C:\ProgramData\WinVMDeploy` |
 
 ---
@@ -322,7 +327,127 @@
 
 ---
 
-## 4. 阶段 B：从零前的通道重建（阻塞点）
+### P16｜VM-START 清扫把执行清扫的脚本自己杀掉了（P0，P14 的回归）
+
+- **现象**（16:52 真机首跑 P14 修复版）：
+  ```
+  ❌ VM 服务启动触发失败（VM_START_SWEEP PID=2792 NAME=cmd.exe
+  VM_START_SWEEP PID=9056 NAME=powershell.exe
+  ）
+  ```
+  `9056` 正体就是**正在执行清扫的那个 PowerShell 进程**。它把自己 `Terminate` 了，于是后面的
+  `schtasks /run` 没发出去 ⇒ 「启动触发失败」。
+- **根因：两条各自正确的改动叠加出新缺陷。**
+  - 清扫签名（I-6.15b 的根治手段）匹配 `WinVMBridge|start-hidden|vm-service|ps-bridge`；
+  - P14 把 `.ps1` 落点统一到 `C:/WinVMBridge/winvm-setup-<ts>.ps1`；
+  - ⇒ 脚本**自己的命令行就含 `WinVMBridge`** ⇒ 命中签名 ⇒ 自杀。
+- **修法取舍（三选一，选了最保守的）**：
+
+  | 方案 | 判断 |
+  |---|---|
+  | 排除自身 + **祖先链** | ✅ 采用：签名强度不变，只是「杀别人别杀自己」 |
+  | 放宽签名 | ❌ 会让 I-6.15b 要清的**游离 vm-service 实例漏杀**，等于退回旧病 |
+  | 把脚本挪出 `C:/WinVMBridge` | ❌ 破坏 P14 刻意选的稳定落点 |
+
+  为什么是祖先链而不是只排 `$PID`：脚本常经 `cmd.exe` / `powershell` 包装启动
+  （真机那条 `PID=2792 NAME=cmd.exe` 就是包装器），只排自己仍会把父包装器杀掉，症状一模一样。
+- **教训**：
+  1. **「签名清扫」与「固定落点」是一对天然冲突的机制** —— 前者按路径/命令行识别敌人，
+     后者把自己也放进同一命名空间。以后任何「按名字匹配然后杀」的逻辑，都必须先问
+     「我自己会不会匹配上」。
+  2. **回归不来自错误改动，而来自正确改动的叠加**。P14 和签名清扫各自都对，
+     合起来才出事 ⇒ 只测单个改动的效果是不够的，必须**跑完整链路**。
+  3. 守卫要加**反向断言**（「签名必须保留」），否则后人为了修 P16 会把签名放宽，
+     把 I-6.15b 的老病放回来。
+
+### P17｜`RELEASE_TAG` 指定了版本，却静默用了另一个版本（P1，判据基准错配）
+
+- **现象**：`RELEASE_TAG=V1.4.34 bash deploy-2-host.sh` 输出
+  ```
+  包根 = /storage/Users/currentUser/winvm-deploy/overall-root/overall
+  版本 = V1.4.32
+  ```
+  **指定 V1.4.34，实得 V1.4.32，且 rc=0 不报错。**
+- **根因**：`resolve_pkg_root` 的优先级是
+  `env PKG_ROOT > $DEPLOY_ROOT/pkg-root.txt 状态文件 > _pick_pkg_root 现探`。
+  状态文件里记着上一次的旧包根，**优先级高于 tag 探测** ⇒ tag 被完全绕过。
+  而 `download-verify.sh` 的缓存快路径调用的是 `_pick_pkg_root "$TAG"`（认得 tag），
+  两者不是同一个函数 ⇒ **同一脚本内两套选根口径**。
+- **危害**：这是「基准错配」，比直接失败更危险。`5d` 的 `fresh` 对账基准、`PKG_VERSION` 全部
+  跟错包走，**矩阵会以一个错误基准判 PASS**。本轮就实测到：内容已是 V1.4.34，
+  而 state 仍写 `PKG_VERSION=V1.4.32`。
+- **本轮的处置（未改代码，改环境对齐）**：清 `pkg-root.txt` → 隔离旧解包层 →
+  把 V1.4.34 解到标准包根 → 写回状态文件 → 对齐 `deploy-state.env` 的 `PKG_VERSION`。
+  四者（MANIFEST / 状态文件 / state / 实际内容）一致后矩阵才可信。
+- **修复（2026-11-19 16:5x 已落地，技能侧）**：
+  1. `resolve_pkg_root` 显式给了 tag ⇒ 只走 `_pick_pkg_root "$tag" strict`，匹配不到
+     `PKG_RESOLVED=""` + `rc=1`，**状态文件直接被跳过**；不给 tag 才轮到状态文件。
+  2. 新增 `pkg_root_tag_mismatch_error`，报错必须回答三个问题：要哪版、盘上实际有哪些版
+     （`版本@路径` 逐条列出）、状态文件**已被忽略**。与「找不到包根」的文案分开 ——
+     那一类会把人引向「去找包根」，而这里盘上明明有层，只是版本不对。
+  3. **`download-verify.sh` 的缓存快路径与解包后选根都补 `strict`** —— 这是 P17 的**第二条入口**，
+     比状态文件更隐蔽：`zip 在 + sha 对 + 盘上有任一合法层` 就判「缓存命中」，
+     而「有合法层」≠「有这一版的层」。
+  4. `deploy-2-host.sh` 加**第二道锁**：2a 拿到 `VER` 后与 `RELEASE_TAG` 对账，不符即 `st_end 1 FAIL`。
+     两道锁不是冗余 —— `download-verify` 可能被 `SKIP_DOWNLOAD` / 手工摆包绕过，
+     而 2a 是「包根进入 state」的唯一入口，错在这里，后面 4b/4c/5d 全在错基准上判 PASS。
+- **门禁**：新增断言 `pkg-tag-priority`，**行为级**（真的 source 一份 `pkg-root.sh` 跑四个场景），
+  而不是查源码字符串 —— 字符串只能证明「代码里有 strict 这个词」，
+  证明不了「给了 tag 就不会静默返回旧层」，而 P17 的失败形态本身就是 rc=0、源码怎么看都对。
+  四个场景：① 主案必须 rc=1 且不残留 `PKG_RESOLVED`；② **反向**：tag 有对应层时必须命中
+  （防止修主案时把正常路径改坏）；③ 不给 tag 时状态文件仍生效（防止把「免重解」优化一起砍掉）；
+  ④ `env PKG_ROOT` 仍最高。变异 `M54`（显式 tag 让位状态文件）、`M55`（tag 匹配退化非 strict）、
+  `M56`（缓存快路径去 strict）**全部 CAUGHT**。
+  > M56 第一版 MISS 了，原因值得记：断言只查 `_pick_pkg_root "$TAG" strict` 这个子串，
+  > 而 `download-verify.sh` 里**有两处调用**（cache 的 `HIT=` 与解包后的 `PKG=`），
+  > 子串在另一处仍然存在 ⇒ 假绿。改成逐调用点正则后 CAUGHT。
+  > **教训：一个"正确写法"在文件里出现多次时，子串断言等于没断言。**
+- **真机验收（16:47）**：
+  ```
+  [正] tag=V1.4.34 → rc=0 命中 V1.4.34 source=tag(V1.4.34)
+  [反] tag=V1.4.32 → rc=1 拒绝      ← 旧代码在此静默返回 V1.4.34 的层
+  [无tag]          → rc=0 source=state(...)   ← 状态文件兜底仍生效
+  ```
+  反例侧还跑了一次完整 2a：`RELEASE_TAG=V1.4.99` → `DOWNLOAD_FAILED` + `[FAIL] 2a`，
+  且 **state 与 pkg-root.txt 均未被污染**（仍是 V1.4.34）—— 失败路径不留半个脚印。
+- **教训**：
+  1. **状态文件是性能优化，不是事实源**。一旦状态文件能覆盖显式参数，它就把「用户意图」
+     降级成了「上次的偶然」。
+  2. **静默错配比报错危险一个量级**：报错会让人停下来，错配会让人拿着错误的基准一路绿灯。
+  3. 复核一致性要**四面对账**：MANIFEST 声明 / 状态文件 / deploy-state / 实际文件内容。
+     本轮就是靠「MANIFEST 说 V1.4.34 而 state 说 V1.4.32」这个矛盾发现的。
+  4. **同一判据有两处实现时，只修一处等于没修。** P17 有三处选根入口
+     （`resolve_pkg_root` / cache 快路径 / 解包后选根），第一轮只想到前两处。
+
+### P18｜失败行打的是 `download-verify rc=0`（P2，诊断信息自伤）
+
+- **现象**（16:45，P17 验收时顺手撞见）：`RELEASE_TAG=V1.4.99` 正确 FAIL，但日志写
+  ```
+  16:45:42 [FAIL] 2a (35s) FAIL download-verify rc=0
+  ```
+  **明明失败了，rc 却是 0。**
+- **根因**：
+  ```bash
+  if ! bash "$SCRIPTDIR/download-verify.sh" ... > "$DV" 2>&1; then
+    st_end 1 FAIL "download-verify rc=$?"     # ← 这里的 $? 恒为 0
+  ```
+  `!` 取反本身是一次求值，进入 `then` 时 `$?` 已经是 **0**（取反后的成功）。
+  真退出码永久丢失。
+- **危害**：它专打**最该看清的那一行**。失败现场里「rc=0 却说失败」会把人推向
+  「脚本逻辑有问题」的错误方向，而真凶往往是 rc=1（网络/tag 不存在）或 rc=2
+  （sha256 不一致 = 事故，绝不能重试）。**诊断信息本身不可信，等于没有证据。**
+- **修复**：`DVRC=0; bash ... || DVRC=$?; if [ "$DVRC" -ne 0 ]; then`，
+  并把 rc 语义写进 `die` 的根因字段（rc=1 vs rc=2 处置完全不同）。
+- **门禁**：新增断言 `rc-honesty`，扫所有 `scripts/*.sh` 里 `if !` 块的**前三行**是否出现 `$?`。
+  变异 `M57`（整块退回旧写法）**CAUGHT**。
+- **教训（与 P14/P15 同宗）**：这是第三次「**执行面对、判据面错**」。
+  前两次是假红（P15）/歧义（P14），这次是**假绿混在失败行里**。
+  ⇒ 排查任何缺陷时，除了问「活干对了吗」，还要问「**报告说的是真的吗**」。
+  一条可复用的自检：**失败行里的每个数字，都要能被独立复算。**
+
+---
+
+## 4. 阶段 B：从零前的通道重建（唯一人工步骤）
 
 通道已断（`22:TIMEOUT`），重建只有一条路 —— 技能设计的唯一人工步骤：在 VM 管理员 PowerShell 粘一条命令（远端下载 `winvm-sshd-oneclick.ps1` 并安装 OpenSSH + 写钥）。
 
@@ -358,7 +483,7 @@
 
 ---
 
-## 5. 阶段 C：从零部署（进行中）
+## 5. 阶段 C：从零部署（1→5 全链 PASS）
 
 ### 5.1 第 1 步（通道 DOWN，2026-11-19 10:22，WALL 19s）
 
@@ -426,9 +551,57 @@
 - **V1.4.33 的 DB-7 迁移 ✓**：4a 一次装齐 `codebuddy` + `agent-desktop` + `agent-browser`，4b 不再重复装，4c 直接读到 `browser=33 desktop=25`。
 - **`npm warn install-scripts` 不是缺陷**：核实到 `agent-browser/skill-data`（27 文件）+ `skills` 子目录都在，postinstall 已实际执行；npm 11 只是把「未登记 allowScripts」的提示提级成 warn。
 
-#### 一处遗留观察（非阻塞）
+#### 一处遗留观察（非阻塞）→ 已在 5.3 闭环
 
 `4a` 首跑 59s → 收敛后 177s，差异来自「这次真的要装 node + 三个 CLI」。等 node 装好后**再跑 4a 应全 `[SKIP]`**（幂等判据是 `Get-Command`），这条留给下一轮验证。
+
+### 5.3 V1.4.34 真机复验（2026-11-19 16:00，P14/P15/P16 三修复验收）
+
+**背景**：VM 于 12:10 整机失联、15:43 恢复。恢复后 VM 上 node 与三个 CLI 已装好，正好构成
+「**幂等复验** + **判据面修复验收**」的双重条件。
+
+**三次尝试，前两次失败都是真缺陷，不是环境问题**：
+
+| 轮次 | 包 | 4a | 4b | 结论 |
+|---|---|---|---|---|
+| #1 15:49 | V1.4.34（无 P16） | 62s 全 `[SKIP]` | **0s FAIL dry-run** | P5 判据正确拦截（新包根只有 `.env.example`）；补 `.env` |
+| #2 15:51 | V1.4.34（无 P16） | 55s 全 `[SKIP]` | **183s FAIL** | **P16 暴露**：`VM_START_SWEEP PID=9056 NAME=powershell.exe` 自杀 |
+| #3 16:00 | V1.4.34（含 P16） | **50s 全 `[SKIP]`** | **152s rc=0** | **PASS** |
+
+**第 4 步（V1.4.34，WALL 245s）**：
+
+| 环节 | 耗时 | 结果 |
+|---|---|---|
+| 4.0 通道门禁 | 1s | `channel=READY` |
+| 4a 依赖 | **50s** | 全部 `[SKIP]`：`node present v24.21.0` / `codebuddy present` / `agent-desktop present` / `agent-browser present` / **`all global CLIs present`** |
+| 4b VM 端 | 152s | `setup rc=0` · `部署全部完成 ✅` · `✅ VM 服务已监听 127.0.0.1:18443` |
+| 4c 七判据 | 40s | `task_state=Running listen_count=1 health_http=200 browser=33 desktop=25` |
+
+**第 5 步（WALL 33s）**：`PROBES 34/34 SKIP=4` · `browser=33 desktop=25` ·
+`FRESH` SHA256 全一致 · `health=200` · `connector skills=10` · `task=Running listen=1 sshd=Running` ·
+**`VERIFY=PASS`**
+
+#### 三修复的真机证据（这是本轮最关键的产出）
+
+| 修复 | 判据 | 真机证据 |
+|---|---|---|
+| **P14** | 日志打**绝对路径** | `.ps1 已推送 C:/WinVMBridge/winvm-setup-1795075399254.ps1`（不再是裸文件名） |
+| **P15** | DB-7 不再假红 | `[DB-7] all global CLIs present [SKIP]`（此前**永远**报 `desktop:MISSING browser:MISSING`） |
+| **P16** | 不自伤 | `VM_START_SWEEP` 命中数 **0**，且 `✅ VM 服务已监听` 正常触发 |
+
+#### P12 的 4a 幂等复验（原待办 1）✓
+
+- **177s → 50s**（降 72%），且三次运行稳定在 50~62s。
+- 全 `[SKIP]` 证明幂等判据（`Get-Command`）生效，**不是重装**。
+- ⇒ **177s 确实是一次性成本**（要真装 node + 三 CLI），不是每轮成本。这条待办闭环。
+- 仍可优化：50s 里主要是三次 ssh 往返（合并探测、apply、回验），不是安装本身。
+
+#### 一处口径修正（重要，避免后续误读）
+
+本轮 `5d` 曾报 `connector skills=0` 而 `fresh` 通过 —— 原因是**只跑了第 4、5 步**，
+第 2 步的 `install-host`（负责分发 connector skills）是上一轮 V1.4.33 时做的，本轮未重跑。
+补跑第 2 步后 `skills=10` 恢复。**教训：`--only 4`/`--only 5` 不覆盖 host 端分发，
+做「完整从零」验收时必须从第 2 步起跑。**
 
 ---
 
@@ -446,16 +619,35 @@
 | **从零部署全链合计（1+4+5，不含人工粘贴）** | **≈ 630s** | 4a 177s + 4b 165s + 4c 50s |
 | deploy `--only 4`（v2.4.0 真机，参考） | 241s | 4b 推包 **149s** |
 | deploy `--only 5` | ~30s | 三探针 16s |
+| **deploy `--only 4`（V1.4.34，幂等态）** | **245s** | **4b 152s**（4a 已降到 50s） |
+| deploy `--only 5`（V1.4.34） | **33s** | 三探针 ~19s |
+| 幂等态全链（2+4+5，已达稳态） | **≈ 300s** | 4b 152s 是唯一大头 |
 
-**关键读数**：从零部署里 **4a 的 177s 是唯一的大头**，其中 node zip 下载 37.6MB + `npm i -g` 三个包（含两个 agent 上游，`added 23 packages in 2m`）。已有 node 的机器上 4a 应回落到十几秒（全 `[SKIP]`）—— 这是**一次性成本**，不是每轮成本。
+**关键读数**（已按 V1.4.34 实测修正）：
+
+1. **4a 的 177s 确是一次性成本** ✓ 已实测闭环：第二次起 **50s**（降 72%），三次稳定在 50~62s，
+   全 `[SKIP]`。原来预估「回落到十几秒」**偏乐观** —— 剩下的 50s 不是安装，而是
+   **三次 ssh 往返**（合并探测 15s + apply + 回验），这部分与装没装过无关。
+2. **4b 的 152s 现在成了唯一大头**，且其中大头是**每次无条件 tar + scp + install + 重启**，
+   与「内容有没有变」无关 ⇒ 这才是下一步该优化的点（见 §7 待办 1）。
+3. 稳态全链 ≈ 300s，比首跑 630s 少一半，且**首跑多出的时间几乎全在「真装东西」上**，
+   不是流程冗余。
 
 ---
 
 ## 7. 结论与待办
 
-**已闭环**：P1（v2.5.0 `--purge-all`）、P2~P8 全部修完；**P9（BOM 契约）、P10（第三个 node store）、P11（僵尸句柄）、P12（4a 假绿）、P13（node 兜底）** 在本轮真机暴露并修完；**P14（`.ps1` 裸名路径）、P15（`state` 漏映射 CLI 键）** 在 VM 失联后经静态取证定位并修完（无需 VM 即可闭环）。
+**已闭环**：P1（v2.5.0 `--purge-all`）、P2~P8 全部修完；**P9（BOM 契约）、P10（第三个 node store）、P11（僵尸句柄）、P12（4a 假绿）、P13（node 兜底）** 在本轮真机暴露并修完；**P14（`.ps1` 裸名路径）、P15（`state` 漏映射 CLI 键）** 在 VM 失联后经静态取证定位并修完；**P16（VM-START 清扫自杀）与 P17（`RELEASE_TAG` 静默错配）** 在 15:49/15:51 两轮失败中暴露，P16 当日修完并真机验证；**P18（失败行 `rc=0`）** 在 P17 验收时顺手撞见，同样修完并加门禁。
 
-**门禁**：技能侧 `SELFCHECK=ALL_GREEN checks=30 fails=0` / `MUTATION_RESULT=ALL_CAUGHT 53/53`；母项目新增守卫件 `p14-p15-ps1-path-and-cli-map-guard.test.js`（16 用例）并登记进 `GATE_GUARD_FILES`，**三变异全部 CAUGHT**（`-File` 回裸名 / 交叉错位 / 删键重现原 bug）。母项目门禁整体仍 `RED`，但经 `git stash` 归因实验确认两件失败（`phase2-snapshot-truth`、`phase3-skill-claims-guard`）在 HEAD 上**同样 fail 1**，属既有失败，与本批改动无关。
+**门禁**：技能侧 `SELFCHECK=ALL_GREEN checks=32 fails=0` / `MUTATION_RESULT=ALL_CAUGHT 57/57`；母项目新增守卫件 `p14-p15-ps1-path-and-cli-map-guard.test.js`（**20 用例**，四段 describe）并登记进 `GATE_GUARD_FILES`，**变异全部 CAUGHT**（`-File` 回裸名 / 交叉错位 / 删键重现原 bug / 删 P16 排除条件）。母项目门禁整体仍 `RED`，但经 `git stash` 归因实验确认两件失败（`phase2-snapshot-truth`、`phase3-skill-claims-guard`）在 HEAD 上**同样 fail 1**，属既有失败（沙箱缺 fixture），与本批改动无关。
+
+> **跑门禁要用 `/data/storage/el1/bundle/libs/arm64/node/bin/node`**，不是 `/data/service/hnp/bin/node`。
+> 后者跑 `node --test` 会在 200ms 处崩在 `Check failed: 12 == (*__errno_location())`，
+> 表现为「整文件 fail、0 个用例被收集」——极易误读成断言失效。（`-e` 单行脚本用它是正常的。）
+>
+> **技能门禁的新断言一律不许 `shutil.rmtree`**：鸿蒙沙箱按「单回合进程内 unlink 数」计，
+> 一次删 51 个就撞阈值 50 抛 `SAFE_DELETE_BULK_CONFIRM_REQUIRED`，表现为
+> 「`rc=1` 但一行 `[FAIL]` 都没打」——极易误读成断言失效。改用唯一目录名、原地新建。
 
 **已完成的关键验证**：
 - ✅ `--purge-all` 真机 PASS，到裸机终态（VM 存活 + 22/18443/5985 全不可用 + 宿主侧零残留）；
@@ -466,22 +658,51 @@
 - ✅ **P4 复验**：`PKG_VERSION=V1.4.33` 进 state，`PKG_ROOT` 指向新解出的层；
 - ✅ **P5 复验**：`setup.log` 无 `DRY-RUN 只规划`（0 次），4b 不是 0s 假绿；
 - ✅ **P12/P13 修复真机验证**：兜底逐文件复制 `copied=1993 skipped=1`（只跳过被映射的 node.exe）后 `node OK v24.21.0`；
-- ✅ **P14/P15 离线闭环**：`planPrepareVm` 行为级 5 断言 PASS（含「删键即失配」的证伪用例）；路径断言 9 项 PASS（含 3 条反向断言）。
+- ✅ **P12 的幂等复验**：4a **177s → 50s**，三次稳定 50~62s，全 `[SKIP]` ⇒ 一次性成本坐实；
+- ✅ **P14 真机验证**：`.ps1 已推送 C:/WinVMBridge/winvm-setup-1795075399254.ps1`（绝对路径）；
+- ✅ **P15 真机验证**：`[DB-7] all global CLIs present [SKIP]`（此前永远报 `MISSING`）；
+- ✅ **P16 真机验证**：`VM_START_SWEEP` 命中数 **0** + `✅ VM 服务已监听 127.0.0.1:18443`；
+- ✅ **V1.4.34 全链 PASS**：第 4 步 245s（4a 50 / 4b 152 / 4c 40）+ 第 5 步 33s `VERIFY=PASS`。
 
-**待办**：
-1. 🔴 **4a 幂等复验未做**：node + 三 CLI 已装好，应再跑一次 `--only 4` 确认 4a 全 `[SKIP]` 且耗时回落到十几秒。这是「一次性成本 vs 每轮成本」的关键证据。**注**：P15 修好后，这一轮的日志会第一次真实显示 `desktop:OK browser:OK` 与 `[SKIP] all present` —— 之前那个「永远 MISSING」的假红已消除，因此复验时**不要**再拿「MISSING」当判据。
-2. **P12 的根因在 prepare-vm 侧未动**：DB-3/DB-7 失败仍只打印 `[MANUAL]` 不 `exit 1`。当前靠 4a 扫文本兜住（已加门禁），但更干净的做法是让 `bootstrap.mjs` 在这些行出现时返回非零。改它要评估「部分失败不阻断」的既有语义，故本轮只加固调用方。
-3. **P14 的真机复验未做**（因失联）：修法（绝对路径）逻辑上消除歧义，但仍需在真机跑一次 `--only 4` 确认 `-File` 正常。修复后的日志会打印**绝对路径**（`C:/WinVMBridge/winvm-setup-<ts>.ps1`），这是识别「修复生效」的最快标志。
-4. **`AllowScripts` 显式登记**：`npm i -g` 时 npm 11 会把 `agent-browser`/`agent-desktop` 的 postinstall 提示成 warn（实际已执行）。可加 `--allow-scripts` 或 `npm config set allow-scripts=... --location=user` 消音，避免下一个人误判成「没装好」。
+**待办（按优先级）**：
+
+1. 🔴 **发布未做**：母项目 V1.4.34（含 P14/P15/P16）需 `pack → push origin → push gitee main+tag →
+   publish --apply --mirror-gitee`；技能仓 v2.5.5（含 P17/P18）需 `skill_dev.py release`
+   （**顺序：commit/push 先，release 建 tag 后** —— 先手动打 tag 会报
+   `tag already exists — bump frontmatter version`）。
+   注：本地 `release/V1.4.34` 已按 `b173cbf` 重 pack 过（overall 1029 文件 / sha256 `52b0908e…`），
+   但**尚未 push**，gitee `latest` 仍是 V1.4.32。
+   ⚠ **P17/P18 改的是技能仓 `scripts/`**，不随母项目 pack 进包 —— 两者要分别发布，
+   不要以为「包发了技能就发了」。
+2. **4b 加「内容未变则短路」**：现在每轮无条件 tar+scp+install+重启（152s），与内容是否变化无关。
+   正解 = 让 VM 侧 `MANIFEST-deploy-*.txt` 带上 `total-sha256`（源内容哈希，与 tar 时间戳无关），
+   对得上就整段跳过。预计 **-100~140s/轮**，是当前**性价比最高**的一项。
+3. **P12 的根因在 prepare-vm 侧未动**：DB-3/DB-7 失败仍只打印 `[MANUAL]` 不 `exit 1`。当前靠 4a
+   扫文本兜住（已加门禁），但更干净的做法是让 `bootstrap.mjs` 在这些行出现时返回非零。改它要评估
+   「部分失败不阻断」的既有语义，故本轮只加固调用方。
+4. **`AllowScripts` 显式登记消音**：`npm config set allow-scripts=agent-browser,agent-desktop --location=user`。
+   npm 11 把「未登记」提示提级成 warn，实际 postinstall 已执行（已核实 `skill-data` 27 文件在位）——
+   消音是为了防止下一个人误判成「没装好」。
 5. 卸载侧仍无「卸载后自动核对残留清单」的汇总行（现在靠 2d + 2e 两段分别断言）。
-6. `1a`/`3a` 在通道本就 DOWN 时要烧 15s（6s 建连窗 × 重试）。可考虑把窗降到 3s，收益约 8s，但要确认不误判「慢但活着」的通道。
-7. `C:\ProgramData\WinVMStale` 里被 park 的死镜像要等下次 VM 重启才清（已登记 `PendingFileRenameOperations`）；这是**故意**的 —— 绝不为了清一个文件而重启 VM。
-8. codebuddy 子进程（`codebuddy mcp remove`）没有被回收是 P11 的源头：4a 里凡是 `& codebuddy ...` 都要 `Wait-Process` + 超时，避免再留僵尸。
-9. **发布未做**：技能 v2.5.3（含 P12/P13）需 `skill_dev.py release`；母项目 V1.4.33 需 `pack → push → publish --apply --mirror-gitee`（gitee latest 仍是 V1.4.32）。**P14/P15 的母项目改动也尚未发布** —— 它们改的是 `delivery/`（运行态代码），必须重新 `pack` 才会进包。
+6. `1a`/`3a` 在通道本就 DOWN 时要烧 15s（6s 建连窗 × 重试）。可降到 3s，收益约 8s，
+   但要确认不误判「慢但活着」的通道。
+7. `C:\ProgramData\WinVMStale` 里被 park 的死镜像要等下次 VM 重启才清（已登记
+   `PendingFileRenameOperations`）；这是**故意**的 —— 绝不为了清一个文件而重启 VM。
+8. codebuddy 子进程（`codebuddy mcp remove`）没有被回收是 P11 的源头：4a 里凡是 `& codebuddy ...`
+   都要 `Wait-Process` + 超时，避免再留僵尸。
+9. **`--only 4`/`--only 5` 不覆盖 host 端分发**（已实测踩到 `skills=0`）：connector skills 由第 2 步
+   `install-host` 分发。做「完整从零」验收必须从第 2 步起跑，否则 5d 会假红。
+   考虑在 `deploy-5-verify.sh` 里加一句前置提示。
+10. **P17 只在「盘上无该版本」时验证过**：真机验的是 V1.4.34（命中）与 V1.4.32（拒绝，但盘上
+    只有 V1.4.34 ⇒ 属「无该层」）。**尚未验证「盘上同时有新旧两层、显式要新的」**——
+    那才是「陈旧层残留」的主场景，也是 P17 报告里最想防的形态。等下次打新版时自然覆盖。
 
 ---
 
-## 8. 突发：VM 整机失联（2026-11-19 12:10，未恢复）
+## 8. 插曲：VM 整机失联（2026-11-19 12:10 → 15:43 恢复）
+
+> **本节按「当时记录」保留原文**，末尾追加恢复后的结论。
+> 读的时候请注意：下面所有「未做/阻塞/待查」都已在 15:43 之后闭环（见 §5.3）。
 
 **发生时机**：12:04 的 4a 幂等复跑（待办 1）刚开始不久，`prepare-vm` 的探测阶段正常（`[probe] 合并单往返 15.2s`、`DB-3 node = v24.21.0` 都读到了），随后 APPLY 阶段的 `.ps1` 推送后 `-File` 报「实际参数不存在」，紧接着通道彻底消失。
 
@@ -499,9 +720,15 @@
 
 **未做的事（按红线）**：**没有重启 VM**。VM 是本项目唯一的真机验证环境，重启会丢现场（且 `--purge-all` 的 `PendingFileRenameOperations` 现场会一并清掉，反而让 P11 的证据消失）。
 
-**当前阻塞**：待办 1（4a 幂等复验）无法继续 —— 需要 VM 恢复到 ping 可达。恢复后第一步就是 `bash scripts/ssh2-conn.mjs ping` 确认 `pong ready`，然后重跑 `--only 4`。
+**当时阻塞**：待办 1（4a 幂等复验）无法继续 —— 需要 VM 恢复到 ping 可达。
 
-**顺带发现（独立于失联，值得单独跟进）**：
+**为什么这次失联「不可解释、也不该解释」**：VM 是嵌套虚拟化里的 guest，宿主的网络栈正常、
+guest 的 ARP 都不应答 ⇒ 这一层我们**没有任何可用的遥控手段**（MCP 走 18443 也一起没了）。
+按红线不重启 VM，就只能等。**这不是流程缺陷，是单机验证环境的结构性单点**：
+唯一的真机验证对象同时也是唯一的取证对象，它掉线时既不能验证也不能取证。
+⇒ 已记入待办 10（`--only 4/5` 口径）之外的长期建议：**关键改动应尽量先做到「离线可证伪」**
+（本轮 P14/P15/P16 的守卫件就是这个思路，三次都是先离线断言、再真机确认）。
+
 **顺带发现的两条（失联后已离线查清，见 P14 / P15）**：
 - `DB-7 global CLI = codebuddy:OK desktop:MISSING browser:MISSING` 但 12:02 的 4c 读到 `browser=33 desktop=25`
   ⇒ **已定位为 P15**：不是两处口径不一致，而是 `bootstrap.mjs` 的 `state` 组装**漏映射**了
@@ -512,7 +739,22 @@
   而 put 与 exec 是两次独立 `withVmChannel`、各自独立决议后端（sftp 落点 ≠ cmd.exe cwd）⇒
   链路抖过就分裂。11:53 轮同代码成功、12:04 轮失败即此。**已修**为统一绝对路径。
 
-**剩下仍需真机的一步**：P14 的修法与 P15 的映射都只有离线证据（`--check` + 行为级断言 + 三变异），
-真机复验要等 VM 恢复后跑一次 `--only 4`：判据是日志出现**绝对路径**的
-`(.ps1 已推送 C:/WinVMBridge/winvm-setup-<ts>.ps1 → VM)`，且 DB-7 那行首次真实显示
-`desktop:OK browser:OK` + 计划表 `[SKIP] all present`。
+#### 恢复后的收尾（15:43 之后，全部完成）
+
+| 时点 | 事件 | 结果 |
+|---|---|---|
+| 15:43 | VM 恢复（ping 通、裸 TCP 出 banner） | — |
+| 15:49 | 第 1 次 `--only 4`（V1.4.34 无 P16） | 4a 62s 全 `[SKIP]`（**P15 生效**）· 4b **0s FAIL dry-run** |
+| 15:51 | 第 2 次（补 `.env` 后） | 4b **183s FAIL**，`VM_START_SWEEP PID=9056 powershell.exe` ⇒ **P16 暴露** |
+| 16:00 | 第 3 次（含 P16） | 第 4 步 **245s PASS**、第 5 步 **33s `VERIFY=PASS`** |
+
+**原「剩下仍需真机的一步」已闭环**，两条判据都按预期命中：
+
+```
+✅ .ps1 已推送 C:/WinVMBridge/winvm-setup-1795075399254.ps1 → VM      ← P14（绝对路径）
+✅ [DB-7] all global CLIs present [SKIP]                              ← P15（不再 MISSING）
+✅ VM_START_SWEEP 命中 0 次 + VM 服务已监听 127.0.0.1:18443             ← P16（不自伤）
+```
+
+**额外收获（原计划没有的）**：这轮失联恰好把 VM 上的 node + 三 CLI 留在了「已装好」状态，
+于是第一次拿到了 **4a 幂等基线 50s**（对比首跑 177s），把「一次性成本」这个假设**实测成了结论**。
