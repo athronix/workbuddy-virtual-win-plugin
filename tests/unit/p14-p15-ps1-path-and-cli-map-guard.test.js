@@ -35,6 +35,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { planPrepareVm } from '../../delivery/prepare-vm.mjs';
+import { buildVmStartPs1 } from '../../delivery/setup.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..', '..');
@@ -106,6 +107,34 @@ describe('P15 · state 必须映射 cliDesktop / cliBrowser（且交叉对位没
   test('降级路径保持「宁可报缺失」而不是报 OK（假绿会让真缺时无人补）', () => {
     assert.match(bs, /cliDesktop:\s*usedCombined \? !!J\.desktopCli : \(J2 \? !!J2\.desktopCli : false\)/);
     assert.match(bs, /cliBrowser:\s*usedCombined \? !!J\.browserCli : \(J2 \? !!J2\.browserCli : false\)/);
+  });
+});
+
+describe('P16 · VM-START 清扫不得杀掉自己（P14 的回归）', () => {
+  /* 真机事故（2026-11-19 15:52）：P14 把 .ps1 落点改到 C:/WinVMBridge/ 之后，
+   * buildVmStartPs1 里的清扫签名 `WinVMBridge|start-hidden|vm-service|ps-bridge`
+   * 命中了**正在执行清扫的脚本自己**（它的路径就含 WinVMBridge）⇒ 自己 Terminate 自己。
+   * 证据：VM_START_SWEEP PID=9056 NAME=powershell.exe 紧跟「VM 服务启动触发失败」。
+   * 这是「两条各自正确的改动叠加出新缺陷」的典型 —— 所以守卫必须同时钉住
+   * 「签名还在」（I-6.15b 不能退）与「自身被排除」（P16 不能回潮）。 */
+  const ps1 = buildVmStartPs1({ servicePort: 18443 });
+
+  test('清扫前先取自身 PID 与祖先链', () => {
+    assert.match(ps1, /\$self = \$PID/, '没有取自身 PID ⇒ 无法排除自己');
+    assert.match(ps1, /\$chain \+= \$pp/, '没有遍历父进程链 ⇒ 通过 cmd/powershell 包装启动时仍会自伤');
+  });
+
+  test('清扫目标排除自身与祖先链', () => {
+    assert.match(ps1, /\$chain -notcontains \$_\.ProcessId/, '未排除自身 ⇒ 复现 P16 自杀');
+  });
+
+  test('反向断言：签名必须保留（不许用放宽签名来「修」P16）', () => {
+    assert.match(ps1, /match 'WinVMBridge\|start-hidden\|vm-service\|ps-bridge'/, '签名被放宽/删除 ⇒ I-6.15b 的游离实例清扫失效');
+    assert.match(ps1, /notmatch '\^\(svchost\|conhost\)'/, 'svchost/conhost 排除被删');
+  });
+
+  test('击杀手段仍是 Invoke-CimMethod（PS5.1 CMSL 无 .Terminate()）', () => {
+    assert.match(ps1, /Invoke-CimMethod -InputObject \$_ -MethodName Terminate/);
   });
 });
 

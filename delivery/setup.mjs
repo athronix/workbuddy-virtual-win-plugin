@@ -1001,8 +1001,24 @@ export function buildVmStartPs1(cfg) {
     'Start-Sleep -Seconds 1',
     '$p = (Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique',
     'if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }',
+    // P16（2026-11-19 真机，P14 的回归）：本脚本自身路径形如
+    // C:/WinVMBridge/winvm-setup-<ts>.ps1 —— **含 WinVMBridge 字样**，因此会命中下面的
+    // 清扫签名，把自己 Terminate 掉。真机证据：VM_START_SWEEP PID=9056 NAME=powershell.exe
+    // 紧跟「VM 服务启动触发失败」，而 9056 正是本脚本的宿主进程。
+    // 修法：把自身与祖先链从清扫目标里排除。**不放宽签名**——签名的存在是 I-6.15b 的
+    // 根治手段，放宽会让「游离 vm-service 实例」漏杀；也**不把脚本挪出 C:/WinVMBridge**
+    // ——那是 P14 刻意选的稳定落点。唯一正确的做法是「杀别人，别杀自己」。
+    "$self = $PID",
+    '$chain = @($self)',
+    '$cur = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $self) -ErrorAction SilentlyContinue',
+    'for ($i = 0; $i -lt 8 -and $cur; $i++) {',
+    '  $pp = $cur.ParentProcessId',
+    '  if (-not $pp -or $chain -contains $pp) { break }',
+    '  $chain += $pp',
+    '  $cur = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $pp) -ErrorAction SilentlyContinue',
+    '}',
     '$sig = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {',
-    "  $_.CommandLine -match 'WinVMBridge|start-hidden|vm-service|ps-bridge' -and $_.Name -notmatch '^(svchost|conhost)' })",
+    "  $_.CommandLine -match 'WinVMBridge|start-hidden|vm-service|ps-bridge' -and $_.Name -notmatch '^(svchost|conhost)' -and ($chain -notcontains $_.ProcessId) })",
     'if ($sig.Count -gt 0) {',
     '  foreach ($s in $sig) { Write-Output ("VM_START_SWEEP PID=" + $s.ProcessId + " NAME=" + $s.Name) }',
     // D7/I-6.17（run9 实弹）：PS5.1 的 Get-CimInstance 返回 CMSL 对象，**.Terminate() 属旧
