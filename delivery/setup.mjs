@@ -999,6 +999,45 @@ export function buildVmStartPs1(cfg) {
     '$Port = ' + cfg.servicePort,
     '$null = schtasks /End /TN $TaskName 2> $null',
     'Start-Sleep -Seconds 1',
+    // 方案 B（pid 文件）：先按启动期落盘的真相 PID 精确查杀，再走下面的签名清扫兜底。
+    // 为什么 VM-START 也要它：本相位本质是「停旧起新」，旧实例的 node 与 ps-bridge 若
+    // 只靠签名清扫，需要枚举全部进程并匹配命令行（慢），且残留的僵尸（命令行已抹）
+    // 只能靠 WorkingSetSize 启发式显形、无法可靠击杀 —— 有 pid 就能直杀 + 复验。
+    // 与 uninstall 侧同一套 pid 复用校验（名字 + StartTime 双重比对）。
+    // 部署根取 cfg.vmDeployDir（默认 C:/WinVMBridge，可由 VM_DEPLOY_DIR 覆盖）——
+    // 不硬编码盘符，否则自定义部署目录时 pid 永远找不到（功能静默失效）。
+    '$DeployRoot = ' + ("'" + String(cfg.vmDeployDir || 'C:/WinVMBridge').replace(/\//g, '\\').replace(/\\+$/, '') + "'"),
+    '$RunDirs = @((Join-Path $DeployRoot "repo\\run"), (Join-Path $DeployRoot "run"))',
+    'function Kill-PidFile([string]$label, [string]$fileName, [string]$exeName) {',
+    '  $file = $null',
+    '  foreach ($d in $RunDirs) {',
+    '    $c = Join-Path $d $fileName',
+    '    if (Test-Path -LiteralPath $c) { $file = $c; break }',
+    '  }',
+    '  if (-not $file) { return }',
+    '  $raw = @(Get-Content -LiteralPath $file -ErrorAction SilentlyContinue)',
+    '  if ($raw.Count -lt 1) { return }',
+    '  $procId = 0',
+    '  if (-not [int]::TryParse(([string]$raw[0]).Trim(), [ref]$procId)) { return }',
+    '  $p = Get-Process -Id $procId -ErrorAction SilentlyContinue',
+    '  if (-not $p) { Write-Output ("VM_START_PID_GONE " + $label + " PID=" + $procId); return }',
+    '  if ($p.ProcessName -and ($p.ProcessName + ".exe") -ne $exeName) { Write-Output ("VM_START_PID_REUSED " + $label + " PID=" + $procId + " NAME=" + $p.ProcessName); return }',
+    '  if ($raw.Count -ge 2 -and (([string]$raw[1]).Trim() -ne "")) {',
+    '    $want = [datetime]::MinValue',
+    '    $parsed = [datetime]::TryParse(([string]$raw[1]).Trim(), [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::RoundtripKind, [ref]$want)',
+    '    if ($parsed) {',
+    '      try {',
+    '        $delta = [math]::Abs(($p.StartTime.ToUniversalTime() - $want.ToUniversalTime()).TotalSeconds)',
+    '        if ($delta -gt 2) { Write-Output ("VM_START_PID_REUSED " + $label + " PID=" + $procId + " DELTA=" + [int]$delta + "s"); return }',
+    '      } catch { }',
+    '    }',
+    '  }',
+    '  Write-Output ("VM_START_PID_KILL " + $label + " PID=" + $procId)',
+    '  $null = taskkill /PID $procId /T /F 2> $null',
+    '  Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue',
+    '}',
+    "Kill-PidFile 'service node' 'service.pid' 'node.exe'",
+    "Kill-PidFile 'ps-bridge' 'ps-bridge.pid' 'powershell.exe'",
     '$p = (Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique',
     'if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }',
     // P16（2026-11-19 真机，P14 的回归）：本脚本自身路径形如

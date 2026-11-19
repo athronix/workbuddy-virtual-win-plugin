@@ -275,6 +275,21 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir, adminEndpoint =
   // PowerShell 单引号字符串内：单引号重复两次转义，双引号可直接保留
   const psStr = (s) => `'${String(s).replace(/'/g, "''")}'`;
   const ps1Path = join(out, 'start-hidden.ps1');
+  /* pid 文件目录：`<部署根>/run`（VM 上 = `C:\WinVMBridge\repo\run`）。
+   * 由 `cfg` 推导，**不硬编码盘符**：生产调用传 `runtimeConfig` =
+   * `<repo>/delivery/.generated/vm-service.runtime.json` ⇒ 剥掉尾段即 repo 根。
+   *
+   * 为什么不用 `dirname(cfg)`：本仓库的生成器要能在**非 Windows 宿主**上跑单测，
+   * 而 posix `dirname` 不认识反斜杠（`C:\a\b\x.json` 会被当成一个文件名），
+   * 会算成 `'run'` 这种相对路径 —— 与 Windows 生产结果不一致，单测就断言不到真实落点。
+   * 故用**分隔符自适应的字符串剥离**：Windows 与 posix 下得到同一形态的绝对路径，
+   * 单测传 Windows 风格 cfg 即可断言 `C:\WinVMBridge\repo\run`。
+   * 尾部形态不匹配（自定义 cfg 路径）时退化为「cfg 所在目录下的 run」，仍可用。
+   *
+   * 为什么放目录里而不是查进程表：见下方 ps1 注释（卸载/重启按 pid 直杀）。 */
+  const sepOf = String(cfg).includes('\\') ? '\\' : '/';
+  const cfgParent = String(cfg).replace(new RegExp(`[\\\\/]delivery[\\\\/]\\.generated[\\\\/][^\\\\/]+$`), '');
+  const runDir = cfgParent === cfg ? join(dirname(cfg), 'run') : cfgParent + sepOf + 'run';
   const ps1 = [
     '# WinVM Bridge VM Service —— 隐藏窗口启动器（由 install-vm.mjs 生成，请勿手改）',
     "$env:WINVM_PSBRIDGE_READY_TIMEOUT_MS = '60000'",
@@ -286,12 +301,29 @@ function buildTaskXml(taskName, nodeExe, cli, port, cfg, outDir, adminEndpoint =
     '$cliArgs = ' + psStr(cliArg),
     '$workDir = ' + psStr(workDir),
     '$svcPort = ' + psStr(String(port)),
+    /* pid 目录的 env 赋值**必须留在这里而不是 env 段顶端**：
+     * env 段的强约束是「READY_TIMEOUT 与 $nodeExe 紧邻」（admin/bearer 注入位也锚在此），
+     * 那是 phase2-inner-credential / install-vm-admin-endpoint 两条门禁共同钉死的形态。
+     * 插到 env 段里会让「未注入时形状逐字不变」立即变红 —— 实测踩到过。
+     * 放在 $svcPort 之后、$runDir 之前：node 仍在本行之后才被 Start-Process 拉起，
+     * 环境变量对它与它派生的 ps-bridge 同样生效（spawn 时继承，不是声明时求值）。 */
+    '$env:WINVM_RUN_DIR = ' + psStr(runDir),
+    // pid 文件：**卸载与重启不再需要"猜进程"**（旧做法=全表扫命令行签名，既慢又会误杀）。
+    // 写入时机在拉起 node 之后（$-PassThru 已给出真相 PID）；内容两行 = PID + StartTime，
+    // StartTime 用于下游防「pid 复用」误杀（Windows pid 会回收再分配）。
+    '$runDir = ' + psStr(runDir),
     '# 自清理：若端口已被旧实例（孤儿 node，常见于任务被 /end 后游离）占用，先强杀，',
     '# 避免新实例 EADDRINUSE 秒退、旧实例继续以旧代码服务（GUI 判定迟迟不刷新）。',
     '$portPid = (Get-NetTCPConnection -LocalPort $svcPort -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique',
     'if ($portPid) { Stop-Process -Id $portPid -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 }',
     '# 以 -PassThru 捕获 node 子进程；脚本退出（任务被 /end 终止）时兜底强杀 node，避免孤儿残留。',
     '$nodeProc = Start-Process -WindowStyle Hidden -FilePath $nodeExe -ArgumentList $cliArgs -WorkingDirectory $workDir -PassThru',
+    '# 落 pid：service.pid = 本 node 进程（vm-service）。写失败绝不阻断服务启动（纯旁路取证）。',
+    'try {',
+    '  if (-not (Test-Path $runDir)) { $null = New-Item -ItemType Directory -Path $runDir -Force }',
+    '  $st = try { $nodeProc.StartTime.ToUniversalTime().ToString("o") } catch { "" }',
+    '  Set-Content -LiteralPath (Join-Path $runDir "service.pid") -Value (@($nodeProc.Id, $st) -join "`n") -Encoding ASCII -Force',
+    '} catch { }',
     'try { $nodeProc.WaitForExit() } finally { if ($nodeProc -and -not $nodeProc.HasExited) { try { $nodeProc.Kill() } catch {} } }',
     '',
   ].join('\r\n');

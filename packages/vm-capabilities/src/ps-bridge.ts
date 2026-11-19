@@ -9,7 +9,7 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,6 +32,11 @@ export interface PsBridgeOptions {
   readonly heartbeatTimeoutMs?: number;
   readonly workingDirectory?: string;
   readonly onStderr?: (chunk: string) => void;
+  /**
+   * pid 文件绝对路径（可选）。缺省读 env `WINVM_RUN_DIR` + `ps-bridge.pid`；
+   * 都缺则**不写 pid 文件**（既有行为不变）。
+   */
+  readonly pidFile?: string;
 }
 
 export interface PsCallResult<T = unknown> {
@@ -127,6 +132,19 @@ export class PsBridge {
   private lastHealAttemptMs = 0;
 
   /**
+   * pid 文件路径（**可选，纯附加**）。
+   *
+   * 背景（方案 B）：卸载/重启时旧做法是「全表扫进程 + 命令行签名匹配」猜出要杀谁 ——
+   * 既慢（每次都要枚举全部进程）又会误杀（签名 `ps-bridge` 会命中任何同名脚本），
+   * 且抓不到命令行已被抹掉的僵尸。改为**启动时把真相 PID 落盘**，下游按 pid 直杀。
+   *
+   * 取值：构造参数 `pidFile` 优先，否则读环境变量 `WINVM_RUN_DIR`（由 start-hidden.ps1
+   * 继承下来）拼 `ps-bridge.pid`。两者都缺 ⇒ undefined ⇒ **完全不写文件**（沙箱/单测/
+   * 非 Windows 宿主天然不产生副作用，既有行为逐字节不变）。
+   */
+  private readonly pidFile: string | undefined;
+
+  /**
    * R-4（Phase 3 批2）版本指纹：ps-bridge.ps1 **启动期**计算的各 psmod 模块文件 SHA256。
    * 由 `dispatch` 在 `__meta` 应答（ping / fingerprint）途经点捕获 —— 进程存活期间恒定，
    * kill-restart 后才刷新；deploy 推新文件而未重启时，此处仍是**旧哈希**，宿主侧
@@ -166,6 +184,7 @@ export class PsBridge {
     this.heartbeatTimeoutMs = opts.heartbeatTimeoutMs ?? 45_000;
     this.workingDirectory = opts.workingDirectory;
     this.onStderr = opts.onStderr;
+    this.pidFile = opts.pidFile ?? resolvePidFileFromEnv();
   }
 
   get running(): boolean {
@@ -218,6 +237,9 @@ export class PsBridge {
       this.stderrTail = (this.stderrTail + s).slice(-8192);
       this.onStderr?.(s);
     });
+    // 方案 B：把真相 PID 落盘（pid 来自 spawn 句柄，不需要任何扫描/猜测）。
+    // 放在 error/exit 监听注册**之后** —— 即便写入触发异常也不影响故障收口链路。
+    this.writePidFile();
     // 捕获本次子进程引用：exit 是异步事件，自动重启后旧进程的 exit 可能晚于新进程 spawn，
     // 若不比对就把 this.child 置空，会把**新进程**误清成 undefined，导致 running 永久 false。
     const spawned = this.child;
@@ -228,6 +250,8 @@ export class PsBridge {
       );
       this.failAll(err);
       if (this.child === spawned) this.child = undefined;
+      // 归属校验删除：只清「本次退出进程」名下的 pid 文件（防误删自愈后的新进程记录）。
+      this.removePidFile(spawned.pid);
     });
     // Q3（Phase 3 批5 孤儿接线顺带修的真缺陷）：spawn **异步失败**（ENOENT=POSIX 上
     // powershell.exe/pwsh 不存在、EACCES 等）时 Node 只发 `'error'` 事件、**不发 `'exit'`**
@@ -579,8 +603,11 @@ export class PsBridge {
     } catch {
       // ignore
     }
+    const killedPid = this.child.pid;
     this.child.kill();
     this.child = undefined;
+    // 显式停止时清掉自己名下的 pid 文件（归属校验，理由同 exit 段）。
+    this.removePidFile(killedPid);
   }
 
   /**
@@ -612,6 +639,67 @@ export class PsBridge {
       ...(this.lastFingerprint ? { fingerprint: this.lastFingerprint } : {}),
     };
   }
+
+  /**
+   * 落 pid 文件（方案 B 的写入端）。
+   *
+   * 内容两行：`<pid>\n<startTime ISO>`。第二行是**防 pid 复用的二次校验依据** ——
+   * Windows 的 pid 会被回收再分配，卸载时若只按 pid 杀，理论上可能命中一个恰好复用了
+   * 该号的新进程。下游（uninstall.mjs / setup.mjs）读到 pid 后会比对 StartTime，
+   * 不一致即判定「陈旧 pid，目标已不在」而**不动手**。
+   *
+   * 纪律：**写失败绝不抛**。pid 文件是纯旁路取证/加速装置，不是服务可用性的一部分 ——
+   * 落盘失败（目录只读、ACL、并发）绝不能反过来打挂 ps-bridge。
+   * 自定义格式用两行而非 JSON：PowerShell 侧 `Get-Content` 直读即可，无需 JSON 解析。
+   */
+  private writePidFile(): void {
+    const target = this.pidFile;
+    if (!target) return;
+    const pid = this.child?.pid;
+    if (!pid) return;
+    try {
+      mkdirSync(dirname(target), { recursive: true });
+      // 先写临时文件再 rename：避免下游读到「只写了一半」的 pid 文件（原子替换）。
+      const tmp = `${target}.tmp`;
+      writeFileSync(tmp, `${pid}\n${new Date().toISOString()}\n`, 'utf8');
+      renameSync(tmp, target);
+    } catch {
+      // 纯旁路：静默放过（不得影响桥本身）。
+    }
+  }
+
+  /**
+   * 删 pid 文件（**带归属校验**，方案 B 的删除端）。
+   *
+   * 为什么不能无脑删：自愈（D2）会重启 ps-bridge —— 若旧进程的 exit 事件晚于新进程的
+   * spawn（代码里 `spawned` 比对专门防这个），无脑删会把**新进程刚写的 pid 文件**删掉，
+   * 下游就再也拿不到 pid。故只在文件内记录的 pid === 本次退出进程 pid 时才删。
+   */
+  private removePidFile(ownerPid: number | undefined): void {
+    const target = this.pidFile;
+    if (!target || !ownerPid) return;
+    try {
+      const cur = readFileSync(target, 'utf8').split('\n')[0]?.trim();
+      if (cur === String(ownerPid)) rmSync(target, { force: true });
+    } catch {
+      // 文件不存在/不可读：已达成目的。
+    }
+  }
+}
+
+/**
+ * 从环境变量推导 ps-bridge 的 pid 文件路径。
+ *
+ * `WINVM_RUN_DIR` 由 VM 侧的 `start-hidden.ps1` 显式赋值（`$env:WINVM_RUN_DIR = '<部署根>\run'`）
+ * 并被 node 继承，再被 node spawn 的 ps-bridge 继承 —— 这是 pid 目录的**唯一传递通道**
+ * （计划任务 XML 没有 env 元素，ps1 赋值是唯一来源）。
+ *
+ * 未设置 ⇒ undefined ⇒ 不写 pid 文件。保证：宿主沙箱、单测、非 Windows 环境零副作用。
+ */
+export function resolvePidFileFromEnv(): string | undefined {
+  const runDir = process.env['WINVM_RUN_DIR'];
+  if (!runDir || !runDir.trim()) return undefined;
+  return join(runDir.trim(), 'ps-bridge.pid');
 }
 
 /** ps-bridge.ps1 的默认解析路径（包根下的 psmod/ps-bridge.ps1） */

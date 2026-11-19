@@ -43,9 +43,18 @@ const ADMIN_ENV_LINE = "$env:WINVM_ADMIN_ENDPOINT = '1'";
 const READY_TIMEOUT_LINE = "$env:WINVM_PSBRIDGE_READY_TIMEOUT_MS = '60000'";
 
 /**
- * 冻结黄金基线：**引入 --admin-endpoint 之前**（改动前实测取证）用同一组输入生成的
- * ps1 全文，逐字节固化。若日后有人把 adminEndpoint 默认值改成 true、或给 ps1 加了
+ * 冻结黄金基线：**默认路径**（不传 `--admin-endpoint`）用同一组输入生成的 ps1 全文，
+ * 逐字节固化。若日后有人把 adminEndpoint 默认值改成 true、或给 ps1 加了
  * 任何空行/注释/格式差异，本基线会立刻失败——这正是"默认关闭 + 不改变既有产物"的护栏。
+ *
+ * 2026-11-19 重钉（pid 方案 B）：基线新增 `$env:WINVM_RUN_DIR` + `$runDir` + 落 pid 段。
+ * 重钉时**只允许**出现本次有意引入的新行；基线之外的任何漂移仍会被这条断言抓到，
+ * 所以它作为回归护栏的价值没有因为重钉而失效。
+ *
+ * ⚠ 新行**不得插进 env 段**：`READY_TIMEOUT` 与 `$nodeExe` 必须紧邻
+ * （phase2-inner-credential.test.js:501/518 另有同一形态的钉子）。曾把
+ * `$env:WINVM_RUN_DIR` 放在 env 段顶端，当场让那条门禁变红 —— 所以它现在位于
+ * `$svcPort` 之后（node 仍在它之后才被 Start-Process 拉起，env 照样生效）。
  */
 const GOLDEN_PS1_BEFORE_SWITCH =
   '# WinVM Bridge VM Service —— 隐藏窗口启动器（由 install-vm.mjs 生成，请勿手改）\r\n' +
@@ -54,12 +63,20 @@ const GOLDEN_PS1_BEFORE_SWITCH =
   '$cliArgs = \'"C:\\WinVMBridge\\repo\\packages\\vm-service\\dist\\cli.js" --host 127.0.0.1 --port 18443 --config "C:\\WinVMBridge\\repo\\delivery\\.generated\\vm-service.runtime.json"\'\r\n' +
   "$workDir = '.'\r\n" +
   "$svcPort = '18443'\r\n" +
+  "$env:WINVM_RUN_DIR = 'C:\\WinVMBridge\\repo\\run'\r\n" +
+  "$runDir = 'C:\\WinVMBridge\\repo\\run'\r\n" +
   '# 自清理：若端口已被旧实例（孤儿 node，常见于任务被 /end 后游离）占用，先强杀，\r\n' +
   '# 避免新实例 EADDRINUSE 秒退、旧实例继续以旧代码服务（GUI 判定迟迟不刷新）。\r\n' +
   '$portPid = (Get-NetTCPConnection -LocalPort $svcPort -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique\r\n' +
   'if ($portPid) { Stop-Process -Id $portPid -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 }\r\n' +
   '# 以 -PassThru 捕获 node 子进程；脚本退出（任务被 /end 终止）时兜底强杀 node，避免孤儿残留。\r\n' +
   '$nodeProc = Start-Process -WindowStyle Hidden -FilePath $nodeExe -ArgumentList $cliArgs -WorkingDirectory $workDir -PassThru\r\n' +
+  '# 落 pid：service.pid = 本 node 进程（vm-service）。写失败绝不阻断服务启动（纯旁路取证）。\r\n' +
+  'try {\r\n' +
+  '  if (-not (Test-Path $runDir)) { $null = New-Item -ItemType Directory -Path $runDir -Force }\r\n' +
+  '  $st = try { $nodeProc.StartTime.ToUniversalTime().ToString("o") } catch { "" }\r\n' +
+  '  Set-Content -LiteralPath (Join-Path $runDir "service.pid") -Value (@($nodeProc.Id, $st) -join "`n") -Encoding ASCII -Force\r\n' +
+  '} catch { }\r\n' +
   'try { $nodeProc.WaitForExit() } finally { if ($nodeProc -and -not $nodeProc.HasExited) { try { $nodeProc.Kill() } catch {} } }\r\n';
 
 /** 在临时目录内生成产物并返回 ps1 内容（outDir 注入，隔离真实仓库） */
