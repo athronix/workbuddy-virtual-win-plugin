@@ -214,7 +214,7 @@ h1{font-size:21px; font-weight:650; margin:0 0 4px; letter-spacing:-.2px}
     <div style="flex:1 1 420px">
       <h1>WinVM Bridge · 安装部署 / 卸载 动作流程图</h1>
       <p class="sub">
-        <code>winvm-plugin-deploy</code> v2.4.0 · 5 步 deploy + 3 步 undeploy ·
+        <code>winvm-plugin-deploy</code> v2.5.5 · 5 步 deploy + 3 步 undeploy ·
         点击任一环节逐层展开，右侧显示该环节的<b>前置条件 / 动作命令 / 依赖脚本 / 预估耗时</b>
       </p>
     </div>
@@ -256,11 +256,11 @@ h1{font-size:21px; font-weight:650; margin:0 0 4px; letter-spacing:-.2px}
 
 <script>
 /* ══════════════════════════════════════════════════════════════════
-   数据源：skills/winvm-plugin-deploy（v2.4.0）
+   数据源：skills/winvm-plugin-deploy（v2.5.5）
    —— 步骤/子环节取自 scripts/*.sh 的 st_begin 标识；
    —— 命令取自脚本实际执行行；
    —— 耗时取自 references/deploy-timeline.md 的真机实测（真机实测）与
-      V1.4.32 分步计时（§7.3 / §7.4）。
+      V1.4.34 幂等态分步计时（docs/04-ops/purge-redeploy-rehearsal-20261118.md §5.3 / §6）。
    ══════════════════════════════════════════════════════════════════ */
 
 const T = (label, ms) => ({ label, ms });
@@ -341,6 +341,7 @@ const DEPLOY = {
       { n: '1p.5 S1 免密回验（≤12s 窗）', ms: 2000 }
     ],
     fail: 'S1 回验不通才跑 S2（oneclick 修 sshd_config + 重启 sshd，25~40s）；S2 也不通退 2，回 1c 人工。',
+    note: '口径说明：上面的「预估时长」是 <b>S1 一次命中</b> 的典型值（3~5s）；右侧耗时构成列的是 <b>凭据不可用</b> 那条最坏路径（1p.1 先吃 7s 才止损），两条不是同一个场景，别相加。',
     children: ['d1p1', 'd1p2', 'd1p3', 'd1p4', 'd1p5', 'd1p6', 'd1p7']
   },
 
@@ -620,12 +621,15 @@ const DEPLOY = {
   d2a: {
     code: '2a', name: '取发布包（sha256 + 隔离解压）',
     dur: T('1s（缓存）/ 5~30s（首下 8MB）', 1000),
-    summary: '下载 release zip 并校验 sha256，解压到隔离目录，输出 PKG_ROOT。后续所有步骤都用这个包根，不混用别的层。',
+    summary: '下载 release zip 并校验 sha256，解压到隔离目录，输出 PKG_ROOT。后续所有步骤都用这个包根，不混用别的层。<b>v2.5.5（P17）起：显式 RELEASE_TAG 严格优先于状态文件</b> —— 给了 TAG 就只认「MANIFEST 声明 == TAG」的层，匹配不到一律 rc=1，绝不回退到上次记住的包根。',
     pre: ['RELEASE_TAG 可解析（默认 latest）', '磁盘可写 DEPLOY_ROOT'],
-    cmds: [{ label: '取包', code: 'bash scripts/download-verify.sh --tag V1.4.32   # 输出 PKG_ROOT=...' }],
-    scripts: [{ n: 'download-verify.sh', d: '下载 / sha256 / 解压' }, { n: 'pkg-root.sh', d: '包根解析与校验' }],
+    cmds: [
+      { label: '取包', code: 'bash scripts/download-verify.sh --tag V1.4.34   # 输出 PKG_ROOT=...' },
+      { label: 'P17 三处选根入口一律 strict', code: '# ① resolve_pkg_root：显式 tag → _pick_pkg_root "$tag" strict\n# ② download-verify 的 cache 快路径（最隐蔽：zip 在 + sha 对 ≠ 层是这一版）\nHIT="$(_pick_pkg_root "$TAG" strict)"\n# ③ 解包后选根\nPKG="$(_pick_pkg_root "$TAG" strict)"' }
+    ],
+    scripts: [{ n: 'download-verify.sh', d: '下载 / sha256 / 解压' }, { n: 'pkg-root.sh', d: '包根解析与校验（P17 契约）' }],
     parts: [{ n: '缓存命中 + 解压', ms: 1000 }],
-    fail: 'rc≠0 → 打印日志末 12 行；离线时 SKIP_DOWNLOAD=1 复用本地包。'
+    fail: '<b>P17</b>：打「版本 = V1.4.32」却要的是 V1.4.34 且 <b>rc=0</b> —— v2.5.5 之前的老技能才会遇到。失败时报 <code>PKG_TAG_MISMATCH</code> 并列出「盘上实际有哪些层」，处置是补该版本的包，<b>不许靠删 pkg-root.txt 绕过</b>（那只是掩盖）。<br><b>P18</b>：失败行打出 <code>download-verify rc=0</code> 是 v2.5.5 之前的诊断信息自伤（<code>if ! cmd; then</code> 里 <code>$?</code> 恒为 0）；真凶一般是 rc=1（网络/tag 不存在）或 <b>rc=2（sha256 不一致 = 事故，绝不能重试）</b>。<br>rc≠0 → 打印日志末 12 行；离线时 SKIP_DOWNLOAD=1 复用本地包。'
   },
 
   d2b: {
@@ -718,18 +722,18 @@ const DEPLOY = {
   /* ─────────────── 第 4 步 ─────────────── */
   d4: {
     code: '4', name: '装 VM 端 + 起 mcp/a2a service',
-    dur: T('102s（稳态）/ 322s（重装轮）', 322000),
-    summary: '全链最大的一步：4.0 通道门禁 → 4a 补齐运行时与四个全局 CLI → 4b 推包并起服务 → 4c 七判据（含两个上游工具面，真实 tools/list）。',
+    dur: T('245s（V1.4.34 幂等态）/ 396s（从零首跑）', 245000),
+    summary: '全链最大的一步：4.0 通道门禁 → 4a 补齐运行时与四个全局 CLI → 4b 推包并起服务 → 4c 七判据（含两个上游工具面，真实 tools/list）。<b>幂等态下 4b 独占 152s / 245s（62%），且与「内容有没有变」无关</b> —— 是本步唯一的大头。',
     pre: ['第 1 步通道 READY（4.0 会再验一次）', '第 2 步包根就位'],
     cmds: [{ label: '整步入口', code: 'VM_HOST=... bash scripts/deploy.sh --only 4' }, { label: '跳过上游工具面', code: 'SKIP_UPSTREAMS=1 VM_HOST=... bash scripts/deploy.sh --only 4' }],
     scripts: [{ n: 'deploy-4-vm.sh', d: '4.0 / 4a~4c' }, { n: 'delivery/bootstrap.mjs', d: 'prepare-vm（依赖 + 探测）' }, { n: 'delivery/setup.mjs', d: '--only-vm 相位编排' }, { n: 'delivery/install-vm.mjs', d: 'VM 端安装 6 段' }, { n: 'ps-run.sh', d: '远端 PS 执行器（含载荷预算）' }],
     parts: [
-      { n: '4.0 通道门禁', ms: 2000 },
-      { n: '4a prepare-vm', ms: 60000 },
-      { n: '4b setup 装 VM 端', ms: 218000 },
-      { n: '4c 七判据（含两上游工具面）', ms: 34000 }
+      { n: '4.0 通道门禁', ms: 1000 },
+      { n: '4a prepare-vm（幂等 50s / 首装 177s）', ms: 50000 },
+      { n: '4b setup 装 VM 端', ms: 152000 },
+      { n: '4c 七判据（含两上游工具面）', ms: 40000 }
     ],
-    note: '61s / 218s 是同一环节的两个口径：11-17 稳态轮 61s，11-18 重装轮 218s（VM 负载 + 全量重装）。',
+    note: 'V1.4.34 幂等态实测 WALL 245s（4.0=1 / 4a=50 / 4b=152 / 4c=40）；从零首跑 WALL 396s（4a=177 含 node zip 37.6MB + 三 CLI npm i -g）。<b>4a 的 177s 已坐实是一次性成本</b>（第二次起 50s，降 72%，全 [SKIP]）；剩下的 50s 不是安装，而是三次 ssh 往返。',
     children: ['d40', 'd4a', 'd4b', 'd4c']
   },
 
@@ -746,8 +750,8 @@ const DEPLOY = {
 
   d4a: {
     code: '4a', name: 'prepare-vm --ensure-deps（运行时 + 四个全局 CLI）',
-    dur: T('60s（只读 17.2s + apply 43s）/ 首装上游再 +48s', 60000),
-    summary: '补齐 VM 端运行时并采集现状事实。v2.4.0 起本段接管全部依赖：node → codebuddy → agent-desktop → agent-browser，四个一律全局装且顺序固定（后三个都靠 npm，node 不先就位就一个都装不上）。V1.4.32 把 7 条独立 ssh 合并成 1 条 EncodedCommand，只读探测从 27.5s 降到 17.2s。',
+    dur: T('50s（幂等全 SKIP）/ 177s（首装）', 50000),
+    summary: '补齐 VM 端运行时并采集现状事实。v2.4.0 起本段接管全部依赖：node → codebuddy → agent-desktop → agent-browser，四个一律全局装且顺序固定（后三个都靠 npm，node 不先就位就一个都装不上）。V1.4.32 把 7 条独立 ssh 合并成 1 条 EncodedCommand，只读探测从 27.5s 降到 17.2s。<b>全 SKIP 时也下不去 30s</b> —— 那 50s 是三次 ssh 往返的底噪，不是安装。',
     pre: ['通道可用（4.0 PASS）', 'VM 内允许执行 PowerShell'],
     cmds: [
       { label: '执行（含上游）', code: 'node delivery/bootstrap.mjs prepare-vm --apply --ensure-deps \\\n  --vm-host "$VM_HOST" --vm-user "$VM_USER" --vm-ssh-port "$VM_SSH_PORT"' },
@@ -755,12 +759,12 @@ const DEPLOY = {
     ],
     scripts: [{ n: 'delivery/bootstrap.mjs', d: 'buildPrepareProbePs / cmdPrepareVm（--ensure-deps）' }, { n: 'delivery/prepare-vm.mjs', d: 'DB-7：四个全局 CLI 幂等安装' }, { n: 'delivery/ssh2-backend.mjs', d: '钥候选链（id_ed25519_winvm 优先）' }],
     parts: [
-      { n: '只读合并探测（1 发）', ms: 17200 },
-      { n: 'apply 载荷（防火墙/登录态/依赖幂等修复）', ms: 43000 },
+      { n: '只读合并探测（1 发）', ms: 15000 },
+      { n: 'apply 载荷（防火墙/登录态/依赖幂等修复）', ms: 33000 },
       { n: 'DB-7 四个全局 CLI（已装则逐个 SKIP）', ms: 0 }
     ],
-    note: 'V1.4.31 时本段 76s（7 条往返 × 一次 PS 冷启 5~8s）。DB-7 首装实测 47.9s，已装则秒回。',
-    fail: '建连瞬态（handshake / ready 超时）给一次 15s 后重试（幂等只读）。',
+    note: 'V1.4.31 时本段 76s（7 条往返 × 一次 PS 冷启 5~8s）。<b>幂等态实测 50s，三次稳定在 50~62s，日志全 [SKIP]</b> —— 177s 是一次性成本（真装 node zip 37.6MB + 三包 npm i -g 2m），已闭环。DB-7 首装实测 47.9s。',
+    fail: '建连瞬态（handshake / ready 超时）给一次 15s 后重试（幂等只读）。<br><b>P12 教训</b>：本段历史上只看 rc 就报「依赖就绪」，node 没装上也是绿的 —— 现在由调用方扫文本兜住（已加门禁），正解是 bootstrap 在 DB-3/DB-7 失败行直接返回非零。',
     children: ['d4a1', 'd4a2', 'd4a3']
   },
 
@@ -783,12 +787,12 @@ const DEPLOY = {
 
   d4a2: {
     code: '4a-2', name: 'apply 载荷（幂等修复）',
-    dur: T('43s', 43000),
+    dur: T('33s（幂等全 SKIP）/ 43s', 33000),
     summary: '按探测结果做幂等动作：缺 node 就装、防火墙规则缺失/失效就补、登录态标记检查。全 SKIP 时只有一次 PS 往返。',
     pre: ['4a-1 已给出 state（admin / sshd / firewall / node / cli / cfg）'],
     cmds: [{ label: '远端载荷', code: 'bash scripts/ps-run.sh <step>.ps1   # 复合逻辑 .ps1 → scp → powershell -File\n# 短片段：powershell -EncodedCommand' }],
     scripts: [{ n: 'delivery/bootstrap.mjs', d: 'cmdApplyVm' }, { n: 'scripts/ps-run.sh', d: '_payload：VM_PS_TIMEOUT=180s，2 试' }],
-    parts: [{ n: '一次 PS 冷启 + 幂等动作（多数 SKIP）', ms: 43000 }],
+    parts: [{ n: '一次 PS 冷启 + 幂等动作（多数 SKIP）', ms: 33000 }],
     fail: 'rc=124 且零输出 = 载荷超预算（VM_PS_TIMEOUT），不是通道坏 —— 先量载荷耗时，别抬 VM_SSH_TIMEOUT。'
   },
 
@@ -814,68 +818,76 @@ const DEPLOY = {
 
   d4b: {
     code: '4b', name: 'setup --only-vm --skip-build（推包 + 装 VM 端 + 起服务）',
-    dur: T('61s（稳态）/ 218s（重装）', 218000),
-    summary: '全链最大项。宿主打 tar → scp 到 VM → install-vm 六段安装 → 注册并启动计划任务服务 → QA 探针旁路。内容未变也全量重装，是当前最大的可优化项。',
-    pre: ['4a 依赖就绪', 'VM 上 C:\\WinVMBridge 可写', '全局 npm 可用（上游可选依赖）'],
-    cmds: [{ label: '执行', code: 'node delivery/setup.mjs --apply --skip-build --only-vm' }],
-    scripts: [{ n: 'delivery/setup.mjs', d: '相位编排：BUILD / VM / VM-START / QA-PROBE' }, { n: 'delivery/install-vm.mjs', d: 'install-vm 六段' }, { n: 'ps-bridge.ps1', d: 'VM 侧服务主体' }],
-    parts: [
-      { n: '[VM] 推包 + 安装（宿主 ~34s + 远端 ~122s）', ms: 155700 },
-      { n: '[VM-START] 换实例 + 轮询端口', ms: 47300 },
-      { n: '[QA-PROBE] 2 探针逐个 scp', ms: 14800 }
+    dur: T('152s（V1.4.34 实测）', 152000),
+    summary: '<b>全链唯一大头（占第 4 步 62%）</b>。一口气做三件事：<b>[VM]</b> 宿主打 tar + scp 到 VM，远端 install-vm 六段安装；<b>[VM-START]</b> 换服务实例并轮询到 18443 真的在听；<b>[QA-PROBE]</b> 旁路推两个探针。'
+      + '<br><br><b>关键事实：这一步每轮无条件全跑，与「内容有没有变」完全无关。</b>哪怕只改一行文档、哪怕上一秒刚部署完，它照样重新 tar、重新 scp、重新 install、重新重启服务。这就是它稳占 152s 的原因，也是全链性价比最高的优化点。',
+    pre: ['4a 依赖就绪', 'VM 上 C:\\WinVMBridge 可写', '全局 npm 可用（上游可选依赖）', '包根有 .env（只有 .env.example 会走 dry-run 假绿）'],
+    cmds: [
+      { label: 'driver 实际执行行', code: '# WINVM_UPSTREAMS_HANDLED=1：上游已由 4a 的 DB-7 装好，install-vm 的 [4b/6] 不再重复装\n( cd "$PKG" && WINVM_UPSTREAMS_HANDLED=1 "$NODE" delivery/setup.mjs \\\n    --apply --skip-build --only-vm > "$SL" 2>&1 ); SRC=$?' },
+      { label: '内含的三相位', code: '# ① [VM]       tar -czf winvm-dist.tgz delivery skills packages/*/dist package.json\n#              scp → install-vm.mjs（六段：软链/skills/上游/计划任务/自检/PATH）\n# ② [VM-START] schtasks /end → kill 18443 owner → schtasks /run → 轮询监听 ≤420s\n# ③ [QA-PROBE] scp 2 个探针 → 写 MANIFEST-deploy-<date>.txt' }
     ],
-    note: '已知可优化：给 MANIFEST-deploy-*.txt 补 total-sha256，内容未变即短路，预计 -100~140s/轮。',
-    fail: '420s 未监听 = 僵尸 start：schtasks /End 后 /Run，再重跑本步。',
+    scripts: [{ n: 'delivery/setup.mjs', d: '相位编排：VM / VM-START / QA-PROBE' }, { n: 'delivery/install-vm.mjs', d: 'install-vm 六段' }, { n: 'ps-bridge.ps1', d: 'VM 侧服务主体' }],
+    parts: [
+      { n: '[VM] 推包 + VM 端安装（整段打点，未逐段拆）', ms: 94800 },
+      { n: '[VM-START] 换实例 + 轮询端口监听', ms: 43200 },
+      { n: '[QA-PROBE] 2 探针逐个 scp + MANIFEST', ms: 14400 }
+    ],
+    note: '<b>三段来自 16:00 那轮 setup.log 的 [计时] 打点</b>（94.8 + 43.2 + 14.4 = 152.4s）。'
+      + '<br><b>可优化（已定案、未实施）</b>：让 VM 侧 MANIFEST-deploy-*.txt 带上 total-sha256（源内容哈希，与 tar 时间戳无关），对得上就把整个 [VM] 相位短路。预计 <b>-100~140s/轮</b>。'
+      + '<br>次优项：[QA-PROBE] 两次 scp 可合并（≈-8s）；MANIFEST 被写了两遍（日志重复两行）；[VM-START] 的轮询 3~5s 可压缩但收益不抵风险。',
+    fail: '420s 未监听 = 僵尸 start：schtasks /End 后 /Run，再重跑本步。'
+      + '<br><b>P5 dry-run 假绿</b>：包根只有 .env.example 时其中的 WINVM_DRY_RUN=1 兜底优先于 --apply ⇒ 0s PASS 但一个字节都没推，4c 随后读到旧白名单（25→10）像「上游退化」。判据是 setup 头部打 `[DRY-RUN 只规划]` 而非 `[APPLY 真执行]`。'
+      + '<br><b>P16（v2.5.5 前）</b>：VM-START 的签名清扫会把执行清扫的 powershell 自己杀掉（撞名即杀）⇒ 183s 后 FAIL。判据看 VM_START_SWEEP 命中数必须为 0。',
     children: ['d4b1', 'd4b2', 'd4b3']
   },
 
   d4b1: {
     code: '4b·VM', name: '[VM] 推包 + VM 端安装',
-    dur: T('155.7s', 155700),
-    summary: '宿主侧打 8MB tar 并 scp；远端 install-vm 六段：依赖解析与软链、共享 skills 发布、上游 CLI 安装、计划任务注册、自检、PATH 写入。',
+    dur: T('94.8s（V1.4.34）/ 155.7s（11-18 重装轮）', 94800),
+    summary: '宿主侧打 tar 并 scp；远端 install-vm 六段：依赖解析与软链、共享 skills 发布、上游 CLI 安装、计划任务注册、自检、PATH 写入。<b>这是 4b 里最该加短路的一段</b> —— 它是「内容变不变都照跑」的主体。',
     pre: ['通道可用', 'VM 有 node/npm'],
-    cmds: [{ label: '宿主侧', code: 'tar czf winvm-dist.tgz dist/ ...   # ≈8MB\nscp winvm-dist.tgz user@vm:C:/WinVMWorkspace/' }, { label: '远端', code: 'node delivery/install-vm.mjs --apply --skip-upstreams?' }],
+    cmds: [{ label: '宿主侧', code: 'tar -czf winvm-dist.tgz delivery skills packages/*/dist package.json\nscp -P 22 winvm-dist.tgz User@vm:C:/WinVMBridge' }, { label: '远端', code: 'powershell -File <vm-install.ps1>   # 内部 node delivery/install-vm.mjs' }],
     scripts: [{ n: 'delivery/install-vm.mjs', d: '六段安装主体' }, { n: 'delivery/path-util.mjs', d: '用户 PATH 单次 PS 写入' }],
     parts: [
-      { n: '宿主：BUILD tar + scp', ms: 34000 },
-      { n: '[1/6] 依赖解析 + 12 workspace 软链 + 运行配置', ms: 8200 },
-      { n: '[2/6] 共享 skills 发布 7 + 链接 7', ms: 600 },
-      { n: '[4b/6] 上游 npm（合并为 1 次调用，原 47.9s）', ms: 38000 },
-      { n: '计划任务注册（停旧实例 → 杀端口 → XML → 注册 → 启动器）', ms: 18600 },
-      { n: '[6/6] 自检（ps-bridge 冷启 + 6 模块探针）', ms: 35600 },
-      { n: '管理命令 + 用户 PATH（单次 PS，原 20.2s）', ms: 7000 }
+      { n: '整段 [计时] 打点（tar + scp + 六段安装）', ms: 94800 }
     ],
-    note: '六段编号来自 install-vm 自身 [t+Xs] 打点日志；[3/6] 与 [5/6] 在 V1.4.32 中已并入相邻段。'
+    note: '<b>实测口径已变</b>：16:00 的 V1.4.34 轮只有整段 `[计时] [VM] 耗时 94.8s` 一条打点，不再有「宿主 34s / 远端 122s」那种细分。'
+      + '<br>下表六段是 11-18 重装轮（整段 155.7s）的旧细分，仅作结构参考，<b>不可与新值相加</b>：'
+      + '宿主 BUILD+scp 34s、[1/6] 依赖解析与 12 workspace 软链 8.2s、[2/6] 共享 skills 7+7 0.6s、[4b/6] 上游 npm 38s、计划任务注册 18.6s、[6/6] 自检 35.6s、管理命令 + PATH 7s。'
+      + '<br>其中 [4b/6] 上游 npm 在 4a 已装好时会被 WINVM_UPSTREAMS_HANDLED=1 透传成 --skip-upstreams ⇒ 这 38s 现已不计入。'
   },
 
   d4b2: {
     code: '4b·START', name: '[VM-START] 换实例 + 等端口监听',
-    dur: T('47.3s', 47300),
-    summary: '结束旧服务实例 → 端口反查强杀 → 命令行签名清扫 → schtasks /run → 轮询到 18443 真的在听。轮询是必需语义（服务真在听才算成），冷启本身占大头。',
+    dur: T('43.2s（V1.4.34）', 43200),
+    summary: '结束旧服务实例 → 端口反查强杀 → 命令行签名清扫 → schtasks /run → 轮询到 18443 真的在听。<b>一旦短路 [VM]，这一段要不要跟着跳是需要拍板的第二个问题</b>：服务不重启就不会用上新内容，但「内容没变」时重启纯属浪费。',
     pre: ['安装完成（4b·VM 已落盘）', '计划任务 WinVMBridge.Service 已注册'],
-    cmds: [{ label: '启动', code: 'schtasks /End /TN WinVMBridge.Service\nschtasks /Run /TN WinVMBridge.Service\n# 轮询 127.0.0.1:18443 直到监听' }],
+    cmds: [{ label: '启动', code: 'schtasks /End /TN WinVMBridge.Service\nschtasks /Run /TN WinVMBridge.Service\n# 轮询 127.0.0.1:18443 直到监听（≤420s）' }],
     scripts: [{ n: 'delivery/setup.mjs', d: 'VM-START 相位' }, { n: 'ps-bridge.ps1', d: '服务主体（Session 1 / InteractiveToken）' }],
     parts: [
-      { n: '结束旧实例 + 端口强杀 + 签名清扫', ms: 12000 },
-      { n: 'schtasks /run + ps-bridge 冷启（provider 预热）', ms: 28000 },
-      { n: '轮询发现延迟（3~5s 可压缩，收益不抵风险）', ms: 7300 }
+      { n: '结束旧实例 + 端口强杀 + 签名清扫', ms: 11000 },
+      { n: 'schtasks /run + ps-bridge 冷启（provider 预热）', ms: 25000 },
+      { n: '轮询发现延迟（3~5s 可压缩，收益不抵风险）', ms: 7200 }
     ],
+    note: '<b>P16（v2.5.5 前）：清扫会把执行清扫的 powershell 自己杀掉。</b>按命令行签名匹配 powershell.exe，而当前这个 powershell 的命令行恰好含同样签名 ⇒ 自杀，183s 后报 VM_START_FAILED。'
+      + '<br>判据：日志里 `VM_START_SWEEP` 命中数必须为 <b>0</b>（P16 后真机实测 0），随后 `✅ VM 服务已监听 127.0.0.1:18443` 必须正常出现。',
     fail: '>420s 未监听 = 僵尸服务壳，按 schtasks /End → /Run 处理。'
   },
 
   d4b3: {
-    code: '4b·QA', name: '[QA-PROBE] 旁路探针上传',
-    dur: T('14.8s', 14800),
-    summary: '两个探针文件逐个 scp 到 VM。探针缺失只 WARN 不阻断，属旁路。合并成一次上传可省 ~8s（已记入已知可优化）。',
+    code: '4b·QA', name: '[QA-PROBE] 旁路探针上传 + 写 MANIFEST',
+    dur: T('14.4s（V1.4.34）', 14400),
+    summary: '两个探针文件逐个 scp 到 VM，然后写部署 MANIFEST。探针缺失只 WARN 不阻断，属旁路。<b>这段有两个小冗余</b>：两次 scp 各自新建连接（可合并省 ~8s）、MANIFEST 被写了两遍（日志里那两行是同一个文件）。',
     pre: ['通道可用'],
-    cmds: [{ label: '上传', code: 'vmscp qa/deploy-probes/<probe>.py user@vm:C:/WinVMWorkspace/   # ×2' }],
+    cmds: [{ label: '上传', code: 'scp -P 22 qa/probes/qa-probe.ps1 qa/probes/lead-md5-3.ps1 \\\n  User@vm:C:/WinVMBridge/dev-and-qa/probes/' }, { label: '写 MANIFEST', code: '→ C:/WinVMBridge/dev-and-qa/MANIFEST-deploy-2026-11-19.txt' }],
     scripts: [{ n: 'delivery/setup.mjs', d: 'QA-PROBE 相位' }],
-    parts: [{ n: '2 次 scp（每次新建连接 + 落盘）', ms: 14800 }]
+    parts: [{ n: '2 次 scp（每次新建连接 + 落盘）', ms: 14400 }],
+    note: '这两行「已写入 MANIFEST」在日志里会重复出现 —— 一次走 scp 通道、一次走本地写，落的是同一个文件，属已登记的小冗余。'
   },
 
   d4c: {
     code: '4c', name: 'vmcheck 七判据（含两上游工具面）',
-    dur: T('34s + 上游 3~12s（11-17 为 14s）', 34000),
+    dur: T('40s（V1.4.34）/ 34s（11-17 轮）', 40000),
     summary: '铁律：vmcheck.ps1 是纯报告器，rc=0 只说明「脚本跑完了」。判据必须由本步自己解析 JSON 并逐项断言，否则「拿不到判据也 PASS」= 假绿。v2.4.0 起原 4d 的两上游工具面并进本步 —— 同一次 VM 内载荷里连带取 tools/list，省一次宿主往返。',
     pre: ['4b 已起服务', 'ps-run 通道正常', 'SKIP_UPSTREAMS=1 时跳过两项上游判据'],
     cmds: [
@@ -885,21 +897,24 @@ const DEPLOY = {
     ],
     scripts: [{ n: 'qa/deploy-probes/vmcheck.ps1', d: 'VM 侧体检报告器（含 Get-McpToolCount）' }, { n: 'scripts/ps-run.sh', d: '执行器（载荷预算 180s）' }, { n: '_common.sh', d: 'UPSTREAM_EXP_* 唯一期望值来源' }],
     parts: [
-      { n: 'PS 冷启 + 七项采集 + JSON 回传', ms: 34000 },
+      { n: 'PS 冷启 + 七项采集 + JSON 回传', ms: 32000 },
       { n: '两上游 tools/list（懒启动 3~12s）', ms: 8000 }
     ],
-    note: 'vmcheck 内读 502 必须临时把 $ErrorActionPreference 改成 Stop —— 脚本级 SilentlyContinue 会把 4xx/5xx 静默吞成 $null，误报成「空 body 解析失败」。',
+    note: 'vmcheck 内读 502 必须临时把 $ErrorActionPreference 改成 Stop —— 脚本级 SilentlyContinue 会把 4xx/5xx 静默吞成 $null，误报成「空 body 解析失败」。'
+      + '<br>V1.4.34 幂等态实测判据值：`task_state=Running listen_count=1 side_json=true bridge_dir=true health_http=200 browser=33 desktop=25`。',
     fail: 'rc=124 且零输出 = 载荷超预算，不是通道坏；http-502=上游未装、http-404=vm-service 旧版无路由、rpc-*=上游启动失败。'
   },
 
   d5: {
     code: '5', name: 'verify（三探针 + 上游 + 终态矩阵）',
-    dur: T('24s（冷跑）/ 1s（stamp 复用）', 24000),
+    dur: T('33s（V1.4.34）/ 24s（冷跑）/ 1s（stamp 复用）', 33000),
     summary: '唯一 verify 实现。三探针 34 项（PROBE_DEEP=1 跑 38）+ 上游工具面 33/25（v2.4.0 起并入同一步，不再单列 5e）+ 终态矩阵五维。deploy 全链零失败才升 stamp，600s 内同包根可只跑矩阵。',
     pre: ['第 3 步隧道可用', '第 4 步 VM 端服务在听'],
     cmds: [{ label: '单独复验', code: 'VM_HOST=... bash scripts/verify.sh' }, { label: '强制冷跑探针', code: 'VERIFY_FORCE_PROBE=1 VM_HOST=... bash scripts/deploy.sh --only 5' }],
     scripts: [{ n: 'deploy-5-verify.sh', d: '5（含上游）/ 5d' }, { n: 'qa/deploy-probes/*.py', d: 'mcp / a2a / example 三探针' }],
-    parts: [{ n: '三探针 34 项', ms: 16000 }, { n: '上游 browser=33 desktop=25', ms: 3000 }, { n: '5d 终态矩阵', ms: 8000 }],
+    parts: [{ n: '三探针 34 项', ms: 19000 }, { n: '上游 browser=33 desktop=25', ms: 3000 }, { n: '5d 终态矩阵', ms: 11000 }],
+    note: 'V1.4.34 实测 WALL 33s：`PROBES 34/34 SKIP=4` · `browser=33 desktop=25` · `FRESH` SHA256 全一致 · `health=200` · `connector skills=10` · `task=Running listen=1 sshd=Running` ⇒ **`VERIFY=PASS`**。'
+      + '<br><b>⚠ `--only 4` / `--only 5` 不覆盖 host 端分发</b>：connector skills 由第 2 步 install-host 分发。只跑 4+5 会看到 `5d` 报 `skills=0` 而 fresh 却通过（假红，已实测踩到）；做完整验收必须从第 2 步起跑。',
     children: ['d5a', 'd5d']
   },
 
