@@ -884,6 +884,19 @@ async function cmdPrepareVm(argv) {
       : { ssh: J2 ? !!J2.fwSsh : false, service: J2 ? !!J2.fwSvc : false, sshPresent: J2 ? !!J2.fwSshPresent : false, servicePresent: J2 ? !!J2.fwSvcPresent : false },
     node: { present: usedCombined ? !!nodeVerStr : rNode.ok, version: nodeVerStr },
     agentCli: usedCombined ? !!J.cli : rCli.ok,
+    /* P15（2026-11-19 真机）：探测脚本一直采集 `$o.browserCli` / `$o.desktopCli`（见
+     * buildCombinedFactsPs 的 DB-7 段），但 state 组装**漏了这两个键的映射**——
+     * 于是 906-907 行的日志、以及 planPrepareVm 的 DB-7 判据读到的恒是 undefined：
+     *   · 日志恒打印 `desktop:MISSING browser:MISSING`（CLI 装好了也照样红 = 假红）；
+     *   · 计划表恒给出 `DO npm i -g agent-desktop + agent-browser`，永远到不了
+     *     `[SKIP] all present`，误导使用者以为每轮都要重装。
+     * 真机证据（12:04 轮，三 CLI 早已装好）：日志 `codebuddy:OK desktop:MISSING
+     * browser:MISSING`，而同一时刻 4c 读到 `browser=33 desktop=25`。
+     * 注：**实际安装行为是对的**——DB-7 的 .ps1 内部自己 Get-Command 重探（幂等），
+     * 不受这里污染；受害面是日志与计划表（判据面），不是执行面。
+     * 降级路径（J2）没有这两项 ⇒ 保持「宁可报缺失」的既有取向（false）。 */
+    cliDesktop: usedCombined ? !!J.desktopCli : (J2 ? !!J2.desktopCli : false),
+    cliBrowser: usedCombined ? !!J.browserCli : (J2 ? !!J2.browserCli : false),
     agentConfigDir: usedCombined ? !!J.cfg : (J2 ? !!J2.cfg : false),
     standbyLine: 'deferred-to-apply (MSYS 吞 powercfg 斜杠参数，现状判定走 .ps1 通道)',
     defenderRead: true, // 轻探测面不含 Get-MpPreference（需 PS）；apply .ps1 内做幂等 delta

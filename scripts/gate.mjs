@@ -142,6 +142,11 @@ export const GATE_GUARD_FILES = [
     id: 'ssh2-conn-env-contract',
     why: 'run16/run17：node ssh2 后端（VM_SSH_BACKEND=ssh2）的 **env 契约与判形纯函数钉**：buildConnectOptions 默认值/覆盖/密码附带/缺参抛错（错误不得含凭据内容=凭据纪律承诺）、resolvePrivateKeyForConnect path→Buffer（ssh2 字符串 privateKey 按 PEM 字面量解析的实锤坑，改回传 path 即全通道死）、classifyScpShape 判形（D-5 目录名误判负例钉住）。通道层失效=deploy 全链阻断（run17 D-1 教训），只有机检能在无人实机时拦住契约漂移；纯离线零网络 <1s，(a)(b)(c) 全满足',
   },
+  {
+    file: 'p14-p15-ps1-path-and-cli-map-guard.test.js',
+    id: 'ps1-path-and-cli-map',
+    why: 'P14/P15（2026-11-19「彻底卸载→从零部署」真机暴露，两件都只在真空机才现形）：① runRemotePs1 曾用**裸文件名**推 .ps1——依赖「scp 落盘目录 == ssh 登录 cwd」这条假前提，而 put 与 exec 是两次独立 withVmChannel、各自独立决议后端 ⇒ 12:04 轮「已推送」却 `-File 实际参数不存在`（rc=4294770688），11:53 轮同样代码却成功，时好时坏；守卫钉「推送/执行/清理三处必须同一绝对路径」+ 三条反向断言（裸名不得回潮）② bootstrap 的 state 漏映射 cliDesktop/cliBrowser ⇒ 日志恒 `desktop:MISSING browser:MISSING`（而 4c 同时读到 33/25）、planPrepareVm 恒给 `npm i -g` 永不收敛到 `[SKIP] all present`；守卫钉映射存在 + **交叉对位没错**（写反同样假红更难查）+ 键缺失即失配的反向证明。两件受害面都在判据面（假红/假绿），执行面本身是对的 ⇒ 没有机检就只会被当成玄学重跑；纯离线 <1s 零网络，(a)(b)(c) 全满足',
+  },
 ];
 
 /**

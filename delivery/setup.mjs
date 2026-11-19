@@ -932,17 +932,28 @@ export async function runRemotePs1(cfg, ps1Body, { timeoutMs = 120_000, log = (m
   }
   const localWritten = existsSync(localPath) ? localPath : join(ROOT, '.setup-tmp', remoteName);
   const sshTarget = `${cfg.vmUser}@${cfg.vmHost}`;
-  // 远端 ssh home 相对路径（scp 裸文件名=落 sftp 默认目录=同一处；跨壳铁律不变）
+  /* P14（2026-11-19 真机）：这里原先是**裸文件名**，靠「scp 落 sftp 默认目录 == ssh 登录 cwd」
+   * 这条隐含假设工作。该假设是错的，而且**只在某些轮次破**：
+   *   12:04 轮 put 报「已推送」、随后 `powershell -File <裸名>` 却抛
+   *   「-File 方式参数实际参数 winvm-setup-….ps1 不存在」（rc=4294770688），
+   *   而 11:53 轮同样代码同样文件名**成功**。
+   * 根因不是某个后端有 bug，而是 put 与 exec 是**两次独立的 withVmChannel 调用**，
+   * 各自独立决议后端（ssh2 / 二进制 scp），裸相对名在两边解析到不同 cwd ⇒ 时好时坏。
+   * 修法不是去对齐两边的 cwd（那是猜），而是**让路径不再依赖 cwd**：推到确定目录、
+   * 用同一绝对路径执行与清理。sftp put 会自动 mkdir 父目录；scp 兜底落 VM_DEPLOY_DIR
+   * （部署流程该目录必在，卸载相位亦在卸载前存在）。 */
+  const remoteDir = String(cfg.vmDeployDir || 'C:/WinVMBridge').replace(/\/+$/, '');
+  const remoteNameAbs = `${remoteDir}/${remoteName}`;
   try {
     // 迭代21 D-2：.ps1 推送通道三处 ssh/scp 全走「ssh2 优先 / 二进制兜底」双后端
     const scp = await withVmChannel(
       cfg,
-      () => run('scp', ['-P', String(cfg.vmSshPort), localWritten, `${sshTarget}:${remoteName}`], { timeoutMs: 60_000 }),
-      (runner) => runner.put(localWritten, remoteName),
+      () => run('scp', ['-P', String(cfg.vmSshPort), localWritten, `${sshTarget}:${remoteNameAbs}`], { timeoutMs: 60_000 }),
+      (runner) => runner.put(localWritten, remoteNameAbs),
       { timeoutMs: 60_000 },
     );
     if (!scp.ok) return { ok: false, code: scp.code, out: `scp .ps1 失败：${scp.out.slice(0, 300)}` };
-    log(`   (.ps1 已推送 ${remoteName} → VM)`);
+    log(`   (.ps1 已推送 ${remoteNameAbs} → VM)`);
     const r = await withVmChannel(
       cfg,
       () => run(
@@ -950,11 +961,11 @@ export async function runRemotePs1(cfg, ps1Body, { timeoutMs = 120_000, log = (m
         [
           '-p', String(cfg.vmSshPort),
           sshTarget,
-          `powershell -NoProfile -ExecutionPolicy Bypass -File ${remoteName}`,
+          `powershell -NoProfile -ExecutionPolicy Bypass -File "${remoteNameAbs}"`,
         ],
         { timeoutMs },
       ),
-      (runner) => runner.exec(`powershell -NoProfile -ExecutionPolicy Bypass -File ${remoteName}`, { timeoutMs }),
+      (runner) => runner.exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${remoteNameAbs}"`, { timeoutMs }),
       { timeoutMs },
     );
     // 清理远端与本地临时脚本（best-effort）。
@@ -962,8 +973,8 @@ export async function runRemotePs1(cfg, ps1Body, { timeoutMs = 120_000, log = (m
     // （裸 exe + 连字符参数，cmd/bash/pwsh 三壳均可移植）。
     await withVmChannel(
       cfg,
-      () => run('ssh', ['-p', String(cfg.vmSshPort), sshTarget, `powershell -NoProfile -Command "Remove-Item -LiteralPath '${remoteName}' -Force -ErrorAction SilentlyContinue"`], { timeoutMs: 30_000 }),
-      (runner) => runner.exec(`powershell -NoProfile -Command "Remove-Item -LiteralPath '${remoteName}' -Force -ErrorAction SilentlyContinue"`, { timeoutMs: 30_000 }),
+      () => run('ssh', ['-p', String(cfg.vmSshPort), sshTarget, `powershell -NoProfile -Command "Remove-Item -LiteralPath '${remoteNameAbs}' -Force -ErrorAction SilentlyContinue"`], { timeoutMs: 30_000 }),
+      (runner) => runner.exec(`powershell -NoProfile -Command "Remove-Item -LiteralPath '${remoteNameAbs}' -Force -ErrorAction SilentlyContinue"`, { timeoutMs: 30_000 }),
       { timeoutMs: 30_000 },
     );
     return r;

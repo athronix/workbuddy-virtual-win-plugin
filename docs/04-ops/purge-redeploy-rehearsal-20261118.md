@@ -249,6 +249,79 @@
 
 ---
 
+### P14｜`.ps1` 用裸文件名推送，`-File` 却找不到它（P0，只在链路抖动时现形）
+
+- **现象**（12:04 幂等复跑，`--only 4`）：
+  ```
+      (.ps1 已推送 winvm-setup-1795061108104.ps1 → VM)
+  Windows PowerShell 5.1
+  -File 方式参数实际参数 winvm-setup-1795061108104.ps1 不存在。请提供现有 .ps1 文件的路径作为 -File 方式的一个实际参数。
+  [FAIL] apply .ps1 非零退出（code=4294770688）
+  ```
+  **矛盾点**：前一行刚说「已推送」，下一行说「不存在」。而且 PowerShell 横幅（`Windows PowerShell 5.1` +
+  版权行）**已经打出来了** —— 说明 `powershell.exe` 正常启动、正常解析参数、只是在**它的 cwd 下**
+  找不到这个裸文件名。**不是**通道坏、不是脚本坏。
+- **反证（这条最关键）**：11:53 轮**同样代码、同样命名格式**（`winvm-setup-1795060455849.ps1`）
+  **成功执行**并返回全部 `[DB-x]` 行。⇒ 不是「功能坏了」，是**间歇性**。
+- **根因**：`runRemotePs1` 把 put 与 exec 拆成**两次独立的 `withVmChannel` 调用**。
+  每次调用内部都会**独立决议后端**（ssh2 / 二进制 scp）。裸相对文件名成立的前提是
+  「sftp 落盘目录 == ssh 登录 cwd == scp 落盘目录」，而这三种后端的落点**并不保证同一处**
+  （sftp 子系统根 vs cmd.exe 起始目录）。于是同一条代码时好时坏 —— 取决于这一轮 put 和 exec
+  各自选中了哪个后端。
+- **为什么之前一直没暴露**：绝大多数轮次两次调用选中同一后端，恰好一致。只有链路抖过
+  （本轮 12:04 之前刚好发生过一次连接回落）才会分裂。
+- **修（`delivery/setup.mjs` `runRemotePs1`）**：不是去「对齐 cwd」（那是猜，而且换台机器就变），
+  而是**让路径不再依赖 cwd**：
+  ```js
+  const remoteDir = String(cfg.vmDeployDir || 'C:/WinVMBridge').replace(/\/+$/, '');
+  const remoteNameAbs = `${remoteDir}/${remoteName}`;
+  // 推送 / 执行 / 清理 三处统一用 remoteNameAbs；-File 加引号
+  ```
+  sftp `put` 会自动 `mkdir` 父目录；scp 兜底落 `VM_DEPLOY_DIR`（部署与卸载相位该目录必在）。
+- **教训**：
+  1. **「已推送」和「执行时找不到」能同时为真** —— 日志没骗人，是**两个不同的后端各自说真话**。
+     看到这种矛盾，第一反应不该是「日志错了」，而是「这两步是不是不在同一个上下文里」。
+  2. **跨通道的隐含假设必须写死在代码里，不能留在注释里** —— 原注释明写「scp 裸文件名=落 sftp
+     默认目录=同一处」，把一条**未必成立**的前提当成了契约。
+  3. 修法是**消除歧义**（绝对路径），不是**维持假设**（对齐 cwd）。前者一次解决，后者要跟着环境变。
+
+### P15｜`state` 漏映射两个键：日志永远 `MISSING`，DB-7 永远不收敛（P0，判据面假红）
+
+- **现象**（12:04 轮，三 CLI **早已装好**）：
+  ```
+   DB-7 global CLI   = codebuddy:OK desktop:MISSING browser:MISSING  (--ensure-deps 已开)
+   ...
+   DB-7 global CLIs (codebuddy/agent-desktop/agent-browser) => DO npm i -g agent-desktop + agent-browser
+  ```
+  而**同一时刻**（12:02 的 4c）读到 `browser=33 desktop=25`，两者矛盾。
+- **根因**：探测脚本采集的键名是 `$o.browserCli` / `$o.desktopCli`（`builder` 侧，browser 在前），
+  而 `bootstrap.mjs` 的 `state` 组装**只映射了 `agentCli`，漏了这两个**。于是：
+  - 日志（`bootstrap.mjs:906-907`）读 `state.cliDesktop` / `state.cliBrowser` ⇒ 恒 `undefined` ⇒ **恒 MISSING**；
+  - `planPrepareVm`（`prepare-vm.mjs:339-340`）读 `probe.cliDesktop` / `probe.cliBrowser` ⇒ 恒 falsy
+    ⇒ `missCli` 恒含这两只 ⇒ 计划表**永远**给 `npm i -g agent-desktop + agent-browser`，
+    **永远到不了 `[SKIP] all present`**。
+- **影响面（要精确，别夸大）**：**执行面是对的**。DB-7 的 `.ps1` 内部用 `Get-Command` 自己重探
+  （幂等），所以该装的装上、装好的不重装。**受害的是判据面**：日志假红 + 计划表恒给重装指令。
+  真实代价是**误导**（让人以为每轮都要重装、以为 CLI 真的没装上），以及**掩盖真正的缺失**——
+  当真的只剩一只缺时，日志显示两只都缺，排错方向就是错的。
+- **修（`delivery/bootstrap.mjs`）**：补两个键，**注意交叉对位**：
+  ```js
+  cliDesktop: usedCombined ? !!J.desktopCli : (J2 ? !!J2.desktopCli : false),
+  cliBrowser: usedCombined ? !!J.browserCli : (J2 ? !!J2.browserCli : false),
+  ```
+  降级路径（`J2`）没有这两项 ⇒ 保持既有「宁可报缺失」取向（false），不报 OK。
+- **为什么只有「彻底卸载 → 从零」才暴露**：测试机若本来就有这两只 CLI，`agentCli` 一直 OK，
+  人的注意力全在 node 上；只有真的一次装齐三只、再回头复跑，才会发现「装好了还在喊 MISSING」。
+- **教训**：
+  1. **探测端与消费端键名不一致时，map 就是唯一的契约面，必须有守卫钉住** —— 漏一个键不会报错，
+     只会**静默变成恒 false**。这是最难查的一类：没有异常、没有日志、就是结论错。
+  2. **交叉错位比漏映射更危险** —— `browserCli→cliDesktop` 写反了同样不报错，但会「该绿的变红、
+     该红的变绿」，方向相反、更难识别。守卫必须**同时**断言「存在」与「没写反」。
+  3. **「假红」和「假绿」危害不同但不能都放着**：假绿会让真缺时无人补（P12 那类），
+     假红则会让「已修好」永远看起来没修好，直接摧毁下一步判断。
+
+---
+
 ## 4. 阶段 B：从零前的通道重建（阻塞点）
 
 通道已断（`22:TIMEOUT`），重建只有一条路 —— 技能设计的唯一人工步骤：在 VM 管理员 PowerShell 粘一条命令（远端下载 `winvm-sshd-oneclick.ps1` 并安装 OpenSSH + 写钥）。
@@ -380,9 +453,9 @@
 
 ## 7. 结论与待办
 
-**已闭环**：P1（v2.5.0 `--purge-all`）、P2~P8 全部修完；**P9（BOM 契约）、P10（第三个 node store）、P11（僵尸句柄）、P12（4a 假绿）、P13（node 兜底）** 在本轮真机暴露并修完。
+**已闭环**：P1（v2.5.0 `--purge-all`）、P2~P8 全部修完；**P9（BOM 契约）、P10（第三个 node store）、P11（僵尸句柄）、P12（4a 假绿）、P13（node 兜底）** 在本轮真机暴露并修完；**P14（`.ps1` 裸名路径）、P15（`state` 漏映射 CLI 键）** 在 VM 失联后经静态取证定位并修完（无需 VM 即可闭环）。
 
-**门禁**：`SELFCHECK=ALL_GREEN checks=30 fails=0` / `MUTATION_RESULT=ALL_CAUGHT 53/53`（新增 `deps-gap` 检查 + M49~M53）。
+**门禁**：技能侧 `SELFCHECK=ALL_GREEN checks=30 fails=0` / `MUTATION_RESULT=ALL_CAUGHT 53/53`；母项目新增守卫件 `p14-p15-ps1-path-and-cli-map-guard.test.js`（16 用例）并登记进 `GATE_GUARD_FILES`，**三变异全部 CAUGHT**（`-File` 回裸名 / 交叉错位 / 删键重现原 bug）。母项目门禁整体仍 `RED`，但经 `git stash` 归因实验确认两件失败（`phase2-snapshot-truth`、`phase3-skill-claims-guard`）在 HEAD 上**同样 fail 1**，属既有失败，与本批改动无关。
 
 **已完成的关键验证**：
 - ✅ `--purge-all` 真机 PASS，到裸机终态（VM 存活 + 22/18443/5985 全不可用 + 宿主侧零残留）；
@@ -392,14 +465,54 @@
 - ✅ **从零部署全链 PASS**（第 4 步 396s + 第 5 步 57s，`PROBES 34/34`、`health=200`、`browser=33 desktop=25`）；
 - ✅ **P4 复验**：`PKG_VERSION=V1.4.33` 进 state，`PKG_ROOT` 指向新解出的层；
 - ✅ **P5 复验**：`setup.log` 无 `DRY-RUN 只规划`（0 次），4b 不是 0s 假绿；
-- ✅ **P12/P13 修复真机验证**：兜底逐文件复制 `copied=1993 skipped=1`（只跳过被映射的 node.exe）后 `node OK v24.21.0`。
+- ✅ **P12/P13 修复真机验证**：兜底逐文件复制 `copied=1993 skipped=1`（只跳过被映射的 node.exe）后 `node OK v24.21.0`；
+- ✅ **P14/P15 离线闭环**：`planPrepareVm` 行为级 5 断言 PASS（含「删键即失配」的证伪用例）；路径断言 9 项 PASS（含 3 条反向断言）。
 
 **待办**：
-1. 🔴 **4a 幂等复验未做**：node + 三 CLI 已装好，应再跑一次 `--only 4` 确认 4a 全 `[SKIP]` 且耗时回落到十几秒。这是「一次性成本 vs 每轮成本」的关键证据，下一轮必做。
+1. 🔴 **4a 幂等复验未做**：node + 三 CLI 已装好，应再跑一次 `--only 4` 确认 4a 全 `[SKIP]` 且耗时回落到十几秒。这是「一次性成本 vs 每轮成本」的关键证据。**注**：P15 修好后，这一轮的日志会第一次真实显示 `desktop:OK browser:OK` 与 `[SKIP] all present` —— 之前那个「永远 MISSING」的假红已消除，因此复验时**不要**再拿「MISSING」当判据。
 2. **P12 的根因在 prepare-vm 侧未动**：DB-3/DB-7 失败仍只打印 `[MANUAL]` 不 `exit 1`。当前靠 4a 扫文本兜住（已加门禁），但更干净的做法是让 `bootstrap.mjs` 在这些行出现时返回非零。改它要评估「部分失败不阻断」的既有语义，故本轮只加固调用方。
-3. **`AllowScripts` 显式登记**：`npm i -g` 时 npm 11 会把 `agent-browser`/`agent-desktop` 的 postinstall 提示成 warn（实际已执行）。可加 `--allow-scripts` 或 `npm config set allow-scripts=... --location=user` 消音，避免下一个人误判成「没装好」。
-4. 卸载侧仍无「卸载后自动核对残留清单」的汇总行（现在靠 2d + 2e 两段分别断言）。
-5. `1a`/`3a` 在通道本就 DOWN 时要烧 15s（6s 建连窗 × 重试）。可考虑把窗降到 3s，收益约 8s，但要确认不误判「慢但活着」的通道。
-6. `C:\ProgramData\WinVMStale` 里被 park 的死镜像要等下次 VM 重启才清（已登记 `PendingFileRenameOperations`）；这是**故意**的 —— 绝不为了清一个文件而重启 VM。
-7. codebuddy 子进程（`codebuddy mcp remove`）没有被回收是 P11 的源头：4a 里凡是 `& codebuddy ...` 都要 `Wait-Process` + 超时，避免再留僵尸。
-8. **发布未做**：技能 v2.5.3（含 P12/P13）需 `skill_dev.py release`；母项目 V1.4.33 需 `pack → push → publish --apply --mirror-gitee`（gitee latest 仍是 V1.4.32）。
+3. **P14 的真机复验未做**（因失联）：修法（绝对路径）逻辑上消除歧义，但仍需在真机跑一次 `--only 4` 确认 `-File` 正常。修复后的日志会打印**绝对路径**（`C:/WinVMBridge/winvm-setup-<ts>.ps1`），这是识别「修复生效」的最快标志。
+4. **`AllowScripts` 显式登记**：`npm i -g` 时 npm 11 会把 `agent-browser`/`agent-desktop` 的 postinstall 提示成 warn（实际已执行）。可加 `--allow-scripts` 或 `npm config set allow-scripts=... --location=user` 消音，避免下一个人误判成「没装好」。
+5. 卸载侧仍无「卸载后自动核对残留清单」的汇总行（现在靠 2d + 2e 两段分别断言）。
+6. `1a`/`3a` 在通道本就 DOWN 时要烧 15s（6s 建连窗 × 重试）。可考虑把窗降到 3s，收益约 8s，但要确认不误判「慢但活着」的通道。
+7. `C:\ProgramData\WinVMStale` 里被 park 的死镜像要等下次 VM 重启才清（已登记 `PendingFileRenameOperations`）；这是**故意**的 —— 绝不为了清一个文件而重启 VM。
+8. codebuddy 子进程（`codebuddy mcp remove`）没有被回收是 P11 的源头：4a 里凡是 `& codebuddy ...` 都要 `Wait-Process` + 超时，避免再留僵尸。
+9. **发布未做**：技能 v2.5.3（含 P12/P13）需 `skill_dev.py release`；母项目 V1.4.33 需 `pack → push → publish --apply --mirror-gitee`（gitee latest 仍是 V1.4.32）。**P14/P15 的母项目改动也尚未发布** —— 它们改的是 `delivery/`（运行态代码），必须重新 `pack` 才会进包。
+
+---
+
+## 8. 突发：VM 整机失联（2026-11-19 12:10，未恢复）
+
+**发生时机**：12:04 的 4a 幂等复跑（待办 1）刚开始不久，`prepare-vm` 的探测阶段正常（`[probe] 合并单往返 15.2s`、`DB-3 node = v24.21.0` 都读到了），随后 APPLY 阶段的 `.ps1` 推送后 `-File` 报「实际参数不存在」，紧接着通道彻底消失。
+
+**证据（三段判据全指向「VM 不可达」，而不是 WEDGE）**：
+
+| 探针 | 12:04（正常） | 12:10 起 |
+|---|---|---|
+| `ping 172.16.100.2` | 通 | **100% 丢包**（连续 5 次 × 2 包） |
+| 裸 TCP `22`（读 banner） | `SSH-2.0-OpenSSH_for_Windows_10.4` | **SYN 超时**（TCP 握手都不完成） |
+| 宿主 `18443@127.0.0.1/health` | 200 | `000`，8s 超时 |
+
+**这不是先前那个 WEDGE**：WEDGE 的特征是「TCP 能连上但零 banner」（预认证段停摆，网络层无罪）。这次的裸 TCP **连 SYN 都超时**，说明是更底层的不可达。
+
+**排除宿主侧**：同一时刻宿主 `ping 192.168.1.1` → 0% 丢包 2ms；`curl https://gitee.com` → 405（可达）。⇒ 宿主网络完全正常，只有 VM 掉线。
+
+**未做的事（按红线）**：**没有重启 VM**。VM 是本项目唯一的真机验证环境，重启会丢现场（且 `--purge-all` 的 `PendingFileRenameOperations` 现场会一并清掉，反而让 P11 的证据消失）。
+
+**当前阻塞**：待办 1（4a 幂等复验）无法继续 —— 需要 VM 恢复到 ping 可达。恢复后第一步就是 `bash scripts/ssh2-conn.mjs ping` 确认 `pong ready`，然后重跑 `--only 4`。
+
+**顺带发现（独立于失联，值得单独跟进）**：
+**顺带发现的两条（失联后已离线查清，见 P14 / P15）**：
+- `DB-7 global CLI = codebuddy:OK desktop:MISSING browser:MISSING` 但 12:02 的 4c 读到 `browser=33 desktop=25`
+  ⇒ **已定位为 P15**：不是两处口径不一致，而是 `bootstrap.mjs` 的 `state` 组装**漏映射**了
+  `cliDesktop`/`cliBrowser` 两个键（探测端采集的是 `browserCli`/`desktopCli`）⇒ 日志与计划表恒读
+  `undefined`。**执行面本来就是对的**（DB-7 的 .ps1 内部自己 `Get-Command` 重探），所以 4c 能看到真实值。
+  **已修**并加守卫件（含交叉错位与删键的反向证明）。
+- `-File` 报「实际参数不存在」⇒ **已定位为 P14**：`runRemotePs1` 用**裸文件名**推送，
+  而 put 与 exec 是两次独立 `withVmChannel`、各自独立决议后端（sftp 落点 ≠ cmd.exe cwd）⇒
+  链路抖过就分裂。11:53 轮同代码成功、12:04 轮失败即此。**已修**为统一绝对路径。
+
+**剩下仍需真机的一步**：P14 的修法与 P15 的映射都只有离线证据（`--check` + 行为级断言 + 三变异），
+真机复验要等 VM 恢复后跑一次 `--only 4`：判据是日志出现**绝对路径**的
+`(.ps1 已推送 C:/WinVMBridge/winvm-setup-<ts>.ps1 → VM)`，且 DB-7 那行首次真实显示
+`desktop:OK browser:OK` + 计划表 `[SKIP] all present`。
