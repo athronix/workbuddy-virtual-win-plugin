@@ -1,6 +1,7 @@
-# 彻底卸载 → 从零部署 演练报告（2026-11-18）
+# 彻底卸载 → 从零部署 演练报告（2026-11-18 ~ 11-19）
 
 > 目标：按 `winvm-plugin-deploy` 技能指引，验证「卸载彻底（含 sshd 与密钥）」与「从零部署」两条路径。
+> 状态：**卸载侧已全部闭环（`--purge-all` 真机 PASS 到裸机）；部署侧第 1 步已验，第 2~5 步待用户粘命令后执行。**
 > 要求：逐节点记时长与问题，问题给根因与处置，最后总结完善技能。
 > 状态：**阶段 A 完成 · 阶段 B 完成 · 阶段 C 阻塞在人工粘一条命令**
 
@@ -119,6 +120,56 @@
 - **现象**：`--only 3 --purge-all` 的兜底命令只有 `-Rollback`。用户跑完通道照旧不回来（sshd 服务还在但钥已删），而技能这边再无入口补「卸 sshd」那一段。
 - **处置**：命令改为自包含三段 —— 内联 base64 写出 `vm-purge-sshd.ps1` → 若 oneclick 脚本仍在则 `-Rollback` → `-Apply` 卸 sshd/删两处 `authorized_keys`/删 WinVMDeploy。已真机打印验证（base64 完整、`$d`/`$p`/`$rb` 变量未被吞）。
 
+### P9｜`-File` 执行 oneclick 必挂：源文件「必须无 BOM」与副本「必须有 BOM」被混淆（P0）
+
+- **现象**（用户从零部署粘第一条命令，2026-11-18 19:1x）：
+  ```
+  At C:\ProgramData\WinVMDeploy\winvm-sshd-oneclick.ps1:70 char:24
+  + [switch]$NoSelfFetch,   # irm|iex 妯″紡涓嬬姝㈣仈缃戣嚜涓嬭浇...
+  Missing expression after ','.
+  Unexpected token '锛?' in expression or statement.
+  ```
+  满屏红字，**脚本一行都没有执行**。
+- **根因**：两条相反的编码契约被当成一件事。
+  - `winvm-sshd-oneclick.ps1` **源文件**必须 UTF-8 **无 BOM**：`irm|iex` / `[scriptblock]::Create(<文本>)` 会把 BOM 当首字符，`param` 块因此脱离参数区 ⇒「意外的属性 CmdletBinding」（M21 一直在守这条）。
+  - 但 `powershell -File` 在 **Windows PowerShell 5.1 上不认 UTF-8 声明**，对无 BOM 文件按系统 ANSI（中文环境 CP936）解码 ⇒ 中文注释/文案变乱码 ⇒ 乱码里的 `?` 打断引号配对 ⇒ `ParserError`，整个文件解析失败。
+  - 之前几轮用的是「整段粘贴」或 `irm|iex`（文本已是 unicode 字符串），只有 `-File` 这条路会崩；而 `-File` 恰恰是 SKILL.md 的第一条推荐命令。
+- **证据**：raw 下载源首 3 字节 `3c230a`；归一化后 `efbbbf`，字节数 156457 → 156460（离线实测）。
+- **处置**（v2.5.1，双向闭合，四条路径全覆盖）：
+  1. oneclick 自落盘后立刻把副本重写成 UTF-8 with BOM（`copy`/`existing`/`fetch` 三态统一）⇒ 之后任何 `-File`（`-Rollback`、SYSTEM 计划任务、用户手工命令）都能解析；
+  2. `1c` 主命令 / `1p` 兜底 / `3b` 用户命令 / `3b` purge 兜底命令，全部在「下载 → 执行」之间插 `ReadAllText(UTF8)` → `WriteAllText(UTF8Encoding($true))`；
+  3. `3b` SYSTEM 任务在 `-File` 前归一化并回执 `BOM_NORMALIZED`；
+  4. 新门禁 `bom-contract`（checks 27→28）+ M43/M44/M45 变异。
+- **通用教训**：「源文件编码」和「执行副本编码」是两个独立契约，必须按**执行路径**分别满足，不能一个策略走全链。
+
+### P10｜2e 只清两处 node 运行时，漏了 `%LOCALAPPDATA%\nodejs`（第三个 store）
+
+- **现象**：`undeploy --purge-all` 的 2e 报 `FAIL 深清后仍残留: CMD_NODE#...nvm\installs\v24.21.0\node.exe CMD_NPM#...Local\nodejs\npm.ps1 NVM_DIR`。
+- **根因**：跑过 nvm-windows 的机器上有**三个** node 运行时 store，脚本只列了两个：
+  | 路径 | 来源 | 原脚本 |
+  |---|---|---|
+  | `C:\nodejs` | 独立 MSI 式安装 | ✅ 清了 |
+  | `%LOCALAPPDATA%\Author Software\nvm` | nvm 根（`installs\<ver>`、`.nodejs`、settings） | ✅ 清了 |
+  | `%LOCALAPPDATA%\nodejs` | 用户级 zip 安装（npm 前缀在此） | ❌ **漏了** |
+- **证据**：2e 日志 `NODEJS_DIR=False` / `NVM_DIR=True` 同时出现，且 `CMD_NPM` 解析到 `...\Local\nodejs\npm.ps1`。
+- **处置**：补第三处 → `RmTree $LocalNodeDir 'DELETE_LOCAL_NODEJS'`，PRE/POST 各加 `LOCAL_NODEJS_DIR` 断言，`undeploy-2-vm.sh` 的终态判据同步加一条。
+- **教训**：**「清完还残留」先怀疑清单不全，再怀疑删不掉** —— 这一步把两个不同故障（清单漏项 vs 句柄占用）分开了，否则会一直在文件锁上打转。
+
+### P11｜僵尸 `node.exe` 的镜像永不可删，`--purge-all` 会永久卡在 FAIL
+
+- **现象**：补完清单后仍 `LEFT_DELETE_NVM=True`，`Remove-Item` 报「对路径 node.exe 的访问被拒绝」，`rmdir` 静默失败。
+- **根因链**（逐层排除得到的结论，不是猜的）：
+  1. ACL 正常（`BUILTIN\Administrators` + `User` 都是 FullControl，`takeown`+`icacls /reset` 后仍失败）；
+  2. 不是普通句柄占用 —— `[IO.File]::Open(...,'None')` 报「正由另一进程使用」（确实被占）；
+  3. **Restart Manager 定位到 pid 6048**，命令行是 `codebuddy mcp remove agent-desktop`（**部署脚本自己拉起的**，忘了回收）；
+  4. 6048 是**僵尸**：`Get-Process` 显示 `HasExited=True`，但父进程 `cmd.exe`(session 0) 从不关闭句柄 ⇒ `Terminate` 返回 **rc=2**、`taskkill` 报「没有此进程的实例在运行」；连它的父 `cmd.exe`/`powershell` 也杀不掉（同样 rc=2）；
+  5. 所以**映射中的 `node.exe` 镜像在重启前永远删不掉**（锁的是文件对象，不是名字）。
+- **处置**（不重启 VM —— 最高红线）：
+  - 加第三轮兜底 `EvictLocked`：把删不掉的单文件**改名移出**到 `C:\ProgramData\WinVMStale`（改名是被允许的），再登记 `PendingFileRenameOperations` 让系统开机时删除，随后目录本身即可回收 ⇒ `LEFT_*=False`，`--purge-all` 能 PASS；
+  - `KillNodeHolders` 从「杀所有 node.exe」改成**只杀路径/命令行落在待删运行时根内的**（原来那种一刀切会误杀 VM 上 WorkBuddy 客户端的 4 个扩展进程，实测已误杀一次）；
+  - 杀不掉时不再静默：`Rep 'KILLED_HOLDERS'` 与 `PARKED_<label>` 两行回执，让「谁被占了、几个文件被移到哪里」可追溯。
+- **教训**：Windows 上「访问被拒绝」有四种完全不同的成因（ACL / 句柄占用 / 僵尸残留 / 只读属性），**必须先用 Restart Manager 拿到持有者名单再动手**，否则 `rmdir /s /q` 会把它变成一条无信息的静默失败。
+
 ---
 
 ## 4. 阶段 B：从零前的通道重建（阻塞点）
@@ -132,22 +183,45 @@
 
 > 这一条**本身就是技能设计的正确行为**，不是缺陷：卸载阶段绝不为了「后面还要用」而偷偷留后门。
 
+### 4.1 `--purge-all` 真机终态确认（2026-11-19 10:20，WALL 114s）
+
+| 环节 | 耗时 | 结果 |
+|---|---|---|
+| 1a 停 tunnel service | 2s | — |
+| 1b 卸 host 插件 | 1s | `HOST_PASS=11 HOST_FAIL=0` |
+| 1c host 清空复核 | 0s | `mcp_left=none` |
+| 2a 通道判定 | 2s | — |
+| 2b 推 VM 卸载脚本 | 6s | 三个 ps1 就位 |
+| 2c 停服务 + 卸模块 | 29s | `UPSTREAM_LEFT=NONE` |
+| 2d VM 终态五点 | 13s | `False False 0 Running False NONE` |
+| **2e 运行时深清** | **28s** | 五个 CLI 全 `MISSING`，三处运行时目录全 `False` |
+| 3a 通道状态 | 2s | `channel=READY` |
+| **3b SYSTEM post** | **34s** | `PURGE_WRAPPER_READY` + `POST_ROLLBACK_SCHEDULED` |
+| **合计** | **114s** | `UNDEPLOY=PASS host=clean vm=clean tunnel=yes` |
+
+**裸机终态取证**（卸载后 60s 复测）：
+- `ping 172.16.100.2` → **0% 丢包，2ms**（VM 活着，没被卸载搞崩）；
+- `22` → TIMEOUT（sshd 已卸）、`18443` → TIMEOUT（服务已卸）、`5985` → TIMEOUT（服务仍在但 Basic 认证关闭且无口令，连接被拒）；
+- 宿主侧：插件缓存、connector skills、`mcp.json` 的 winvm 条目、`known_hosts` 的 3 条 VM 记录 —— **全部为空**。
+
+这正是「全删到裸机」的定义：**VM 活着、凭据入口为零**。
+
 ---
 
-## 5. 阶段 C：从零部署（待执行）
+## 5. 阶段 C：从零部署（进行中）
 
-计划：粘命令恢复通道 → `deploy.sh` 全链 → 逐节点记时长。
-
-**已在通道缺失状态实测过的部分**（`--only 1`，WALL 20s）：
+### 5.1 第 1 步（通道 DOWN，2026-11-19 10:22，WALL 19s）
 
 | 环节 | 耗时 | 行为 |
 |---|---|---|
-| 1a 通道判定 | 16s | `channel=DOWN`（6s 建连窗口 × 重试） |
-| 1p.1 | 1s | SKIP（无可用口令） |
-| 1b.1 | 2s | 复用现有密钥（`rotate=0`） |
-| 1c.1 | 1s | 打印「从零建通道」那一条命令 |
+| 1a 通道判定 | 15s | `channel=DOWN`（6s 建连窗 × 重试） |
+| 1p.1 凭据可达性 | 0s | SKIP `NEED_PASSWORD`（未提供口令） |
+| 1b.1 准备密钥 | 0s | 复用 `id_ed25519_winvm`，指纹 `SHA256:74Ke67…` |
+| 1c.1 打印命令 | 2s | 2 个候选源，命令已含 BOM 归一化段 |
 
-预期：1p 会因无口令 SKIP → 1b/1c 给命令 → 用户粘 → **1p 成功即整步结束（1b/1c/1d 一个都不跑）** → 第 2/3/4/5 步在空白 VM 上跑。
+`DEPLOY=NEED_USER_ACTION rc=2`，命令现含 `ReadAllText(UTF8)` → `WriteAllText(UTF8Encoding($true))`（P9 修复已生效）。
+
+### 5.2 第 2~5 步（待用户粘贴命令后执行）
 
 ---
 
@@ -155,8 +229,10 @@
 
 | 阶段 | WALL | 最大单项 |
 |---|---|---|
-| 原生 undeploy（1+2+3） | **86s** | 2c 停服务+卸模块 **42s** |
-| deploy 第 1 步（通道缺失） | **20s** | 1a 通道判定 16s |
+| 原生 undeploy（1+2+3，保留通道） | **86s** | 2c 停服务+卸模块 **42s** |
+| **`--purge-all` 全链（到裸机）** | **114s** | 3b SYSTEM post **34s** |
+| 其中 2e 运行时深清（单跑） | 28~36s | 三处 node 运行时 + 五个 CLI 断言 |
+| deploy 第 1 步（通道 DOWN） | **19s** | 1a 通道判定 15s |
 | deploy `--only 4`（v2.4.0 真机，参考） | 241s | 4b 推包 **149s** |
 | deploy `--only 5` | ~30s | 三探针 16s |
 
@@ -164,10 +240,19 @@
 
 ## 7. 结论与待办
 
-**已闭环**：P1（v2.5.0 `--purge-all`）、P2、P3、P5、P6、P7、P8 全部修完并有门禁覆盖（`SELFCHECK=ALL_GREEN checks=27` / `ALL_CAUGHT 42/42`）。
+**已闭环**：P1（v2.5.0 `--purge-all`）、P2~P8 全部修完；**P9（BOM 契约）、P10（第三个 node store）、P11（僵尸句柄）** 在本轮真机暴露并修完。
+
+**门禁**：`SELFCHECK=ALL_GREEN checks=28 fails=0` / `MUTATION_RESULT=ALL_CAUGHT 45/45`（新增 `bom-contract` + M43/M44/M45）。
+
+**已完成的关键验证**：
+- ✅ `--purge-all` 真机 PASS，到裸机终态（VM 存活 + 22/18443/5985 全不可用 + 宿主侧零残留）；
+- ✅ 2e 五个 CLI 全 `MISSING`，三处运行时目录全消失；
+- ✅ BOM 归一化离线回环（`3c230a` → `efbbbf`）；
+- ✅ 第 1 步在通道 DOWN 时正确打印含 BOM 修复的命令（rc=2，WALL 19s）。
 
 **待办**：
-1. 🔴 阶段 C 未跑：需用户在 VM 粘一次命令恢复通道（唯一人工步骤）。
-2. 🔴 彻底卸载的 2e + `--purge-sshd` 尚未真机跑过（本轮只做了离线载荷校验：占位符全替换、base64 逐字节回环一致、括号平衡、wrapper 与未来时刻都在；兜底命令已真机打印验证）。
-3. 卸载侧仍无「卸载后自动核对残留清单」的汇总行（现在靠 2d + 2e 两段分别断言）。
-4. `3a` 在通道本就 DOWN 时要烧 16s（6s 建连窗 × 重试）。可考虑把窗降到 3s，收益约 8s，但要确认不误判「慢但活着」的通道。
+1. 🔴 阶段 C 第 2~5 步未跑：需用户在 VM 粘一次命令（唯一人工步骤）。
+2. 卸载侧仍无「卸载后自动核对残留清单」的汇总行（现在靠 2d + 2e 两段分别断言）。
+3. `1a`/`3a` 在通道本就 DOWN 时要烧 15s（6s 建连窗 × 重试）。可考虑把窗降到 3s，收益约 8s，但要确认不误判「慢但活着」的通道。
+4. `C:\ProgramData\WinVMStale` 里被 park 的死镜像要等下次 VM 重启才清（已登记 `PendingFileRenameOperations`）；这是**故意**的 —— 绝不为了清一个文件而重启 VM。
+5. codebuddy 子进程（`codebuddy mcp remove`）没有被回收是 P11 的源头：4a 里凡是 `& codebuddy ...` 都要 `Wait-Process` + 超时，避免再留僵尸。
