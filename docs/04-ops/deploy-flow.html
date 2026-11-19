@@ -723,7 +723,7 @@ const DEPLOY = {
   d4: {
     code: '4', name: '装 VM 端 + 起 mcp/a2a service',
     dur: T('245s（V1.4.34 幂等态）/ 396s（从零首跑）', 245000),
-    summary: '全链最大的一步：4.0 通道门禁 → 4a 补齐运行时与四个全局 CLI → 4b 推包并起服务 → 4c 七判据（含两个上游工具面，真实 tools/list）。<b>幂等态下 4b 独占 152s / 245s（62%），且与「内容有没有变」无关</b> —— 是本步唯一的大头。',
+    summary: '全链最大的一步：4.0 通道门禁 → 4a 补齐运行时与四个全局 CLI → 4b 推包并起服务 → 4c 七判据（含两个上游工具面，真实 tools/list）。<b>4b 占 152s / 245s（62%），是最大的一段</b>，但它的耗时来自远端安装与 PS 冷启，不是传输 —— 详见 4b 节点。',
     pre: ['第 1 步通道 READY（4.0 会再验一次）', '第 2 步包根就位'],
     cmds: [{ label: '整步入口', code: 'VM_HOST=... bash scripts/deploy.sh --only 4' }, { label: '跳过上游工具面', code: 'SKIP_UPSTREAMS=1 VM_HOST=... bash scripts/deploy.sh --only 4' }],
     scripts: [{ n: 'deploy-4-vm.sh', d: '4.0 / 4a~4c' }, { n: 'delivery/bootstrap.mjs', d: 'prepare-vm（依赖 + 探测）' }, { n: 'delivery/setup.mjs', d: '--only-vm 相位编排' }, { n: 'delivery/install-vm.mjs', d: 'VM 端安装 6 段' }, { n: 'ps-run.sh', d: '远端 PS 执行器（含载荷预算）' }],
@@ -733,7 +733,8 @@ const DEPLOY = {
       { n: '4b setup 装 VM 端', ms: 152000 },
       { n: '4c 七判据（含两上游工具面）', ms: 40000 }
     ],
-    note: 'V1.4.34 幂等态实测 WALL 245s（4.0=1 / 4a=50 / 4b=152 / 4c=40）；从零首跑 WALL 396s（4a=177 含 node zip 37.6MB + 三 CLI npm i -g）。<b>4a 的 177s 已坐实是一次性成本</b>（第二次起 50s，降 72%，全 [SKIP]）；剩下的 50s 不是安装，而是三次 ssh 往返。',
+    note: 'V1.4.34 幂等态实测 WALL 245s（4.0=1 / 4a=50 / 4b=152 / 4c=40）；从零首跑 WALL 396s（4a=177 含 node zip 37.6MB + 三 CLI npm i -g）。<b>4a 的 177s 已坐实是一次性成本</b>（第二次起 50s，降 72%，全 [SKIP]）；剩下的 50s 不是安装，而是三次 ssh 往返。'
+      + '<br><b>「从零装」是设计目标，所以不要按「反复重跑」去优化</b>：真实用户只跑一次，任何依赖「上次装过」的缓存短路对他都是零收益。',
     children: ['d40', 'd4a', 'd4b', 'd4c']
   },
 
@@ -819,8 +820,10 @@ const DEPLOY = {
   d4b: {
     code: '4b', name: 'setup --only-vm --skip-build（推包 + 装 VM 端 + 起服务）',
     dur: T('152s（V1.4.34 实测）', 152000),
-    summary: '<b>全链唯一大头（占第 4 步 62%）</b>。一口气做三件事：<b>[VM]</b> 宿主打 tar + scp 到 VM，远端 install-vm 六段安装；<b>[VM-START]</b> 换服务实例并轮询到 18443 真的在听；<b>[QA-PROBE]</b> 旁路推两个探针。'
-      + '<br><br><b>关键事实：这一步每轮无条件全跑，与「内容有没有变」完全无关。</b>哪怕只改一行文档、哪怕上一秒刚部署完，它照样重新 tar、重新 scp、重新 install、重新重启服务。这就是它稳占 152s 的原因，也是全链性价比最高的优化点。',
+    summary: '<b>全链最长的一段</b>。一口气做三件事：<b>[VM]</b> 宿主打 tar + scp 到 VM，远端 install-vm 六段安装；<b>[VM-START]</b> 换服务实例并轮询到 18443 真的在听；<b>[QA-PROBE]</b> 旁路推两个探针。'
+      + '<br><br><b>关于「内容未变就短路」这个想法 —— 已否决（2026-11-19 用户裁定）</b>：本技能的目标场景是<b>给新用户装 winvm-plugin</b>，那时 VM 是从零开始的，没有可复用的安装缓存历史。'
+      + '短路只对「同一个开发者反复重跑」有意义，对真实用户收益为零，属于优化错的对象。'
+      + '<br><b>而且 tar+scp 本身也不是瓶颈</b>：实测 tar 0.13~0.35s、scp 1.8~2.6s，合计约 3s（占本步 2%）。把 tar 预打进 release 包同样省不到几秒。真正的耗时在远端的 PS 冷启、计划任务往返与自检轮询。',
     pre: ['4a 依赖就绪', 'VM 上 C:\\WinVMBridge 可写', '全局 npm 可用（上游可选依赖）', '包根有 .env（只有 .env.example 会走 dry-run 假绿）'],
     cmds: [
       { label: 'driver 实际执行行', code: '# WINVM_UPSTREAMS_HANDLED=1：上游已由 4a 的 DB-7 装好，install-vm 的 [4b/6] 不再重复装\n( cd "$PKG" && WINVM_UPSTREAMS_HANDLED=1 "$NODE" delivery/setup.mjs \\\n    --apply --skip-build --only-vm > "$SL" 2>&1 ); SRC=$?' },
@@ -828,13 +831,14 @@ const DEPLOY = {
     ],
     scripts: [{ n: 'delivery/setup.mjs', d: '相位编排：VM / VM-START / QA-PROBE' }, { n: 'delivery/install-vm.mjs', d: 'install-vm 六段' }, { n: 'ps-bridge.ps1', d: 'VM 侧服务主体' }],
     parts: [
-      { n: '[VM] 推包 + VM 端安装（整段打点，未逐段拆）', ms: 94800 },
+      { n: '[VM] 推包 + VM 端安装（传输约 3s，其余为远端安装）', ms: 94800 },
       { n: '[VM-START] 换实例 + 轮询端口监听', ms: 43200 },
       { n: '[QA-PROBE] 2 探针逐个 scp + MANIFEST', ms: 14400 }
     ],
     note: '<b>三段来自 16:00 那轮 setup.log 的 [计时] 打点</b>（94.8 + 43.2 + 14.4 = 152.4s）。'
-      + '<br><b>可优化（已定案、未实施）</b>：让 VM 侧 MANIFEST-deploy-*.txt 带上 total-sha256（源内容哈希，与 tar 时间戳无关），对得上就把整个 [VM] 相位短路。预计 <b>-100~140s/轮</b>。'
-      + '<br>次优项：[QA-PROBE] 两次 scp 可合并（≈-8s）；MANIFEST 被写了两遍（日志重复两行）；[VM-START] 的轮询 3~5s 可压缩但收益不抵风险。',
+      + '<br><b>仍然成立的可优化项（都不大）</b>：[QA-PROBE] 两次 scp 可合并（≈-8s）；MANIFEST 被写了两遍（日志重复两行）；'
+      + '[VM-START] 的轮询 3~5s 可压缩但收益不抵风险。'
+      + '<br><b>不建议做的</b>：内容短路（用户场景不匹配）、tar 预打包（只省 0.3s）。',
     fail: '420s 未监听 = 僵尸 start：schtasks /End 后 /Run，再重跑本步。'
       + '<br><b>P5 dry-run 假绿</b>：包根只有 .env.example 时其中的 WINVM_DRY_RUN=1 兜底优先于 --apply ⇒ 0s PASS 但一个字节都没推，4c 随后读到旧白名单（25→10）像「上游退化」。判据是 setup 头部打 `[DRY-RUN 只规划]` 而非 `[APPLY 真执行]`。'
       + '<br><b>P16（v2.5.5 前）</b>：VM-START 的签名清扫会把执行清扫的 powershell 自己杀掉（撞名即杀）⇒ 183s 后 FAIL。判据看 VM_START_SWEEP 命中数必须为 0。',
@@ -844,17 +848,21 @@ const DEPLOY = {
   d4b1: {
     code: '4b·VM', name: '[VM] 推包 + VM 端安装',
     dur: T('94.8s（V1.4.34）/ 155.7s（11-18 重装轮）', 94800),
-    summary: '宿主侧打 tar 并 scp；远端 install-vm 六段：依赖解析与软链、共享 skills 发布、上游 CLI 安装、计划任务注册、自检、PATH 写入。<b>这是 4b 里最该加短路的一段</b> —— 它是「内容变不变都照跑」的主体。',
+    summary: '宿主侧打 tar 并 scp；远端 install-vm 六段：依赖解析与软链、共享 skills 发布、上游 CLI 安装、计划任务注册、自检、PATH 写入。'
+      + '<b>重要实测纠偏（2026-11-19）</b>：这段的 94.8s <b>几乎全是远端安装</b>，不是传输。'
+      + '本机实测 tar 打包 3.9MB 只要 <b>0.13~0.35s</b>，scp 上传同体积只要 <b>1.8~2.6s</b>（含 SSH 建连）—— 两者合计约 3s，占本段不到 3%。'
+      + '把 tar 预打进 release 包<b>省不到 3s</b>，不值得为它增加发布链复杂度。',
     pre: ['通道可用', 'VM 有 node/npm'],
-    cmds: [{ label: '宿主侧', code: 'tar -czf winvm-dist.tgz delivery skills packages/*/dist package.json\nscp -P 22 winvm-dist.tgz User@vm:C:/WinVMBridge' }, { label: '远端', code: 'powershell -File <vm-install.ps1>   # 内部 node delivery/install-vm.mjs' }],
+    cmds: [{ label: '宿主侧（实测 tar 0.13~0.35s + scp 1.8~2.6s）', code: 'tar -czf winvm-dist.tgz delivery skills packages/*/dist package.json\nscp -P 22 winvm-dist.tgz User@vm:C:/WinVMBridge' }, { label: '远端（真正的耗时所在）', code: 'powershell -File <vm-install.ps1>   # 内部 node delivery/install-vm.mjs' }],
     scripts: [{ n: 'delivery/install-vm.mjs', d: '六段安装主体' }, { n: 'delivery/path-util.mjs', d: '用户 PATH 单次 PS 写入' }],
     parts: [
-      { n: '整段 [计时] 打点（tar + scp + 六段安装）', ms: 94800 }
+      { n: '宿主 tar + scp（实测约 3s）', ms: 3200 },
+      { n: '远端 install-vm 六段（PS 冷启 + 软链 + skills + 任务注册 + 自检）', ms: 91600 }
     ],
-    note: '<b>实测口径已变</b>：16:00 的 V1.4.34 轮只有整段 `[计时] [VM] 耗时 94.8s` 一条打点，不再有「宿主 34s / 远端 122s」那种细分。'
-      + '<br>下表六段是 11-18 重装轮（整段 155.7s）的旧细分，仅作结构参考，<b>不可与新值相加</b>：'
-      + '宿主 BUILD+scp 34s、[1/6] 依赖解析与 12 workspace 软链 8.2s、[2/6] 共享 skills 7+7 0.6s、[4b/6] 上游 npm 38s、计划任务注册 18.6s、[6/6] 自检 35.6s、管理命令 + PATH 7s。'
-      + '<br>其中 [4b/6] 上游 npm 在 4a 已装好时会被 WINVM_UPSTREAMS_HANDLED=1 透传成 --skip-upstreams ⇒ 这 38s 现已不计入。'
+    note: '<b>实测口径</b>：16:00 轮只有整段 `[计时] [VM] 耗时 94.8s` 一条打点，无「宿主 34s / 远端 122s」细分 —— 那套细分属 11-18 重装轮（整段 155.7s），<b>不可与新值混算</b>。'
+      + '<br>11-18 轮的结构参考（不可相加）：[1/6] 依赖解析与 12 workspace 软链 8.2s、[2/6] 共享 skills 7+7 0.6s、[4b/6] 上游 npm 38s、计划任务注册 18.6s、[6/6] 自检 35.6s、管理命令 + PATH 7s。'
+      + '<br>其中 [4b/6] 上游 npm 38s 在 4a 已装好时会被 WINVM_UPSTREAMS_HANDLED=1 透传成 --skip-upstreams ⇒ 现已不计入。'
+      + '<br><b>与删目录同理</b>：这里的大头是「PS 冷启 + 计划任务往返 + 自检轮询」，不是文件 I/O。'
   },
 
   d4b2: {
@@ -1034,15 +1042,16 @@ const UNDEPLOY = {
 
   u2c: {
     code: '2c', name: '停服务 + 卸模块（vm-remove-local.ps1 -Apply）',
-    dur: T('70s（含卸上游）', 70000),
-    summary: '卸载主体，最慢的一段：僵尸 node 进程不绑端口、taskkill 免疫；且 SSH 会话 PATH 只有 Machine 段，Get-Command npm 为空会让上游清理静默降级 —— 所以脚本自拼 Machine;User PATH。',
+    dur: T('29s（含卸上游，实测）/ 70s（最坏）', 29000),
+    summary: '卸载主体，最慢的一段：僵尸 node 进程不绑端口、taskkill 免疫；且 SSH 会话 PATH 只有 Machine 段，Get-Command npm 为空会让上游清理静默降级 —— 所以脚本自拼 Machine;User PATH。'
+      + '<b>注意拆解</b>：这一段的耗时几乎全在「停服务 / 杀进程 / 等端口释放」，删目录只占 1.1s。',
     pre: ['2b 脚本已就位', '以管理员身份执行（否则停不掉服务/删不动目录）'],
     cmds: [{ label: '执行', code: 'bash scripts/ps-run.sh -c "& .\\vm-remove-local.ps1 -Apply [-PurgeWorkspace] [-KeepUpstreams]"' }],
     scripts: [{ n: 'vm-remove-local.ps1', d: '段 1~8：任务/进程/目录/PATH/side.json/上游' }, { n: 'ps-run.sh', d: 'ps-run（载荷预算）' }],
     parts: [
       { n: 'schtasks /End + /Delete（停服务、删任务）', ms: 12000 },
       { n: '端口反查 + 僵尸 node 强杀', ms: 15000 },
-      { n: '删 C:\\WinVMBridge + workspaces（文件占用重试）', ms: 25000 },
+      { n: '删 C:\\WinVMBridge（实测 489 文件仅 1.1s）', ms: 1100 },
       { n: '清用户 PATH 条目 + side.json', ms: 6000 },
       { n: '段 8：杀孤儿上游进程 + npm uninstall -g ×2', ms: 12000 }
     ],
@@ -1073,12 +1082,22 @@ const UNDEPLOY = {
 
   u2c3: {
     code: '2c-3', name: '删程序目录（C:\\WinVMBridge）',
-    dur: T('25s', 25000),
-    summary: '删掉程序目录；--purge-workspace 时连 C:\\WinVMWorkspace 一起删。文件占用会重试，失败留 WARN 不阻断（终态复核会抓）。',
-    pre: ['进程已杀（否则文件占用）'],
+    dur: T('1.1s（实测 489 文件 / 7.3MB）', 1100),
+    summary: '<b>实测纠偏（2026-11-19）</b>：这里原来记 25s，但逐项测下来删除本身只要 <b>1.1s</b> —— 「递归删除慢」是个误判。'
+      + '删除耗时主要看<b>文件数</b>不是体积：489 文件 0.75~1.1s、5000 文件 9.5s。真实目录 489 文件，属于快的一档。'
+      + '那 25s 里绝大部分是前面的停服务/杀进程等待，被一并记到了这一段。',
+    pre: ['进程已杀 —— 这是唯一真正的门槛，见下'],
     cmds: [{ label: '删除', code: 'Remove-Item C:\\WinVMBridge -Recurse -Force -ErrorAction SilentlyContinue\n# --purge-workspace 时追加 C:\\WinVMWorkspace' }],
     scripts: [{ n: 'vm-remove-local.ps1', d: '段 4' }],
-    parts: [{ n: '递归删除（含 node_modules 大量小文件）', ms: 25000 }]
+    parts: [{ n: '递归删除（489 文件 / 7.3MB 实测 1.1s）', ms: 1100 }],
+    note: '<b>真正会失败/拖慢的情形（实测复现）</b>：服务还在跑时，3 个进程把 C:\\WinVMBridge 当工作目录 —— '
+      + 'vm-service node（cli.js --port 18443）、ps-bridge.ps1、start-hidden.ps1。此时 <code>Remove-Item -Recurse -Force</code> '
+      + '<b>静默失败</b>（脚本级 SilentlyContinue 吞掉错误），留下空目录骨架 <code>packages\\vm-service\\dist</code>，'
+      + '而 <code>cmd rmdir /s /q</code> 与 <code>[IO.Directory]::Delete</code> 同样删不掉。'
+      + '<br><b>回收站不是解药</b>：实测同规模目录丢回收站 <b>7.5s</b>（Shell.Application InvokeVerb），比直接删慢约 10 倍，'
+      + '且「移入回收站」对锁定目录一样失败。'
+      + '<br>⇒ 正解是<b>先确保进程真的退出</b>（等端口释放 + 确认 cwd 持有者已死），而不是换删除 API。',
+    fail: '删除失败不阻断（终态复核 2d 会抓残留）。但若见 <code>BRIDGE_DIR=True</code>，先查 cwd 持有者而不是换删除方式。'
   },
 
   u2c4: {

@@ -14,6 +14,7 @@
 - **通道后端默认必须 `auto`（不许退回 `key`）**：legacy 三层都是 `:-ssh2`；退化成 `key` ⇒ 鸿蒙宿主走 OpenSSH 二进制、认证段相位挂 `rc=124`、误报 `NO_CHANNEL`（同秒 `ssh2-conn.mjs ping`=pong ready + 裸 TCP 190ms 出 banner 即坐实）。门禁 `backend-default` + M16 双锁。
 - **`All configured authentication methods failed` = 钥配错，不是通道坏**：`ssh2-conn.mjs` 默认读 `~/.ssh/id_ed25519`；技能层 `_common.sh` 才统一 `WINVM_VM_KEY=$HOME/.ssh/id_ed25519_winvm`。**绕过 `_common.sh` 直调必须自己带该变量**（11-17 实测踩到）。
 - **载荷脚本必须 UTF-8 无 BOM，首行不许 `#requires`**（11-17 真机）：`-File` 解码时吞 BOM，`irm|iex` / `[scriptblock]::Create(<已解码串>)` 留着 BOM ⇒ 首行不再是指令 ⇒ `param` 脱离参数区 ⇒ 满屏「意外的属性 CmdletBinding / 意外的标记 param」，**脚本一行未执行**。另 `Invoke-RestMethod` 对 text/plain 可能返回 `string[]`，`Create` 会按 `$OFS` 拼成一行 ⇒ 1c 备选命令必须 `[string]::Join([char]10,@($s))`。门禁 `iex-safe` + M21/M22。
+- **`ps-run.sh` 载荷含任何非 ASCII 即被门禁拒（`NON_ASCII_PAYLOAD`），中文注释也算**（11-19 实测踩 3 次）：表现是**约 1.6s 就返回、零输出**，酷似「脚本跑了但结论正常」⇒ 极易把假空当实测结论。判据：总耗时远小于脚本该有的耗时（如造 5000 文件却 1.6s 结束）就先查 `NON_ASCII_PAYLOAD`。备用判据：`grep -a`（输出含 CLIXML 二进制，普通 grep 会静默漏）。
 - 远端壳双坑：Git-Bash/MSYS 路径转换 + Windows OpenSSH 出厂默认 cmd.exe（`ssh VM 'ver'` 出 Windows 版本行即 cmd.exe）。正解=复合逻辑 `.ps1→scp→powershell -File`、短片段 `-EncodedCommand`、写文件直 scp；**注释/文档文本也是断言输入面**；ASCII 载荷；杀隧道直 kill PID 勿 pkill -f。
 - 空密码网络登录=两层串联（PermitEmptyPasswords no + LimitBlankPasswordUse=1），建好免密立即回滚。
 - **大文档多轮 Edit 必静默缩水/回退**：改前 `git show HEAD:` 留基线；批量改=一次性脚本 + 每处 `assert count==1` + 不匹配整体拒写；写后 `wc -l` + 锚点 grep + 扫控制字符。
