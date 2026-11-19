@@ -868,18 +868,24 @@ const DEPLOY = {
   d4b2: {
     code: '4b·START', name: '[VM-START] 换实例 + 等端口监听',
     dur: T('43.2s（V1.4.34）', 43200),
-    summary: '结束旧服务实例 → 端口反查强杀 → 命令行签名清扫 → schtasks /run → 轮询到 18443 真的在听。<b>一旦短路 [VM]，这一段要不要跟着跳是需要拍板的第二个问题</b>：服务不重启就不会用上新内容，但「内容没变」时重启纯属浪费。',
+    summary: '结束旧服务实例 → <b>pid 快路精确查杀</b> → 端口反查强杀 → 命令行签名清扫兜底 → schtasks /run → 轮询到 18443 真的在听。'
+      + '<b>关于「这段为什么必须重启服务」</b>：服务不重启就不会加载新内容，所以只要落盘了新内容就必须重启 —— 这不是可省的开销，是正确性要求。'
+      + '（「内容没变就跳过整段」的想法已被否决：本技能面向新用户从零首装，没有可复用的缓存历史。）',
     pre: ['安装完成（4b·VM 已落盘）', '计划任务 WinVMBridge.Service 已注册'],
-    cmds: [{ label: '启动', code: 'schtasks /End /TN WinVMBridge.Service\nschtasks /Run /TN WinVMBridge.Service\n# 轮询 127.0.0.1:18443 直到监听（≤420s）' }],
+    cmds: [{ label: '启动', code: '# 方案 B：先按 pid 文件直杀（名字 + StartTime 双校验），再端口反查 + 签名清扫兜底\nschtasks /End /TN WinVMBridge.Service\nschtasks /Run /TN WinVMBridge.Service\n# 轮询 127.0.0.1:18443 直到监听（≤420s）' }],
     scripts: [{ n: 'delivery/setup.mjs', d: 'VM-START 相位' }, { n: 'ps-bridge.ps1', d: '服务主体（Session 1 / InteractiveToken）' }],
     parts: [
-      { n: '结束旧实例 + 端口强杀 + 签名清扫', ms: 11000 },
+      { n: '结束旧实例 + pid 快路 + 端口强杀 + 签名清扫', ms: 11000 },
       { n: 'schtasks /run + ps-bridge 冷启（provider 预热）', ms: 25000 },
       { n: '轮询发现延迟（3~5s 可压缩，收益不抵风险）', ms: 7200 }
     ],
     note: '<b>P16（v2.5.5 前）：清扫会把执行清扫的 powershell 自己杀掉。</b>按命令行签名匹配 powershell.exe，而当前这个 powershell 的命令行恰好含同样签名 ⇒ 自杀，183s 后报 VM_START_FAILED。'
-      + '<br>判据：日志里 `VM_START_SWEEP` 命中数必须为 <b>0</b>（P16 后真机实测 0），随后 `✅ VM 服务已监听 127.0.0.1:18443` 必须正常出现。',
+      + '<br>判据：日志里 `VM_START_SWEEP` 命中数必须为 <b>0</b>（P16 后真机实测 0），随后 `✅ VM 服务已监听 127.0.0.1:18443` 必须正常出现。'
+      + '<br><br><b>方案 B 的 pid 快路（2026-11-19）</b>：`Kill-PidFile` 先读 run/*.pid 直杀，签名清扫保留兜底（未落盘的进程只能靠它）。'
+      + '新增证据行：`VM_START_PID_KILL`（已杀）、`VM_START_PID_GONE`（进程本就不在，陈旧文件正常跳过）、'
+      + '`VM_START_PID_REUSED`（名字或 StartTime 不符 ⇒ <b>刻意不杀</b>，防 pid 复用误杀）。',
     fail: '>420s 未监听 = 僵尸服务壳，按 schtasks /End → /Run 处理。'
+      + '若日志出现 `VM_START_PID_REUSED` 而端口仍被占：说明 pid 文件陈旧且目标已是别的进程 —— 此时靠签名清扫兜底，不要放宽校验。'
   },
 
   d4b3: {
@@ -1072,12 +1078,17 @@ const UNDEPLOY = {
   u2c2: {
     code: '2c-2', name: '端口反查 + 僵尸进程强杀',
     dur: T('15s', 15000),
-    summary: '僵尸 node 进程的典型形态：不绑端口、taskkill 免疫、服务壳已死但进程还在。按 18443 反查 owner 再按命令行签名清扫，两步都要。',
+    summary: '僵尸 node 进程的典型形态：不绑端口、taskkill 免疫、服务壳已死但进程还在。按 18443 反查 owner 再按命令行签名清扫，两步都要。'
+      + '<br><br><b>方案 B 追加的 pid 快路（2026-11-19）</b>：先读 <code>C:\\WinVMBridge\\repo\\run\\{service,ps-bridge}.pid</code> 按 pid 直杀，'
+      + '再跑签名清扫兜底。pid 来自启动时的进程句柄（真相），不是扫描猜出来的 —— 签名清扫必须枚举全部进程、还可能误杀，pid 只要一次文件读取。'
+      + '<br><b>pid 复用防护是硬要求</b>：Windows 会回收 pid，陈旧 pid 文件可能指向无关新进程。'
+      + '故杀前做<b>名字 + StartTime 双重校验</b>（容差 2s），任一不符即<b>不动手</b>并打 SKIP。真机反证：伪造 5 小时前的 StartTime ⇒ 判定 BLOCK，确实没杀。',
     pre: ['服务已 End'],
-    cmds: [{ label: '反查 + 强杀', code: 'Get-NetTCPConnection -LocalPort 18443 → OwningProcess → Stop-Process -Force\nGet-CimInstance Win32_Process -Filter "Name=\'node.exe\'" → 按命令行签名匹配 → Invoke-CimMethod Terminate' }],
-    scripts: [{ n: 'vm-remove-local.ps1', d: '段 2~3' }],
-    parts: [{ n: 'TCP 表查询 + CIM 枚举 + Terminate', ms: 15000 }],
+    cmds: [{ label: '反查 + 强杀', code: '# 快路：pid 文件（名字 + StartTime 双校验后才动手）\nGet-Content run\\service.pid    → pid + StartTime(UTC ISO-8601) → 校验 → taskkill /T /F\nGet-Content run\\ps-bridge.pid → 同上\n# 兜底：签名清扫（覆盖从未落盘的进程）\nGet-CimInstance Win32_Process -Filter "Name=\'node.exe\'" → 命令行签名 → Invoke-CimMethod Terminate' }],
+    scripts: [{ n: 'vm-remove-local.ps1', d: '段 0b + 段 2（各一次）' }, { n: 'start-hidden.ps1', d: '写 service.pid' }, { n: 'ps-bridge.ts', d: '写 ps-bridge.pid' }],
+    parts: [{ n: 'pid 快路 + TCP 表查询 + CIM 枚举 + Terminate', ms: 15000 }],
     note: 'PS5.1 的 CIM 对象没有 .Terminate()，必须 Invoke-CimMethod -InputObject。'
+      + '<br>签名清扫<b>不能删</b>：pid 文件是我们自己写的旁路，历史上从没落过盘的进程只能靠签名兜底。两路并存，不是替换关系。'
   },
 
   u2c3: {
@@ -1087,8 +1098,8 @@ const UNDEPLOY = {
       + '删除耗时主要看<b>文件数</b>不是体积：489 文件 0.75~1.1s、5000 文件 9.5s。真实目录 489 文件，属于快的一档。'
       + '那 25s 里绝大部分是前面的停服务/杀进程等待，被一并记到了这一段。',
     pre: ['进程已杀 —— 这是唯一真正的门槛，见下'],
-    cmds: [{ label: '删除', code: 'Remove-Item C:\\WinVMBridge -Recurse -Force -ErrorAction SilentlyContinue\n# --purge-workspace 时追加 C:\\WinVMWorkspace' }],
-    scripts: [{ n: 'vm-remove-local.ps1', d: '段 4' }],
+    cmds: [{ label: '删除', code: 'Remove-Item C:\\WinVMBridge -Recurse -Force -ErrorAction Stop   # 现已 ErrorAction Stop\n# --purge-workspace 时追加 C:\\WinVMWorkspace' }],
+    scripts: [{ n: 'vm-remove-local.ps1', d: '段 3' }],
     parts: [{ n: '递归删除（489 文件 / 7.3MB 实测 1.1s）', ms: 1100 }],
     note: '<b>真正会失败/拖慢的情形（实测复现）</b>：服务还在跑时，3 个进程把 C:\\WinVMBridge 当工作目录 —— '
       + 'vm-service node（cli.js --port 18443）、ps-bridge.ps1、start-hidden.ps1。此时 <code>Remove-Item -Recurse -Force</code> '
@@ -1096,8 +1107,12 @@ const UNDEPLOY = {
       + '而 <code>cmd rmdir /s /q</code> 与 <code>[IO.Directory]::Delete</code> 同样删不掉。'
       + '<br><b>回收站不是解药</b>：实测同规模目录丢回收站 <b>7.5s</b>（Shell.Application InvokeVerb），比直接删慢约 10 倍，'
       + '且「移入回收站」对锁定目录一样失败。'
-      + '<br>⇒ 正解是<b>先确保进程真的退出</b>（等端口释放 + 确认 cwd 持有者已死），而不是换删除 API。',
-    fail: '删除失败不阻断（终态复核 2d 会抓残留）。但若见 <code>BRIDGE_DIR=True</code>，先查 cwd 持有者而不是换删除方式。'
+      + '<br>⇒ 正解是<b>先确保进程真的退出</b>（pid 快路 + 端口释放 + cwd 持有者已死），而不是换删除 API。'
+      + '<br><br><b>结论已改为可证伪（2026-11-19）</b>：原来裸调用 <code>Remove-Item</code> 且 <code>$ErrorActionPreference=\'Continue\'</code>，'
+      + '失败时<b>什么都不报</b>，日志显示「这步跑过了」而目录还在。现在 <code>-ErrorAction Stop</code> + try/catch 记异常，'
+      + '<b>删后必做 <code>Test-Path</code> 复验</b>：残留打 <code>[FAIL]</code> 并列出 <code>BRIDGE_HOLDER PID=</code>（谁在持有）'
+      + '与 <code>BRIDGE_RESIDUE_ITEMS=</code>（剩多少），成功打 <code>[OK]</code>。',
+    fail: '删除失败现在会显性 <code>[FAIL]</code>（旧版静默）。见 FAIL 时按 <code>BRIDGE_HOLDER</code> 逐 pid 查，而不是换删除方式。'
   },
 
   u2c4: {
