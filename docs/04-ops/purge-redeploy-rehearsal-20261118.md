@@ -170,6 +170,83 @@
   - 杀不掉时不再静默：`Rep 'KILLED_HOLDERS'` 与 `PARKED_<label>` 两行回执，让「谁被占了、几个文件被移到哪里」可追溯。
 - **教训**：Windows 上「访问被拒绝」有四种完全不同的成因（ACL / 句柄占用 / 僵尸残留 / 只读属性），**必须先用 Restart Manager 拿到持有者名单再动手**，否则 `rmdir /s /q` 会把它变成一条无信息的静默失败。
 
+### P12｜4a 只看 rc，「node 没装上」被报成 `[OK] 依赖就绪`（假绿）
+
+- **现象**（2026-11-19 10:48 真机，从零部署首跑）：
+  ```
+  10:47:38 ── [4a] prepare-vm --ensure-deps（node + codebuddy + 两上游全局 CLI）
+  [DB-3][MANUAL] zip install FAILED: 不能解析远程名称: 'cdn.npmmirror.com'
+  [DB-7][MANUAL] node missing; DB-3 must succeed first (npm comes with node)
+  10:48:37 [OK] 4a (59s) 依赖就绪        ← 假绿
+  ```
+  故障被推迟到 4b，以 `VM_START_FAILED exit=1` 的面目出现（服务起不来），4b 单相位烧 106s，归因成本极高。
+- **根因**：`deploy-4-vm.sh` 的 4a 判据只有 `[ $PRC -ne 0 ]`。但 `prepare-vm` 生成的 `.ps1` 在 DB-3/DB-7 失败时**只 `Write-Output "[MANUAL] ..."`，不 `exit 1`**（设计上是为了「一个依赖失败不阻断其他依赖」），于是 `bootstrap.mjs` 正常退出、rc=0 ⇒ 4a 报 PASS。
+- **为什么第一版没发现**：这个假绿只在「VM 缺 node」时触发，而之前的测试机都已有 node（装有 nvm），4a 永远是 `[SKIP]`。**只有「彻底卸载 → 从零」才会暴露** —— 这正是本轮演练的价值。
+- **处置**：
+  - 新增 `_deps_gap()` 扫日志文本：命中 `[DB-3][MANUAL]` / `[DB-7][MANUAL]` / `zip install FAILED` / `zip install ran but node still not on PATH` 任一 ⇒ 判失败；
+  - rc=0 但 `_deps_gap` 为真 ⇒ 先**有界重试一次**，仍缺则**兜底装 node**（P13），最后才 `st_end 1 FAIL "依赖缺件（rc=0 但日志报 MANUAL）"`；
+  - `die` 文案直指「ps1 不返非零」这个机制，避免下一个人再去查通道。
+- **教训**：**判据要锚定「结果」，不能锚定「退出码」** —— 当被调用方承诺「部分失败不阻断」时，rc 天然不能承载「整体是否达标」。凡是 `*.ps1` 用 `[MANUAL]`/`[WARN]` 表达未完成的地方，调用方都必须扫文本。
+
+### P13｜node zip 下载的瞬时失败没有重试，且原来的兜底会撞「文件被占用」
+
+- **现象一（瞬时失败）**：`[DB-3] zip install FAILED: 不能解析远程名称: 'cdn.npmmirror.com'`。
+  - 取证（VM 内，同一时刻）：`Resolve-DnsName` 六个域名全 OK（`cdn.npmmirror.com → 119.0.107.63,175.12.102.33`）；`Test-NetConnection` 到 443 三个全 True；`ProxyEnable=0`、WinHTTP 直连、`DefaultWebProxy` 正常。
+  - 取证（手工复现）：`Invoke-WebRequest` 对**同一条 URL** 一次成功，`bytes=37618919`（37.6MB 完整）。
+  - ⇒ 结论：**不是 DNS/代理/防火墙，是镜像侧的瞬时抖动**，而 DB-3 的 zip 分支**一次失败就放弃**（`catch { [MANUAL] ... }`）。
+- **现象二（兜底自身的坑）**：第一版兜底脚本（heredoc 内联）在真机暴露两个错误：
+  1. `Remove-Item $dst -Recurse` 遇到活的 `node.exe` 直接抛「文件正由另一进程使用」，`$ErrorActionPreference='Stop'` 让整个脚本中断；
+  2. `$tmp` 用固定名 `node-fallback.zip`，上次残留被占用 ⇒ 连**下载**都写不进去（`attempt=1` OK 之后 `attempt=1..3` 全 FAIL 同一句「正由另一进程使用」）。
+- **Restart Manager 取证（谁是占用者）**：
+  ```
+  target = C:\Users\User\AppData\Local\nodejs\node.exe   exists=True
+    PID=12904 APP=Node.js JavaScript Runtime TYPE=5
+    PID=10480 APP=XtaCache TYPE=3
+  --- delete probe ---  LOCKED（独占打开失败）
+  ```
+  `PID=12904` 的命令行 = `"C:\Users\User\AppData\Local\nodejs\node.exe" "C:\WinVMBridge\packages\vm-service\dist\cli.js" --host 127.0.0.1 ...` —— **WinVM 服务自己在用这个 node 跑**。
+  ⇒ 这不是 bug，是「node 正在服务」的正常状态；但意味着**任何「删掉 nodejs 目录再解压」的写法都会失败**。
+  附带确认：`schtasks /end` 报成功、进度计划任务状态变 Ready，**但 pid 12904 仍存活**（`/end` 结束的是任务实例，不是进程树），必须 `Invoke-CimMethod Terminate` 才真能释放（实测杀完 `NOW_FREE`，重启服务 36s 后 `health=200`）。
+- **处置**：
+  - DB-3 之外新增独立兜底 `scripts/node-zip-fallback.ps1`（纯 ASCII / 无 BOM，`__NODE_ZIP_VER__` 由 `deploy-4-vm.sh` 替换）：
+    - **下载重试 3 次**（每次 `Start-Sleep 5`），失败才 `GIVEUP`；
+    - `$tmp` 与 `$stage` 都带 `$PID` 后缀，**永不撞残留占用**；
+    - **逐文件复制**（不是整树 `Copy-Item -Recurse`，也不是先删再放）—— 见下条实测；
+    - 若 node 已在 ⇒ `[FB] node present ... [SKIP]`，幂等；
+  - 4a 侧：`_deps_gap` 命中即重试一次 prepare-vm（覆盖「镜像瞬时抖动」这一类），仍缺才调兜底，兜底成功后再跑一次 prepare-vm 让 DB-7 补三个 CLI。
+- **实测否证了两个我原本写进设计的假设**（值得单列 —— 都是「想当然 + 真机打脸」）：
+  - **假设一：删除不行但覆盖可以。**（P11 里 park 用的是改名，逻辑上覆盖应当被允许。）
+    真机结果：**覆盖同样被拒**，而且整树复制会**中断整个脚本**：
+    ```
+    [FB] download OK attempt=1 bytes=37618919
+    Copy-Item : 文件"C:\Users\User\AppData\Local\nodejs\node.exe"正由另一进程使用，
+                因此该进程无法访问此文件。
+    ```
+    ⇒ 映射中的镜像**既不能删、也不能盖**。正解不是「换一种删除方式」，而是「**逐文件 + 容忍失败**」。
+  - **假设二：「复制失败 = 整个兜底失败」。**
+    改成逐文件复制后的真机结果（同一台机器，node 仍被服务映射）：
+    ```
+    [FB] download OK attempt=1 bytes=37618919
+    [FB] copied=1993 skipped=1
+    [FB] SKIPPED(locked): node.exe
+    [FB] PATH user scope += C:\Users\User\AppData\Local\nodejs
+    [FB] node OK v24.21.0
+    ```
+    只跳过 `node.exe` 这 1 个文件，其余 **1993 个全部落位**，node 直接可用 ——
+    因为被锁的那个文件本来就在位（旧版 node.exe 仍在目录里，只是没在 PATH 上）。
+    ⇒ **「锁住的文件」和「缺失的文件」往往是互补的**：锁住说明它在，缺的是其余部分。
+  - ⇒ 最终形态：逐文件 `Copy-Item -LiteralPath`；单文件失败只记 `skipped` 不中断；
+    回执 `copied=N skipped=M` + `SKIPPED(locked): ...` 让「哪些没装上」可见；
+    若 `skipped` 含 `node.exe` 且 node 仍不可用 ⇒ 打印 **`RESCUE_NEEDS_IDLE`** + 两条可执行动作
+    （`schtasks /end` + 杀 pid、或经批准重启 VM），`exit 2`，而不是甩裸异常栈。
+  - 「PATH 里没有 node」**不等于**「`%LOCALAPPDATA%\nodejs` 是空的」—— 本次就是 PATH 被摘了、
+    而服务仍在跑同一份 node。这两个判据必须分开。
+- **教训**：
+  1. **「瞬时失败」与「配置错误」必须用并行取证分开** —— 同一 URL 手工能下、DNS/443/代理全绿，就能把 DNS 从嫌疑名单里划掉，不必去改 DNS；
+  2. **凡是「删目录再重建」的安装套路，在 Windows 上都要先问「目录里有进程在跑吗」**；而且**别以为覆盖就能绕过** —— 映射中的镜像两条路都堵死，正解是「逐文件 + 容忍失败 + 明确告知需要 idle」；
+  3. 临时文件名必须带 pid/时间戳。固定名 + 上次残留 = 一个必然复现的「假下载失败」，比真失败更难查；
+  4. **假设要真机证伪**：如果我按第一版 Copy-over 直接发布，兜底会在「服务正跑着 node」这个最常见场景下 100% 失败，而且是在 4a 已经报过一次 MANUAL 之后 —— 用户看到的是「兜底也失败」，比没有兜底更打击信任。
+
 ---
 
 ## 4. 阶段 B：从零前的通道重建（阻塞点）
@@ -221,7 +298,64 @@
 
 `DEPLOY=NEED_USER_ACTION rc=2`，命令现含 `ReadAllText(UTF8)` → `WriteAllText(UTF8Encoding($true))`（P9 修复已生效）。
 
-### 5.2 第 2~5 步（待用户粘贴命令后执行）
+### 5.2 第 2~5 步（V1.4.33，2026-11-19 10:47 首跑 → 11:53 收敛重跑）
+
+**包**：`release/V1.4.33/overall`（`version: V1.4.33` / `commit: 6a74bf6`），zip sha256 `24fe60c7…` 校验通过。
+**为什么用本地包**：gitee `releases/latest` 仍是 V1.4.32，而 V1.4.33 含 DB-7 四个 CLI 迁入 4a 等实改动 —— 必须让新代码进执行路径，正好复验 **P4**。
+
+#### 首跑（10:47:31 → 10:50:23，**4b FAIL**）
+
+| 环节 | 耗时 | 结果 |
+|---|---|---|
+| 1a 通道判定 | 1s | `channel=READY`（oneclick 已建好） |
+| 2a 取包 | 1s | 缓存命中，`ver=V1.4.33` ← **P4 通过** |
+| 2b MANIFEST 对账 | 1s | `RESULT: PASS` |
+| 2c 结构就位 | 0s | host 端 4 件齐 + `.env` |
+| 2d install-host | 1s | rc=0，`connector:winvm` / `winvm-a2a` 双断言 ✓ |
+| 2e host 判据 | 0s | `skills=10` |
+| 3a 对齐 identityFile | 0s | `id_ed25519_winvm` |
+| 3b 起隧道 | 1s | 已监听，SKIP restart |
+| 3c 验隧道 | 0s | `listen=yes daemon=yes health=000`（合法中间态） |
+| 4.0 通道门禁 | 1s | `channel=READY` |
+| **4a 依赖补齐** | **59s** | **声称 `[OK] 依赖就绪`，实为假绿（P12）** |
+| **4b VM 安装** | **106s** | **FAIL `VM_START_FAILED exit=1`**（node 缺失导致服务起不来） |
+| WALL | **172s** | 阶段 B 失败 |
+
+4a 的真相（从 `prepare-vm.log` 挖出来）：
+```
+[DB-3] winget had no effect (MSIX alias empty-shell over ssh?); falling back to zip install
+[DB-3][MANUAL] zip install FAILED: 不能解析远程名称: 'cdn.npmmirror.com' -- install Node >= 18 manually
+[DB-7][MANUAL] node missing; DB-3 must succeed first (npm comes with node)
+```
+⇒ 这就是 **P12（假绿）+ P13（瞬时失败无重试）** 的现场。
+
+#### 收敛重跑（11:53 → 12:02，**PASS**）
+
+| 环节 | 耗时 | 结果 |
+|---|---|---|
+| 4.0 通道门禁 | 1s | READY |
+| **4a 依赖补齐** | **177s** | `zip install OK v24.21.0` + 三 CLI `added 23 packages in 2m` 全 OK |
+| **4b VM 安装** | **165s** | `setup rc=0`，VM 服务监听 18443 |
+| **4c 七判据** | **50s** | `task_state=Running listen_count=1 health=200` `browser=33 desktop=25` |
+| WALL | **396s** | `DEPLOY=PASS` |
+
+第 5 步（`--only 5`，WALL 57s）：
+
+| 环节 | 耗时 | 结果 |
+|---|---|---|
+| 5 三探针 | 41s | `PROBES 34/34 SKIP=4`（mcp 20/20、a2a 4/4、example 10/10） |
+| 5d 终态矩阵 | 14s | `FRESH` SHA256 全一致 · `health=200` · `skills=10` · `task=Running listen=1 sshd=Running` |
+
+#### 复验结论
+
+- **P4 ✓**：`deploy-state.env` 里 `PKG_ROOT=.../overall-root/overall`、`PKG_VERSION=V1.4.33` —— 新代码确实在执行路径上（4a 真的跑了 DB-7 段，这是 V1.4.33 才有的）。
+- **P5 ✓**：`setup.log` 中 `DRY-RUN 只规划` 命中 **0** 次 —— 4b 没有走「0s PASS 零动作」的假绿路径。
+- **V1.4.33 的 DB-7 迁移 ✓**：4a 一次装齐 `codebuddy` + `agent-desktop` + `agent-browser`，4b 不再重复装，4c 直接读到 `browser=33 desktop=25`。
+- **`npm warn install-scripts` 不是缺陷**：核实到 `agent-browser/skill-data`（27 文件）+ `skills` 子目录都在，postinstall 已实际执行；npm 11 只是把「未登记 allowScripts」的提示提级成 warn。
+
+#### 一处遗留观察（非阻塞）
+
+`4a` 首跑 59s → 收敛后 177s，差异来自「这次真的要装 node + 三个 CLI」。等 node 装好后**再跑 4a 应全 `[SKIP]`**（幂等判据是 `Get-Command`），这条留给下一轮验证。
 
 ---
 
@@ -233,26 +367,39 @@
 | **`--purge-all` 全链（到裸机）** | **114s** | 3b SYSTEM post **34s** |
 | 其中 2e 运行时深清（单跑） | 28~36s | 三处 node 运行时 + 五个 CLI 断言 |
 | deploy 第 1 步（通道 DOWN） | **19s** | 1a 通道判定 15s |
+| **从零部署第 2~4 步首跑（4b FAIL）** | **172s** | 4b 106s（node 缺失→服务起不来） |
+| **从零部署第 4 步收敛** | **396s** | **4a 177s**（node zip 37.6MB + 三 CLI `npm i -g` 2m） |
+| 从零部署第 5 步 | **57s** | 三探针 41s |
+| **从零部署全链合计（1+4+5，不含人工粘贴）** | **≈ 630s** | 4a 177s + 4b 165s + 4c 50s |
 | deploy `--only 4`（v2.4.0 真机，参考） | 241s | 4b 推包 **149s** |
 | deploy `--only 5` | ~30s | 三探针 16s |
+
+**关键读数**：从零部署里 **4a 的 177s 是唯一的大头**，其中 node zip 下载 37.6MB + `npm i -g` 三个包（含两个 agent 上游，`added 23 packages in 2m`）。已有 node 的机器上 4a 应回落到十几秒（全 `[SKIP]`）—— 这是**一次性成本**，不是每轮成本。
 
 ---
 
 ## 7. 结论与待办
 
-**已闭环**：P1（v2.5.0 `--purge-all`）、P2~P8 全部修完；**P9（BOM 契约）、P10（第三个 node store）、P11（僵尸句柄）** 在本轮真机暴露并修完。
+**已闭环**：P1（v2.5.0 `--purge-all`）、P2~P8 全部修完；**P9（BOM 契约）、P10（第三个 node store）、P11（僵尸句柄）、P12（4a 假绿）、P13（node 兜底）** 在本轮真机暴露并修完。
 
-**门禁**：`SELFCHECK=ALL_GREEN checks=28 fails=0` / `MUTATION_RESULT=ALL_CAUGHT 45/45`（新增 `bom-contract` + M43/M44/M45）。
+**门禁**：`SELFCHECK=ALL_GREEN checks=30 fails=0` / `MUTATION_RESULT=ALL_CAUGHT 53/53`（新增 `deps-gap` 检查 + M49~M53）。
 
 **已完成的关键验证**：
 - ✅ `--purge-all` 真机 PASS，到裸机终态（VM 存活 + 22/18443/5985 全不可用 + 宿主侧零残留）；
 - ✅ 2e 五个 CLI 全 `MISSING`，三处运行时目录全消失；
 - ✅ BOM 归一化离线回环（`3c230a` → `efbbbf`）；
-- ✅ 第 1 步在通道 DOWN 时正确打印含 BOM 修复的命令（rc=2，WALL 19s）。
+- ✅ 第 1 步在通道 DOWN 时正确打印含 BOM 修复的命令（rc=2，WALL 19s）；
+- ✅ **从零部署全链 PASS**（第 4 步 396s + 第 5 步 57s，`PROBES 34/34`、`health=200`、`browser=33 desktop=25`）；
+- ✅ **P4 复验**：`PKG_VERSION=V1.4.33` 进 state，`PKG_ROOT` 指向新解出的层；
+- ✅ **P5 复验**：`setup.log` 无 `DRY-RUN 只规划`（0 次），4b 不是 0s 假绿；
+- ✅ **P12/P13 修复真机验证**：兜底逐文件复制 `copied=1993 skipped=1`（只跳过被映射的 node.exe）后 `node OK v24.21.0`。
 
 **待办**：
-1. 🔴 阶段 C 第 2~5 步未跑：需用户在 VM 粘一次命令（唯一人工步骤）。
-2. 卸载侧仍无「卸载后自动核对残留清单」的汇总行（现在靠 2d + 2e 两段分别断言）。
-3. `1a`/`3a` 在通道本就 DOWN 时要烧 15s（6s 建连窗 × 重试）。可考虑把窗降到 3s，收益约 8s，但要确认不误判「慢但活着」的通道。
-4. `C:\ProgramData\WinVMStale` 里被 park 的死镜像要等下次 VM 重启才清（已登记 `PendingFileRenameOperations`）；这是**故意**的 —— 绝不为了清一个文件而重启 VM。
-5. codebuddy 子进程（`codebuddy mcp remove`）没有被回收是 P11 的源头：4a 里凡是 `& codebuddy ...` 都要 `Wait-Process` + 超时，避免再留僵尸。
+1. 🔴 **4a 幂等复验未做**：node + 三 CLI 已装好，应再跑一次 `--only 4` 确认 4a 全 `[SKIP]` 且耗时回落到十几秒。这是「一次性成本 vs 每轮成本」的关键证据，下一轮必做。
+2. **P12 的根因在 prepare-vm 侧未动**：DB-3/DB-7 失败仍只打印 `[MANUAL]` 不 `exit 1`。当前靠 4a 扫文本兜住（已加门禁），但更干净的做法是让 `bootstrap.mjs` 在这些行出现时返回非零。改它要评估「部分失败不阻断」的既有语义，故本轮只加固调用方。
+3. **`AllowScripts` 显式登记**：`npm i -g` 时 npm 11 会把 `agent-browser`/`agent-desktop` 的 postinstall 提示成 warn（实际已执行）。可加 `--allow-scripts` 或 `npm config set allow-scripts=... --location=user` 消音，避免下一个人误判成「没装好」。
+4. 卸载侧仍无「卸载后自动核对残留清单」的汇总行（现在靠 2d + 2e 两段分别断言）。
+5. `1a`/`3a` 在通道本就 DOWN 时要烧 15s（6s 建连窗 × 重试）。可考虑把窗降到 3s，收益约 8s，但要确认不误判「慢但活着」的通道。
+6. `C:\ProgramData\WinVMStale` 里被 park 的死镜像要等下次 VM 重启才清（已登记 `PendingFileRenameOperations`）；这是**故意**的 —— 绝不为了清一个文件而重启 VM。
+7. codebuddy 子进程（`codebuddy mcp remove`）没有被回收是 P11 的源头：4a 里凡是 `& codebuddy ...` 都要 `Wait-Process` + 超时，避免再留僵尸。
+8. **发布未做**：技能 v2.5.3（含 P12/P13）需 `skill_dev.py release`；母项目 V1.4.33 需 `pack → push → publish --apply --mirror-gitee`（gitee latest 仍是 V1.4.32）。
