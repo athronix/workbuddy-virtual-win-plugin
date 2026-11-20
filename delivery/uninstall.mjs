@@ -1079,7 +1079,12 @@ async function printVerification(hostRoot, home, vm, purgeWorkspace, executed, h
   const portClosed = await checkPortClosed(SERVICE_PORT);
   rows.push([`HOST 127.0.0.1:${SERVICE_PORT} not listening`, portClosed, portClosed]);
 
-  if (vm) {
+  if (hostOnly) {
+    // 显式 host-only：VM 相位**按设计**不跑。必须在 `if (vm)` **之前**判断——
+    // 否则 vm 恰好可解析时会走进 VM 分支，去连 SSH 然后打一句误导性的
+    // "skipped (dry-run)"（实测踩到）。这里只记一条 informational 行，判 PASS。
+    rows.push(['VM side checks skipped by design (--host-only)', true, 'not executed']);
+  } else if (vm) {
     const vmPs1Out = executed ? lastVmPostStatus : null;
     // 迭代21 D-2：判据类 whoami 走双后端（async）
     const ssh = await sshPasswordlessOk(vm);
@@ -1110,12 +1115,8 @@ async function printVerification(hostRoot, home, vm, purgeWorkspace, executed, h
         rows.push(['VM C:/WinVMWorkspace purged (--purge-workspace)', get('WORKSPACE_DIR') === 'False', get('WORKSPACE_DIR')]);
       }
     } else {
-      rows.push(['VM side checks', executed, 'skipped (dry-run)']);
+      rows.push(['VM side checks', executed, 'skipped (VM phase did not execute)']);
     }
-  } else if (hostOnly) {
-    // 显式 host-only：VM 相位**按设计**不跑，这里不能判 FAIL（否则 11/11 全 PASS
-    // 却 exit 1 的老毛病换个地方复发）。仅记录一条 informational 行。
-    rows.push(['VM side checks skipped by design (--host-only)', true, 'not executed']);
   }
 
   let allOk = true;

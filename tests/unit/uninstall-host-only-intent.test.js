@@ -120,6 +120,19 @@ describe('接线守卫（防「函数对了但没接上」的假修复）', () =
     assert.match(SRC, /async function printVerification\([^)]*hostOnly = false\)/);
   });
 
+  test('host-only 分支必须排在 `if (vm)` 之前（否则会去连 SSH 并打误导的 dry-run 措辞）', () => {
+    const iHostOnly = SRC.indexOf("if (hostOnly) {\n    // 显式 host-only");
+    const iIfVm = SRC.indexOf('  } else if (vm) {', iHostOnly);
+    assert.ok(iHostOnly > 0, '未找到 host-only 复验分支');
+    assert.ok(iIfVm > iHostOnly, 'host-only 分支必须在前，vm 分支在后（else if）');
+    // 实测踩到的具体症状：--apply --host-only 却打 "skipped (dry-run)"
+    assert.doesNotMatch(
+      SRC,
+      /rows\.push\(\['VM side checks', executed, 'skipped \(dry-run\)'\]\)/,
+      '复验表仍在用 dry-run 措辞描述「VM 相位未执行」（--apply 时会误导）',
+    );
+  });
+
   test('help 文本写明 --host-only 与「不给则仍计失败」的区别', () => {
     assert.match(SRC, /--host-only\s+ONLY clean the host side/);
     assert.match(SRC, /still counts as ONE failure/);
