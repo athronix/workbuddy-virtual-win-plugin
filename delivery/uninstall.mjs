@@ -160,12 +160,13 @@ function backupFile(p, dryRun) {
 
 /* ------------------------------ CLI parsing ------------------------------ */
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const out = {
     apply: false,
     keepWorkspace: false,
     purgeWorkspace: false,
     keepKeys: false,
+    hostOnly: false,
     vmHost: process.env['WINVM_VM_HOST'] || undefined,
     vmUser: process.env['WINVM_VM_USER'] || undefined,
     vmSshPort: process.env['WINVM_VM_SSH_PORT'] ? Number(process.env['WINVM_VM_SSH_PORT']) : undefined,
@@ -179,6 +180,7 @@ function parseArgs(argv) {
       case '--keep-workspace': out.keepWorkspace = true; break;
       case '--purge-workspace': out.purgeWorkspace = true; break;
       case '--keep-keys': out.keepKeys = true; break;
+      case '--host-only': out.hostOnly = true; break;
       case '--vm-host': out.vmHost = argv[++i]; break;
       case '--vm-user': out.vmUser = argv[++i]; break;
       case '--vm-ssh-port': out.vmSshPort = Number(argv[++i]); break;
@@ -205,6 +207,12 @@ Options:
   --purge-workspace    ALSO delete C:/WinVMWorkspace (destructive).
   --keep-keys          No-op: SSH keys / authorized_keys / OpenSSH Server are
                        NEVER touched (OS level, not plugin deployment).
+  --host-only          ONLY clean the host side; the VM phase is skipped BY
+                       DESIGN and is not counted as a failure. Use this when the
+                       VM side is handled separately (e.g. deploy skill step 2)
+                       or the VM is already gone. Without it, an unresolvable VM
+                       target still counts as ONE failure and exits 1 — that is
+                       a real "I could not reach the VM" signal, not noise.
   --vm-host <ip>       VM address (default: env WINVM_VM_HOST > vm-conn.json).
   --vm-user <name>     VM user (default: env WINVM_VM_USER > vm-conn.json).
   --vm-ssh-port <n>    VM SSH port (default chain, fallback 22).
@@ -1033,7 +1041,7 @@ async function sshPasswordlessOk(vm) {
   return { ok: res.ok, output: (res.out || '').trim() };
 }
 
-async function printVerification(hostRoot, home, vm, purgeWorkspace, executed) {
+async function printVerification(hostRoot, home, vm, purgeWorkspace, executed, hostOnly = false) {
   const cacheWinvm = join(hostRoot, 'plugins', 'cache', 'winvm');
   const mkt = join(hostRoot, 'plugins', 'marketplaces', 'winvm');
   const connSkills = join(hostRoot, 'connectors', 'skills', 'connector-winvm');
@@ -1104,6 +1112,10 @@ async function printVerification(hostRoot, home, vm, purgeWorkspace, executed) {
     } else {
       rows.push(['VM side checks', executed, 'skipped (dry-run)']);
     }
+  } else if (hostOnly) {
+    // 显式 host-only：VM 相位**按设计**不跑，这里不能判 FAIL（否则 11/11 全 PASS
+    // 却 exit 1 的老毛病换个地方复发）。仅记录一条 informational 行。
+    rows.push(['VM side checks skipped by design (--host-only)', true, 'not executed']);
   }
 
   let allOk = true;
@@ -1119,6 +1131,45 @@ async function printVerification(hostRoot, home, vm, purgeWorkspace, executed) {
 /* ------------------------------ main ------------------------------ */
 
 let lastVmPostStatus = null;
+
+/**
+ * Decide what the VM phase should do, and whether "no VM" is a failure.
+ *
+ * Historical bug (fixed in V1.4.36): the VM phase was skipped whenever the target
+ * could not be resolved, and that skip unconditionally incremented `failures`.
+ * The deploy skill deliberately calls this script host-only (it hides .env and
+ * unsets WINVM_VM_HOST so step 2 owns the VM side), so every host-only run ended
+ * with "APPLY finished with 1 failure(s)" + exit 1 **while all 11 checks passed**.
+ * The skill had to paper over it by only trusting the HOST lines — i.e. the one
+ * number a human reads first was lying, the exact P18 shape.
+ *
+ * The fix distinguishes INTENT from ACCIDENT:
+ *   hostOnly=true            -> skip by design, NOT a failure
+ *   !hostOnly && no target   -> skip, still ONE failure (a real "cannot reach VM")
+ *   target resolved          -> run the VM phase, its own rc decides
+ *
+ * @returns {{ action: 'run'|'skip', countsAsFailure: boolean, note: string }}
+ */
+export function planVmPhase({ hostOnly = false, vm = null, dryRun = false } = {}) {
+  if (hostOnly) {
+    return {
+      action: 'skip',
+      countsAsFailure: false,
+      note: dryRun
+        ? 'host-only (--host-only): VM phase skipped by design (dry-run; not executed anyway)'
+        : 'host-only (--host-only): VM phase skipped by design',
+    };
+  }
+  if (!vm) {
+    return {
+      action: 'skip',
+      countsAsFailure: true,
+      note: 'no VM target resolved; pass --host-only if the VM side is handled elsewhere '
+        + '(otherwise pass --vm-host/--vm-user or restore vm-conn.json)',
+    };
+  }
+  return { action: 'run', countsAsFailure: false, note: '' };
+}
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -1176,7 +1227,8 @@ async function main() {
   cleanWinvmMarkerFiles(home, dryRun, log);
 
   /* ---------------- VM phase ---------------- */
-  if (vm) {
+  const vmPlan = planVmPhase({ hostOnly: args.hostOnly, vm, dryRun });
+  if (vmPlan.action === 'run') {
     console.log(`--- VM: ${vm.user}@${vm.host} (generated .ps1 pushed via scp) ---`);
     // 迭代21 D-2：runVmPhase 双后端化后为 async（内部 dry-run 仍仅 probe-only）
     const r = await runVmPhase(vm, { apply: !dryRun, purgeWorkspace: args.purgeWorkspace });
@@ -1188,12 +1240,14 @@ async function main() {
       }
     }
   } else {
-    console.log('--- VM: SKIPPED (no target resolved; pass --vm-host/--vm-user or restore vm-conn.json) ---');
-    failures++;
+    // 显式意图 vs 意外落空：只有后者计入失败（见 planVmPhase 的注释）。
+    const tag = vmPlan.countsAsFailure ? '[WARN]' : '[SKIP]';
+    console.log(`--- VM: SKIPPED ${tag} ${vmPlan.note} ---`);
+    if (vmPlan.countsAsFailure) failures++;
   }
 
   /* ---------------- verification ---------------- */
-  const verified = await printVerification(hostRoot, home, vm, args.purgeWorkspace, !dryRun);
+  const verified = await printVerification(hostRoot, home, vm, args.purgeWorkspace, !dryRun, args.hostOnly);
 
   console.log('');
   if (dryRun) {
