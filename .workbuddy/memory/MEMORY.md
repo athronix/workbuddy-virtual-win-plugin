@@ -38,17 +38,19 @@
 - 团队派发：fresh Agent + 窄任务书 + 即 commit + 按 HEAD 独立核验；worker 静默 20min 熔断。
 - 发布顺序：pack → push origin → push gitee main+tag → `publish --apply --mirror-gitee`；**tag 打在 pack 提交**，不是 pack 后的 HEAD；旧包 `release/V<ver>.superseded-itN`；每迭代 `--wipe` 重验。
 
-## 当前态（2026-11-20 10:30）
-- **母项目线上 V1.4.35**（tag `V1.4.35`=`edb54a2`，双端一致）：overall 1029 文件/8460K / sha256 `8c36942549ebc75c…`；overall-zip 3269K / sha256 `8baf768659040285…`；deploy-skill-zip 229K/31 文件。GitHub 4 资产（overall asset 770108200）+ Gitee release id=1334427。内容 = **pid 方案 B 首次进包**（此前 `8ce817d` 只停在源码层，V1.4.34 包内没有）。
-- **技能仓 main = v2.5.6**（tag 由 `skill_dev.py release` 创建；marketplace **已追平 2.5.6**；Gitee 镜像 HEAD `737e2fed`）。5 步部署 + 3 步卸载。
-  - **门禁 `ALL_GREEN checks=33 fails=0` / `ALL_CAUGHT 59/59`**。
-  - v2.5.6 内容：`vm-remove-local.ps1` 补齐 pid 精确查杀 + 删除失败可证伪（此前头注释自称 mirror uninstall.mjs 却落后一整段）；新增门禁 `uninstall-parity`（两边能力不对齐当场变红）；排错表补 4 条（`BRIDGE_HOLDER` / `no pid file` 属正常 / pid reuse guard / `VM_START_PID_REUSED`）。
-- **11-20 全量卸载重装真机**：`UNDEPLOY=PASS`（79s，host/vm 双净），`DEPLOY=PASS` WALL **376s**（4a=84s / 4b=173s / 4c=46s / 5=43s / 5d=14s），`VERIFY=PASS`，browser=33 desktop=25，探针 34/34 SKIP=4，health=200。
-  - **pid 方案 B 生产判据全绿**：`C:\WinVMBridge\run\service.pid` PID 3928=`node`（**正是 18443 占用者**）/ `ps-bridge.pid` PID 9888=`powershell`，均 LINES=2、`STARTTIME_DELTA=0`；卸载 DRY-RUN 走快路命中，不再全表扫描。
+## 当前态（2026-11-20 11:30）
+- **母项目线上 V1.4.37**（tag `V1.4.37`=`6665263`，双端一致）：overall 1029 文件/8670530B / sha256 `ee40c85b…`；overall-zip 3350439B / sha256 `a35a37db…`；deploy-skill-zip 231K/31 文件。GitHub 4 资产（overall asset 770250597）+ Gitee release id=1334650。内容 = pid 方案 B + `--host-only` 语义 + **复验分支前移**（V1.4.36 只修了计数，V1.4.37 才修掉 `--apply --host-only` 下误打 `skipped (dry-run)`）。
+- **技能仓 main = v2.5.8**（tag 由 `skill_dev.py release` 创建；marketplace **已追平 2.5.8**；Gitee 镜像 HEAD `5f2e6b86`）。5 步部署 + 3 步卸载。
+  - **门禁 `ALL_GREEN checks=34 fails=0` / `ALL_CAUGHT 61/61`**。
+  - v2.5.6：`vm-remove-local.ps1` 补齐 pid 精确查杀 + 删除失败可证伪；门禁 `uninstall-parity`。v2.5.7：1b 显式传 `--host-only` + 门禁 `host-only-intent`。v2.5.8：**仅排错表**（V1.4.36 的 `skipped(dry-run)` 误导文案说明），代码零变更 —— 因 V1.4.37 是纯母项目侧修复。
+- **11-20 全量卸载重装真机（V1.4.37 + v2.5.8）**：`UNDEPLOY=PASS` 48s（`HOST_PASS=11 HOST_FAIL=0 uninstall_rc=0 host_only_ack=1`）、`DEPLOY=PASS` WALL **303s**（4b=156s 为单点最大）、`VERIFY=PASS`，browser=33 desktop=25，探针 34/34 SKIP=4，health=200。证据 `qa/real-test-2026-11-20-v1437.md`。
+  - **host-only 修复三条判据**：`[SKIP] host-only: VM phase skipped by design` + `[PASS] VM side checks skipped by design (--host-only)`（**不再打 `skipped (dry-run)`**）+ `uninstall_rc=0 / host_only_ack=1`。
+  - **四态直证**：`host-only+有目标=skip/false`、`host-only+无目标=skip/false`、`无开关+无目标=skip/true`、`无开关+有目标=run/false`。
+  - **pid 方案 B 回归**：`service.pid` PID 7576=`node`（**等于 18443 占用者**，DELTA=0）/ `ps-bridge.pid` PID 7624=`powershell`（DELTA≈0.09s，2s 容差内）。
 - **待办**：
   1. ~~`4b` 加「内容未变则短路」~~ **已否决（11-19 用户裁定）**：本技能面向**新用户从零首装**，无缓存历史可复用，短路只利好开发者重跑。
   2. ~~卸载/重启「猜进程」~~ **已落地并生产验证（11-20）**：启动落 `run/{service,ps-bridge}.pid`（pid + StartTime UTC ISO-8601 两行）→ 卸载/VM-START **pid 快路 + 签名兜底双路**，杀前 **名字 + StartTime(2s) 双校验**防 pid 复用。门禁 `pid-file-precision-kill.test.js` 29 用例 + 4 处突变反证。
-  3. **`delivery/uninstall.mjs:1190-1193` 待修**：`vm` 为 null（host-only 调用）时 `else { failures++ }` 把「VM 相位本就该跳过」计成失败，导致 11 项全 PASS 却打 `APPLY finished with 1 failure(s)` + `uninstall_rc=1`。skill 侧 `undeploy-1-host.sh:70` 已绕过（只按 HOST 行判定，流程报 PASS 正确），但母项目那行应改成只在非 host-only 时计数。**同类 P18 形态：计数与真实结果不一致，专坑最该看清的那一行。**
+  3. ~~`uninstall.mjs` host-only 误报失败~~ **已修并真机验证（11-20）**：V1.4.36 加 `--host-only` + `planVmPhase`（修计数），V1.4.37 把 `if (hostOnly)` 前移到 `if (vm)` 之前（修分支顺序 + 措辞）。
   4. 小项：QA-PROBE 两次 scp + MANIFEST 写两遍（日志重复两行）≈ -5s；4a 的 `--apply` 段 43s 未拆；VM-START 轮询细化 -3~5s（收益不抵风险）。
   5. 上游 `npm i -g` 首装 47.9s：不需要时 `SKIP_UPSTREAMS=1`。
   6. 第 1 步「从零通道」真实演练（1p 的 S1 是直调载荷验证 + 口令错误/空口令降级验证，**未在真·从零机器上端到端跑过**）；低优：codebuddy 交互登录、CLIXML 噪音、pkg-root bash 冒烟、Task #201 symlink 化。
@@ -64,4 +66,8 @@
   - **runDir 实际是 `C:\WinVMBridge\run`，不是 `repo\run`**：手工取证两处都要试，只探 `repo\run` 会得到「RUNDIR_EXISTS=False + 两个 MISSING」，极易误判成「方案没生效」。
   - **`node --test` 汇总行是 `ℹ pass N` / `ℹ fail N`，不是 `# pass N`**：用错正则得空串或假 0（11-20 踩过 `not_ok=0` 假阴性）；门禁归因用 `git worktree add --detach <tmp> <tag>` 比 stash 干净。
   - **`uninstall.mjs` 只在 overall 包、不在 vm 包**（宿主驱动）：在 `release/<ver>/vm/delivery/` 找不到属正常，别当缺件。
+  - **加开关 ≠ 开关生效**：`planVmPhase` 决策写对了，但 `printVerification` 里 `if (vm)` 排在 `hostOnly` 之前 ⇒ 生产机 `vm-conn.json` 存在时仍走 VM 分支去连 SSH，再落 `else` 打出与 `--apply` 自相矛盾的 `skipped (dry-run)`。**接线顺序必须单测钉死**（`assert SRC.indexOf('if (hostOnly)') < SRC.indexOf('else if (vm)')`）。
+  - **门禁查子串会假绿**：`--host-only` 同时出现在调用行 / 判据行（`awk`）/ 诊断行（`grep -E`），删掉调用处的开关后子串仍命中 ⇒ 突变 M60/M61 双 `[MISSED]`。必须锚定实际调用行 `re.search(r'delivery/uninstall\.mjs\s+--apply\s+--host-only', body)`。另：脚本里 awk 正则是 `'\[PASS\] HOST'`（带反斜杠），按字面 `'[PASS] HOST'` 匹配永远失败。
+  - **包根的 `.env` 会带 `VM_HOST`**：`env -u WINVM_VM_HOST` 屏蔽不掉，用例仍走 VM 分支。优先级 `--vm-host` > env > `vm-conn.json` > 项目 `.env`（`uninstall.mjs:58/216`）。
+  - **`ps-run.sh` 签名是 `ps-run.sh <local.ps1> [out]`，没有 `-File`**：加 `-File` 会被当文件名（`PS 文件不存在：-File`）。载荷必须纯 ASCII（中文注释也算），`perl -ne 'print ... if /[^\x00-\x7F]/'` 自查。
 - **合并口径**：`Documents/Projects` 与 `Documents/projects` 同 inode；hos 无 assets/templates；运行期状态目录 `$HOME/.workbuddy/.state/hos-winvm-ssh-tunnel/` 刻意共用。
