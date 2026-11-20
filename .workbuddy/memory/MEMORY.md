@@ -38,19 +38,21 @@
 - 团队派发：fresh Agent + 窄任务书 + 即 commit + 按 HEAD 独立核验；worker 静默 20min 熔断。
 - 发布顺序：pack → push origin → push gitee main+tag → `publish --apply --mirror-gitee`；**tag 打在 pack 提交**，不是 pack 后的 HEAD；旧包 `release/V<ver>.superseded-itN`；每迭代 `--wipe` 重验。
 
-## 当前态（2026-11-18 11:55）
-- **母项目线上 V1.4.32**（tag `V1.4.32`=`e63300e`，双端一致）：overall 3285135B / sha256 `018f8ff4…`；GitHub 4 资产（overall asset 761824572）+ Gitee release id=1322433。内容 = 桌面白名单 **10→25**、两个上游技能面、`uninstall` 键表修复、4a 合并探测 + 上游 npm 合并 + PATH 单次 PS + **防火墙注册表直读**。
-- **技能仓 main = v2.3.0**（tag 由 `skill_dev.py release` 创建；marketplace **已追平 2.3.0**；Gitee 镜像 HEAD `ab02cfa2`），包 **28 文件/184K**。5 步部署（4 步含 4d、5 步含 5e）+ 3 步卸载。
-  - **门禁 `ALL_GREEN checks=25 fails=0` / `ALL_CAUGHT 29/29`**。
-- **1p 三级策略（v2.3.0）**：准入只看「能登录」（口令 **或** 空口令 `WINVM_SSH_PASSWORD_EMPTY=1`）→ `net session` 判身份选授权文件（管理员→`%ProgramData%\ssh\administrators_authorized_keys`；否则→用户级 `.ssh`）→ **ACL 用 SID、不重启 sshd** ⇒ S1 约 3~5s 不断连；S1 回验不通过才 S2 oneclick；仍不通 S3 退 2 回人工 1c。
-- **11-18 真机**：`deploy.sh --only 4` → `DEPLOY=PASS` WALL **323s**（4.0=2s / 4a=60s / **4b=218s**[VM 155.7+VM-START 47.3+QA-PROBE 14.8] / 4c=34s / 4d=8s，**desktop=25** 已确认）。
+## 当前态（2026-11-20 10:30）
+- **母项目线上 V1.4.35**（tag `V1.4.35`=`edb54a2`，双端一致）：overall 1029 文件/8460K / sha256 `8c36942549ebc75c…`；overall-zip 3269K / sha256 `8baf768659040285…`；deploy-skill-zip 229K/31 文件。GitHub 4 资产（overall asset 770108200）+ Gitee release id=1334427。内容 = **pid 方案 B 首次进包**（此前 `8ce817d` 只停在源码层，V1.4.34 包内没有）。
+- **技能仓 main = v2.5.6**（tag 由 `skill_dev.py release` 创建；marketplace **已追平 2.5.6**；Gitee 镜像 HEAD `737e2fed`）。5 步部署 + 3 步卸载。
+  - **门禁 `ALL_GREEN checks=33 fails=0` / `ALL_CAUGHT 59/59`**。
+  - v2.5.6 内容：`vm-remove-local.ps1` 补齐 pid 精确查杀 + 删除失败可证伪（此前头注释自称 mirror uninstall.mjs 却落后一整段）；新增门禁 `uninstall-parity`（两边能力不对齐当场变红）；排错表补 4 条（`BRIDGE_HOLDER` / `no pid file` 属正常 / pid reuse guard / `VM_START_PID_REUSED`）。
+- **11-20 全量卸载重装真机**：`UNDEPLOY=PASS`（79s，host/vm 双净），`DEPLOY=PASS` WALL **376s**（4a=84s / 4b=173s / 4c=46s / 5=43s / 5d=14s），`VERIFY=PASS`，browser=33 desktop=25，探针 34/34 SKIP=4，health=200。
+  - **pid 方案 B 生产判据全绿**：`C:\WinVMBridge\run\service.pid` PID 3928=`node`（**正是 18443 占用者**）/ `ps-bridge.pid` PID 9888=`powershell`，均 LINES=2、`STARTTIME_DELTA=0`；卸载 DRY-RUN 走快路命中，不再全表扫描。
 - **待办**：
   1. ~~`4b` 加「内容未变则短路」~~ **已否决（11-19 用户裁定）**：本技能面向**新用户从零首装**，无缓存历史可复用，短路只利好开发者重跑。
-  2. ~~卸载/重启「猜进程」~~ **已落地 pid 方案 B（11-19，commit `8ce817d`）**：启动落 `run/{service,ps-bridge}.pid`（pid + StartTime UTC ISO-8601 两行）→ 卸载/VM-START **pid 快路 + 签名兜底双路**，杀前 **名字 + StartTime(2s) 双校验**防 pid 复用。真机全链路验证通过（DELTA=0s / 假 StartTime 触发 BLOCK / 陈旧文件安全跳过）。门禁 `pid-file-precision-kill.test.js` 29 用例 + 4 处突变反证。
-  3. 小项：QA-PROBE 两次 scp + MANIFEST 写两遍（日志重复两行）≈ -5s；4a 的 `--apply` 段 43s 未拆；VM-START 轮询细化 -3~5s（收益不抵风险）。
-  4. 上游 `npm i -g` 首装 47.9s：不需要时 `SKIP_UPSTREAMS=1`。
-  5. 第 1 步「从零通道」真实演练（1p 的 S1 是直调载荷验证 + 口令错误/空口令降级验证，**未在真·从零机器上端到端跑过**）；低优：codebuddy 交互登录、CLIXML 噪音、pkg-root bash 冒烟、Task #201 symlink 化。
-  6. **idle 小项（11-19 发现，未改）**：自检重试策略（「首给 60s」替代「失败 5s 重试」）、4c 加「真调用一个 L0 能力」断言 —— **用户明确裁定不改**。
+  2. ~~卸载/重启「猜进程」~~ **已落地并生产验证（11-20）**：启动落 `run/{service,ps-bridge}.pid`（pid + StartTime UTC ISO-8601 两行）→ 卸载/VM-START **pid 快路 + 签名兜底双路**，杀前 **名字 + StartTime(2s) 双校验**防 pid 复用。门禁 `pid-file-precision-kill.test.js` 29 用例 + 4 处突变反证。
+  3. **`delivery/uninstall.mjs:1190-1193` 待修**：`vm` 为 null（host-only 调用）时 `else { failures++ }` 把「VM 相位本就该跳过」计成失败，导致 11 项全 PASS 却打 `APPLY finished with 1 failure(s)` + `uninstall_rc=1`。skill 侧 `undeploy-1-host.sh:70` 已绕过（只按 HOST 行判定，流程报 PASS 正确），但母项目那行应改成只在非 host-only 时计数。**同类 P18 形态：计数与真实结果不一致，专坑最该看清的那一行。**
+  4. 小项：QA-PROBE 两次 scp + MANIFEST 写两遍（日志重复两行）≈ -5s；4a 的 `--apply` 段 43s 未拆；VM-START 轮询细化 -3~5s（收益不抵风险）。
+  5. 上游 `npm i -g` 首装 47.9s：不需要时 `SKIP_UPSTREAMS=1`。
+  6. 第 1 步「从零通道」真实演练（1p 的 S1 是直调载荷验证 + 口令错误/空口令降级验证，**未在真·从零机器上端到端跑过**）；低优：codebuddy 交互登录、CLIXML 噪音、pkg-root bash 冒烟、Task #201 symlink 化。
+  7. **idle 小项（11-19 发现，未改）**：自检重试策略（「首给 60s」替代「失败 5s 重试」）、4c 加「真调用一个 L0 能力」断言 —— **用户明确裁定不改**。
 - **坑**：
   - `skill_dev.py release` 自己建 tag，**先手动打 tag 会报 `tag already exists — bump frontmatter version`**（正确顺序：commit/push → release 建 tag）。
   - 项目门禁 `RED` 要先做 `git stash` 归因实验；**11-19 复测基线仍是 5 文件/17 项**（`p8-probe-fresh` 11、`r19c-kn1-e-mutation` 3、`r19c-kn1-e-shape` 1、`phase2-snapshot-truth` 1、`phase3-skill-claims-guard` 1），均为既有失败，**改动后必须逐一比对失败清单而非只看 VERDICT**。
@@ -58,4 +60,8 @@
   - **生成器里禁用 posix `dirname` 处理 Windows 路径**：不识别反斜杠，`C:\a\b\x.json` 被当单段文件名 ⇒ 算出相对 `'run'`。用分隔符自适应字符串剥离。
   - **改生成的 .ps1 必须先在 VM 上做只读语法解析**（`[Parser]::ParseFile`）再真跑，避免语法错误让服务起不来。
   - **突变反证时若目标行内含 `'...'`，字符串 replace 易破坏 JS 语法**（整文件报错=无效突变），改用**行级交换**。
+  - **`deploy.sh` 装的是 release tag 里的包，不是工作区源码**：改完码到真机验证之间**必须先发版**。11-20 险些白装一轮 —— pid 方案 B 三个提交都在 V1.4.34 之后却未发版，直接重装拿到的是旧包。
+  - **runDir 实际是 `C:\WinVMBridge\run`，不是 `repo\run`**：手工取证两处都要试，只探 `repo\run` 会得到「RUNDIR_EXISTS=False + 两个 MISSING」，极易误判成「方案没生效」。
+  - **`node --test` 汇总行是 `ℹ pass N` / `ℹ fail N`，不是 `# pass N`**：用错正则得空串或假 0（11-20 踩过 `not_ok=0` 假阴性）；门禁归因用 `git worktree add --detach <tmp> <tag>` 比 stash 干净。
+  - **`uninstall.mjs` 只在 overall 包、不在 vm 包**（宿主驱动）：在 `release/<ver>/vm/delivery/` 找不到属正常，别当缺件。
 - **合并口径**：`Documents/Projects` 与 `Documents/projects` 同 inode；hos 无 assets/templates；运行期状态目录 `$HOME/.workbuddy/.state/hos-winvm-ssh-tunnel/` 刻意共用。
