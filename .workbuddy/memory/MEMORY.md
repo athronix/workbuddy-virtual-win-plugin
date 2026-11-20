@@ -38,15 +38,23 @@
 - 团队派发：fresh Agent + 窄任务书 + 即 commit + 按 HEAD 独立核验；worker 静默 20min 熔断。
 - 发布顺序：pack → push origin → push gitee main+tag → `publish --apply --mirror-gitee`；**tag 打在 pack 提交**，不是 pack 后的 HEAD；旧包 `release/V<ver>.superseded-itN`；每迭代 `--wipe` 重验。
 
-## 当前态（2026-11-20 11:30）
+## 当前态（2026-11-20 12:40）
 - **母项目线上 V1.4.37**（tag `V1.4.37`=`6665263`，双端一致）：overall 1029 文件/8670530B / sha256 `ee40c85b…`；overall-zip 3350439B / sha256 `a35a37db…`；deploy-skill-zip 231K/31 文件。GitHub 4 资产（overall asset 770250597）+ Gitee release id=1334650。内容 = pid 方案 B + `--host-only` 语义 + **复验分支前移**（V1.4.36 只修了计数，V1.4.37 才修掉 `--apply --host-only` 下误打 `skipped (dry-run)`）。
-- **技能仓 main = v2.5.8**（tag 由 `skill_dev.py release` 创建；marketplace **已追平 2.5.8**；Gitee 镜像 HEAD `5f2e6b86`）。5 步部署 + 3 步卸载。
-  - **门禁 `ALL_GREEN checks=34 fails=0` / `ALL_CAUGHT 61/61`**。
-  - v2.5.6：`vm-remove-local.ps1` 补齐 pid 精确查杀 + 删除失败可证伪；门禁 `uninstall-parity`。v2.5.7：1b 显式传 `--host-only` + 门禁 `host-only-intent`。v2.5.8：**仅排错表**（V1.4.36 的 `skipped(dry-run)` 误导文案说明），代码零变更 —— 因 V1.4.37 是纯母项目侧修复。
+- **技能仓 main = v2.5.9**（tag 由 `skill_dev.py release` 创建；marketplace **已追平 2.5.9**；Gitee 镜像 HEAD `ecab6b51`）。5 步部署 + 3 步卸载。
+  - **门禁 `ALL_GREEN checks=35 fails=0` / `ALL_CAUGHT 66/66`**。
+  - v2.5.6：`vm-remove-local.ps1` 补齐 pid 精确查杀 + 删除失败可证伪；门禁 `uninstall-parity`。v2.5.7：1b 显式传 `--host-only` + 门禁 `host-only-intent`。v2.5.8：仅排错表（V1.4.36 的 `skipped(dry-run)` 说明）。**v2.5.9：零配置上手**（见下）。
+- **v2.5.9 零配置口径（用户裁定「新鸿蒙机一条命令就够」）**：
+  - `VM_HOST` 默认 **172.16.100.2**、`VM_USER` 默认 **User**、**默认无密码**（`WINVM_SSH_DEFAULT_EMPTY=1`）。
+  - `WINVM_PASSWORD_FILE` 默认 **`~/.winvm-pass`**（**文件存在才生效**，不存在保持空值；脚本只读不写）。
+  - 临时目录唯一来源 `vm_tmpdir()` = `${TMPDIR:-$HOME/wbtmp}`，**全仓禁裸 `/tmp`**（鸿蒙 `/tmp` 只读，curl 报 23，报错像网络问题）。
+  - **新机首跑就是裸 `bash scripts/deploy.sh`，不加任何参数**；收尾只有 `DEPLOY=PASS` / `NEED_USER_ACTION rc=2`（去 VM 粘一条命令后重跑）/ `FAIL rc=1`（读四元组→`--only <步>` 定点重试）。
+  - **只在三种情况问用户**：rc=1 且处置指向 VM 不可达 / rc=2 且用户说这台有密码 / 用户明说换机器。**不许一上来就问 IP**。
+  - 门禁 `zero-config` 钉死上述全部 + SKILL.md 口径段（M62~M66 覆盖）。
 - **11-20 全量卸载重装真机（V1.4.37 + v2.5.8）**：`UNDEPLOY=PASS` 48s（`HOST_PASS=11 HOST_FAIL=0 uninstall_rc=0 host_only_ack=1`）、`DEPLOY=PASS` WALL **303s**（4b=156s 为单点最大）、`VERIFY=PASS`，browser=33 desktop=25，探针 34/34 SKIP=4，health=200。证据 `qa/real-test-2026-11-20-v1437.md`。
   - **host-only 修复三条判据**：`[SKIP] host-only: VM phase skipped by design` + `[PASS] VM side checks skipped by design (--host-only)`（**不再打 `skipped (dry-run)`**）+ `uninstall_rc=0 / host_only_ack=1`。
   - **四态直证**：`host-only+有目标=skip/false`、`host-only+无目标=skip/false`、`无开关+无目标=skip/true`、`无开关+有目标=run/false`。
   - **pid 方案 B 回归**：`service.pid` PID 7576=`node`（**等于 18443 占用者**，DELTA=0）/ `ps-bridge.pid` PID 7624=`powershell`（DELTA≈0.09s，2s 容差内）。
+- **v2.5.9 真机**：裸跑 `deploy.sh`（零参数）→ `DEPLOY=PASS` WALL_S=302。
 - **待办**：
   1. ~~`4b` 加「内容未变则短路」~~ **已否决（11-19 用户裁定）**：本技能面向**新用户从零首装**，无缓存历史可复用，短路只利好开发者重跑。
   2. ~~卸载/重启「猜进程」~~ **已落地并生产验证（11-20）**：启动落 `run/{service,ps-bridge}.pid`（pid + StartTime UTC ISO-8601 两行）→ 卸载/VM-START **pid 快路 + 签名兜底双路**，杀前 **名字 + StartTime(2s) 双校验**防 pid 复用。门禁 `pid-file-precision-kill.test.js` 29 用例 + 4 处突变反证。
@@ -70,4 +78,10 @@
   - **门禁查子串会假绿**：`--host-only` 同时出现在调用行 / 判据行（`awk`）/ 诊断行（`grep -E`），删掉调用处的开关后子串仍命中 ⇒ 突变 M60/M61 双 `[MISSED]`。必须锚定实际调用行 `re.search(r'delivery/uninstall\.mjs\s+--apply\s+--host-only', body)`。另：脚本里 awk 正则是 `'\[PASS\] HOST'`（带反斜杠），按字面 `'[PASS] HOST'` 匹配永远失败。
   - **包根的 `.env` 会带 `VM_HOST`**：`env -u WINVM_VM_HOST` 屏蔽不掉，用例仍走 VM 分支。优先级 `--vm-host` > env > `vm-conn.json` > 项目 `.env`（`uninstall.mjs:58/216`）。
   - **`ps-run.sh` 签名是 `ps-run.sh <local.ps1> [out]`，没有 `-File`**：加 `-File` 会被当文件名（`PS 文件不存在：-File`）。载荷必须纯 ASCII（中文注释也算），`perl -ne 'print ... if /[^\x00-\x7F]/'` 自查。
+  - **门禁查「次数」会随代码增长而假绿**：`password-bootstrap` 原本只数 `WINVM_SSH_PASSWORD_EMPTY=1` 出现 ≥2 次，我加了第三处（默认空口令）后，**抹掉 tty 那条仍够 2 次** ⇒ M28 变假绿。凡「必须两处都有」的断言，一律逐条锚定各自独有的**代码**上文，不要数次数。
+  - **`strip_comments` 会剥掉注释**：拿「直接回车」这类只存在于注释里的字样当锚点，正则永远匹配不到（本轮踩到，门禁误报红）。
+  - **`/tmp` 扫描正则不能带尾斜杠**：`/tmp/` 抓不到 `cd /tmp &&`（行尾写法才是典型踩坑形态），用 `(?![\w-])`。
+  - **聚合仓 `athronix/skills` 推送需专用钥**：`GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_ed25519_github -o IdentitiesOnly=yes"`，默认钥 `Permission denied (publickey)`。
+  - **`raw.githubusercontent.com` 偶发长时间无响应**：拉 INSTALL_PROMPT 之类务必 `--max-time 30 --retry 2`，否则挂满工具超时（曾误判链路坏）。
+  - **`deploy.sh` 没有 `--dry-run`**：只有 `--only/--from/--serial`，传别的打 `未知参数` + rc=2。
 - **合并口径**：`Documents/Projects` 与 `Documents/projects` 同 inode；hos 无 assets/templates；运行期状态目录 `$HOME/.workbuddy/.state/hos-winvm-ssh-tunnel/` 刻意共用。
