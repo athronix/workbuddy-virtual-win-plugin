@@ -2108,16 +2108,46 @@ bash scripts/selfcheck.sh 2>&1 | tail -3
 > → 红（且精确指到行号）；③ skills 里注入 `fake.domain.thing` → 红；④ 移除白名单条目 → 立刻回红。
 > 四次全部如期命中 ⇒ 白名单只豁免同词异物，对新增文件与新增 token 仍然有效。
 
-**第一关实测**
+**第一关实测 + 全量单测逐条对账**
 
 | 关 | 命令 | 实测 | 判定 |
 |---|---|---|---|
 | ① 静态门禁 | `node scripts/gate.mjs --quick` | `FILES=16 FAILED_FILES=0 TOTAL_TESTS=322 TOTAL_PASS=322 TOTAL_FAIL=0` `VERDICT: GREEN` | ✅ **GREEN**（此前长期 RED 2） |
+| ①b 全量单测 | `npm run test:unit` | **`files=141 failed=0`** rc=0 | ✅ **首次全绿**（原 `failed=3`，见下） |
 | ② 全量 sweep | `node scripts/gate.mjs` | 见下（全量约 25-30 min） | 待跑 |
 | ③ 自检 | `bash scripts/selfcheck.sh` | 见下 | 待跑 |
 
 **同时验证的四项子门禁**（均 GREEN）：`tsc` 12 包编译 / `dep-lint` hard=0 warn=0 /
 `config-keys` 未知键=0 / `guards` 16 文件全过。
+
+#### ★ 全量单测的三个长期失败文件：根因与修法（本轮已清）
+
+`npm run test:unit` 长期是 `files=141 failed=3`。**这三个都不是本次改动引入的**，
+但既然要「全绿收口」，就必须逐一定位真因，而不是继续把基线红当成正常。
+
+| 文件 | 原症状 | 真因 | 修法 | 现 |
+|---|---|---|---|---|
+| `r19c-kn1-e-shape` | 1 红：「未命中不得 404」 | **切片终点漂移**：Step 3.2 在 receipt 与 `/a2a` 之间插入 `/mcp/browser`+`/mcp/desktop` 上游代理块（含 `sendJson(res,404,unknown mcp upstream)`），旧终点把整段上游代理切进 receipt 路由体 | 终点改为上游代理段首注释 | ✅ 33/33 |
+| `r19c-kn1-e-mutation` | 3 红：「守卫在未变异基线上就不通过」 | **同源同因**，`RCP()` 切片同样的终点 | 同上 | ✅ 54/54 |
+| `p8-probe-fresh` | 12 红，`exit 127` | 被测 `probe-fresh.sh` **已被内联进 `deploy-5-verify.sh`**、自身退入 `scripts/legacy/` 且零调用方 ⇒ 路径 ENOENT。但文案写成「probe-fresh 恒 exit 0」**误导**，长期被当环境问题 | 重写为**从生产脚本抽真实判定块执行**（测线上代码，不测 legacy 死代码） | ✅ 13/13 |
+
+> **为什么不能「改路径指向 legacy」**：那是测**死代码**。legacy 版语义已与生产分叉
+> （`-ge` vs `-gt`、reason 文案不同）⇒ 测死代码 = 假绿，比红更危险。
+
+**★ 重写 p8 时抓到一个真实生产缺陷（CRLF）**：`sed -n 's/^deploy_ok=//p'` 读 CRLF stamp
+残留 `\r` ⇒ `"1\r" != "1"` ⇒ 恒判 `deploy-not-green` ⇒ **复用永久失效**（每次 verify 白冷跑
+探针 +240s，不报错、不看 `RREASON` 发现不了）。修法：抽 `_probe_field()` 统一 `| tr -d '\r'`。
+
+> 该修复落在**技能仓**（`deploy/` 是技能仓挂载，母项目 `git ls-files deploy` = 0），
+> commit `3fd8b8e`、**升 v2.6.4**、`SELFCHECK=ALL_GREEN checks=37 fails=0`。
+> 只改母项目里的脚本 = 下次别人 pull 母项目仍得旧脚本，这个坑记在 memory。
+
+**三次突变反证**（证明重写后的判据不是空转）：`-gt`→`-ge` / 删 `tr -d '\r'` / 删 `deploy_ok`
+判断，全部被单测抓红。
+
+> **操作教训（自己踩的）**：做上述突变时后台正跑着全量单测，而 p8 是**运行时从该脚本抽块执行**的
+> ⇒ 突变期间读到 `-ge` 版 ⇒ 全量报 `failed=1`，看起来像新回归。
+> **纪律：做文件突变时不得有依赖该文件的测试在跑；突变完先还原再起全量。**
 
 ### Step 6.2 · 复现脚本 —— **已完成（17/17）**
 
@@ -2216,7 +2246,7 @@ DEPLOY=PASS / VERIFY=PASS / 探针 112 项全通
 | 5.1 | `writeVmConnConfig` **定义** = 1（在 connect-channel）；host 内为再导出 + 保留调用 | GREEN（门禁 RED 2 = 基线同批） | ⚠ 原期望「in host = 0」**已推翻**：调用点归零会断 `--no-tunnel` 冷装通路 |
 | 5.2 | `install.ps1` 存在 + 远端命令含 `--skip-install`（**行为事实**，取自 `buildVmInstallPs1`） | GREEN | ⚠ 原判据 `grep skip-install in pack-release >= 1` **恒真无意义**（命中的是 README 文档字符串） |
 | 5.3 | 三禁令全 0（**剥注释后**）+ `accept-step51/52` 全绿 | GREEN | 原文 `grep -ciE` 会假红（头注即含"capability"）；`net.connect` 是探活不算建连 |
-| 6.1 | 三关全绿 | **GREEN**（已达成，基线 2 红已清） | 全量 sweep 25-30 min |
+| 6.1 | 三关全绿 | **静态 GREEN + 单测 141/141 全绿** | 全量 sweep 25-30 min 待跑 |
 | 6.2 | verify-claims 记录变化 | **ALL_MATCH 17/17**（原 DRIFT 10/17） | 更新断言而非放宽；三类的处置方式不同，见 6.2 |
 | 6.3 | 探针 112 全通 + 委派内 CLI 能列 112 项与 9 个 skill | — | 需真机 |
 
