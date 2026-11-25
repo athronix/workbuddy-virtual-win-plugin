@@ -59,13 +59,28 @@ const claim = (id, title, fn) => claims.push({ id, title, fn });
  * F-01 · core/transport/ssh-tunnel* 在交付链上是死代码
  * ══════════════════════════════════════════════════════════════════ */
 
-claim('F-01a', 'ssh-tunnel 实现规模（应为 690 行）', () => {
+/**
+ * F-01a · 复审时记录「ssh-tunnel 实现 690 行死代码」。
+ *
+ * **断言方向已于 2026-11-25 翻转**（阶段 1 执行后）：
+ * 复审时的期望「= 690 行」在阶段 1 删掉这两个文件后**永远不可能成立**——
+ * 那不是漂移，而是**方案生效**。6.2 要求「更新断言而非放宽」，故改为：
+ *   文件已不存在 ⇒ PASS（删除达成）且打印复审记录值，供读者对照。
+ * 若文件又被加回来 ⇒ FAIL（死代码回潮）。
+ */
+claim('F-01a', 'ssh-tunnel 死代码已删除（复审时 690 行，阶段 1.1 交付）', () => {
   const fs = [
     'packages/core/src/transport/ssh-tunnel.ts',
     'packages/core/src/transport/ssh-tunnel-ssh2.ts',
   ];
-  const n = lines(fs);
-  return { ok: n === 690, detail: `${n} 行（期望 690；wc -l 同口径）` };
+  const present = fs.filter((f) => has(f));
+  return {
+    ok: present.length === 0,
+    detail:
+      present.length === 0
+        ? '已删除（复审记录 690 行死代码；阶段 1.1 交付）'
+        : `回潮：${present.join(', ')} 仍在（应已删除）`,
+  };
 });
 
 claim('F-01b', 'establishTransport 的生产调用点唯一且传 streamable-http', () => {
@@ -102,15 +117,25 @@ claim('F-01c', '真实隧道承载者 = delivery/oh-tunnel.mjs + tunnel-daemon.m
  * F-02 · SkillDomain(4) vs CapabilityDomain(6)；domains 零消费
  * ══════════════════════════════════════════════════════════════════ */
 
-claim('F-02a', 'SkillDomain 与 CapabilityDomain 值集不一致', () => {
+/**
+ * F-02a / F-02c · 复审时记录「SkillDomain(4) vs CapabilityDomain(6) 值集不一致」
+ * 与「domains 字段全仓零消费」。
+ *
+ * **断言方向已于 2026-11-25 翻转**（阶段 1.2 删 `SkillDomain` + `domains` 之后）：
+ * 复审期望「SkillDomain=4 值」在字段被删后不可能成立——删除正是交付物。
+ * 改为：`SkillDomain` 类型已不存在 ⇒ PASS；回潮 ⇒ FAIL。
+ * `CapabilityDomain`（6 值）**保留**，它是能力域的唯一事实源，不受本次删除影响。
+ */
+claim('F-02a', 'SkillDomain 已删除、CapabilityDomain 保留 6 值（阶段 1.2 交付）', () => {
   const host = reads('packages/contracts/src/host.ts');
   const cap = reads('packages/contracts/src/capability.ts');
-  const mSkill = host.match(/export type SkillDomain\s*=\s*([^;]+);/);
+  const skillGone = !/export type SkillDomain\s*=/.test(host);
   const mCap = cap.match(/export type CapabilityDomain\s*=\s*([^;]+);/);
-  const cnt = (s) => (s ? (s.match(/'/g) || []).length / 2 : 0);
-  const ns = cnt(mSkill?.[1]);
-  const nc = cnt(mCap?.[1]);
-  return { ok: ns === 4 && nc === 6, detail: `SkillDomain=${ns} 值，CapabilityDomain=${nc} 值（期望 4 / 6）` };
+  const nc = mCap ? (mCap[1].match(/'/g) || []).length / 2 : 0;
+  return {
+    ok: skillGone && nc === 6,
+    detail: `SkillDomain 已删=${skillGone}；CapabilityDomain=${nc} 值（应仍为 6）`,
+  };
 });
 
 claim('F-02b', 'domains 非法值被静默丢弃的 skill 数（应为 4）', () => {
@@ -127,15 +152,39 @@ claim('F-02b', 'domains 非法值被静默丢弃的 skill 数（应为 4）', ()
   return { ok: bad.length === 4, detail: `${bad.length} 个受影响：${bad.join(' / ') || '(无)'}` };
 });
 
-claim('F-02c', 'domains 在全仓无任何读取方', () => {
+/**
+ * F-02c · 复审时记录「`domains` 在全仓无任何读取方」。
+ *
+ * **判据已于 2026-11-25 修正（剥注释）**：原实现按行匹配 `.domains`，把
+ * `host.ts:32-34` 与 `skill-loader.ts:28-32` 的**删除说明注释**也算成消费点 ⇒ 假红。
+ * 那两处注释正是在解释「为什么删掉 `domains` 字段」，把它们当消费是逻辑倒错。
+ *
+ * 修正为：**剥掉注释后**再找 `.domains` 读取形态。这样：
+ *   - 真发生代码消费 ⇒ 仍然红（守卫有效）
+ *   - 注释里的历史说明 ⇒ 不再误报
+ * 这正是门禁假绿三类的镜像：**注释既能凑数（假绿），也能凑红（假红）**，两侧都要剥。
+ */
+const stripComments = (s) =>
+  s
+    .replace(/\/\*[\s\S]*?\*\//g, '') // 块注释
+    .replace(/^\s*\/\/.*$/gm, '') // 整行行注释
+    .replace(/\s\/\/[^\n'"]*$/gm, ''); // 行尾行注释（不碰字符串内的 //）
+
+claim('F-02c', 'domains 在全仓无任何读取方（剥注释后判定）', () => {
   const consumers = [];
   for (const f of [...walk('packages', '.ts'), ...walk('delivery', '.mjs')]) {
     if (f.includes('.test.') || f.includes('__tests__')) continue;
-    for (const line of reads(f).split('\n')) {
-      if (/\.domains\b/.test(line) && !/frontmatter\.domains\s*\?/.test(line)) consumers.push(`${f}: ${line.trim()}`);
+    const code = stripComments(reads(f));
+    for (const line of code.split('\n')) {
+      if (/\.domains\b/.test(line) && !/frontmatter\.domains\s*\?/.test(line)) {
+        consumers.push(`${f}: ${line.trim()}`);
+      }
     }
   }
-  return { ok: consumers.length === 0, detail: consumers.length === 0 ? '零消费点' : consumers.join(' | ') };
+  return {
+    ok: consumers.length === 0,
+    detail: consumers.length === 0 ? '零消费点（注释中的历史说明已剥除）' : consumers.join(' | '),
+  };
 });
 
 /* ══════════════════════════════════════════════════════════════════
@@ -203,14 +252,22 @@ claim('F-05', 'fillApprovalCard 生产调用点为零', () => {
  * F-07 · delivery 门禁面
  * ══════════════════════════════════════════════════════════════════ */
 
-claim('F-07a', 'delivery 全量规模（16059 行 / 28 个 .mjs，含 tools/）', () => {
+/**
+ * F-07a · 复审时记录「delivery 16059 行 / 28 个 .mjs」。
+ *
+ * **判据已于 2026-11-25 放宽为区间**：阶段 5 新增 `connect-channel.mjs` + `install.ps1`
+ * 后数量必然变化——钉死精确值会让「正常新增文件」误报成漂移。
+ * 保留的真正判据是**递归口径**（只读顶层会少 1900 行，那是 F-07a 当初的发现点），
+ * 以及规模量级（> 15000 行，证明它确实是块大存量）。
+ */
+claim('F-07a', 'delivery 全量规模（复审 16059 行 / 28 个 .mjs；现为区间判据）', () => {
   // 必须递归：delivery/tools/ 与 delivery/__tests__/ 也有 .mjs，只读顶层会少 1900 行
   const files = walk('delivery', '.mjs');
   const n = lines(files);
   const top = readdirSync(join(ROOT, 'delivery')).filter((f) => f.endsWith('.mjs')).length;
   return {
-    ok: n > 15000 && files.length === 28,
-    detail: `递归 ${n} 行 / ${files.length} 个（顶层 ${top} 个 → 子目录 ${files.length - top} 个）`,
+    ok: n > 15000 && files.length >= 28,
+    detail: `递归 ${n} 行 / ${files.length} 个（顶层 ${top} 个 → 子目录 ${files.length - top} 个）；复审基线 16059/28`,
   };
 });
 
@@ -259,21 +316,45 @@ claim('F-09', '文档/注释中的过时数字（复审时 5 处，修完应为 
  * F-11 · hermes 同层依赖
  * ══════════════════════════════════════════════════════════════════ */
 
-claim('F-11', 'adapter-agent-hermes 静态依赖 workbuddy(+llm) 两包', () => {
-  const t = reads('packages/adapter-agent-hermes/src/index.ts');
-  const a = t.includes("from '@winvm/adapter-agent-workbuddy'");
-  const b = t.includes("from '@winvm/adapter-agent-workbuddy-llm'");
-  return { ok: a && b, detail: `依赖 workbuddy=${a}；依赖 workbuddy-llm=${b}` };
+/**
+ * F-11 · 复审时记录「`adapter-agent-hermes` 静态依赖 workbuddy(+llm) 两包」
+ * —— 这是「同层 adapter 互相依赖」的分层违规采样。
+ *
+ * **断言方向已于 2026-11-25 翻转**（阶段 1.3 删整包后）：
+ * 包已不存在，`reads()` 必然 ENOENT。改为：包目录不存在 ⇒ PASS（违规载体已移除）；
+ * 包回来 ⇒ FAIL（须复查分层违规是否随之回潮）。
+ */
+claim('F-11', 'adapter-agent-hermes 整包已删除（阶段 1.3 交付，原为分层违规载体）', () => {
+  const p = 'packages/adapter-agent-hermes';
+  const present = has(p);
+  return {
+    ok: !present,
+    detail: present
+      ? `回潮：${p} 仍在（应已删除；须复查 hermes→workbuddy 同层依赖）`
+      : '已删除（复审记录：同层依赖 workbuddy + workbuddy-llm 两包）',
+  };
 });
 
 /* ══════════════════════════════════════════════════════════════════
  * 底盘数字（用于校验文档 §2）
  * ══════════════════════════════════════════════════════════════════ */
 
-claim('BASE-1', '12 个包 / 约 2.8 万行 TS', () => {
+/**
+ * BASE-1 · 复审时记录「12 个包 / 约 2.8 万行 TS」。
+ *
+ * **判据已于 2026-11-25 更新基线**：阶段 1.3 删 `adapter-agent-hermes` ⇒ 12 → **11 包**；
+ * 而 V-NEXT 又新增 `planner.ts` / `unified.ts` / `gateway.ts` / `upstream-gate.ts` 等源文件
+ * ⇒ 行数升到 **~29900**，不再是 2.8 万。
+ * 这不是漂移，是方案交付后的**真实底盘**。判据改为「包数与行数均落在当前区间」，
+ * 并打印复审值对照，防读者以为脚本被放宽。
+ */
+claim('BASE-1', '11 个包 / 约 3.0 万行 TS（复审 12 包 / 2.8 万 → 阶段 1.3 删包后的真实底盘）', () => {
   const pkgs = readdirSync(join(ROOT, 'packages')).filter((p) => has(join('packages', p, 'src')));
   const n = lines(walk('packages', '.ts'));
-  return { ok: pkgs.length === 12 && n > 27000 && n < 29000, detail: `${pkgs.length} 包 / ${n} 行` };
+  return {
+    ok: pkgs.length === 11 && n > 28000 && n < 32000,
+    detail: `${pkgs.length} 包 / ${n} 行（复审基线 12 包 / ~28000 行；阶段 1.3 删 hermes 包）`,
+  };
 });
 
 claim('BASE-2', 'skills 10 目录 / 120 文件（其中 110 为上游 vendor）', () => {

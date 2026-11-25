@@ -9,7 +9,7 @@
 
 ```
 宿主机 WorkBuddy
-  └─ 插件 winvm-bridge（connector + 6 skills）
+  └─ 插件 winvm-bridge（connector + 10 skills）
         │  MCP 通道（工具级，精确执行 / 自动化首选）
         │  A2A 通道（任务级，自然语言目标 / 委派首选）
         ▼  (仅经 SSH 隧道 127.0.0.1:18443，双栈 rest 端口)

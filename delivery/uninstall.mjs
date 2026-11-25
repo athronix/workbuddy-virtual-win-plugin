@@ -33,7 +33,7 @@
  *     - resident ssh2 tunnel daemon process (killed by recorded PID only, never pkill)
  *     - ~/.workbuddy/plugins/cache/winvm/            (plugin cache + A2A bridge + launchers)
  *     - ~/.workbuddy/plugins/marketplaces/winvm/     (marketplace manifest dir)
- *     - ~/.workbuddy/connectors/skills/connector-winvm/  (8 connector skills：1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派)
+ *     - ~/.workbuddy/connectors/skills/connector-winvm/  (10 connector skills：1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派 + 2 上游 vendor)
  *     - installed_plugins.json entry "winvm-bridge@winvm"   (backup kept)
  *     - connectors/<account>/mcp.json keys connector:winvm + connector:winvm-a2a (backup kept)
  *     - global ~/.workbuddy/mcp.json keys winvm + winvm-a2a (install-host global registration; backup kept)

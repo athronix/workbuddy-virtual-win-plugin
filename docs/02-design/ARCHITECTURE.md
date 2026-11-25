@@ -129,7 +129,7 @@
 | L1b | `packages/mcp-framework` | **MCP 架构框架**：Server（工具注册/校验/执行/audit 织入）、Client（连接/重试/超时）、Streamable HTTP + stdio 传输适配 | MCP 架构框架 |
 | L1b | `packages/a2a-framework` | **A2A 架构框架**：Agent Card 生成与签名、Task 状态机、`message/send`、`message/stream`(SSE)、`tasks/get`、`tasks/list`、`tasks/cancel`、`tasks/subscribe`、artifact 管理、`input-required` 审批闸 | A2A 架构框架 |
 | L1c | `packages/host-sdk` | **宿主机 Agent 插件规范 SDK**：抽象插件模型（PluginManifest / SkillBundle / ConnectorDecl / LifecycleHooks），负责把中性规范**渲染**为具体宿主格式 | 宿主插件规范 |
-| L2 | `packages/adapter-host-workbuddy` | **宿主 WorkBuddy 适配器**：产出 `.codebuddy-plugin/plugin.json`、`marketplace.json`、`connectors/.../mcp.json`（两个连接器：MCP 直调 + A2A 委派桥）、`connectors/skills/connector-winvm/<6 skills>` | 宿主 V1 |
+| L2 | `packages/adapter-host-workbuddy` | **宿主 WorkBuddy 适配器**：产出 `.codebuddy-plugin/plugin.json`、`marketplace.json`、`connectors/.../mcp.json`（两个连接器：MCP 直调 + A2A 委派桥）、`connectors/skills/connector-winvm/<10 skills>` | 宿主 V1 |
 | **L3**（机检 `layer=L3-host-bridge`） | `packages/host-a2a-bridge` | **宿主侧 A2A 委派桥**：以本地 stdio MCP server 形态补齐宿主的 A2A 一跳；对外暴露 `a2a.delegate` 等工具，内部用 `A2AClient` 调 VM 侧 `/a2a`，把进度/产物/审批事件翻译回 MCP 结果（见 `HOST-A2A-BRIDGE.md`）。**分层口径订正（2026-10-13 批0，J-1）**：本表旧行标 L2，与 `package.json` `layer` 字段（机检唯一事实源，rank `L3=50`）不符——已按字段改标 L3；权威对照见 `README.md` §3.2 | 宿主 A2A 通道 |
 | L2 | `packages/vm-service` | **VM 侧标准 Agent 服务**：同时暴露 MCP `/mcp` 与 A2A `/a2a` + `/.well-known/agent-card.json`；编排 能力注册表→策略→审计→能力执行 | VM 服务层 |
 | L2 | `packages/vm-capabilities` | **Windows 能力实现**：`ps-bridge` 常驻 PowerShell 进程 + 五大能力域（system / app / storage / gui / appops）的 PowerShell 模块与安全封装 | 能力层 |

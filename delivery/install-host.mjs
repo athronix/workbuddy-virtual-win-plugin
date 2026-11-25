@@ -1141,7 +1141,7 @@ async function main() {
    * 与主连接器**共用同一条隧道**（同 host/localPort），仅以 `mcpPath` 区分工具面：
    *   connector:winvm         → /mcp            54 个结构性能力
    *   connector:winvm-browser → /mcp/browser    agent-browser（默认全量 33 工具）
-   *   connector:winvm-desktop → /mcp/desktop    agent-desktop（VM 侧白名单 10 工具）
+   *   connector:winvm-desktop → /mcp/desktop    agent-desktop（VM 侧白名单 25 工具，四组闭环）
    *
    * VM 侧由 vm-service 反向代理到 stdio 上游，上游子进程继承 vm-service 的 Session 1
    * ⇒ agent-desktop 能读真实桌面（SSH 直启只能拿到空桌面）。
