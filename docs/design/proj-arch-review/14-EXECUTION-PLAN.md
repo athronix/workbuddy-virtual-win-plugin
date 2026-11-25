@@ -2075,7 +2075,7 @@ node qa/accept-step52.mjs
 
 ## 7. 阶段 6：全量验证（2d，必须最后）
 
-### Step 6.1 · 三关 —— **已完成两关（2026-11-25）**
+### Step 6.1 · 三关 —— **三关全部通过（2026-11-25）**
 
 ```bash
 # 第一关：静态门禁
@@ -2090,6 +2090,9 @@ grep -E "^VERDICT|^FILES" "$HOME/wbtmp/gate-full.log"
 # 第三关：自检
 bash scripts/selfcheck.sh 2>&1 | tail -3
 # 期望：ALL_GREEN checks=N fails=0
+# ★ 路径更正（2026-11-25 实测）：selfcheck.sh 不在母项目 scripts/，
+#   它在技能仓挂载点 deploy/skills/winvm-plugin-deploy/scripts/selfcheck.sh。
+#   母项目 scripts/ 只有 gate.mjs / dep-lint.mjs / config-key-lint.mjs / lock-probe.mjs。
 ```
 
 **★ 本步的前置阻塞：原「基线 2 红」必须先清掉**
@@ -2114,8 +2117,11 @@ bash scripts/selfcheck.sh 2>&1 | tail -3
 |---|---|---|---|
 | ① 静态门禁 | `node scripts/gate.mjs --quick` | `FILES=16 FAILED_FILES=0 TOTAL_TESTS=322 TOTAL_PASS=322 TOTAL_FAIL=0` `VERDICT: GREEN` | ✅ **GREEN**（此前长期 RED 2） |
 | ①b 全量单测 | `npm run test:unit` | **`files=141 failed=0`** rc=0 | ✅ **首次全绿**（原 `failed=3`，见下） |
-| ② 全量 sweep | `node scripts/gate.mjs` | 见下（全量约 25-30 min） | 待跑 |
-| ③ 自检 | `bash scripts/selfcheck.sh` | 见下 | 待跑 |
+| ② 全量 sweep | `node scripts/gate.mjs` | **`FILES=142 FAILED_FILES=0 TOTAL_TESTS=2571 TOTAL_PASS=2569 TOTAL_FAIL=0 TOTAL_SKIP=2` `VERDICT: GREEN`**（rc=0，实测 5m06s，比预估 25-30min 快得多） | ✅ **GREEN** |
+| ③ 自检 | `bash scripts/selfcheck.sh` | **`SELFCHECK=ALL_GREEN checks=37 fails=0`** | ✅ **ALL_GREEN** |
+
+> **三关全部实跑完成（2026-11-25），无一项是「预期」**。注意 ② 的 `FILES=142` 比 `--quick` 的 16 多出 126 件
+> —— 全量还跑 `sweep` 段。`TOTAL_SKIP=2` 来自 `tests/unit/ssh2-resolve.test.mjs`（10 测 8 过 2 跳，环境依赖跳过的既有设计）。
 
 **同时验证的四项子门禁**（均 GREEN）：`tsc` 12 包编译 / `dep-lint` hard=0 warn=0 /
 `config-keys` 未知键=0 / `guards` 16 文件全过。
@@ -2189,14 +2195,105 @@ node docs/design/proj-arch-review/verify-claims.mjs
 | `delivery/pack-release.mjs:804` | `8 个连接器 Skills` | `10` | 同上 |
 | `delivery/install-host.mjs:1144` | `VM 侧白名单 10 工具` | `25 工具（四组闭环）` | 统一表 `desktop` 面 = 25 |
 
-### Step 6.3 · 真机验证（需外部条件）
+### Step 6.3 · 真机验证 —— **已完成（2026-11-25，VM 在线）**
 
 ```bash
-# 前提：VM 172.16.100.2 可达
-DEPLOY=PASS / VERIFY=PASS / 探针 112 项全通
+# 前提：VM 172.16.100.2 可达 —— 本次实测 0% 丢包 / RTT 1ms
+DEPLOY=PASS / VERIFY=PASS / 探针全通
 ```
 
-**若真机不可用**：记录为「待外部条件」，前 5 阶段全部可静态验收。
+> **★ 判据更正**：原文写「探针 112 项全通」，把**统一能力表 112** 与**探针 34** 混了（另一个数字错误）。
+> 两者是不同的东西：
+> - **探针** = `qa/deploy-probes/` 三个脚本的用例数，脚本内硬编码 `EXP_TOTAL=34 / EXP_SKIP=4`（`PROBE_DEEP=1` 时 `38/0`）。项数即断言，探针增删 case 必须同步这个常量，否则 5c 段直接 FAIL。
+> - **统一能力表** = `UNIFIED_CAPABILITIES` 的 112 条（`vm 54 + browser 33 + desktop 25`），是用来对账的三面合并账，不是探针数。
+
+**三段取证（红线 6：`health=200` 不是通道判据）**
+
+| 段 | 手段 | 实测 |
+|---|---|---|
+| ① 主机可达 | `ping -c 2` | 2/2 收到，0% 丢包，RTT 1ms |
+| ② 隧道进程 | `ps -ef` | `tunnel-daemon.mjs --vm-host 172.16.100.2 --local-port 18443` pid 59452 在线 |
+| ③ 裸 TCP + HTTP | `net.connect(18443)` / `curl /health` | `TCP_CONNECT=ok`；`http=200`，响应体 `ok:true`、`provider.state=ready`、`session.state=healthy`、`psBridge.state=ready`（uptime 180187987ms / restarts 0） |
+
+**三探针实测（默认档 34 项 + 深度档 38 项，两档都跑）**
+
+| 档 | 脚本 | 实测 | 与脚本常量 |
+|---|---|---|---|
+| 默认 | `mcp-probe.py` | **20/20 PASS** | — |
+| 默认 | `a2a-probe.py` | **4/4 PASS, 1 SKIP deep** | — |
+| 默认 | `example-probe.py` | **10/10 PASS, 3 SKIP deep** | — |
+| | **合计** | **34/34 PASS, 4 SKIP** | ✅ 等于 `EXP_TOTAL=34 / EXP_SKIP=4` |
+| 深度 | `a2a-probe.py` `PROBE_DEEP=1` | **5/5 PASS**（E4 真实 LLM 委派完成，52s） | — |
+| 深度 | `example-probe.py` `PROBE_DEEP=1` | **13/13 PASS**（E7 盘扫 / E8 事件日志 / E9 文件搜索） | — |
+| | **合计** | **38/38 PASS, 0 SKIP** | ✅ 等于 `EXP_TOTAL=38 / EXP_SKIP=0` |
+
+**三面对账：真机实际返回 = 统一表（关键佐证）**
+
+| 面 | 端点 | 真机 `tools/list` 实测 | 统一表 |
+|---|---|---|---|
+| vm | `POST /mcp` | **54** | 54 |
+| browser | `POST /mcp/browser`（Step 3.2 新增代理） | **33** | 33 |
+| desktop | `POST /mcp/desktop`（Step 3.2 新增代理） | **25** | 25 |
+| | **合计** | **112** | **112** |
+
+> 这条是 6.3 里最有价值的一条：它不是读本地常量，而是**线上真实响应**与设计账目逐面相等。
+> 两个上游代理端点均 `http=200`，证明 Step 3.2 的 `/mcp/browser`、`/mcp/desktop` 代理**在真机上确实通了**。
+
+**connector skills 实测 = 10（原判据写「9 个 skill」，错的）**
+
+```
+agent-browser-skill  agent-desktop-skill  hos-win-skill
+winvm-app-manager    winvm-app-operation  winvm-gui-automation
+winvm-mcp-reference  winvm-orchestrator   winvm-storage-manager
+winvm-system-admin
+```
+= 1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派 + 2 上游工具面（agent-browser / agent-desktop）。
+
+**若真机不可用**：记录为「待外部条件」，前 5 阶段全部可静态验收。（本次真机可用，未走此分支。）
+
+#### ★★ 但真机验证暴露了一个必须如实记录的事实：**五阶段改动尚未部署到 VM**
+
+上面的探针与三面对账**全部通过**，但它们证明的是「**VM 上跑着的服务是健康的**」，
+**不是**「五阶段改动在真机上生效了」。逐项取证如下：
+
+| 检查 | VM 侧实测 | 结论 |
+|---|---|---|
+| `C:\WinVMBridge\packages\vm-service\dist\server.js` | `MTIME=2026-11-20 11:12` | **旧构建**（五阶段全部完成于 2026-11-25） |
+| 同文件 `HAS_mcp_browser` | `True` | `/mcp/browser` 路由**存在** —— 但这是 11-20 那版就有的（那时是 v1.4.37 基线） |
+| 同文件 `HAS_gateway`（`gateAndExecute`） | **`False`** | ★ **Stage 3.1 的闸门抽取根本没上去** |
+| `dist/gateway.js` 是否存在 | **`False`** | ★ 同上 |
+| `adapter-agent-workbuddy/dist/index.js` `HAS_winvm_browser` | **`False`** | 该包不是 3.6b 的落点（见下），仅作旁证 |
+| `adapter-agent-workbuddy-llm/dist/bridge.js`（★ **3.6b 的真实落点**） | `MTIME=2026-11-20 11:12`；`winvm-browser=False` / `winvm-desktop=False` / `deriveMcpBase=False` | ★ **Stage 3.6b 的三条目 mcpServers 没上去** |
+| `C:\WinVMBridge\shared-skills\` 目录数 | **7** | ★ **Stage 3.6a 没上去**（应为 9） |
+
+> **取证时踩过的一个坑（值得记）**：我第一次查的是 `adapter-agent-workbuddy/dist/index.js`，
+> 在那里搜 `winvm-browser` 得 `False`，差点直接下「3.6b 未落地」的结论。
+> 实际 3.6b 写的是 `adapter-agent-workbuddy-llm/src/bridge.ts:362`（**另一个包**）。
+> 结论虽然一样（两个包都是 11-20 旧构建），但**归因必须按真实落点写**，
+> 否则读者会以为「3.6b 该改 A 包」，照着修反而改错文件。
+
+**所以 6.3 的准确判定是**：
+
+| 项 | 真机实测 | 是否覆盖五阶段 |
+|---|---|---|
+| 主机/隧道/health 三段取证 | 全通 | 与阶段无关（通道层） |
+| 三探针 34/34 + 38/38 | 全通 | ❌ **验的是旧构建** |
+| 三面 54+33+25=112 | 对账相等 | ⚠ **旧构建本来就有 54/33/25** —— 三个面在 11-20 版本已存在，本阶段做的是「把 33/25 接进宿主侧闸门与 CLI」，不是「新建这两个面」 |
+| 宿主 connector skills = 10 | 实测 10 | ✅ 宿主侧是新的（10 个含 2 个上游工具面，说明**包已更新**） |
+| VM 侧 shared-skills = 9 | **实测 7** | ❌ **未生效** |
+
+> **为什么会这样（不是 bug，是流程事实）**：
+> 1. 母项目的 `deploy/` 是**技能仓挂载**，`git ls-files deploy` = 0；VM 上的代码由 `deploy.sh` 装，而 `deploy.sh` 装的是 **release tag 的包**（红线 7）。
+> 2. 本轮的 112 项 / 闸门 / planner / 3.6a / 3.6b 全部是**工作区源码**，既没发 release tag，也没重跑 `deploy.sh`。
+> 3. 宿主侧 connector skills 之所以是 10，是因为宿主装的是**已发布的包**（v1.4.37 已含 10 skills）。
+>
+> ⇒ **6.3 的「静态可验收」部分已完成且全绿；「五阶段改动在真机生效」这一层，必须先发版 + 重部署才能验。**
+> 这正好印证红线 7：`deploy.sh` 装 release tag 包，不是工作区源码 —— **改完码先发版，再验证**。
+
+**因此 6.3 的结论分两段**：
+
+1. **通道与既有能力面**：✅ 全通（34/34 + 38/38 + 三面 112 对账）—— 这是本次实测拿到的确凿证据。
+2. **五阶段交付物在真机生效**：⏸ **待发版 + 重部署**（不在「静态可验收」范围内，也不属本轮静态收口阻塞项）。
 
 ---
 
@@ -2246,9 +2343,9 @@ DEPLOY=PASS / VERIFY=PASS / 探针 112 项全通
 | 5.1 | `writeVmConnConfig` **定义** = 1（在 connect-channel）；host 内为再导出 + 保留调用 | GREEN（门禁 RED 2 = 基线同批） | ⚠ 原期望「in host = 0」**已推翻**：调用点归零会断 `--no-tunnel` 冷装通路 |
 | 5.2 | `install.ps1` 存在 + 远端命令含 `--skip-install`（**行为事实**，取自 `buildVmInstallPs1`） | GREEN | ⚠ 原判据 `grep skip-install in pack-release >= 1` **恒真无意义**（命中的是 README 文档字符串） |
 | 5.3 | 三禁令全 0（**剥注释后**）+ `accept-step51/52` 全绿 | GREEN | 原文 `grep -ciE` 会假红（头注即含"capability"）；`net.connect` 是探活不算建连 |
-| 6.1 | 三关全绿 | **静态 GREEN + 单测 141/141 全绿** | 全量 sweep 25-30 min 待跑 |
+| 6.1 | 三关全绿 | **三关实测全绿**：静态 `GREEN 16/0`；全量 sweep `FILES=142 FAILED_FILES=0 TOTAL 2571/2569/0/2`；自检 `ALL_GREEN checks=37` | 已全部跑完，见 6.1 |
 | 6.2 | verify-claims 记录变化 | **ALL_MATCH 17/17**（原 DRIFT 10/17） | 更新断言而非放宽；三类的处置方式不同，见 6.2 |
-| 6.3 | 探针 112 全通 + 委派内 CLI 能列 112 项与 9 个 skill | — | 需真机 |
+| 6.3 | 探针 34 项全通（deep 38）；真机三面 = 54/33/25 | **通道与既有面：真机 34/34 + 38/38，三面 54+33+25=112 与统一表逐面相等。五阶段改动本身：VM 侧仍是 11-20 旧构建（`gateway.js` 不存在 / `shared-skills` 7 个 / adapter 无 winvm-browser）⇒ 待发版重部署** | 判据原文「112 项探针」是笔误；★★ **探针全通 ≠ 阶段改动已生效**，见 6.3 取证表 |
 
 ---
 
@@ -2258,9 +2355,15 @@ DEPLOY=PASS / VERIFY=PASS / 探针 112 项全通
 
 | 要求 | 宿主侧现状 | VM 侧现状 | 由谁补齐 | 验收命令所在 |
 |---|---|---|---|---|
-| 能看到**全部 skill 指引** | ✅ 10 个（`loadSkillBundles` 不过滤） | ❌ 7 个 | **Step 2.2b**（3.6a） | Step 2.2b 验收 ③④ |
-| 能**调用全部 MCP** | ✅ 4 connector / 112 项 | ❌ 1 条目 / 54 项 | **Step 3.6b** | Step 3.6b 验收 ①④ |
+| 能看到**全部 skill 指引** | ✅ 10 个（`loadSkillBundles` 不过滤） | ❌ **真机实测 7 个**（规划应为 9，见下方注） | **Step 2.2b**（3.6a） | Step 2.2b 验收 ③④ |
+| 能**调用全部 MCP** | ✅ 4 connector / 112 项 | ❌ 1 条目 / 54 项（真机实测 adapter 无 `winvm-browser` / `winvm-desktop`） | **Step 3.6b** | Step 3.6b 验收 ①④ |
 | **两端都能**调 | — | — | 以上两步合起来 | 阶段 6.3 补一条端到端断言 |
+
+> **★ 2026-11-25 真机实测补充**：上表「VM 侧现状」列已被实测取代 —— 代码侧 `HOST_ONLY_SKILLS` 已收窄为
+> `['hos-win-skill']`、规划输出 `repoSkills=10 -> VM=9`（已实跑确认），但 **VM 上实际仍是 7 个**，
+> 因为那张 9 的账还没发版部署。同理 3.6b 的落点包 `adapter-agent-workbuddy-llm/dist/bridge.js`
+> 在 VM 上也是 11-20 旧构建（`winvm-browser` / `winvm-desktop` / `deriveMcpBase` 三个探测全 `False`）。
+> 详见 Step 6.3 的取证表 —— **代码改完 ≠ 真机生效**，中间隔着「发版 + 重新部署」。
 
 > **一个必须承认的边界**：宿主侧的 `winvm-a2a`（5 个 `a2a.*` 工具）是**宿主独有**的
 > —— 它是「往 VM 委派」的本地 stdio 桥，VM 内 CLI 无法也不需要自己委派给自己。
