@@ -88,9 +88,9 @@
 
 | 变量 | 默认值 | 含义 | 确认 |
 |---|---|---|---|
-| `AGENT_PROVIDER` | `workbuddy` | VM 侧 Agent 实现（**用户裁定为默认**；`workbuddy-deterministic` 为基准/对照档；`hermes-agent` 三方） | ☐ |
+| `AGENT_PROVIDER` | `workbuddy` | VM 侧 Agent 实现（**用户裁定为默认**；`workbuddy-deterministic` 为基准/对照档。V-NEXT 起 `hermes-agent` 已删除） | ☐ |
 | `WINVM_WORKBUDDY_CLI` | `codebuddy` | `provider=workbuddy` 时 VM 内 LLM CLI 可执行名 | ☐ |
-| `WINVM_DELEGATION_REQUIRED_POLICY` | `on` | 服务端审批闸（L2/L3 需授权） | ☐ |
+| `WINVM_DELEGATION_REQUIRED_POLICY` | `on` | 服务端审批闸（L2/L3 需授权）。⚠ V-NEXT 起已标记废弃：`off` 仍可作回滚位但启动会打 WARN，正常部署请保持缺省 | ☐ |
 | `READY_BUDGET` | `180s` | 端到端就绪预算 | ☐ |
 | `IDLE_TTL` | `300s` | 空闲回收（LLM provider 冷启动 ~49s 的外部特性） | ☐ |
 | `MCP_TIMEOUT_DEFAULT` / `MCP_TIMEOUT_MAX` | `10s` / `600s` | MCP 工具超时区间 | ☐ |

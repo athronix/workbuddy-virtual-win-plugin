@@ -363,6 +363,9 @@ npm run lock-probe            # 锁屏前置探针（只读 GET /health → GUI 
 | `docs/02-design/SECURITY-GOVERNANCE.md` | 安全治理（策略/审批/审计） |
 | `docs/02-design/LLM-PROVIDER.md` | LLM provider（workbuddy / hermes）设计 |
 | `docs/02-design/HOST-A2A-BRIDGE.md` | 宿主 A2A 委派桥设计 |
+| [`docs/design/proj-arch-review/00-OVERVIEW.md`](docs/design/proj-arch-review/00-OVERVIEW.md) | **架构复审（以真实实现为准，2026-11-23）**：宿主插件端/VM 端/12 模块逐个技术架构 + 14 条问题清单（F-01~F-14）+ 三批优化路线。附 `verify-claims.mjs` 只读复现脚本 —— 跑一次即知这份复审哪些已过期。**定位：对 `02-design` 的增量校正**（前者=源码实证，后者=设计意图）；凡两者冲突处以本目录为准，但**结论应回灌进 `02-design`**，不长期并存 |
+| [`docs/design/proj-arch-review/11-ARCHITECTURE-VNEXT.md`](docs/design/proj-arch-review/11-ARCHITECTURE-VNEXT.md) | **下一版架构定稿（收缩版）**：五组件一条链（plugin → tunnel → service(mcp+a2a) → 统一闸门 → VM executor/planner）。六条裁决：执行路径 3→1、provider 3→1 降级为 planner、能力表 54→**112**（+browser 33 +desktop 25）、审批位置不动只补覆盖面、删 3 类零消费资产、部署解耦分步。**含对 owner 建议的 3 处修正 + 2 处新增** |
+| [`docs/design/proj-arch-review/12-DEPLOYMENT-THREE-PARTS.md`](docs/design/proj-arch-review/12-DEPLOYMENT-THREE-PARTS.md) | **部署分割方案**：release = **2 端产物（host/vm）+ 1 份通道配置脚本**（`connect-channel.mjs`，非独立产物）。唯一交接契约 = `vm-conn.json`（写入权收归通道脚本）。含两产物独立性判据、三段取证纪律、工序合并到 22-23d |
 | `docs/06-OVERVIEW.md` | 交付概览（能力面/测试基线权威指针） |
 | `docs/INSTALL-GUIDE.md` | 安装指南（开发者本机/仓库通道 `setup.mjs` 一条龙；从零/灾备见下行策略文档） |
 | `docs/deploy/deploy-strategy.md` | **部署策略 v2（从零安装，权威）**：六步可行性+变量表+Step 3.0 运行时前置+§2.1-B 空密码预案+§5.0 遇困决策协议+Step 6 交付引导+缺口台账（§9.1）与实测记录 |

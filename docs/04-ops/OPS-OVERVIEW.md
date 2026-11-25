@@ -303,7 +303,7 @@ flowchart LR
 
 - L0/L1 直接放行；L2/L3 默认人工确认。
 - A2A 通道：L2/L3 ⇒ 任务挂起 `input-required`，Message part 带 `data.type='approval-request'` + `approvalId` + `risk` + `capabilityId` + `underlying`（真实意图摘要，`deriveUnderlying` 从被拦参数尽力推断）；宿主经 `a2a.approval.reply`（底层带审批结果的 message/send）批准 → **服务端确定性重放真实执行**（K5：LLM 文本不再是完成证据，链上落 `*-replay` 执行回执）。
-- MCP 直调通道：命中 L2/L3 ⇒ `DELEGATION_REQUIRED` 收口，不发放续跑令牌（批1(c)；回滚保险 `WINVM_DELEGATION_REQUIRED_POLICY=off` 退回旧死令牌行为）。
+- MCP 直调通道：命中 L2/L3 ⇒ `DELEGATION_REQUIRED` 收口，不发放续跑令牌（批1(c)；回滚保险 `WINVM_DELEGATION_REQUIRED_POLICY=off` 退回旧死令牌行为。**该回滚位自 V-NEXT 起标记废弃**：仍有效，但启用时启动日志会打 WARN 提示下个主版本移除）。
 - **TTL**：`WINVM_APPROVAL_TTL_MS` 默认 1800000（30min，`resolveApprovalTtlMs()`，core/constants）。超时按**拒绝**收口：挂起 Promise resolve(false)（桥保持 K3 旧行为 ok=false 绝不自批）、任务转 failed（原因 approval timeout）、清理续跑令牌。MCP 令牌表有界化 `PendingApprovalRegistry`（O-10：`hostApproved===true` 的在途重放条目**不得**逐出；定时器 unref；非法 TTL ⇒ 永不过期逐字旧行为）。
 - **策略双闸**（批1）：`allowedCapabilities` 白名单 / `maxRisk` 封顶，缺省 `WINVM_POLICY_GATE_WIRING=shadow`（评估观测不执法）；`on` 才对声明 scope 的委派内层/重放落 `POLICY_DENIED`（链上 `matchedRule='scope:*'/'maxRisk:*'`）。切换 runbook 见 DEPLOYMENT §1.8（读稳→通道化切换→三查回验→回收位）。
 - **approvalTruth 防谎报**（CL-K3R，批19 K3 缺省 on；env `WINVM_APPROVAL_TRUTH`）：LLM provider 完成声称的真值层——委派终态若声称完成但链上零内层调用，落 `zeroInnerCalls:true`「完成声称不予采信」，`/health.provider.approvalTruth` 三态指纹透出（G-b 归因入链 `ext.approvalTruth`）。
@@ -525,7 +525,7 @@ XML 由 `install-vm.mjs buildTaskXml()` 生成（`delivery/.generated/task.xml`�
 | `WINVM_WORKBUDDY_CLI` / `WINVM_HERMES_CLI` | str | codebuddy / hermes | setup L109-110、install-vm L558 | LLM CLI 名 | |
 | `WINVM_SKILLS_ROOT` | path | provider options.skillsRoot→`C:/WinVMBridge/shared-skills` | install-vm | 共享技能根 | |
 | `WINVM_POLICY_GATE_WIRING` | enum | `shadow`（POLICY_GATE_WIRING_DEFAULT；''/shadow/on/off） | core/constants L418-425 → start-hidden.ps1 注入 | 双闸执法 | 通道化=跨部署持久；缺省不注入 |
-| `WINVM_DELEGATION_REQUIRED_POLICY` | bool | true（L443-445） | vm-service server.ts L1564 | 直调 L2/L3 收口 DELEGATION_REQUIRED | `off`=回旧死令牌行为（回滚保险） |
+| `WINVM_DELEGATION_REQUIRED_POLICY` | bool | true（L443-445） | vm-service server.ts（`resolveDelegationRequiredPolicyWithWarning`） | 直调 L2/L3 收口 DELEGATION_REQUIRED | ⚠ **已标记废弃（V-NEXT 2026-11-23）**：`off` 仍**有效**（退回旧死令牌行为，排障回退用），但启动日志会打醒目 WARN 提示「已废弃，下一主版本移除」。缺省/on 时零告警。**正常情况下请勿设置**。 |
 | `WINVM_APPROVAL_TTL_MS` | int | 1800000（30min） | core/constants L202-206 | 审批挂起 TTL（MCP+A2A 同旋钮） | 超时按拒绝收口；非法回退默认；旧配置键已死 |
 | `WINVM_APPROVAL_REPLAY` | bool | true（on） | core/constants L224-229 | K5 批准后服务端重放灰度 | off=仅返 approved:true 无 executed，桥退 K4 提示词；**off 时 token 待短 TTL 清理**（README §9.2）；不放宽任何审批闸 |
 | `WINVM_APPROVAL_TRUTH` | enum | `APPROVAL_TRUTH_DEFAULT='on'`（K3 缺省 on，批19） | core/constants L307+ | CL-K3R 审批真值层（防谎报） | 三态指纹入 /health.provider.approvalTruth 与链 ext.approvalTruth |

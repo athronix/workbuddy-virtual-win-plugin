@@ -100,11 +100,16 @@ export interface ConnectorDecl {
 }
 
 export type TransportDecl =
-  | { kind: 'ssh-tunnel'; host: string; user: string;
-      remotePort: number; localPort: number; identityFile?: string; }
-  | { kind: 'streamable-http'; url: string; tokenEnv: string; }
-  | { kind: 'stdio'; command: string; args: string[]; };
+  | { kind: 'streamable-http'; url: string; tokenEnv?: string; timeoutMs?: number; }
+  | { kind: 'stdio'; command: string; args: string[]; env?: Record<string, string>; };
 ```
+
+> **V-NEXT（2026-11-23）**：`ssh-tunnel` 分支已从 `TransportDecl` 删除。
+> 隧道是宿主侧常驻进程（`delivery/oh-tunnel.mjs`）的**实现细节**，连接器只需声明
+> `streamable-http` + `http://127.0.0.1:<localPort>`；把 `host/user/privateKey/password`
+> 塞进纯数据契约既让契约承担了凭据面责任，又制造了「凭据代码活着但永不可达」的死路径。
+> `tokenEnv` 同步订正为**可选**（回环地址无需凭据；只有直连非回环才必填，由
+> `host-sdk` 的 `validateNeutralPlugin` 强制）。
 
 ---
 

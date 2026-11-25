@@ -30,6 +30,8 @@ Thumbs.db
 # 中间/测试/探测产物（原始证据与归档，不入库）
 qa/evidence/
 qa/archive/
+# qa/ 下的一次性调试副本与脚本（`tmp-*` 前缀；正式验收脚本命名 accept-step*.mjs，不受影响）
+qa/tmp-*
 
 # Windows 变量展开失败产生的垃圾目录（字面量 %LOCALAPPDATA%）
 %LOCALAPPDATA%/
