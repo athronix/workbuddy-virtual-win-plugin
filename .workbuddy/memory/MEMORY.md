@@ -31,14 +31,22 @@
 5. **传输预算 ≠ 载荷预算**：`VM_SSH_TIMEOUT`(25s) 只管连接，载荷走 `VM_PS_TIMEOUT`(180s)；rc=124+零输出 → 先量耗时。
 6. **`health=200` 不是通道判据**（长连口径），须 ping + 裸 TCP banner 三段取证。
 7. `deploy.sh` 装的是 **release tag 的包**，不是工作区源码 ⇒ 改完码**先发版**再验证；也没有 `--dry-run`。
+   **★ 推论（2026-11-25 实证）：探针全通 ≠ 改动已生效。** 真机验证前必须先比对 VM 侧构建时间：
+   `vm-service/dist/server.js` 的 MTIME 必须晚于本轮改动时间，否则拿到的是旧包的健康报告。
+   同时核验关键新符号是否存在于 dist（如 `gateAndExecute`、`gateway.js`、`winvm-browser`），
+   **只改工作区不发版 = 真机上完全没有这些代码**。归因时按**真实落点包**写
+   （3.6b 在 `adapter-agent-workbuddy-llm`，不在 `adapter-agent-workbuddy`）。
 8. 门禁假绿三类：查子串 / 查次数 / 查注释（`strip_comments` 剥注释）→ 逐条锚定独有代码上文。**追加第四类**：同一行代码在多个分支复用（如 local/release 都有 `unlinkSync`）时，「全文件位置/存在性」断言必然假绿 → 断言要收进目标函数体按相对偏移比。
 9. 鸿蒙 `/tmp` 只读（`curl -o` 报 23，像网络问题）→ 跑完即弃的文件用 `${TMPDIR:-$HOME/wbtmp}`；**要长期留的回滚记录必须 `$HOME/wbtmp` 优先**（`TMPDIR` 在鸿蒙 = `el2/base/cache`，清缓存会整目录回收）；git 不在 PATH，用 `$HOME/.harmonybrew/opt/git/bin/git`。
 10. symlink 陷阱：`~/.workbuddy/skills/<name>` 为软链时 `cp -r` 备份的是链接、覆盖会写穿到源仓库 → 先 `readlink` 再删链重建（`install.sh` 已是唯一入口）。
 
 ## 基线红（不可当回归）
-项目门禁 `FILES=139 FAILED_FILES=5 FAIL=17`，与 V1.4.34 零新增（`p8-probe-fresh` 11 / `r19c-kn1-e-mutation` 3 / `r19c-kn1-e-shape` 1 / `phase2-snapshot-truth` 1 / `phase3-skill-claims-guard` 1）→ **逐条比对失败清单，不能只看 VERDICT**。
+**★ 2026-11-25 已清零**：`--quick` = `FILES=16 FAILED_FILES=0` 322/322 `GREEN`；全量 sweep = `FILES=142 FAILED_FILES=0` 2571/2569/0/2 `GREEN`；`verify-claims` 17/17；`selfcheck` ALL_GREEN 37。
+原基线 5 红（`p8-probe-fresh` / `r19c-kn1-e-mutation` / `r19c-kn1-e-shape` / `phase2-snapshot-truth` / `phase3-skill-claims-guard`）已全部按真因修掉，**现在若看到它们再红 = 新回归，不是基线**。
+判据仍只能**逐条比对失败清单**，不能只看 VERDICT。
 
 ## 待办
+**★ 2026-11-25 架构复审六步（`docs/design/proj-arch-review/14-EXECUTION-PLAN.md`）已全部完成静态收口**（commit `653a195`+`b4d79fc`+`0435061`+`bb23681`+`9b6a003`+`fb8462d`）。唯一未闭环 = **发版 + 重部署**（属发布动作，需 owner 裁定）。
 ① 第 1 步「从零通道」真·端到端演练（尚未做）；② **待裁定**：`INSTALL_PROMPT.md` 是否补 Gitee 双源（现 GitHub raw 单源，曾挂 6m47s）；③ 拆通道后 `WinRM 5985 OPEN` 但脚本无引导路径（能力缺口）。
 ④ **架构复审 14 条待处理**（`docs/design/proj-arch-review/05-OPTIMIZATION-PLAN.md`）：第一批「止血」A-1~A-5 约 1-2 天，做完即可让「隧道死代码」「domains 静默丢失」两件事在 30 秒内可见。**A-2 → B-1、A-4 → B-5 是唯一两条硬依赖**，其余可并行。
 ⑤ **V-NEXT 改造（22-23d，`11`+`12` 号文）**：阶段 1 删除(3d) → 2 统一 112 项(5d) → 3 闸门(4d) → 4 LLM 降级 planner(4d) → 5 部署解耦(3d) → 6 验收(2d)。**硬链：1→2→3→4，5 最末**。工期压到 10d 内则只做 1/2/3（安全+分类；4/5 只影响维护成本）；阶段 5 只做 5a（抽 `connect-channel.mjs`，1d）也能消灭最严重的错位。
