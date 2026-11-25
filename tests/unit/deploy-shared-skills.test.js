@@ -8,7 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { planSharedSkillLinks, planSkillPublish, norm } from '../../delivery/deploy-shared-skills.mjs';
+import { planSharedSkillLinks, planSkillPublish, norm, HOST_ONLY_SKILLS } from '../../delivery/deploy-shared-skills.mjs';
 
 const SRC = 'C:/WinVMBridge/shared-skills';
 
@@ -153,5 +153,41 @@ describe('host-only 排除（HOST_ONLY_SKILLS：根治 hos-win 语义倒挂）',
     assert.equal(summary.removeLink, 0);
     // host-only 无残留时不产生任何动作
     assert.ok(!actions.some((a) => a.skill === 'hos-win-skill'));
+  });
+});
+
+/* ---- owner 2026-11-24 裁定：两类 skill 的分界 ----
+ * 「还没进 Windows 时才有意义」= 分派层（仅 hos-win-skill）⇒ 不下发 VM；
+ * 「到了 Windows 怎么用工具干活」= 操作指引（含 agent-browser/agent-desktop）⇒ 两端共用、必下发。
+ * 下面三条钉住这个分界，防止后人再把两个上游工具面加回名单（那会让 VM 内 CLI 有工具无手册）。 */
+describe('两类 skill 分界（owner 2026-11-24 裁定）', () => {
+  test('HOST_ONLY_SKILLS 恰为 [hos-win-skill]（分派层唯一成员）', () => {
+    assert.deepEqual([...HOST_ONLY_SKILLS], ['hos-win-skill']);
+  });
+
+  test('两个上游工具面**不在** host-only 名单里（它们是 VM 内 CLI 的唯一操作手册）', () => {
+    assert.ok(!HOST_ONLY_SKILLS.includes('agent-browser-skill'));
+    assert.ok(!HOST_ONLY_SKILLS.includes('agent-desktop-skill'));
+  });
+
+  test('planSkillPublish：两个上游工具面 + 五域 → 全部 add（仅 hos-win-skill 被 skip）', () => {
+    const repoSkills = [
+      'hos-win-skill',
+      'agent-browser-skill',
+      'agent-desktop-skill',
+      'winvm-orchestrator',
+      'winvm-system-admin',
+      'winvm-app-manager',
+      'winvm-storage-manager',
+      'winvm-gui-automation',
+      'winvm-app-operation',
+      'winvm-mcp-reference',
+    ];
+    const { actions, summary } = planSkillPublish({ repoSkills, sharedSkills: [] });
+    assert.equal(summary.skipHostOnly, 1, '只有 hos-win-skill 被排除');
+    assert.equal(summary.add, 9, '其余 9 个全部发布到共享根');
+    assert.ok(actions.some((a) => a.skill === 'agent-browser-skill' && a.action === 'add'));
+    assert.ok(actions.some((a) => a.skill === 'agent-desktop-skill' && a.action === 'add'));
+    assert.ok(actions.some((a) => a.skill === 'hos-win-skill' && a.action === 'skip-host-only'));
   });
 });

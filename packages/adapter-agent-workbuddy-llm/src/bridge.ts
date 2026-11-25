@@ -217,6 +217,61 @@ export function containsBearerCredentialLiteral(config: string): boolean {
 }
 
 /**
+ * 从 endpoint 推导 MCP 基址（去掉尾部 `/mcp`），供 `winvm-browser` / `winvm-desktop`
+ * 两个条目拼 `/mcp/browser`、`/mcp/desktop`。
+ *
+ * ## 为什么不能用 `endpoint.replace(/\/mcp$/i, '')`（实测静默算错）
+ *
+ * `endpoint` 出厂默认 `http://127.0.0.1:18443/mcp`，但**可被配置覆盖**：
+ * | endpoint | `/\/mcp$/` | 拼出的 url | 后果 |
+ * |---|---|---|---|
+ * | `http://h:18443/mcp` | ✅ 命中 | `…/mcp/browser` | 正常 |
+ * | `http://h:18443/mcp/`（尾斜杠） | ❌ **不命中**（`$` 前是 `/`） | `…/mcp//mcp/browser` | **404 且不报错** |
+ * | `http://h:18443/mcp?x=1`（带 query） | ❌ **不命中** | `…/mcp?x=1/mcp/browser` | **404 且不报错** |
+ *
+ * 后两种形态下 CLI 会「拿到 3 个条目但 2 个是坏的」，症状是**工具调不通而不是配置报错**，
+ * 排查成本极高（会被误判成隧道坏或 upstream 没起）。
+ *
+ * ## 假设不成立时返回 `null` —— 调用方退回单条目旧行为，**不猜、不抛**
+ *
+ * 不抛异常是硬要求：本函数在「委派启动」关键路径上，抛异常会让整条路径挂掉。
+ * 宁可少 58 项工具，不可让路径 2 启动失败。
+ *
+ * ## 保留 `u.search` 的理由
+ * 它属于「endpoint 的一部分」，`/mcp` 与 `/mcp/browser` 必须共享同一组 query
+ * （`dtid` 由 `appendDtid` 另行追加在该 query 之后）。
+ */
+function deriveMcpBase(endpoint: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(endpoint);
+  } catch {
+    return null;
+  }
+  const stripped = u.pathname.replace(/\/mcp\/?$/i, '');
+  if (stripped === u.pathname) return null; // 不以 /mcp 结尾 ⇒ 不是我们认识的形态
+  const origin = `${u.protocol}//${u.host}`;
+  const basePath = stripped.replace(/\/$/, ''); // 去掉可能残留的尾斜杠
+  return `${origin}${basePath}`;
+}
+
+/**
+ * `buildMcpConfig` 的降级告警出口。
+ *
+ * 该函数是**纯函数**（无 logger 依赖，被 3 个测试文件逐字节比对），故不能持有
+ * 服务 logger。默认写 stderr；服务侧可注入自己的出口做统一收集。
+ * 只传**消息文本**，绝不传配置内容（含 token 变量名的整串也不传）。
+ */
+let mcpConfigWarnSink: (message: string) => void = (message) => {
+  process.stderr.write(`${message}\n`);
+};
+
+/** 注入降级告警出口（可选；不注入则写 stderr）。传 `undefined` 恢复默认。 */
+export function setMcpConfigWarnSink(sink?: (message: string) => void): void {
+  mcpConfigWarnSink = sink ?? ((message: string): void => { process.stderr.write(`${message}\n`); });
+}
+
+/**
  * 构造 MCP 配置串（真机 `--mcp-config` 接受 JSON 文本，而非 URL）。
  *
  * K-N1（**纯附加可选**第 2 参 `delegationId`）：存在时端点拼 `?dtid=<委派traceId>` ——
@@ -237,6 +292,29 @@ export function containsBearerCredentialLiteral(config: string): boolean {
  *    设计 §2.2 钉死拒绝），且值随进程环境消亡、无磁盘残留。
  *  产出前经 `containsBearerCredentialLiteral` 反证自检：命中明文 ⇒ 抛（防实现漂移
  *  把凭据写进落盘配置）。
+ *
+ * **3.6b（2026-11-24）：从 1 个条目扩成 3 个，补上上游 58 项工具**
+ *
+ * 改前 VM 内 CLI 只连 `/mcp`（54 项 vm 面工具），`/mcp/browser`（33 项）与
+ * `/mcp/desktop`（25 项）**对 VM 内 Agent 完全不可见** —— 技能文档却写着怎么用它们，
+ * 属「宣称能力不可达」。本函数补 `winvm-browser` / `winvm-desktop` 两个条目。
+ *
+ * ### 三条不变量（改了就不是等价搬迁了）
+ *
+ * 1. **`winvm` 条目与改动前逐字节相等**。做法不是「用 base 拼回 `/mcp`」，而是
+ *    **直接复用原始 `endpoint`** —— 计划书写的是 `base + '/mcp' + search === endpoint`，
+ *    这个等式在正常形态下成立，但 `new URL()` 会**规范化**（协议/主机名小写、
+ *    默认端口 `:80`/`:443` 去掉、路径里 `%7E`→`~` 等）。一旦发生规范化，
+ *    「拼回来」的串就与入参不同 ⇒ 逐字节护栏失效。**复用原值使等式恒成立**。
+ * 2. **三条目共用同一个 `dtid`**，且都经 `appendDtid()`。三条链路必须落在同一委派
+ *    上下文里，否则闸看到的 `isInnerDelegation()` 不一致。也**不要**自己拼 `?dtid=`
+ *    —— 那会把 `?`/`&` 分支和 `encodeURIComponent` 复制成第二份。
+ * 3. **`bearerEnvName` 三态语义逐字不变**：`undefined`/`null` ⇒ `{"mcpServers":{}}`；
+ *    空串（含纯空白）⇒ 有条目**无** `headers`；非空 ⇒ 每条都带同一个 `headers` 引用。
+ *
+ * ### endpoint 形态不认识时降级为单条目（不猜、不抛）
+ * 见 `deriveMcpBase()` 的 `null` 分支：只注册 `winvm`，并告警「VM 内 CLI 将看不到
+ * browser/desktop 的 58 项工具」。宁可少两个面，不可让委派启动失败。
  *
  * ✅ **Phase 1 T5 登记的启用前置条件已由 P2-T6 补齐**（原警告块的历史实况保留如下，
  * 措辞被 `phase2-bearer-selfcheck.test.js` :317 守卫钉住**不可改**）：本函数产出的
@@ -262,15 +340,38 @@ export function buildMcpConfig(
   bearerEnvName?: string | null,
 ): string {
   if (!endpoint || bearerEnvName === null) return JSON.stringify({ mcpServers: {} });
-  const entry: Record<string, unknown> = {
-    type: 'streamableHttp',
-    url: appendDtid(endpoint, delegationId),
-  };
+
   const envName = typeof bearerEnvName === 'string' ? bearerEnvName.trim() : '';
-  if (envName) {
-    entry['headers'] = bearerHeaderOf(envName);
+  const headers = envName ? bearerHeaderOf(envName) : undefined;
+
+  const mk = (url: string): Record<string, unknown> => ({
+    type: 'streamableHttp',
+    url: appendDtid(url, delegationId),
+    ...(headers ? { headers } : {}),
+  });
+
+  // ★ `winvm` 条目复用**原始 endpoint**（不经 base 拼回）⇒ 与改动前逐字节相等，恒成立。
+  const base = deriveMcpBase(endpoint);
+  const mcpServers: Record<string, unknown> = base === null
+    ? { winvm: mk(endpoint) }
+    : (() => {
+        // 保留 endpoint 自带 query，三条目共享；dtid 由 appendDtid 追加在其后。
+        const search = new URL(endpoint).search;
+        return {
+          winvm: mk(endpoint),
+          'winvm-browser': mk(`${base}/mcp/browser${search}`),
+          'winvm-desktop': mk(`${base}/mcp/desktop${search}`),
+        };
+      })();
+
+  if (base === null) {
+    mcpConfigWarnSink(
+      `[buildMcpConfig] endpoint 形态非预期（不以 /mcp 结尾），仅注册 winvm 条目；` +
+        'VM 内 CLI 将看不到 browser/desktop 的 58 项工具',
+    );
   }
-  const out = JSON.stringify({ mcpServers: { winvm: entry } });
+
+  const out = JSON.stringify({ mcpServers });
   if (containsBearerCredentialLiteral(out)) {
     // 不可达防线（bearerHeaderOf 恒产出 ${} 引用）：命中即实现漂移，宁抛不落盘。
     throw new Error('buildMcpConfig 产出含 bearer 明文凭据 ⇒ 违反 NFR-511（凭据不落明文），拒绝落盘');

@@ -88,6 +88,13 @@ const TOKEN_WHITELIST = new Set([
   // ③ 文件路径
   'tunnel.state.json',
   'config.yaml.bak',
+  // ③b 上游 vendor 文档里的**返回值字段路径**（非能力 id，2026-11-25 补登）
+  //    出处：skills/agent-browser-skill/references/agent_browser_eval.md:37 ——
+  //    原文摘录上游 agent_browser_eval 的原始描述：「When the top-level result is a value
+  //    JSON cannot represent, the structured response includes `response.data.unserializable`」。
+  //    它是浏览器工具**返回体的 JSON 字段路径**，与 112 项能力注册表无关；
+  //    加白名单 ≠ 关闭守卫：本判据对新增文件、新增 token 仍然照常报红。
+  'response.data.unserializable',
   // ④ 真实 /health 字段
   'health.logging.degraded',
   // ⑤ 宿主桥 connector 工具名（a2a.* 五件）

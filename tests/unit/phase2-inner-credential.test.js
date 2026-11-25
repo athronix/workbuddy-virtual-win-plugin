@@ -68,7 +68,20 @@ const ROOT = resolve(HERE, '..', '..');
 const src = (rel) => readFileSync(resolve(ROOT, rel), 'utf8');
 
 const URL = 'http://127.0.0.1:18443/mcp';
-const LEGACY_OUT = (ep) => JSON.stringify({ mcpServers: { winvm: { type: 'streamableHttp', url: ep } } });
+/**
+ * ⚠ 3.6b 等价搬迁（2026-11-24）：`LEGACY_OUT` 钉的是「**整串**恰含一个 winvm 条目」，
+ * 而 3.6b 后配置**必须**是 3 个条目（winvm + winvm-browser + winvm-desktop），
+ * 整串相等的断言必然失败 —— 但**不能删断言换绿**（那等于关掉回归护栏）。
+ *
+ * 处置 = 把一条断言拆成两条**更强**的断言（覆盖面不减反增）：
+ *  ① `winvm` 条目单独拿出来，与旧实现**逐字节**相等（守「winvm 不漂移」，比原来更严：
+ *     原来混着比整串，现在只允许 winvm 键本身相等）；
+ *  ② `mcpServers` 键集**恰为**三条（守「另外两条已补齐」，原断言完全没有这一层）。
+ */
+const LEGACY_WINVM = (ep) => JSON.stringify({ winvm: { type: 'streamableHttp', url: ep } });
+/** 从产出里只取 `winvm` 条目，供与 `LEGACY_WINVM` 逐字节比对。 */
+const winvmOnly = (out) => JSON.stringify({ winvm: JSON.parse(out).mcpServers.winvm });
+const SERVER_KEYS = ['winvm', 'winvm-browser', 'winvm-desktop'];
 const EMPTY = JSON.stringify({ mcpServers: {} });
 
 /* ============================================================================
@@ -103,8 +116,9 @@ describe('P2-T6 · A buildMcpConfig headers 变量引用形态', () => {
   test('自定义变量名（trim 后入引用）；纯空白视同缺席 ⇒ 旧形态（无 headers 键）', () => {
     const out = buildMcpConfig(URL, undefined, '  MY_TOKEN  ');
     assert.equal(JSON.parse(out).mcpServers.winvm.headers.Authorization, 'Bearer ${MY_TOKEN}');
-    assert.equal(buildMcpConfig(URL, undefined, '   '), LEGACY_OUT(URL), '空白串 ⇒ 无 headers ⇒ 逐字节旧形态');
-    assert.equal(buildMcpConfig(URL, undefined, ''), LEGACY_OUT(URL), '空串等同缺席');
+    assert.equal(winvmOnly(buildMcpConfig(URL, undefined, '   ')), LEGACY_WINVM(URL), '空白串 ⇒ winvm 无 headers ⇒ 逐字节旧形态');
+    assert.equal(winvmOnly(buildMcpConfig(URL, undefined, '')), LEGACY_WINVM(URL), '空串等同缺席');
+    assert.deepEqual(Object.keys(JSON.parse(buildMcpConfig(URL, undefined, '   ')).mcpServers), SERVER_KEYS, '空白串仍是 3 条目');
   });
 
   test('注入后键序为 headers,type,url；缺席时 Object.keys 恰为 [type,url]（条件展开）', () => {
@@ -119,14 +133,16 @@ describe('P2-T6 · A buildMcpConfig headers 变量引用形态', () => {
     assert.equal(buildMcpConfig(URL, undefined, null), EMPTY);
   });
 
-  test('undefined ⇒ 逐字节旧输出（缺席即旧行为；含 dtid 分支亦逐字节等于旧实现）', () => {
-    assert.equal(buildMcpConfig(URL), LEGACY_OUT(URL));
-    assert.equal(buildMcpConfig(URL, undefined), LEGACY_OUT(URL));
-    assert.equal(buildMcpConfig(URL, undefined, undefined), LEGACY_OUT(URL));
+  test('undefined ⇒ winvm 条目逐字节旧输出（缺席即旧行为；含 dtid 分支亦逐字节等于旧实现）', () => {
+    assert.equal(winvmOnly(buildMcpConfig(URL)), LEGACY_WINVM(URL));
+    assert.equal(winvmOnly(buildMcpConfig(URL, undefined)), LEGACY_WINVM(URL));
+    assert.equal(winvmOnly(buildMcpConfig(URL, undefined, undefined)), LEGACY_WINVM(URL));
     assert.equal(
-      buildMcpConfig(URL, 'tr_kn1_b_77', undefined),
-      `{"mcpServers":{"winvm":{"type":"streamableHttp","url":"${URL}?dtid=tr_kn1_b_77"}}}`,
+      winvmOnly(buildMcpConfig(URL, 'tr_kn1_b_77', undefined)),
+      LEGACY_WINVM(`${URL}?dtid=tr_kn1_b_77`),
     );
+    // 三条目必须同时在位（3.6b 的目的：58 项上游工具对 VM 内 CLI 可达）
+    assert.deepEqual(Object.keys(JSON.parse(buildMcpConfig(URL)).mcpServers), SERVER_KEYS);
     assert.equal(buildMcpConfig('', 'tr_1', 'WINVM_BEARER_TOKEN'), EMPTY, 'endpoint 缺席优先于凭据注入');
     assert.equal(buildMcpConfig(undefined, 'tr_1', 'WINVM_BEARER_TOKEN'), EMPTY);
   });

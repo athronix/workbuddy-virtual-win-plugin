@@ -574,7 +574,7 @@ async function cmdEnv(argv) {
     values.VM_USER = await ask('VM_USER (Windows account name)', values.VM_USER || 'User');
     values.VM_DEPLOY_DIR = await ask('VM_DEPLOY_DIR', values.VM_DEPLOY_DIR || 'C:/WinVMBridge');
     values.WINVM_VM_PROVIDER = await ask(
-      'WINVM_VM_PROVIDER (workbuddy-deterministic | workbuddy | hermes-agent)',
+      'WINVM_VM_PROVIDER (workbuddy-deterministic | workbuddy)',
       values.WINVM_VM_PROVIDER || 'workbuddy-deterministic',
     );
     values.WINVM_SERVICE_PORT = await ask('WINVM_SERVICE_PORT', values.WINVM_SERVICE_PORT || '18443');

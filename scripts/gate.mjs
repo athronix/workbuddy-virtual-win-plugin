@@ -297,22 +297,35 @@ export function runPerFile(files, outPath) {
       verdict = 'RED';
       failedFiles += 1;
     }
-    rows.push(
+    const verdictRow =
       `${verdict} ${shown} rc=${r.status} tests=${c.tests} pass=${c.pass} fail=${c.fail} skip=${c.skip}` +
-        (noSummary ? ' NOSUMMARY(⇒判红：解析不到 TAP 计数不得当 0 例通过)' : ''),
-    );
+      (noSummary ? ' NOSUMMARY(⇒判红：解析不到 TAP 计数不得当 0 例通过)' : '');
+    rows.push(verdictRow);
+    /** @type {string[]} 本文件的明细行（不靠 indexOf 反查，避免判定行文本重复时定位到别人身上） */
+    const detailRows = [];
     if (verdict === 'RED' && !noSummary) {
       const detail = (r.stdout + r.stderr)
         .split('\n')
         .filter((l) => /^not ok|^\s+Error|^\s+# Subtest/.test(l))
         .slice(0, 12);
-      for (const d of detail) rows.push('    ' + d);
+      for (const d of detail) {
+        const row = '    ' + d;
+        rows.push(row);
+        detailRows.push(row);
+      }
     }
     totalTests += c.tests;
     totalPass += c.pass;
     totalFail += c.fail;
     totalSkip += c.skip;
-    emit(outPath, rows[rows.length - 1]);
+    // ⚠ 必须 emit **判定行本身**，不能 emit `rows[rows.length-1]`。
+    // 旧写法在 RED 分支下取到的是最后一条明细（`    not ok …`），判定行被吞掉 ——
+    // 后果是「失败清单里恰恰看不到那个失败文件」，而这正是本项目红线
+    // 「不能只看 VERDICT，要逐条比对失败清单」所依赖的东西。已实测：p8-probe-fresh
+    // 11 例全红，但输出里搜不到 `RED tests/unit/p8-probe-fresh.test.js` 这一行。
+    emit(outPath, verdictRow);
+    // 明细也一并落盘，否则「判红但没有线索」——排障要从别的渠道重建现场。
+    for (const row of detailRows) emit(outPath, row);
   }
   return { files: files.length, failedFiles, totalTests, totalPass, totalFail, totalSkip, rows };
 }

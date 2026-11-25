@@ -57,12 +57,7 @@ export function validateNeutralPlugin(plugin: NeutralPlugin): ValidationReport {
 
   for (const [i, t] of c.transports.entries()) {
     const path = `connector.transports[${i}]`;
-    if (t.kind === 'ssh-tunnel') {
-      if (!t.host) push('error', 'ssh-tunnel 缺少 host', path);
-      if (!t.user) push('error', 'ssh-tunnel 缺少 user', path);
-      if (t.localPort < 1 || t.localPort > 65535) push('error', `localPort 非法：${t.localPort}`, path);
-      if (t.remotePort < 1 || t.remotePort > 65535) push('error', `remotePort 非法：${t.remotePort}`, path);
-    } else if (t.kind === 'streamable-http') {
+    if (t.kind === 'streamable-http') {
       if (!/^https?:\/\//.test(t.url)) push('error', `url 非法：${t.url}`, path);
       else if (!t.url.startsWith('https://')) {
         push('warning', `url 使用 http（${t.url}）：明文传输，仅限受信任内网或本机回环`, path);
@@ -92,11 +87,8 @@ export function validateNeutralPlugin(plugin: NeutralPlugin): ValidationReport {
     for (const [i, t] of b.transports.entries()) {
       const path = `a2aBridge.transports[${i}]`;
       if (t.kind === 'stdio' && !t.command) push('error', 'stdio 传输缺少 command', path);
-      if (t.kind === 'ssh-tunnel') {
-        if (!t.host) push('error', 'ssh-tunnel 缺少 host', path);
-        if (!t.user) push('error', 'ssh-tunnel 缺少 user', path);
-        if (t.localPort < 1 || t.localPort > 65535) push('error', `localPort 非法：${t.localPort}`, path);
-        if (t.remotePort < 1 || t.remotePort > 65535) push('error', `remotePort 非法：${t.remotePort}`, path);
+      if (t.kind === 'streamable-http' && !/^https?:\/\//.test(t.url)) {
+        push('error', `url 非法：${t.url}`, path);
       }
     }
   }
@@ -123,12 +115,7 @@ export function validateNeutralPlugin(plugin: NeutralPlugin): ValidationReport {
     }
     for (const [j, t] of ex.transports.entries()) {
       const p = `${base}.transports[${j}]`;
-      if (t.kind === 'ssh-tunnel') {
-        if (!t.host) push('error', 'ssh-tunnel 缺少 host', p);
-        if (!t.user) push('error', 'ssh-tunnel 缺少 user', p);
-        if (t.localPort < 1 || t.localPort > 65535) push('error', `localPort 非法：${t.localPort}`, p);
-        if (t.remotePort < 1 || t.remotePort > 65535) push('error', `remotePort 非法：${t.remotePort}`, p);
-      } else if (t.kind === 'streamable-http') {
+      if (t.kind === 'streamable-http') {
         if (!/^https?:\/\//.test(t.url)) push('error', `url 非法：${t.url}`, p);
       }
     }

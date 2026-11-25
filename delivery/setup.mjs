@@ -139,7 +139,6 @@ export function resolveConfig(env, opts = {}) {
     // Phase 5 批14：策略闸执法灰度跨部署持久化（'' / shadow ⇒ 不注入=缺省 shadow）。
     policyGateWiring: (env['WINVM_POLICY_GATE_WIRING'] || '').trim().toLowerCase(),
     workbuddyCli: env['WINVM_WORKBUDDY_CLI'] || 'codebuddy',
-    hermesCli: env['WINVM_HERMES_CLI'] || 'hermes',
     setupTunnel: bool('WINVM_SETUP_TUNNEL'),
     tunnelLocalPort: num('WINVM_TUNNEL_LOCAL_PORT', 18443),
     tunnelRemotePort: num('WINVM_TUNNEL_REMOTE_PORT', 18443),
@@ -717,9 +716,9 @@ export async function packagePayloadPaths() {
   return out;
 }
 
-/** VM 侧 AI Agent CLI 运行时：随 provider 解析（与 install-vm.mjs 一致） */
+/** VM 侧 AI Agent CLI 运行时：V-NEXT 起 provider 收敛为 workbuddy 单值，
+ *  故恒取 workbuddy CLI（保留函数形态，避免调用点散落改动）。 */
 export function resolveVmCli(cfg) {
-  if (cfg.vmProvider === 'hermes-agent') return cfg.hermesCli;
   return cfg.workbuddyCli;
 }
 
@@ -1092,17 +1091,16 @@ export function forwardVmStartEvidence(out, log) {
  * 隧道私钥解析（TUNNEL 相位 ssh2 后端用）：
  * ssh2 无法复用系统 ssh agent，必须有真实私钥文件。
  * 优先级：env WINVM_VM_KEY > ~/.ssh/id_ed25519 > id_ecdsa > id_rsa（默认键探测链）。
- * @returns {{identityFile?: string, source: 'env'|'default'|'none'}} */
-export function resolveTunnelIdentityFile() {
-  const envKey = process.env['WINVM_VM_KEY'];
-  if (envKey) return { identityFile: envKey, source: 'env' };
-  const home = homedir();
-  for (const name of ['id_ed25519', 'id_ecdsa', 'id_rsa']) {
-    const p = join(home, '.ssh', name);
-    if (existsSync(p)) return { identityFile: p, source: 'default' };
-  }
-  return { identityFile: undefined, source: 'none' };
-}
+ *
+ * 阶段 5 / Step 5.1：实现已迁至 `delivery/connect-channel.mjs`（三副本唯一收敛点），
+ * 此处仅转发以保持既有导出契约（`setup.mjs` 是 VM 相位执行体，包内需带 connect-channel）。
+ *
+ * ⚠ 投放闭包：本文件随 VM 包分发，故 `connect-channel.mjs` 必须同步登记进
+ * pack-release 的 VM_DELIVERY 清单，否则 VM 侧 import 炸。
+ *
+ * @returns {{identityFile: string|undefined, source: 'env'|'default'|'none'}}
+ */
+export { resolveTunnelIdentityFile } from './connect-channel.mjs';
 
 /** 本地 TCP 端口是否可连（HEALTH 失败时区分「未监听」vs「监听但无 HTTP」）。 */
 function checkTcpOpen(port, timeoutMs = 3000) {

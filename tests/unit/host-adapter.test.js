@@ -39,7 +39,7 @@ function skill(id, opts = {}) {
     id,
     name: `Skill ${id}`,
     description: `${id} 的描述`,
-    body: `---\nid: ${id}\nname: Skill ${id}\ndescription: ${id} 的描述\ndomains: [system]\n${opts.entry ? 'entry: true\n' : ''}---\n\n# ${id}\n\n正文`,
+    body: `---\nid: ${id}\nname: Skill ${id}\ndescription: ${id} 的描述\n${opts.entry ? 'entry: true\n' : ''}---\n\n# ${id}\n\n正文`,
     ...(opts.entry ? { entry: true } : {}),
   };
 }
@@ -58,7 +58,7 @@ function plugin(overrides = {}) {
       id: 'winvm',
       displayName: 'Windows VM',
       transports: [
-        { kind: 'ssh-tunnel', host: '192.168.1.50', user: 'vmuser', remotePort: 18443, localPort: 18443 },
+        { kind: 'streamable-http', url: 'http://127.0.0.1:18443' },
       ],
       disabledTools: ['system.power.control', 'storage.file.delete'],
       timeoutMs: 120000,
@@ -433,11 +433,11 @@ describe('Skill frontmatter 解析', () => {
 id: winvm-orchestrator
 name: 总控
 description: 路由与风控
-domains: [system, app, storage, gui]
 entry: true
-triggers:
-  - 管理虚拟机
-  - 操作 Windows
+triggers: [管理虚拟机, 操作 Windows]
+relatedSkills:
+  - winvm-system-admin
+  - winvm-storage-manager
 ---
 
 # 正文
@@ -445,9 +445,26 @@ triggers:
     const { frontmatter, body } = parseFrontmatter(doc);
     assert.equal(frontmatter.id, 'winvm-orchestrator');
     assert.equal(frontmatter.entry, true);
-    assert.deepEqual(frontmatter.domains, ['system', 'app', 'storage', 'gui']);
+    // 行内数组 `[a, b]` 的解析覆盖（原由 domains 承担，V-NEXT 删该字段后转到 triggers）
     assert.deepEqual(frontmatter.triggers, ['管理虚拟机', '操作 Windows']);
+    assert.deepEqual(frontmatter.relatedSkills, ['winvm-system-admin', 'winvm-storage-manager']);
     assert.match(body, /^# 正文/);
+  });
+
+  test('V-NEXT：frontmatter 里的 domains 被静默忽略（不作分类事实源，也不报错）', () => {
+    /* 分类唯一事实源 = 能力 id 点分前缀。现存 8 个 SKILL.md 里仍写着 `domains:`，
+     * 删字段后它们必须**照常加载**——本钉防止「删字段」退化成「加载失败」。 */
+    const doc = `---
+id: winvm-orchestrator
+name: 总控
+domains: [system, app, storage, gui]
+---
+
+正文
+`;
+    const { frontmatter } = parseFrontmatter(doc);
+    assert.equal('domains' in frontmatter, false, 'domains 不得再进 frontmatter');
+    assert.equal(frontmatter.id, 'winvm-orchestrator', '其余字段照常解析');
   });
 
   test('折叠标量 > 合并为一行', () => {

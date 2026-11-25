@@ -378,8 +378,23 @@ describe('P2-T10 守卫输入面：折叠点必须真的消失（防「源码对
   test('D1 step() 不再出现 `res.error.message` 折叠（src 与 dist 双侧计数为 0）', async () => {
     const fs = await import('node:fs');
     const { repoPath } = await import('../helpers/bridge-internals.mjs');
-    const src = fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'src', 'index.ts'), 'utf8');
-    const dist = fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'dist', 'index.js'), 'utf8');
+    /**
+     * ⚠ 观测面 = `index.ts` + `template-planner.ts` **合并文本**（Step 4.2 等价搬迁）
+     *
+     * Step 4.2 把 `step()`（含其 `error:` 收口）搬到了 `template-planner.ts`。
+     * 只读 `index.ts` 会把「搬走了」读成「被删了」⇒ 误红。
+     * 处置 = 扩大观测面（不是改小断言）：判据一字未改，只是不再假设代码住在哪个文件。
+     * 注意 `dist` 侧同样要合并两文件，否则「src 对、产物错」的漏检面还在。
+     */
+    const read = (ext) =>
+      fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'src', `index.${ext}`), 'utf8') +
+      '\n' +
+      fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'src', `template-planner.${ext}`), 'utf8');
+    const src = read('ts');
+    const dist =
+      fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'dist', 'index.js'), 'utf8') +
+      '\n' +
+      fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'dist', 'template-planner.js'), 'utf8');
     const COLLAPSE = /error:\s*res\.error\.message/;
     assert.ok(!COLLAPSE.test(src), 'src 不得再出现 step() 的 message 折叠');
     assert.ok(!COLLAPSE.test(dist), '★ dist 同样不得有折叠 —— 只钉 src 会漏「源码对、产物错」');
@@ -414,8 +429,25 @@ describe('P2-T10 守卫输入面：折叠点必须真的消失（防「源码对
     const fs = await import('node:fs');
     const { repoPath } = await import('../helpers/bridge-internals.mjs');
     const sides = [
-      { label: 'workbuddy/src', text: fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'src', 'index.ts'), 'utf8') },
-      { label: 'workbuddy/dist', text: fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'dist', 'index.js'), 'utf8') },
+      /**
+       * ⚠ 观测面 = `index.ts` + `template-planner.ts` **合并文本**（Step 4.2 等价搬迁）
+       * `templateError` / step() 的 `error:` 收口已搬到 `template-planner.ts`。
+       * 判据（保码在场 + 折叠退场）一字未改，只是不再假设代码住在哪个文件。
+       */
+      {
+        label: 'workbuddy/src',
+        text:
+          fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'src', 'index.ts'), 'utf8') +
+          '\n' +
+          fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'src', 'template-planner.ts'), 'utf8'),
+      },
+      {
+        label: 'workbuddy/dist',
+        text:
+          fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'dist', 'index.js'), 'utf8') +
+          '\n' +
+          fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy', 'dist', 'template-planner.js'), 'utf8'),
+      },
       { label: 'llm/src', text: fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy-llm', 'src', 'index.ts'), 'utf8') },
       { label: 'llm/dist', text: fs.readFileSync(repoPath('packages', 'adapter-agent-workbuddy-llm', 'dist', 'index.js'), 'utf8') },
     ];

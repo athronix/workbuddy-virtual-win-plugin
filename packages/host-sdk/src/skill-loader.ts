@@ -8,14 +8,13 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 
-import type { SkillBundle, SkillDomain } from '@winvm/contracts';
+import type { SkillBundle } from '@winvm/contracts';
 
 export interface SkillFrontmatter {
   readonly id?: string;
   readonly name?: string;
   readonly description?: string;
   readonly version?: string;
-  readonly domains?: readonly SkillDomain[];
   readonly triggers?: readonly string[];
   readonly entry?: boolean;
   readonly relatedSkills?: readonly string[];
@@ -26,7 +25,12 @@ export interface ParsedSkillDoc {
   readonly body: string;
 }
 
-const VALID_DOMAINS: readonly SkillDomain[] = ['system', 'app', 'storage', 'gui'];
+/* V-NEXT（2026-11-23）：`VALID_DOMAINS` / `domains` frontmatter 字段已删。
+ * 能力分类的唯一事实源是能力 id 的点分前缀（`system.` / `app.` / `storage.` / `gui.` /
+ * `appops.` / `meta.`），由 `CapabilityRegistry.domains()` 派生；skill 侧再手写一份枚举
+ * 只会有两种结局：要么漂移（实际已少 2 个前缀），要么变成没人读的死字段。
+ * SKILL.md 里残留的 `domains:` 行会被当作未知 frontmatter 键**静默忽略**（不报错），
+ * 因此删字段不会让任何现存 skill 加载失败。 */
 
 /* ------------------------------ frontmatter 解析 ------------------------------ */
 
@@ -122,20 +126,12 @@ export function parseFrontmatter(raw: string): ParsedSkillDoc {
   const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
   const arr = (v: unknown): string[] | undefined => (Array.isArray(v) ? v.map(String) : undefined);
 
-  const domains = (() => {
-    const d = arr(fm['domains']);
-    if (!d) return undefined;
-    const filtered = d.filter((x): x is SkillDomain => (VALID_DOMAINS as readonly string[]).includes(x));
-    return filtered.length > 0 ? filtered : undefined;
-  })();
-
   return {
     frontmatter: {
       ...(str(fm['id']) ? { id: str(fm['id']) } : {}),
       ...(str(fm['name']) ? { name: str(fm['name']) } : {}),
       ...(str(fm['description']) ? { description: str(fm['description']) } : {}),
       ...(str(fm['version']) ? { version: str(fm['version']) } : {}),
-      ...(domains ? { domains } : {}),
       ...(arr(fm['triggers']) ? { triggers: arr(fm['triggers']) } : {}),
       ...(arr(fm['relatedSkills']) ? { relatedSkills: arr(fm['relatedSkills']) } : {}),
       ...(fm['entry'] === true ? { entry: true } : {}),
@@ -199,7 +195,6 @@ export async function loadSkillBundle(dir: string): Promise<SkillBundle> {
     ...(frontmatter.triggers ? { triggers: frontmatter.triggers } : {}),
     ...(Object.keys(references).length > 0 ? { references } : {}),
     ...(Object.keys(workflows).length > 0 ? { workflows } : {}),
-    ...(frontmatter.domains ? { domains: frontmatter.domains } : {}),
     ...(frontmatter.entry === true ? { entry: true } : {}),
     ...(frontmatter.version ? { version: frontmatter.version } : {}),
   };

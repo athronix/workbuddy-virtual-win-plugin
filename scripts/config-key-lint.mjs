@@ -178,7 +178,7 @@ function memberKeys(body) {
  * 支持的形态（全部是本仓实况）：
  *   `readonly policy: Partial<PolicyConfig>` → 解 `PolicyConfig` interface
  *   `readonly transport: { preferred: readonly TransportDecl[] }` → 内联对象字面量
- *   `TransportDecl = SshTunnelTransport | StreamableHttpTransport | StdioTransport`（union type）
+ *   `TransportDecl = StreamableHttpTransport | StdioTransport`（union type）
  *     → 各分支 interface 键名取**并集**（`kind` 判别位对所有分支都算合法）
  *   `readonly providers: Record<string, ProviderOptions>` → 开放键 ⇒ 不判该成员
  * @param {string} root

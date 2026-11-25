@@ -24,7 +24,14 @@ import {
   riskAtLeast,
 } from '@winvm/contracts';
 import { newId, newTraceId, guiAllowed, nonGuiAllowed, describeSessionState, resolvePolicyGateWiring, foldK6Verdict } from '@winvm/core';
-import { PsBridge, WINDOWS_CAPABILITIES, type PsBridgeOptions } from '@winvm/vm-capabilities';
+import { PsBridge, UNIFIED_CAPABILITIES, WINDOWS_CAPABILITIES, type PsBridgeOptions } from '@winvm/vm-capabilities';
+/**
+ * Step 4.2（阶段 4）：模板逻辑已搬到 `TemplatePlanner`。
+ *
+ * 本文件从「实现执行体」降级为「provider 外壳 + 装配」：
+ * `runGoal` 只剩 `this.planner().plan(goal, sink)` 一行转发。
+ */
+import { TemplatePlanner } from './template-planner.js';
 
 export const PROVIDER_ID = 'workbuddy-deterministic';
 
@@ -575,276 +582,39 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
   /* ------------------------------ runGoal ------------------------------ */
 
   async runGoal(goal: GoalRequest, sink: ProgressSink): Promise<GoalResult> {
+    /**
+     * Step 4.2（阶段 4）：模板逻辑已搬到 `TemplatePlanner`（`./template-planner.js`）。
+     *
+     * 本方法**只剩一行转发** —— 这是「provider 降级为壳」的落点：
+     * provider 负责生命周期（`init`/`health`/`shutdown`）与装配，
+     * 「怎么把事情想清楚」交给 planner。
+     *
+     * ⚠ 两条纪律（改了就不是纯搬移了）：
+     * 1. **不再在此处保留任何模板逻辑**。哪怕只留一个模板，也会形成「两套执行路径」，
+     *    下次改模板必然只改一边。
+     * 2. `planner` 的依赖在 **`init()` 之后**才可用（要 `ctx`），故在此处**惰性构造**
+     *    而不是构造函数里建 —— 构造函数期 `ctx` 还是 `undefined`。
+     *
+     * 行为等价性由既有 `runGoal` 单测证明（纯搬移，零行为变化）。
+     */
+    return this.planner().plan(goal, sink);
+  }
+
+  /**
+   * 惰性构造 `TemplatePlanner`，把 provider 的 5 个能力注入进去。
+   *
+   * 每次调用都新建：planner 自身无状态（状态全在入参 `steps`/`artifacts` 里），
+   * 缓存反而会让「`ctx` 被替换后 planner 仍持有旧 ctx」成为隐患。
+   */
+  private planner(): TemplatePlanner {
     const ctx = this.requireCtx();
-    const steps: GoalStep[] = [];
-    const artifacts: Artifact[] = [];
-    const started = Date.now();
-
-    /**
-     * 步骤咽喉点（ARCH-22 §1.1-4，T5）。
-     *
-     * **取消优先于执行**：`sink.isCancelled?.() === true` 时在 `this.execute` **之前**返回
-     * 取消哨兵 —— 本方法是五个目标模板唯一的执行闸口，因此「取消后零新能力调用」这一
-     * 安全性质在此处一次成立，无需各模板重复判定（模板只需把哨兵转成收口形状）。
-     * 哨兵不 push steps、不 push artifacts、不调 onArtifact（框架 `addArtifact` 另有
-     * 终态二次闸门，此处不重复推送，避免 canceled 后仍有 artifact 流出的观测矛盾）。
-     *
-     * 返回值新增**纯附加可选**字段 `canceled`：模板据此走 `goalCanceled()`（契约码
-     * `TASK_CANCELED`）而非 `goalFail()`（`EXECUTION_FAILED`）。两者不可混用 ——
-     * LLM provider 的 `shouldDegrade` 会把「EXECUTION_FAILED 且零 artifact」回落成
-     * 确定性执行器**重跑**，用错码等于把用户已叫停的任务再执行一遍。
-     */
-    // 批1（E-1/M2 第三调用点接线）：宿主**声明**的 scope 预计算一次（runGoal 期），
-    // step 全部复用。仅 `on` 态喂入——本 provider 是 in-process 执行，`shadow` 的
-    // 观测/改道语义归服务层（两处都 shadow 计数会分裂成两份真相）；`off` 与旧行为逐字一致。
-    // maxRisk 只取声明（goal.maxRiskDeclared===true）——框架回退默认绝不喂=零断崖。
-    // 注：缺省 deterministic 模板全 L0/L1，接线在缺省形态下不改变任何裁决（fail-closed 方向
-    // 仅可能让显式声明的委派更严：低 maxRisk 声明会拒高步、白名单外步被拒，二者都是宿主本意）。
-    const scopeFeed =
-      this.policyGateWiring === 'on'
-        ? {
-            ...(goal.allowedCapabilities && goal.allowedCapabilities.length > 0
-              ? { scopeAllowedCapabilities: goal.allowedCapabilities }
-              : {}),
-            ...(goal.maxRiskDeclared === true && goal.maxRisk ? { scopeMaxRisk: goal.maxRisk } : {}),
-          }
-        : {};
-    const step = async (
-      capabilityId: string,
-      params: Record<string, unknown>,
-      summary: string,
-    ): Promise<{ ok: boolean; data?: unknown; error?: BridgeError; canceled?: boolean }> => {
-      if (sink.isCancelled?.() === true) {
-        // O-1（P2-T10）：哨兵也走结构化 `BridgeError`（与 `goalCanceled()` 同族契约码
-        // `TASK_CANCELED`）。旧实现返回裸字符串，模板层因此无法区分「取消」与「失败」以外的
-        // 任何原因码 —— 保持码形一致才能让 step() 的两条出口共用同一透传规则。
-        return { ok: false, canceled: true, error: makeError('TASK_CANCELED', '任务已取消，未发起该能力调用') };
-      }
-      const traceId = newTraceId();
-      sink.onStatus('working', `执行 ${capabilityId}：${summary}`);
-      const res = await this.execute({
-        traceId,
-        capabilityId,
-        params,
-        risk: ctx.capabilities.get(capabilityId)?.risk ?? 'L3',
-        approved: false,
-        timeoutMs: goal.timeoutMs,
-        // 批1：宿主声明 scope（`on` 态）随 step 下发到本 provider 的策略复评（第三调用点）。
-        ...scopeFeed,
-        // ARCH-29（P2-T4，**纯附加条件展开**）：把 A2A 侧的取消信号（`ProgressSink
-        // .cancellationSignal`，与 `isCancelled()` 同一个 AbortController）交给 execute，
-        // 使**一次在途能力调用**也能在取消时停止本地等待 —— 旧实现只能在调用返回后
-        // 才在边界上发现取消（长能力调用最坏 540s）。
-        // 两通道口径就此对齐：A2A=委派取消信号、MCP=宿主断连信号，都走同一个 `req.signal`
-        // 消费面与同一个 `TASK_CANCELED` 收口（见 SECURITY-GOVERNANCE §2.2 两通道取消口径）。
-        // 缺席即旧行为：第三方 sink 不实现该成员 ⇒ 键不进对象字面量（K-13 禁显式 undefined）。
-        ...(sink.cancellationSignal ? { signal: sink.cancellationSignal } : {}),
-      });
-      steps.push({
-        index: steps.length,
-        capabilityId,
-        params,
-        ok: res.ok,
-        risk: ctx.capabilities.get(capabilityId)?.risk ?? 'L3',
-        durationMs: res.durationMs,
-        traceId,
-        summary,
-        ...(res.error ? { error: res.error } : {}),
-      });
-      // 执行**期间**被取消（长能力调用跑到一半宿主叫停）：该次调用已真实发生，故 steps 照常
-      // 记账（呈现面据此事实化）。产物采取**双闸分叉口径**（T3 移交第 7 条 + §8 O-2）：
-      //   · 本地 `artifacts` 仍如实收纳 —— 取消收口的 `GoalResult.artifacts` 是宿主文案计数
-      //     与 QA 反查唯一可读的事实源（框架 O-2 快照里 `result` 在场，`task.artifacts` 只保持
-      //     取消前既有内容，不会替 provider 补记），抹掉它等于把「确实产出了这张截图」这一
-      //     可证事实从账上删除；
-      //   · 流出面 `sink.onArtifact` 一律不再调用 —— 外推通道必须为 0，框架 `TaskStore.addArtifact`
-      //     另有终态二次闸门，两侧口径一致才不会产生「宿主收到已取消任务的产物」的观测矛盾。
-      // 因此本地的产物数可以大于宿主观测到的产物数，这是设计意图而非缺陷。
-      if (sink.isCancelled?.() === true) {
-        for (const a of res.artifacts ?? []) artifacts.push(a);
-        // O-1（P2-T10）：旧实现 `res.error.message` 把 `BridgeError` 折叠成字符串，
-        // `code` / `reason` 在模板路径上消失 ⇒ POLICY_DENIED / APPROVAL_REQUIRED /
-        // SESSION_UNAVAILABLE 三码不可见，LLM 层 `shouldDegrade` 会把策略硬拒当「运行时
-        // 不可用」降级重跑。此处起改为**结构化透传**（零契约变更：`GoalStep.error`
-        // 本就是 `BridgeError`，step() 的 `error` 是其本地内联类型）。
-        return { ok: res.ok, canceled: true, data: res.data, ...(res.error ? { error: res.error } : {}) };
-      }
-      for (const a of res.artifacts ?? []) {
-        artifacts.push(a);
-        sink.onArtifact(a);
-      }
-      return { ok: res.ok, data: res.data, ...(res.error ? { error: res.error } : {}) };
-    };
-
-    /**
-     * 取消收口（五个模板共用）。文案只陈述**可证事实**：调用了几次能力、产出了几个
-     * artifact（由 steps/artifacts 数组长度得出），不宣称「未执行任何变更」。
-     */
-    const canceledReturn = (): GoalResult => this.goalCanceled(steps, artifacts, started);
-
-    const text = goal.goal;
-
-    /* ---- 模板 1：安装应用 ---- */
-    const installMatch = /安装\s*([A-Za-z0-9\u4e00-\u9fa5._\- ]{1,40})/.exec(text);
-    if (installMatch && this.allowed(goal, 'app.winget.install')) {
-      const query = installMatch[1]!.trim();
-      const found = await step('app.winget.search', { query, limit: 5 }, `搜索「${query}」`);
-      if (found.canceled) return canceledReturn();
-      if (!found.ok) return this.goalFail(steps, artifacts, `搜索失败：${found.error?.message ?? '未知原因'}`, started, found.error);
-
-      const list = (found.data as Array<{ id?: string; name?: string }> | undefined) ?? [];
-      if (list.length === 0) {
-        return this.goalFail(steps, artifacts, `未找到与「${query}」匹配的包，请改用 MCP 指定确切包 ID`, started);
-      }
-      const target = list[0]?.id;
-      if (!target) {
-        return this.goalFail(steps, artifacts, '搜索结果缺少包 ID，请改用 MCP 指定确切包 ID', started);
-      }
-      const installed = await step('app.winget.install', { id: target }, `安装 ${target}`);
-      if (installed.canceled) return canceledReturn();
-      return {
-        ok: installed.ok,
-        summary: installed.ok ? `已安装 ${target}` : `安装失败：${installed.error?.message ?? '未知原因'}`,
-        artifacts,
-        steps,
-        ...(installed.ok ? {} : { error: this.templateError(installed.error, installed.error?.message ?? '安装失败') }),
-      };
-    }
-
-    /* ---- 模板 2：磁盘空间分析（只分析，不删除 —— 安全默认） ---- */
-    if (/(磁盘|空间|容量|占满|清理建议)/.test(text) && this.allowed(goal, 'storage.cleanup.analyze')) {
-      const r = await step('storage.cleanup.analyze', { topLargeFiles: 30 }, '分析磁盘占用与清理建议');
-      if (r.canceled) return canceledReturn();
-      return {
-        ok: r.ok,
-        summary: r.ok
-          ? '已完成磁盘分析并给出建议（**未执行任何删除**）。如需删除，请明确指定路径并逐项走审批。'
-          : `分析失败：${r.error?.message ?? '未知原因'}`,
-        artifacts,
-        steps,
-        ...(r.ok ? {} : { error: this.templateError(r.error, r.error?.message ?? '分析失败') }),
-      };
-    }
-
-    /* ---- 模板 3：系统信息 ---- */
-    if (/(系统信息|系统状态|配置|版本)/.test(text) && this.allowed(goal, 'system.info.get')) {
-      const r = await step('system.info.get', {}, '获取系统信息');
-      if (r.canceled) return canceledReturn();
-      return {
-        ok: r.ok,
-        summary: r.ok ? '已获取系统信息' : `获取失败：${r.error?.message ?? '未知原因'}`,
-        artifacts,
-        steps,
-        ...(r.ok ? {} : { error: this.templateError(r.error, r.error?.message ?? '获取失败') }),
-      };
-    }
-
-    /* ---- 模板 4：截图 ---- */
-    if (/(截图|截屏|看看屏幕|当前屏幕)/.test(text) && this.allowed(goal, 'gui.screen.capture')) {
-      const r = await step('gui.screen.capture', { asBase64: true }, '截取当前屏幕');
-      if (r.canceled) return canceledReturn();
-      return {
-        ok: r.ok,
-        summary: r.ok ? '已截取当前屏幕（见 artifact）' : `截图失败：${r.error?.message ?? '未知原因'}`,
-        artifacts,
-        steps,
-        ...(r.ok ? {} : { error: this.templateError(r.error, r.error?.message ?? '截图失败') }),
-      };
-    }
-
-    /* ---- 模板 5：应用生产操作（appops） ---- */
-    // 检测"用某个软件把活干出来"的生产意图；确定性 V1 只能调度**已登记的工作流**，
-    // 开放/创意类意图（如"用 Photoshop 把大山换成海洋"）需升级 LLM VM Agent（见 SPEC-AGENT-SERVICE-BRIDGE §开放任务）。
-    const productionHint = /(处理|编辑|生成|生产|转换|转码|批处理|换背景|加水印|去水印|导出|排版|报表|抠图|合成)/;
-    const appHint = /(photoshop|ps\b|图片|照片|图像|excel|表格|报表|word|文档|报告|pdf|ffmpeg|视频|mp4|gif|浏览器|网页|ide|构建)/i;
-    if (productionHint.test(text) && appHint.test(text) && this.allowed(goal, 'appops.workflow.run')) {
-      let preferredApp = 'generic';
-      if (/photoshop|ps\b|图片|照片|图像/.test(text)) preferredApp = 'photoshop';
-      else if (/excel|表格|报表/.test(text)) preferredApp = 'excel';
-      else if (/word|文档|报告|pdf/.test(text)) preferredApp = 'office';
-      else if (/ffmpeg|视频|mp4|gif/.test(text)) preferredApp = 'ffmpeg';
-      else if (/浏览器|网页/.test(text)) preferredApp = 'browser';
-
-      const r = await step(
-        'appops.workflow.run',
-        { workflow: 'generic_production', params: { goal: text, preferredApp }, outputDirectory: '%USERPROFILE%\\WinVMWorkspace\\out' },
-        '调度应用生产工作流',
-      );
-      if (r.canceled) return canceledReturn();
-      if (r.ok) {
-        return {
-          ok: true,
-          summary: '已调度应用生产工作流并执行成功（见 artifact）。如需更精细的开放意图处理，建议升级 VM Agent 为 LLM provider。',
-          artifacts,
-          steps,
-        };
-      }
-      // 工作流未登记：明确引导（不硬猜、不伪造）。
-      // O-1：step() 起为结构化 `BridgeError`，文案侧取 `.message`（旧实现是 `as string` 断言）。
-      // 收口码仍固定 `UNSUPPORTED_GOAL`（本模板的业务结论是「确定性执行器没有这条工作流」，
-      // 与上游来路码无关；且该码不在 `shouldDegrade` 触发集内，不存在降级重跑风险）。
-      //
-      // M3（Phase 3 批4 · 3a 最小修，台账口径=pm2 改档采纳版）：失败**不再是死路**——
-      // 用 L0 `app.inventory.list` 探测映射 CLI 是否已在 VM 装机登记，命中即在文案里
-      // 给出**当下可达的直调路径**（`appops.cli.invoke`，L1 不触闸、零契约变更；处置教育
-      // 在位=mcp-reference「reason=CLI_NOT_FOUND → 先装应用别重试」），未命中则给安装配方。
-      // 选型勘误留痕：PM 前棒原述"先 `appops.state.query` 预检"经亲验不成立——
-      // Get-AppOpState 只枚举**运行中**应用/窗口，探不到未启动的已装 CLI；
-      // `app.inventory.list`（注册表卸载键）才是装机证据源。探测本身 best-effort：
-      // 探测失败/超时不改变业务结论（仍 UNSUPPORTED_GOAL），只少一条引导行（fail-safe）。
-      const msg = r.error?.message ?? '工作流未找到';
-      const cliApp = WORKFLOW_CLI_APP[preferredApp]; // ffmpeg/magick/pandoc/… （纯映射，见文件级常量）
-      let guidance: string;
-      if (cliApp) {
-        let installedEvidence = false;
-        try {
-          if (this.allowed(goal, 'app.inventory.list')) {
-            const probe = await step(
-              'app.inventory.list',
-              { name: cliApp.probeName },
-              `探测 ${cliApp.probeName} 是否已装机（工作流缺位时的直调可行性证据）`,
-            );
-            installedEvidence =
-              probe.ok === true &&
-              Array.isArray(probe.data) &&
-              (probe.data as Array<{ name?: unknown }>).some((row) =>
-                cliApp.nameMatchers.some((re) => re.test(String(row?.name ?? ''))),
-              );
-          }
-        } catch {
-          /* 探测异常 = 无证据，走未装引导；绝不把探测失败伪装成结论 */
-        }
-        guidance = installedEvidence
-          ? `已探测到 VM 中存在 ${cliApp.probeName} 的装机登记：可直接调 appops.cli.invoke（app="${cliApp.cliApp}"，L1 不触审批）执行你的任务，无需工作流脚本。`
-          : `未发现 ${cliApp.probeName} 装机登记：可先 app.winget.install 安装该应用，再直调 appops.cli.invoke（app="${cliApp.cliApp}"）。`;
-      } else {
-        guidance = '';
-      }
-      return {
-        ok: false,
-        summary:
-          '确定性执行器未匹配到预置的生产工作流（' + preferredApp + '）。' +
-          (guidance ? guidance + ' ' : '') +
-          '其余两种解法：① 在 VM 的 workflows 目录预置 `generic_production` 工作流脚本；' +
-          '② 升级 VM Agent 为 LLM provider（改配置 agent.provider 即可），由其在 VM 内自主规划并操作应用。',
-        artifacts,
-        steps,
-        error: makeError('UNSUPPORTED_GOAL', 'WORKFLOW_NOT_FOUND: ' + msg),
-      };
-    }
-
-    /* ---- 无匹配模板：明确告知，不硬猜 ---- */
-    return {
-      ok: false,
-      summary:
-        '确定性执行器未匹配到内置目标模板。' +
-        (this.enableLlmPlanning
-          ? '（LLM 规划已开启但 V1 未实现该分支）'
-          : '建议：① 改用 MCP 通道逐步调用具体能力；② 或升级 provider 为 LLM Agent（改配置 agent.provider 即可，框架无需改动）。'),
-      artifacts,
-      steps,
-      error: makeError('UNKNOWN_CAPABILITY', 'UNSUPPORTED_GOAL：无匹配的目标模板'),
-    };
+    return new TemplatePlanner({
+      execute: (req) => this.execute(req),
+      capabilityRisk: (capabilityId) => ctx.capabilities.get(capabilityId)?.risk ?? 'L3',
+      newTraceId: () => newTraceId(),
+      policyGateWiring: this.policyGateWiring,
+      enableLlmPlanning: this.enableLlmPlanning,
+    });
   }
 
   /* ------------------------------ health / shutdown ------------------------------ */
@@ -922,12 +692,6 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     };
   }
 
-  private allowed(goal: GoalRequest, capabilityId: string): boolean {
-    if (!goal.allowedCapabilities || goal.allowedCapabilities.length === 0) return true;
-    return goal.allowedCapabilities.some(
-      (p) => p === capabilityId || (p.endsWith('.*') && capabilityId.startsWith(p.slice(0, -1))),
-    );
-  }
 
   /**
    * 从注册表取实现绑定（模块 + 函数），并**同源**带出能力级超时。
@@ -1117,34 +881,68 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
   }
 
   /**
-   * B-4（Phase 5 残项）：构造 meta.capability.list 的真实能力清单（Node 侧注册表直供）。
+   * 构造 `meta.capability.list` 的能力清单 —— **V-NEXT 2.5（方案 B）：读统一表**
    *
-   * 语义（与 description「列出当前已注册并暴露的能力清单」逐字对齐）：
-   *   暴露面 = `WINDOWS_CAPABILITIES` ∩ `declareCapabilities()` —— 与服务端
-   *   `vm-service/server.ts` 的 `exposedCapabilities = registry.intersectDeclared(…)`
-   *   **同一算法**（`intersectDeclared` 内部即按 `matchesCapability` 通配过滤，且
-   *   registry 由 `registerAll(WINDOWS_CAPABILITIES)` 构建 ⇒ 单一数据源成立），
-   *   因此本清单与 MCP `tools/list` 的能力 ID 暴露面逐条一致（兑现 SKILL 面
-   *   「以 tools/list 为权威，capability.list 与之一致」的口径）。
-   *   LLM（`WorkbuddyLlmProvider`）与 hermes 的 `execute()` 均委托本确定性执行器
-   *   （index.ts `executor.execute(req)`），三个 provider 的 `declareCapabilities()`
-   *   通配集由 `p5-r1-capability-list-pin` 静态钉防漂移；若未来某 provider 收窄声明，
-   *   该钉会显形要求把差异接进本函数（改读注入声明而非硬编码），而不是静默失真。
+   * ## 从哪来
+   * 数据源是 `UNIFIED_CAPABILITIES`（112 条 = vm 54 + browser 33 + desktop 25），
+   * 与 `tools/list` 的三条路由**同源**：
+   *   - `/mcp`         → `exposedCapabilities`（= `WINDOWS_CAPABILITIES ∩ declareCapabilities()` = vm 54）
+   *   - `/mcp/browser` → 上游 stdio `tools/list`（无白名单 ⇒ 33 全放）
+   *   - `/mcp/desktop` → 上游 stdio `tools/list` ∩ `DEFAULT_DESKTOP_TOOL_ALLOWLIST`（25）
+   * 三面合计 112 正是 `UNIFIED_CAPABILITIES` 的定义（见 `contracts/src/unified.ts` 文件头）。
    *
-   * 形态：`{ ok:true, count, capabilities:[{id,name,risk}], domains:[...] }`。
-   *   旧 psmod `listModules` 的 `modules`（ps1 文件名）键**不再出现在本能力回执**中
-   *   （名实落差的根源）；ps-bridge 的 listModules switch 分支保留为内部诊断面
-   *   （ping/fingerprint 同族，经 rawCall 直达，不经注册表路由）。
+   * ## ⚠ 为什么不能沿用旧的「`WINDOWS_CAPABILITIES` ∩ `declareCapabilities()`」
+   * `declareCapabilities()` 只声明六个 **vm 能力域**（`meta/system/app/storage/gui/appops`），
+   * 拿它对统一表求交，`browser.*` 与 `desktop.*` 会被**全部滤掉** ⇒ 结果仍是 54（实测）。
+   * 那两个面**不归 provider 声明管**：它们的可达性由「服务端是否挂载了该 stdio 上游」
+   * 与「白名单」决定，与 VM 侧 provider 无关。所以本函数按面分别取判据：
+   *
+   * | 面 | 是否受 `declareCapabilities()` 约束 |
+   * |---|---|
+   * | `vm` | **受**。provider 声明收窄 ⇒ 服务端 `exposedCapabilities` 同步收窄 ⇒ 必须跟着收窄 |
+   * | `browser` / `desktop` | **不受**。它们由上游挂载 + 白名单决定，与 provider 声明无关 |
+   *
+   * ## 字段映射（三面字段集不同，这是 B 方案的真实成本）
+   * `CapabilityEntry` 是 `{id, surface, risk, title}`，而旧回执承诺的是 `{id, name, risk}`：
+   * - `vm` 面的 `name` 取 `WINDOWS_CAPABILITIES` 的 `name`（真正的 `CapabilityDefinition.name`）
+   * - `browser`/`desktop` 面**没有 `name`**（上游 tools/list 只有 `name`=工具名 + `description`）。
+   *   这里**回落成 `title`**（中文短标题），而不是编一个假 name —— `title` 是本仓库对该
+   *   上游工具唯一的自有中文描述，`name` 语义（能力名）在这两面**不存在**。
+   *
+   * ⚠ **已知不精确处（诚实标注，勿当 bug 修）**：
+   * `WINVM_UPSTREAM_OFF=browser,desktop` 是运维回滚位（`server.ts:2079`），关掉后
+   * 这两个面实际不可达，但本函数**看不到**该开关 —— `BridgeContext` 不含上游状态。
+   * 故那种状态下本清单会多列 58 条。取舍理由：本函数在 **provider 侧**，
+   * 而上游挂载是**服务端侧**决策；让 provider 反查服务端环境变量会形成隐式耦合。
+   * 且 `capability.list` 的语义是「**已注册**并暴露」（注册表口径），不是「此刻网络可达」。
+   * 若将来需要「当前实可达」口径，正确做法是服务端把上游状态注入 `BridgeContext`，
+   * 而不是让本函数去读 `process.env`。
+   *
+   * 形态不变：`{ ok:true, count, capabilities:[{id,name,risk,surface}], domains:[...] }`
+   * （`surface` 为**新增**字段，旧字段名与语义均不变，属向后兼容的加字段）。
    */
   private buildCapabilityList(): Record<string, unknown> {
     const declared = this.declareCapabilities();
-    const exposed = WINDOWS_CAPABILITIES.filter((cap) =>
-      declared.some((pattern) => matchesCapability(pattern, cap.id)),
-    );
+    /** vm 面的 name 权威源（`CapabilityEntry` 不含 name，只有 title） */
+    const vmNameById = new Map(WINDOWS_CAPABILITIES.map((c) => [c.id, c.name]));
+
+    const exposed = UNIFIED_CAPABILITIES.filter((entry) => {
+      // browser / desktop 不受 provider 声明约束：它们的可达性由上游挂载 + 白名单决定。
+      if (entry.surface !== 'vm') return true;
+      return declared.some((pattern) => matchesCapability(pattern, entry.id));
+    });
+
     const capabilities = exposed
-      .map((cap) => ({ id: cap.id, name: cap.name, risk: cap.risk }))
+      .map((entry) => ({
+        id: entry.id,
+        // vm 面用真实能力名；另两面无 name，回落 title（见上「字段映射」）
+        name: entry.surface === 'vm' ? (vmNameById.get(entry.id) ?? entry.title) : entry.title,
+        risk: entry.risk,
+        surface: entry.surface,
+      }))
       .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    const domains = [...new Set(exposed.map((cap) => cap.id.split('.')[0] ?? ''))]
+
+    const domains = [...new Set(exposed.map((entry) => entry.id.split('.')[0] ?? ''))]
       .filter(Boolean)
       .sort();
     return { ok: true, count: capabilities.length, capabilities, domains };
@@ -1284,83 +1082,6 @@ export class DeterministicAgentProvider implements AgentServiceProvider {
     };
   }
 
-  private goalFail(
-    steps: GoalStep[],
-    artifacts: Artifact[],
-    summary: string,
-    started: number,
-    stepError?: BridgeError,
-  ): GoalResult {
-    return {
-      ok: false,
-      summary: `${summary}（耗时 ${Date.now() - started}ms）`,
-      artifacts,
-      steps,
-      error: this.templateError(stepError, summary),
-    };
-  }
-
-  /**
-   * 模板失败收口的契约码（**O-1 · P2-T10**）。
-   *
-   * 旧形状：四个模板内联 `makeError('EXECUTION_FAILED', <上游 .message>)` + `goalFail`
-   * 一律 `makeError('EXECUTION_FAILED', summary)` —— 上游 `execute()` 已经算好的
-   * `POLICY_DENIED` / `APPROVAL_REQUIRED` / `SESSION_UNAVAILABLE` 等码在这里被压平
-   * （丢码现场是 `step()` 的 `.message` 折叠，压平是它的下游后果）。
-   *
-   * 现形状：**上游有码 ⇒ 沿用来路码**，`reason` / `details` 保真透传，`retryable`
-   * 沿用来路值（来路已显式覆写的 —— 如并发闸门把 TIMEOUT 置 true —— 不得被本层改写；
-   * 未覆写时由 `DEFAULT_RETRYABLE` 按码给出）。
-   * `message` 参数**由调用方按旧实现逐字传入**（模板内联传上游 message、`goalFail`
-   * 传合成 summary），因此本批只改码与原因面，**宿主可读文案零漂移**。
-   * 上游无码（模板自身的业务判定，如「未找到匹配的包」）⇒ 仍 `EXECUTION_FAILED` 兜底，
-   * 与旧行为**逐字一致**。
-   *
-   * 为什么必须保码（安全性质）：`WorkbuddyLlmProvider.shouldDegrade` 把
-   * 「`EXECUTION_FAILED` 且零 artifact」判定为「LLM 运行时不可用」并回落确定性执行器**重跑**。
-   * 策略硬拒零产物 ⇒ 折叠后即命中该判据 ⇒ 被拦截的写操作绕过审批闸再执行一遍。
-   * 与 `shouldDegrade` 的排除判据属**同批原子改**，两者缺一即保码无效。
-   */
-  private templateError(stepError: BridgeError | undefined, message: string): BridgeError {
-    if (!stepError) return makeError('EXECUTION_FAILED', message);
-    return makeError(stepError.code, message, {
-      retryable: stepError.retryable,
-      ...(stepError.reason !== undefined ? { reason: stepError.reason } : {}),
-      ...(stepError.details !== undefined ? { details: stepError.details } : {}),
-    });
-  }
-
-  /**
-   * 取消收口（ARCH-22 T5，设计 §1.1-4）。
-   *
-   * 与 `goalFail` 的三点区别，缺一不可：
-   *   1. **契约码用 `TASK_CANCELED`**（不是 `EXECUTION_FAILED`）。LLM provider 的
-   *      `shouldDegrade` 会把「EXECUTION_FAILED 且 artifacts 为空」判定为可降级并
-   *      回落确定性执行器**重跑** —— 用错码等于把用户已叫停的任务再执行一遍。
-   *   2. **文案只陈述可证事实**（已发起的能力调用次数 = steps.length、已产出 artifact
-   *      数 = artifacts.length）。steps 里最多包含取消判定**之前**已真实完成的调用，
-   *      故绝不能宣称「未执行任何变更」。
-   *   3. `retryable:false`（由 `DEFAULT_RETRYABLE` 决定）—— 重跑必须重新发起委派、
-   *      重新过审批闸，而不是对同一任务自动重试。
-   *
-   * artifacts / steps 原样透出（O-2：取消收口不改写既有内容，框架侧亦不再落新产物）。
-   */
-  private goalCanceled(
-    steps: GoalStep[],
-    artifacts: Artifact[],
-    started: number,
-  ): GoalResult {
-    const summary =
-      `任务已取消：取消判定生效前共发起 ${steps.length} 次能力调用、产出 ${artifacts.length} 个 artifact` +
-      '；此后未再发起任何能力调用（如需继续，请重新发起委派并重新过审批）';
-    return {
-      ok: false,
-      summary: `${summary}（耗时 ${Date.now() - started}ms）`,
-      artifacts,
-      steps,
-      error: makeError('TASK_CANCELED', summary),
-    };
-  }
 }
 
 /** loader 约定导出：createProvider */

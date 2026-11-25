@@ -7,6 +7,10 @@
  */
 
 import type { RiskLevel } from './risk.js';
+// `surface` 字段复用统一表的面枚举。`unified.ts` 只 import `risk.js`，不含内环；
+// 刻意**不**在 audit.ts 里另写一个 `'vm'|'browser'|'desktop'` 字面量联合 ——
+// 抄一份枚举就等于留下一个会独立漂移的第二真相（新增面时只改一处、审计悄悄失配）。
+import type { Surface } from './unified.js';
 
 export const GENESIS_HASH = 'GENESIS';
 
@@ -215,6 +219,57 @@ export interface AuditExt {
     readonly traceIdPresent?: boolean;
     readonly approvalId?: string;
   };
+  /**
+   * Step 3.2（**纯附加可选**）：本次记录发生在**哪个能力面**上。
+   *
+   * 为什么必须入链 —— 先声明它**不是**什么：上游工具名当前 58 条跨面零重名
+   * （实测 browser 33 / desktop 25 / 跨面重名 0），所以「由 `ext.upstreamTool`
+   * 反查表得到面」在**今天**是可行的。因此本字段的正当性**不是**「不可推导」，
+   * 而是下面三条：
+   *
+   * 1. **历史正确性**：反查用的是**当前**的表。表一旦调整（工具改名、某工具从 browser
+   *    移到 desktop、新增第三面），历史记录就会被反查成**错误的**面 —— 而有哈希链的
+   *    审计恰恰以「事后仍能重建当时事实」为存在理由。写入时落值 = 记录当时的真相。
+   * 2. **零重名是实测事实、不是契约**：`server.ts` 只在**单一面内**对 tool 名去重
+   *    （重名即加载期抛错），跨面重名从未被断列为非法。凭空依赖一个没人保证的
+   *    不变量去重建取证字段，是最典型的那种「今天能跑、明天静默错」。
+   * 3. **上游 `-32601` 无法归因**：工具名写错 / 该面未挂载时，上游直接报
+   *    Method-not-found，**没有任何统一表 id 产生**，`capabilityId` 只能填面级占位。
+   *    此时「是哪个面收到了这个坏调用」只剩本字段能回答。
+   *
+   * 取值口径：`vm` 面**缺席**（vm 面 capabilityId 的域名段已隐含面，重复落值只增链体积）；
+   * `browser` / `desktop` 恒落。与 `upstreamTool` / `upstreamDecision` 三件套同生同灭。
+   */
+  readonly surface?: Surface;
+  /**
+   * Step 3.2（**纯附加可选**）：上游面的**原始**工具名（如 `agent_browser_open`），
+   * 与 `AuditRecord.capabilityId`（统一表 id，如 `browser.nav.open`）**并存、互不覆盖**。
+   *
+   * 为什么两个都要：`capabilityId` 是跨面聚合的键（vm 面写的也是统一 id 空间，
+   * 按它才能把三面的同类动作并到一张表）；但排障时运维手里拿到的是**上游**报的名字
+   * （客户端日志、上游 `-32601` 回执、stdio 侧转储全是 tool 名）。只有统一 id 时，
+   * 「宿主说它调了 X 但被拒」与「X 根本不在表内」这两种情形在链上长得一样。
+   *
+   * 与 `surface` 的联合判据：`surface` 有值而 `upstreamTool` 缺席 ⇒ 条目由本模块之外
+   * 的路径写入（例如面级合成条目），属**异常形态**，可 grep 出来审。
+   */
+  readonly upstreamTool?: string;
+  /**
+   * Step 3.2（**纯附加可选**）：上游闸的裁决结果（`denied` / `shadow-allowed` / `executed`）。
+   *
+   * 为什么必须入链：它承载的是**「闸怎么判的」**，而这个信息在通用字段里会被压平 ——
+   * `policyDecision.allowed` 只有布尔，`shadow-allowed` 与 `executed` 都是 `true`；
+   * `result.ok` 也是布尔，灰度放行与真放行同样为 `true`。于是灰度期最该被看见的那条事实
+   * （「这个调用**本该被拒**，是灰度让它过了」）在链上不可计数 —— 而灰度的全部意义就是
+   * 先量出误伤率。取值面刻意**不**复用 `AuditExt.decision`：后者是审批决策语义
+   * （approved/rejected/timeout/canceled），混用会让「谁拒了这次审批」与
+   * 「策略怎么裁决这次调用」两个问题共用一个字段而互相污染。
+   *
+   * 上限纪律：仅三值 `denied` / `shadow-allowed` / `executed`。**执行失败不新增成员**
+   * （走 `result.errorCode = EXECUTION_FAILED`）—— 裁定与结果正交，塞进一个枚举会让
+   * 「拒了」和「跑了但炸了」变成同级事实，聚合查询随即失真。
+   */
+  readonly upstreamDecision?: 'denied' | 'shadow-allowed' | 'executed';
 }
 
 export interface AuditRecord {

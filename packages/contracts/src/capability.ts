@@ -53,6 +53,39 @@ export interface CapabilityPolicy {
   readonly processDenylist?: readonly string[];
   /** 允许写入的注册表根键前缀。 */
   readonly registryWriteAllowlist?: readonly string[];
+  /**
+   * 能力 ID 级「**强制审批**」名单（通配，如 `storage.file.delete` / `gui.*`）。
+   *
+   * ⚠ **与上面几个 denylist 不是同一语义，勿混淆**：
+   * - `pathDenylist` / `commandDenylist` / `processDenylist` = **参数级、命中即拒**
+   *   （返回 `POLICY_DENIED`，没有任何"审批后可执行"的空间）
+   * - 本字段 = **能力级、命中即审批**（返回 `APPROVAL_REQUIRED`，批准后照常执行）
+   *
+   * 用途：给「risk 分级判低了但实际需要人看」的能力加一道名单级覆盖。
+   * 因为 risk 是**静态标注**，而"这条该不该让人确认"会随运维场景变化
+   * （如某段时间特别怕误删），名单比改 risk 更轻、可回滚、不污染能力定义。
+   *
+   * **优先级**：`capabilityApprovalDenylist` **高于** `capabilityApprovalAllowlist`。
+   * 两边同时命中 ⇒ 走审批（保守方向）。这条不是随便定的：名单制的价值在于
+   * 「危险的那一条必须在场」，若白名单能压掉黑名单，只要有人把通配写宽一点
+   * （`storage.*`），黑名单里逐条点名的危险能力就被静默豁免了 —— 那是 fail-open。
+   *
+   * 与 risk 的关系：**只加不减**。L2/L3 本来就要审批，进不进本名单都一样；
+   * 本字段的作用是把 L0/L1 也拉进审批。**不能**用它让 L3 免审批
+   * （那就是拿配置项绕开风险模型）。
+   */
+  readonly capabilityApprovalDenylist?: readonly string[];
+  /**
+   * 能力 ID 级「**免审批**」名单（通配）。
+   *
+   * 用于「标注偏高、实际每次都要人点确认很烦」的场景（如某条 `L2` 但只是查询）。
+   * ⚠ 只对 **L2** 生效，对 **L3 不生效** —— L3 的语义是"可能导致系统不可用或数据全损，
+   * 需审批 + 二次确认"，用配置项豁免 L3 等于把风险模型里最强的那档架空。
+   * 若确实需要放行某条 L3，正确做法是下调它的 risk 并说明理由，而不是往这里加。
+   *
+   * **优先级**：低于 `capabilityApprovalDenylist`（见上）。
+   */
+  readonly capabilityApprovalAllowlist?: readonly string[];
 }
 
 /**

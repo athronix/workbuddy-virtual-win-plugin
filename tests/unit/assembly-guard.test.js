@@ -35,6 +35,11 @@ import { join } from 'node:path';
 const REPO = join(import.meta.dirname, '..', '..');
 const F = {
   SERVER: join(REPO, 'packages', 'vm-service', 'src', 'server.ts'),
+  // Step 3.1（统一闸门抽取）：S-4 的三处终态拒绝审计已随「策略→审批→执行→审计」段落
+  // 搬进 `gateway.ts`（`gateAndExecute`）。S-4 判据必须**合并观测**两文件，否则会把
+  // 「代码搬了家」误判成「注入点被删」—— 那正是本守卫最该区分开的两种情况。
+  // ⚠ 不降强度：合并后仍要求拒绝分支恰 2 处、注入恰 6 处、每处都在 return 之前。
+  GATEWAY: join(REPO, 'packages', 'vm-service', 'src', 'gateway.ts'),
   BRIDGE: join(REPO, 'packages', 'adapter-agent-workbuddy-llm', 'src', 'bridge.ts'),
   CONTRACTS_BRIDGE: join(REPO, 'packages', 'contracts', 'src', 'bridge.ts'),
   ENGINE: join(REPO, 'packages', 'core', 'src', 'policy', 'engine.ts'),
@@ -79,12 +84,18 @@ function allBlocks(src, mark, label) {
 /* ============================ S-4 装配判据（纯函数，输入源码文本） ============================ */
 
 /**
- * S-4 不变式：`server.ts` 中**每个** `if (!verdict.allowed)` 终态拒绝分支，
+ * S-4 不变式：**统一闸门面**（`server.ts` + `gateway.ts` 合并文本）中**每个**
+ * `if (!verdict.allowed)` 终态拒绝分支，
  * 都必须在**本分支最后一个 `return` 之前**调 `recordPolicyDeniedAudit(`，
  * 且全文件调用点**恰 6 处**——两个 `if (!verdict.allowed)` 块（executeCapability /
  * /mcp handler）各含审计注入，加批1 扩展的四处终态拒绝：handler (c) DELEGATION_REQUIRED 收口、
  * executeCapability provider 缺席早退（A2-1 收口①）、replay 暴露面复核（收口②）、
  * replay 能力未注册（收口③）。用计数与花括号切片表达，不锁行号。
+ *
+ * ⚠ Step 3.1 之后入参是**合并文本**（`serverSrc + gatewaySrc`），不是单一 server.ts：
+ * 「策略→审批→执行→审计」段已搬进 `gateway.ts`，其中含 3 处终态拒绝审计。
+ * 只看 server.ts 会把搬家误报成删除。合并后的判据强度**完全不变**（2 处拒绝分支 /
+ * 6 处注入 / 每处在 return 前 / 必须来自 approval-replay 单一来源 / 不得本地复制）。
  * @returns {string[]} 违规清单（空即合规）
  */
 function auditS4(serverSrc) {
@@ -193,19 +204,21 @@ function auditA5(serverSrc, bridgeSrc) {
 
 describe('S-4 装配点守卫 · 策略硬拒绝审计注入点仍在位', () => {
   test('server.ts 引用并调用 recordPolicyDeniedAudit ≥2 次（注入点未被删）', () => {
+    // Step 3.1：import 在 server.ts、注入在 gateway.ts ⇒ 观测面取合并文本
     assert.ok(
-      (SRC.SERVER.match(/recordPolicyDeniedAudit/g) ?? []).length >= 2,
-      'server.ts 里 recordPolicyDeniedAudit 出现次数 < 2 —— S-4 修复已从装配层消失',
+      ((SRC.SERVER + SRC.GATEWAY).match(/recordPolicyDeniedAudit/g) ?? []).length >= 2,
+      '闸门面里 recordPolicyDeniedAudit 出现次数 < 2 —— S-4 修复已从装配层消失',
     );
   });
 
   test('两处 `if (!verdict.allowed)` 拒绝分支均在 return 前写审计（S-4 语义锁定）', () => {
-    assert.deepEqual(auditS4(SRC.SERVER), [], 'S-4 装配点守卫');
+    // Step 3.1：闸门段已搬进 gateway.ts ⇒ 判据作用于合并文本（判据强度不变，见 auditS4 文档）
+    assert.deepEqual(auditS4(SRC.SERVER + '\n' + SRC.GATEWAY), [], 'S-4 装配点守卫');
   });
 
   test('拒绝分支仍保留 S-4 的 best-effort 纪律（void 调用，审计写失败不改拒绝语义）', () => {
     assert.match(
-      SRC.SERVER,
+      SRC.SERVER + SRC.GATEWAY,
       /void recordPolicyDeniedAudit\(/,
       'S-4 注入必须是 `void`（审计失败绝不影响拒绝结果）—— 现被改成 await/取返回值，语义已变',
     );
@@ -320,9 +333,13 @@ describe('装配守卫 · 变异自检（内存副本，零写盘）', () => {
     },
     {
       label: 'S4-m1b 删掉 /mcp handler 的 (c) DELEGATION_REQUIRED 收口审计调用 ⇒ 守卫变红',
-      target: 'SERVER',
-      // 全文调用序位 4 = handler (c) 收口注入（两 allowed 块序位 0/5 之外的批1 新增拒绝点）
-      apply: dropCall(4),
+      target: 'GATEWAY',
+      // Step 3.1 后 handler 段在 gateway.ts。gateway 内 `void recordPolicyDeniedAudit(` 只有 2 处：
+      //   序位 0 = (c) DELEGATION_REQUIRED 收口（本变异要删的那处）
+      //   序位 1 = 审批路径下的策略硬拒绝（非审批终态拒绝）
+      // ⚠ 一度写成序位 2（按"全文第 5 处"心算），实测抛「变异锚点不足」——
+      //   这正是"锚点序位必须按目标文件实数、不能按搬运前的心算"的实例。
+      apply: dropCall(0),
       expect: 's4',
     },
     {
@@ -423,10 +440,19 @@ describe('装配守卫 · 变异自检（内存副本，零写盘）', () => {
     },
   ];
 
+  /**
+   * ⚠ Step 3.1 之后 S-4 的注入点**分居两文件**：
+   *   - `server.ts`：`executeCapability` 的拒绝分支（1 处）+ import
+   *   - `gateway.ts`：`/mcp` handler 的三个终态拒绝（2 处 allowed 分支之一 + (c) 收口 + provider 缺席）
+   *
+   * 故 `target` 可能是 `GATEWAY` 也可能是 `SERVER`；判据一律吃**合并文本**，
+   * 变异只施加在被点名的那一份上。A5 仍只看 `server.ts`（协调器是服务级单例，未搬动）。
+   */
   const run = (target, mutatedSrc) => {
     const server = target === 'SERVER' ? mutatedSrc : SRC.SERVER;
+    const gateway = target === 'GATEWAY' ? mutatedSrc : SRC.GATEWAY;
     const bridge = target === 'BRIDGE' ? mutatedSrc : SRC.BRIDGE;
-    return { s4: safe(() => auditS4(server)), a5: safe(() => auditA5(server, bridge)) };
+    return { s4: safe(() => auditS4(server + '\n' + gateway)), a5: safe(() => auditA5(server, bridge)) };
   };
 
   for (const m of MUTATIONS) {
@@ -448,7 +474,8 @@ describe('装配守卫 · 变异自检（内存副本，零写盘）', () => {
   }
 
   test('正向自证：真实源码上两条判据均为空（且上述变异确实只因源码被改而红）', () => {
-    assert.deepEqual(auditS4(SRC.SERVER), []);
+    // Step 3.1：S-4 吃合并文本（闸门段已搬进 gateway.ts）；A5 仍只看 server.ts
+    assert.deepEqual(auditS4(SRC.SERVER + '\n' + SRC.GATEWAY), []);
     assert.deepEqual(auditA5(SRC.SERVER, SRC.BRIDGE), []);
   });
 

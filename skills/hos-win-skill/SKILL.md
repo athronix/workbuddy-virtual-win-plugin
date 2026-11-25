@@ -31,6 +31,59 @@ relatedSkills:
 2. **步骤定界**：能预先穷举为确定步骤（1–2 步、无中间判断）⇒ MCP 直调；步骤依赖上一步结果、需看屏决策或开放意图（只给目标态不给步骤）⇒ `a2a.delegate`。
 3. **拿不确定先探后定**：先用 MCP 直调一条 L0 读能力（info.get / health.check）取事实，再按 1/2 定通道；直调途中收到 `DELEGATION_REQUIRED` ⇒ 立即转委派，勿重试。
 
+## 0.5 ★ 宿主调 VM 的**调用特殊性**（与普通 MCP 调用不同，最容易误判）
+
+> **本节只讲「鸿蒙端怎么把调用送进 VM」，不涉及任何 VM 内操作方法**。
+> VM 内工具怎么用，归 `winvm-orchestrator` 与各域 skill；本节只讲**出站这条路**。
+
+### 0.5.1 三条链路的真实形态（**别按「直连远端 HTTP」去理解**）
+
+| 链路 | 宿主看到的地址 | 中间有谁 | 形态 |
+|---|---|---|---|
+| MCP 直调（`winvm`） | `http://127.0.0.1:18443/mcp` | **常驻隧道守护进程**（`tunnel-daemon`，进程内 ssh2 本地转发） | Streamable HTTP |
+| MCP 直调（上游工具面） | `http://127.0.0.1:18443/mcp/browser`<br>`http://127.0.0.1:18443/mcp/desktop` | 同上（**同一条隧道，只差 path**） | Streamable HTTP |
+| A2A 委派（`winvm-a2a`） | 本地 **stdio 进程**内部再打 `http://127.0.0.1:18443/a2a` | 本地 A2A 桥进程 → 同一条隧道 | stdio（对宿主）→ A2A（对 VM） |
+
+**关键结论：`127.0.0.1:18443` 不是「VM 的地址」，而是「宿主机上一个本地端口」。**
+它由宿主侧常驻守护进程监听，每条连接再经 SSH `direct-tcpip` 通道转发到 VM 的 `127.0.0.1:18443`。
+VM 侧服务**只监听 VM 自己的回环**，从不对外暴露。
+
+### 0.5.2 因此有四条**宿主专属**的铁律
+
+| # | 铁律 | 违反后果 |
+|---|---|---|
+| **H-1** | **禁止手工建 SSH 转发**（`ssh -f -N -L 18443:...`） | 会与常驻守护进程**争抢** `127.0.0.1:18443` 而失败；二者只能有一个监听者 |
+| **H-2** | **禁止直连 VM IP 的 18443**（如 `http://172.16.100.2:18443/...`） | VM 侧服务只监听自身回环，外部**连不上**（不是防火墙问题，是绑定地址问题） |
+| **H-3** | **禁止裸 PowerShell / 裸 SSH 绕过能力层** | 绕过审批闸与审计，且 `health=200` 之类判据会失真 |
+| **H-4** | 端口通 ≠ 可用：`127.0.0.1:18443` 能 TCP 连通但 HTTP 无响应 = **隧道黑洞** | 只看「端口开着」会误判为健康；正确判据见下 |
+
+### 0.5.3 调用前必做的通道健康判定（三条命令的用途不同，**不可互相替代**）
+
+| 目的 | 命令 | 判据 |
+|---|---|---|
+| 查隧道进程状态 | `winvm-plugin tunnel status` | `state: RUNNING` 且 `healthy: true`。**只认本命令输出**；`~/.winvm/tunnel.state.json` 可能陈旧，不得据其判健康 |
+| 拉起/恢复（幂等） | `winvm-plugin tunnel ensure` | 已在线则跳过；DEGRADED 自动重启一次；未运行则拉起 |
+| 服务级健康 | `winvm-plugin health` | **`ok: true` 即放行**。注意 `health=200` **不是**通道判据（长连接口径）；也不要拿 `available == count` 当门禁（degraded 时数学上恒不成立） |
+
+> **H-4 的取证方法**：`meta.health.check` 返回超时/无响应，但 `ping` 通、裸 TCP 能连 ⇒ 判为隧道黑洞，
+> 处置是 `tunnel ensure`（必要时 `tunnel restart`），**不是**去查 VM 侧服务。
+
+### 0.5.4 A2A 委派到底是「谁在干活」（**必须讲准，直接影响怎么下指令**）
+
+`a2a.delegate` **不是**「让 VM 端某个 LLM 接口规划一下」，而是：
+把整段任务交给 **VM 端 WorkBuddy 内的 `codebuddy-lite` CLI（native agent）**，由它自主循环完成。
+
+| 常被误以为 | 实际 |
+|---|---|
+| 直连 VM 上配置的 LLM API 做一次性规划 | ❌ 不是。是把任务交给 VM 内的 **native agent**（`codebuddy-lite`），它有自己的工具循环与多轮推理 |
+| 宿主要在每一步给 VM 下发指令 | ❌ 不是。**VM 内闭环**，宿主只收终态与阶段性产物 —— 这正是它「效率高很多」的原因 |
+| CLI 用的工具要宿主中转 | ❌ 不是。CLI **自己回连** `127.0.0.1:18443` 的 MCP 拿工具（带 `dtid` 标识内层身份），不经宿主转发 |
+
+**对宿主下指令的含义（这是本节的实用价值）**：
+- 委派时给的是**目标态 + 约束**，不是逐步操作清单（给步骤反而是浪费它的自主能力）；
+- 不要在委派期间反复插话/轮询细粒度进度 —— 它不逐步回报；
+- L2/L3 审批仍会在宿主侧出卡（`a2a.approval.reply`），这是**唯一**需要宿主介入的环节。
+
 ## 1. 分派判定表
 
 ### 1.1 在鸿蒙本地完成（不委托）
@@ -151,11 +204,27 @@ relatedSkills:
 
 | Skill | 层级定位 | 职责边界 |
 |---|---|---|
-| `hos-win-skill`（本 skill） | 宿主侧分派层 | 鸿蒙本地 vs Windows VM 的任务分派预判 + 通道速判；宽触发，不进入 VM 内细则 |
+| `hos-win-skill`（本 skill） | **宿主侧分派层**（仅宿主，不下发 VM） | 鸿蒙本地 vs Windows VM 的**任务分派预判** + **宿主调用 VM 的链路特殊性**（§0.5）；宽触发，不讲 VM 内操作方法 |
 | `winvm-orchestrator` | VM 内唯一总控 | 入口/审批闸协议/领域路由/工具缺失指引；进入 VM 后一切以其为准，本 skill 不重复 |
 | `winvm-system-admin` / `winvm-app-manager` / `winvm-storage-manager` / `winvm-gui-automation` / `winvm-app-operation` | 域内细则层 | 五域各自的领域知识、惯用法与陷阱 |
 | `winvm-mcp-reference` | 接入与排障参考 | WinVM MCP 服务部署与接入参考（端点/鉴权/注册验证/常见故障） |
+| `agent-browser-skill` | **Windows 操作指引**（两端共用） | 网页/浏览器任务：`/mcp/browser` 33 项工具怎么选、怎么用（含 33 份逐工具参数表） |
+| `agent-desktop-skill` | **Windows 操作指引**（两端共用） | 原生应用 GUI 任务：`/mcp/desktop` 25 项（白名单）工具怎么用、Session 1 判据、失败排查（含 75 份参数表） |
 
-> **作用域**：本 skill 为**宿主侧技能**，面向**宿主机 Agent**（鸿蒙）的任务分派预判。交付链已把它列入 VM 分发排除名单（`HOST_ONLY_SKILLS`，见 `delivery/deploy-shared-skills.mjs`）：VM 共享根与各 VM Agent 技能目录均不会出现它（仓库侧不发布、共享根历史误分发残留清理、目标目录历史 junction 摘除）。VM 内 Agent 的一切操作以 `winvm-orchestrator` 为唯一入口。
+> **两类 skill 的分界（这是本 skill 存在的理由）**：
+> - **本 skill = 「要不要去 Windows、走哪条通道」** —— 是**分派判断**，不是操作手册；
+> - **其余 9 个 = 「到了 Windows 怎么干」** —— 是**操作指引**，宿主与 VM 内 Agent **两端共用**。
+>
+> 因此本 skill **只留在宿主**，不下发 VM：VM 内 Agent 已经在 Windows 里，"要不要去 Windows" 这个问题对它不存在。
+> 但它必须把**宿主独有的调用特殊性**（§0.5 的隧道链路、四条铁律、A2A 委派的真实形态）讲清楚 ——
+> 这是宿主 Agent 最容易误判的地方，也是 VM 内 Agent **不需要知道**的部分（VM 内是直连回环，无隧道）。
+
+> **作用域**：本 skill 为**宿主侧分派层技能**，面向**宿主机 Agent**（鸿蒙）的任务分派预判 + 宿主调用特殊性说明。
+> **它不是 Windows 操作指引**（操作指引是 `winvm-orchestrator` + 五域 skill + `agent-browser-skill` / `agent-desktop-skill`），
+> 而 VM 内 Agent 已经在 Windows 里、"要不要去 Windows" 与"隧道怎么走"对它都不成立 ⇒ **刻意不下发 VM**。
+> 交付链据此把它列入 VM 分发排除名单（`HOST_ONLY_SKILLS`，见 `delivery/deploy-shared-skills.mjs`）：
+> VM 共享根与各 VM Agent 技能目录均不会出现它（仓库侧不发布、共享根历史误分发残留清理、目标目录历史 junction 摘除）。
+> **VM 内 Agent 的操作指引 = 其余 9 个 skill**（总控 + 五域 + MCP 参考 + 两个上游工具面），全部下发。
+> VM 内 Agent 的一切操作以 `winvm-orchestrator` 为唯一入口。
 
 依据文档：本仓 docs/reference/workbuddy-hos-vs-win-panorama.md（开发期参考）。插件内技能名 `winvm-orchestrator` 等以连接器技能面为准。

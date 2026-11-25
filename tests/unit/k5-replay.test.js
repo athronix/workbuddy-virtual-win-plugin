@@ -840,10 +840,19 @@ describe('K5-D 审批请求到宿主卡片的透传', () => {
  * K5 的**行为**语义由 A/B/C/D 四组（协调器 + 纯逻辑件 + 桥 + 宿主）逐条覆盖。
  */
 describe('K5-E vm-service 接线形态守卫', () => {
-  const src = readFileSync(
-    join(import.meta.dirname, '..', '..', 'packages', 'vm-service', 'src', 'server.ts'),
-    'utf8',
-  );
+  /**
+   * ⚠ Step 3.1：`/mcp` handler 的执行/拦截段（token 创建、blocked 审计、K4 放行判据）
+   * 已逐行搬进 `gateway.ts` 的 `gateAndExecute()`。
+   *
+   * 观测面 = **server.ts + gateway.ts 合并文本**（判据逐字未改）。这一步是必须的：
+   * 「执行段被 handler 与 replay 共用」这条判据数的是 `executeCapability(` 的调用点数
+   * （要求 ≥2）。搬运后 handler 侧那次调用落在 gateway.ts 里、replay 侧仍在 server.ts ——
+   * 只看 server.ts 就只剩 1 处，会误报成"共用被破坏"，而事实恰好相反。
+   */
+  const src =
+    readFileSync(join(import.meta.dirname, '..', '..', 'packages', 'vm-service', 'src', 'server.ts'), 'utf8') +
+    '\n' +
+    readFileSync(join(import.meta.dirname, '..', '..', 'packages', 'vm-service', 'src', 'gateway.ts'), 'utf8');
 
   test('执行段抽成命名函数，且 handler 与重放共用（杜绝两条路径行为漂移）', () => {
     assert.match(src, /async function executeCapability\(/, '执行段必须是命名函数');

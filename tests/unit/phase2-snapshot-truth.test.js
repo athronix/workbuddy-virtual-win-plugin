@@ -120,11 +120,16 @@ describe('P2-T3 · 声明侧（信息性标注 + 计数钉死）', () => {
  * 全仓 src snapshot 命中（大小写不敏感）的**合法文件白名单**：
  * - 声明/校验位（3）：capability.ts（契约声明+信息性头注）、schema-check.ts（交付面 allOf
  *   专项映射 —— Q1=(b) 测试/门禁面消费，非运行期）、definitions.ts（26 条标注数据+接线）；
- * - 同词异物（9，逐一登记在案）：
+ * - 同词异物（10，逐一登记在案）：
  *   a2a-framework/server.ts、a2a-framework/index.ts（DelegationTerminalSnapshot 委派终态快照）；
  *   adapter-agent-workbuddy-llm/persistent-session.ts、bridge.ts（LlmSessionHealth 的 snapshot() 方法及其调用）；
  *   adapter-agent-workbuddy/index.ts（healthSnapshot 会话健康快照）；
- *   vm-service/server.ts / health-probe.ts / http-guard.ts / index.ts（health/session 快照族符号）。
+ *   vm-service/server.ts / health-probe.ts / http-guard.ts / index.ts（health/session 快照族符号）；
+ *   **vm-capabilities/registry/upstream-tools.ts（第 10 个，2026-11-25 补登）**：`desktop_snapshot`
+ *   与 `browser.observe.snapshot` 是**上游工具名/能力 id 的字面量**，与 `audit.snapshot` 快照策略
+ *   无关（该文件全文 `CONSUME_RE` 命中数 = 0，已实测）。此前它是被 `mcp-upstream.ts` 搬走的残留
+ *   —— 阶段 2/3 把 browser/desktop 标注数据收敛进 `registry/upstream-tools.ts` 时，字面量跟着搬了家，
+ *   白名单没跟上。属**同词异物新增一处**，非消费侧被接通。
  * 名单外出现任何 snapshot 命中即红；名单内出现 audit.snapshot **读取形态**（名单外亦然）即红。
  */
 const WHITELIST = new Set([
@@ -132,7 +137,7 @@ const WHITELIST = new Set([
   CAP_TS,
   CHECK_TS,
   DEFS_TS,
-  // 同词异物（9）
+  // 同词异物（10）
   'packages/a2a-framework/src/server.ts',
   'packages/a2a-framework/src/index.ts',
   'packages/adapter-agent-workbuddy-llm/src/persistent-session.ts',
@@ -142,6 +147,7 @@ const WHITELIST = new Set([
   'packages/vm-service/src/health-probe.ts',
   'packages/vm-service/src/http-guard.ts',
   'packages/vm-service/src/index.ts',
+  'packages/vm-capabilities/src/registry/upstream-tools.ts',
 ]);
 
 const SHAPE_DECL = new Set([CAP_TS, CHECK_TS, DEFS_TS]);
@@ -150,7 +156,7 @@ const SHAPE_DECL = new Set([CAP_TS, CHECK_TS, DEFS_TS]);
 const CONSUME_RE = /audit\s*\??\s*\.\s*snapshot|\.snapshot\s*[!=]==?|beforeAfter|SnapshotPolicy|spec\.snapshot/;
 
 describe('P2-T3 · 消费侧恒零（白名单守卫）', () => {
-  test('全仓 src snapshot 命中文件集 = 白名单 12 文件（名单外新增即红 = "悄悄接上消费"显形）', () => {
+  test('全仓 src snapshot 命中文件集 = 白名单 13 文件（名单外新增即红 = "悄悄接上消费"显形）', () => {
     const hits = [];
     for (const rel of allSrcTs()) {
       if (/snapshot/i.test(src(rel))) hits.push(rel);
@@ -159,10 +165,10 @@ describe('P2-T3 · 消费侧恒零（白名单守卫）', () => {
     assert.deepEqual(outside, [], `名单外文件出现 snapshot 命中（消费侧被新增？）：${outside.join(', ')}`);
     const gone = [...WHITELIST].filter((w) => !hits.includes(w));
     assert.deepEqual(gone, [], `白名单文件不再命中 snapshot（重构或消费消失）——须同步更新本白名单：${gone.join(', ')}`);
-    assert.equal(hits.length, 12, `命中文件集应恰 12（3 声明/校验 + 9 同词异物），实得 ${hits.length}`);
+    assert.equal(hits.length, 13, `命中文件集应恰 13（3 声明/校验 + 10 同词异物），实得 ${hits.length}`);
   });
 
-  test('同词异物 9 文件逐行零"消费形态"（DelegationTerminalSnapshot/snapshot()/healthSnapshot 均非 audit.snapshot 读取）', () => {
+  test('同词异物 10 文件逐行零"消费形态"（DelegationTerminalSnapshot/snapshot()/healthSnapshot/desktop_snapshot 均非 audit.snapshot 读取）', () => {
     for (const rel of WHITELIST) {
       if (SHAPE_DECL.has(rel)) continue;
       const lines = src(rel).split('\n');

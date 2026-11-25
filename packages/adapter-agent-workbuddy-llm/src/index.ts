@@ -29,12 +29,22 @@ import {
   type ProgressSink,
   makeError,
 } from '@winvm/contracts';
+import type { ExecutorPlane } from './executor-plane.js';
 import { resolveApprovalTruth, expandEnvPath, type ApprovalTruthMode, type LlmSessionConfig } from '@winvm/core';
 import type { PsBridgeOptions } from '@winvm/vm-capabilities';
 import { DeterministicAgentProvider } from '@winvm/adapter-agent-workbuddy';
 
 import { CliLlmBridge, type LlmBridge, type LlmGoalResult, type LlmSkillDoc } from './bridge.js';
 import { evaluateDisabledRejection } from './delegation-truth.js';
+/**
+ * Step 4.3（阶段 4）：执行体已抽成 `CliAgentPlanner`。
+ *
+ * 本文件从「实现执行体」降级为「provider 外壳 + 装配」：
+ * `runGoal` 只剩 `this.planner().plan(goal, sink)` 一行转发。
+ * 生命周期与硬件相关能力（`warmup` / `llmSessionHealth` / `health` / `init` / `shutdown`）
+ * 仍留在 provider —— 那是「服务装配」的职责，不是「规划」的职责。
+ */
+import { CliAgentPlanner } from './cli-agent-planner.js';
 import type { SessionLog } from './persistent-session.js';
 
 export const PROVIDER_ID = 'workbuddy';
@@ -141,7 +151,7 @@ export interface WorkbuddyLlmProviderOptions {
   /** CLI 参数模板覆盖（真机 CLI 契约与默认不一致时使用） */
   readonly cliArgTemplate?: readonly string[];
   /** 注入用：测试注入 mock；生产省略（自动构造 DeterministicAgentProvider） */
-  readonly executor?: AgentServiceProvider;
+  readonly executor?: ExecutorPlane;
   /** 注入用：测试注入 mock；生产省略（自动构造 CliLlmBridge） */
   readonly bridge?: LlmBridge;
   readonly psBridge?: PsBridgeOptions;
@@ -187,7 +197,7 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
    * → undefined → 桥门 4 透传，旧行为逐字节不变。
    */
   private probe: DelegationTruthProbe | undefined;
-  private readonly executor: AgentServiceProvider;
+  private readonly executor: ExecutorPlane;
   private readonly bridge: LlmBridge;
   private readonly cliPath: string;
   private readonly endpoint: string;
@@ -397,185 +407,44 @@ export class WorkbuddyLlmProvider implements AgentServiceProvider {
   }
 
   async runGoal(goal: GoalRequest, sink: ProgressSink): Promise<GoalResult> {
-    if (!this.ctx) throw new Error('provider 尚未 init');
-
-    /* ---- K-N1 §4.1：disabled 入口显式拒绝（先于任何桥调用） ----
-     * 三态判定（纯函数 `evaluateDisabledRejection`，12 例真值表见 §9-A-3）：
-     *   仅 (A2A 委派 taskId) && (persistent=true 部署态) && (会话 state='disabled') → 拒绝。
-     * 拒绝**不进 bridge.runGoal**、也**不进 shouldDegrade 分支**（§4.3：确定性模板不因此
-     * 失去委派入口）；A2A 框架据 result.ok=false 收口 `failed`，宿主在 message/send 响应
-     * 直接拿到原因码 —— 零静默。delegation.complete 由服务端 observer 统一收口
-     * （terminalState=failed, errorCode=LLM_SESSION_DISABLED, zeroInnerCalls:true）——
-     * 设计 §4.1 写「rejected」，但框架 `result.ok=false → failed` 是唯一收口路径（拍板点：
-     * 走 failed 收口），终态口径差异登记为偏差。
+    /**
+     * Step 4.3（阶段 4）：执行体已抽成 `CliAgentPlanner`（`./cli-agent-planner.js`）。
+     *
+     * 本方法**只剩一行转发** —— 这是「provider 降级为壳」的落点：
+     * provider 负责生命周期（`init`/`warmup`/`health`/`shutdown`/`llmSessionHealth`），
+     * 「把事情想清楚」交给 planner。
+     *
+     * ⚠ 三条纪律：
+     * 1. **不再在此处保留任何执行逻辑**。留一半 = 两套真相，下次改必然只改一边。
+     * 2. **`bridge.ts` / `persistent-session.ts` 一行不动** —— 那才是真正干活的部分
+     *    （CLI 进程、常驻会话、MCP 配置注入）。任何让它们变短的改法都是「删除」不是「降级」。
+     * 3. `planner` 惰性构造：`ctx` 在 `init()` 之后才存在，构造函数期建会拿到 `undefined`。
+     *
+     * 行为等价由既有 runGoal 单测证明（逐字搬移，零行为变化）。
      */
-    const session = this.bridge.sessionHealth?.();
-    const persistent = this.bridge.isPersistentEnabled?.() ?? false;
-    const rejection = evaluateDisabledRejection({
-      hasTaskId: goal.taskId !== undefined,
-      persistent,
-      ...(session ? { sessionState: session.state } : {}),
+    return this.planner().plan(goal, sink);
+  }
+
+  /**
+   * 惰性构造 `CliAgentPlanner`，把 provider 的 10 项现有能力注入进去。
+   *
+   * 不缓存实例：planner 无自有状态（状态全在 bridge 里），缓存只会带来
+   * 「`ctx` 被换掉后 planner 仍持旧 ctx」的隐患。
+   */
+  private planner(): CliAgentPlanner {
+    return new CliAgentPlanner({
+      ctx: this.ctx,
+      bridge: this.bridge,
+      executor: this.executor,
+      probe: this.probe,
+      cliPath: this.cliPath,
+      endpoint: this.endpoint,
+      outputDir: this.outputDir,
+      skillsRoot: this.skillsRoot,
+      loadSkillDocs,
+      delegationActivityFor: (g) => this.delegationActivityFor(g),
+      shouldDegrade: (r) => this.shouldDegrade(r),
     });
-    if (rejection.reject) {
-      const detail = session?.lastError ? `（最近错误：${session.lastError}）` : '';
-      this.ctx.logger.warn('K-N1：disabled 委派显式拒绝（LLM_SESSION_DISABLED）', {
-        taskId: goal.taskId,
-        traceId: goal.traceId,
-        restarts: session?.restarts ?? 0,
-        lastErrorAt: session?.lastErrorAt ?? '',
-      });
-      return {
-        ok: false,
-        summary: `委派通道不可用：LLM 常驻会话已停用${detail}`,
-        artifacts: [],
-        steps: [],
-        error: makeError('PROVIDER_UNAVAILABLE', 'LLM 常驻会话 disabled，拒绝降级委派', {
-          reason: 'LLM_SESSION_DISABLED',
-          details: { restarts: session?.restarts ?? 0, ...(session?.lastErrorAt ? { lastErrorAt: session.lastErrorAt } : {}) },
-        }),
-      };
-    }
-
-    const catalog = this.ctx.capabilities.list();
-    sink.onStatus('working', `WinVM WorkBuddy LLM Agent 接管目标：${goal.goal}`);
-
-    // 加载下发的技能规范，作为 VM 内 Agent 的操作指引
-    const skills = await loadSkillDocs(this.skillsRoot);
-    if (skills.length > 0) {
-      sink.onStatus('working', `已载入 ${skills.length} 份技能规范：${skills.map((s) => s.id).join(', ')}`);
-    }
-
-    const res = await this.bridge.runGoal(
-      {
-        goal: goal.goal,
-        capabilities: catalog,
-        outputDir: this.outputDir,
-        cliPath: this.cliPath,
-        endpoint: this.endpoint,
-        traceId: goal.traceId,
-        timeoutMs: goal.timeoutMs || 300_000,
-        // K4：把 A2A 任务 id 透传给桥接层，使其能经审批协调器把 input-required 挂到正确任务。
-        ...(goal.taskId ? { taskId: goal.taskId } : {}),
-        // 批10 N-7（F-5 收口）：P1-Fix 时代的 maxRisk 透传已退役——合成步骤 risk 改取
-        // 注册表权威值（bridge.ts WORKFLOW_RUN_RISK），桥内零消费；封顶的执法通路在
-        // scope 留存→evaluate（批1 F-2/F-3），不在展示面复用。
-        // K-N1：逐调用下传账本探针（缺席即桥门 4 透传，零回归）与服务 logger 告警出口
-        ...(this.probe ? { probe: this.probe } : {}),
-        warn: (msg: string, meta?: Record<string, unknown>): void => this.ctx?.logger.warn(msg, meta ?? {}),
-        ...(skills.length > 0 ? { skills } : {}),
-      },
-      sink,
-    );
-
-    if (!res.ok) {
-      // D4.4 降级：LLM 运行时不可用（ENOENT / 非零退出且无产物）时，回落到确定性执行器的
-      // 内置模板（runGoal），而不是直接失败 —— 让「委派」在有确定性模板可覆盖时仍能完成任务。
-      // 仅当确定性执行器也报 UNSUPPORTED_GOAL（无匹配模板）时才算真正失败。
-      //
-      // K-N1 边界（必须排除，否则把「假完成」洗白成「降级重试成功」）：
-      //  1) 委派账本反查改判（reason=NO_EXECUTION_RECEIPT）不降级 —— 改判本身**就是终态**；
-      //  2) disabled 拒绝（reason=LLM_SESSION_DISABLED）同理不进此分支（已提前 return）。
-      // K5 的 REPLAY_FAILED 等既有 reason 行为不变（保持 D4.4 原语义）。
-      //
-      // **D-6（P2·实弹，2026-10-17 真机实证）**：降级前**必须**反查「本委派回合服务端是否
-      // 真有过活动」。实证场景（`qa/p5-batch/b16/VERDICT.md`）：委派经审批放行后，服务端
-      // 确定性重放**真实执行**了能力并写入诚实折叠回执（链 seq=20：`ok=false` /
-      // `EXECUTION_FAILED` / K6 核验未过），但 LLM 侧收口为 `ok=false` 且零产物 ⇒ 命中本
-      // 降级分支 ⇒ 确定性兜底既不复用服务端重放结果、也不知悉"已执行"事实，其失败文案成为
-      // 终态 summary ⇒ **宿主读到「未匹配到模板」而真实卸载早已发生**（destructive 能力尤危），
-      // 且链上 `delegation.complete` 的错误码被替换成兜底的 `UNKNOWN_CAPABILITY`，真实病因
-      // 永久丢失。判据：服务端委派账本对**本 traceId** 有活动记录（executed/blocked/wild
-      // 任一非零）⇒ 该回合确实到过服务端 ⇒ 降级只会把已发生的事实改写掉，故抑制降级。
-      if (this.shouldDegrade(res) && res.error?.reason !== 'NO_EXECUTION_RECEIPT') {
-        const activity = await this.delegationActivityFor(goal);
-        if (activity && activity.total > 0) {
-          const facts =
-            `服务端已记录本委派活动（executed=${activity.executed}/blocked=${activity.blocked}/wild=${activity.wild}）`;
-          this.ctx.logger.warn(
-            'D-6：服务端已有委派活动证据，抑制降级（避免把已执行事实改写为"未匹配到模板"）',
-            {
-              taskId: goal.taskId ?? '',
-              traceId: goal.traceId,
-              llmCode: res.error?.code ?? 'UNKNOWN',
-              ...(res.error?.reason ? { llmReason: res.error.reason } : {}),
-              executed: activity.executed,
-              blocked: activity.blocked,
-              wild: activity.wild,
-            },
-          );
-          sink.onStatus('working', `D-6：${facts}，不降级为确定性执行器`);
-          return {
-            ok: false,
-            summary:
-              `${res.summary}；${facts}，未降级为确定性执行器` +
-              `（真实执行/拦截已发生，详见审计链 traceId=${goal.traceId}）`,
-            artifacts: res.artifacts,
-            // 与 K5 / K-N1 两条真值判据同构：终态失败时步骤不得保留 ok:true 的完成声称。
-            steps: res.steps.map((s) => ({
-              ...s,
-              ok: false,
-              summary: '服务端已记录本委派活动，LLM 侧收口失败（未降级为确定性执行器）',
-            })),
-            error: res.error,
-            ...(res.degraded ? { degraded: res.degraded } : {}),
-            ...(res.approvalTruth ? { approvalTruth: res.approvalTruth } : {}),
-          };
-        }
-
-        sink.onStatus(
-          'working',
-          `LLM 运行时不可用（${res.error?.code ?? 'UNKNOWN'}），降级为确定性执行器`,
-        );
-        const fallback = await this.executor.runGoal(goal, sink);
-        // D-6(c)：终态 summary **必须**带 LLM 侧真实收口码 —— 否则链上/宿主只看到确定性
-        // 兜底的码（`UNSUPPORTED_GOAL`），真实病因被永久抹掉（本轮即因此误判过一次归因）。
-        // 兜底错误本体保留为 `error`（既有语义/守卫逐字不变），真实码经 `details.degradedFrom*`
-        // 与 summary 双通道透出。
-        const llmCode = res.error?.code ?? 'UNKNOWN';
-        const llmReason = res.error?.reason;
-        const truthTag = `（LLM 侧收口：${llmCode}${llmReason ? `/${llmReason}` : ''}）`;
-        return {
-          ok: fallback.ok,
-          summary: fallback.ok
-            ? `已降级为确定性执行：${fallback.summary}${truthTag}`
-            : `已降级为确定性执行，但执行器未匹配到模板：${fallback.summary}${truthTag}`,
-          artifacts: fallback.artifacts,
-          steps: fallback.steps,
-          ...(fallback.error
-            ? {
-                error: {
-                  ...fallback.error,
-                  details: {
-                    ...(fallback.error.details ?? {}),
-                    degradedFromCode: llmCode,
-                    ...(llmReason ? { degradedFromReason: llmReason } : {}),
-                  },
-                },
-              }
-            : {}),
-        };
-      }
-      return {
-        ok: false,
-        summary: res.summary,
-        artifacts: res.artifacts,
-        steps: res.steps,
-        error: res.error,
-        ...(res.degraded ? { degraded: res.degraded } : {}),
-        // P2-T8 G-b：归因事实透传（兜底/结构化改判后的失败态同样要能入链计数）
-        ...(res.approvalTruth ? { approvalTruth: res.approvalTruth } : {}),
-      };
-    }
-    return {
-      ok: true,
-      summary: res.summary,
-      artifacts: res.artifacts,
-      steps: res.steps,
-      // K-N1 §4.4：降级事实透传到 GoalResult（服务端 observer 落 ext.downgraded 的唯一来源）
-      ...(res.degraded ? { degraded: res.degraded } : {}),
-      // P2-T8 G-b：真值判据归因透传到 GoalResult（服务端 observer 落 ext.approvalTruth 的唯一来源）
-      ...(res.approvalTruth ? { approvalTruth: res.approvalTruth } : {}),
-    };
   }
 
   /**
@@ -656,6 +525,12 @@ export {
   containsBearerCredentialLiteral,
   appendDtid,
   buildMcpConfig,
+  /**
+   * 3.6b：`buildMcpConfig` 在 endpoint 形态不认识时降级为单条目，并需要留痕。
+   * 该函数是纯函数（被 3 个测试文件逐字节比对），不持有服务 logger ⇒ 用注入式出口，
+   * 默认写 stderr。服务侧可接自己的 logger 统一收集。
+   */
+  setMcpConfigWarnSink,
   buildSystemPrompt,
   escapeWinArg,
   flattenPromptForCli,

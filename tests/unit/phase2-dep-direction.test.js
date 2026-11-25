@@ -141,7 +141,17 @@ describe('P2-T11 · U-0 scripts 守卫资产在位（Phase 1 的 layout 死入�
     const r = runTool(DEP_LINT, ['--json']);
     assert.equal(r.code, 0, `真仓 dep-lint 应 GREEN（exit 0）；实际 exit=${r.code}\n${r.stdout.slice(0, 800)}${r.stderr.slice(0, 400)}`);
     assert.ok(r.json && typeof r.json === 'object', '--json 须输出可解析 JSON');
-    assert.ok(r.json.stats.packages >= 12, `应扫到 ≥12 个包，实际 ${r.json.stats.packages}`);
+    /* 包数判据改为**从 tsconfig.build.json 现算**，不再硬编码 12。
+     * 教训（V-NEXT 2026-11-23 删 adapter-agent-hermes 时踩到）：硬编码计数让
+     * 「合法地删一个包」变成假红，而真正要守的是「dep-lint 扫到的包数 == 参与构建的包数」——
+     * 这条不变式与包数具体是多少无关。 */
+    const BUILD_TSCONFIG = join(ROOT, 'tsconfig.build.json');
+    const expectedPkgs = JSON.parse(readFileSync(BUILD_TSCONFIG, 'utf8')).references.length;
+    assert.equal(
+      r.json.stats.packages,
+      expectedPkgs,
+      `dep-lint 扫到的包数须等于 tsconfig.build.json 的 references 数（${expectedPkgs}），实际 ${r.json.stats.packages}`,
+    );
     assert.ok(r.json.stats.scannedJsFiles > 0, 'dist js 文件计数须 >0（=0 说明 dist 未构建 ⇒ 判定不具意义）');
     assert.ok(r.json.stats.hard === 0, `hard 违规应为 0，实际 ${r.json.stats.hard}: ${JSON.stringify(byId(r.json.violations, 'x'))}`);
   });

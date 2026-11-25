@@ -7,8 +7,22 @@
  *   3. 命中命令黑名单             → POLICY_DENIED（立即）
  *   4. 未命中白名单               → POLICY_DENIED
  *   5. 超出本次 maxRisk           → POLICY_DENIED
- *   6. 风险 ≥ L2 且未审批         → APPROVAL_REQUIRED
+ *   6. 审批判定（V-NEXT 3.3 扩为四档，见下）：
+ *      6a. dry-run + 能力声明 supportsDryRun → 放行（原 D11/U-P0-3 语义，未变）
+ *      6b. 命中**能力级强制审批名单**      → APPROVAL_REQUIRED（与 risk 无关，能把 L0/L1 拉进审批）
+ *      6c. 命中**能力级免审批名单**        → 放行（仅 L2；**L3 不豁免**）
+ *      6d. 风险 ≥ L2 且未审批              → APPROVAL_REQUIRED
  *   7. 通过
+ *
+ * ⚠ 6a 必须在 6b **之前**：`system.power.control` 等能力声明了 `supportsDryRun`
+ * 且 description 写着「必须先 dry-run」。dry-run 是**零变更的计划预览**，正是让人
+ * 看清楚再决定的手段 —— 黑名单拦 dry-run 等于把这条安全流程本身掐断（实测踩过）。
+ * 这不构成 U-P0-3 漏洞：dry-run 免批仍是**双条件**（调用方意图 + 服务端声明），
+ * 被点名但未声明 supportsDryRun 的能力传 dryRun 一样要审批。
+ *
+ * ⚠ 6a/6b/6c 的名单是**能力级**的「要不要人看过」，与步骤 2/3 的
+ * `pathDenylist`/`commandDenylist`（**参数级**、命中即**拒**）不是同一语义，勿混。
+ * 名单之间的优先级：**6b > 6c**（黑名单压白名单），理由见 `capability.ts` 字段注释。
  */
 
 import {
@@ -18,7 +32,11 @@ import {
   type PolicyEngine,
   type RiskLevel,
   type CapabilityRegistryView,
+  /** Step 3.2：能力面标识（`vm` | `browser` | `desktop`），用于按面隔离参数级策略。 */
+  type Surface as CapabilitySurface,
   POLICY_APPROVAL_REQUIRED_MATCHED_RULE,
+  POLICY_CAPABILITY_APPROVAL_DENY_MATCHED_RULE,
+  POLICY_CAPABILITY_APPROVAL_ALLOW_MATCHED_RULE,
   POLICY_DRY_RUN_BYPASS_MATCHED_RULE,
   makeError,
   matchesCapability,
@@ -538,12 +556,46 @@ export interface PolicyEngineOptions {
   readonly registry?: CapabilityRegistryView;
   /** 显式关闭路径白名单（仅限测试或受控环境） */
   readonly disablePathAllowlist?: boolean;
+  /**
+   * Step 3.2（**按面隔离**）：本引擎实例**只服务**哪个能力面。
+   *
+   * 为什么需要这个选项 —— 它解决的是一类**语义错误**，不是性能或便利：
+   *
+   * 引擎里那几组判定（`pathDenylist` / `pathAllowlist` / `commandDenylist` /
+   * `registryRead/WriteAllowlist` / `processDenylist`）的语义全部是
+   * 「**这个参数值指向哪个系统资源、准不准碰**」。这套语义只对「真的在操作本机资源」
+   * 的面成立。上游两面（browser / desktop）的参数是**指令内容**而不是资源地址：
+   * `url` 是网络地址、`selector` 是 DOM 选择器、`text` 是待输入的文字。
+   *
+   * 实测（2026-11-24）拿资源策略去判它们必然误伤：
+   * - `browser.nav.open {url:'https://example.com/a/b'}` ⇒ `pathAllowlist:miss` 拒绝
+   *   （url 被当成文件路径，且不在 `C:\Temp\**` 白名单里）⇒ 浏览器工具整体不可用；
+   * - `desktop.input.type {text:'C:\Windows\System32\x'}` ⇒ `pathDenylist` 拒绝
+   *   （用户要**输入这段文字**，不是要写这个文件）⇒ 桌面自动化的常见合法用途被封死。
+   *
+   * 故 `surface !== 'vm'` 时**不编译**这几组参数级正则 ⇒ 相关判定自然跳过。
+   *
+   * ⚠ 边界（改这个选项前必须读完）：
+   * - **只影响参数级判定**。能力级判定（`capabilityApprovalDenylist` /
+   *   `capabilityApprovalAllowlist` / risk 审批 / dry-run 双条件）**一律保留** ——
+   *   `browser.meta.eval`（L2，页内执行任意 JS）依然被审批闸拦住，一分不少。
+   * - 缺省 `'vm'` ⇒ 不传此选项的既有调用点（生产 vm 面、全部单测）行为**逐字不变**。
+   * - 这不是「给上游开后门」：上游面本来就没被这些策略保护到（它的参数不是路径），
+   *   保留它们只产生误伤。真正的护栏是 risk + 能力级名单 + 审计。
+   */
+  readonly surface?: CapabilitySurface;
 }
 
 export class CorePolicyEngine implements PolicyEngine {
   private readonly cfg: PolicyConfig;
   private readonly registry?: CapabilityRegistryView;
   private readonly disablePathAllowlist: boolean;
+
+  /**
+   * Step 3.2：本实例服务的能力面。`'vm'`（缺省）⇒ 参数级策略全开，行为逐字不变。
+   * 上游两面 ⇒ 参数级正则**不编译**（见 `PolicyEngineOptions.surface` 的完整理由）。
+   */
+  private readonly surface: CapabilitySurface;
 
   private readonly pathDenyRe: readonly RegExp[];
   private readonly pathAllowRe: readonly RegExp[];
@@ -554,15 +606,32 @@ export class CorePolicyEngine implements PolicyEngine {
     this.cfg = base;
     this.registry = opts.registry;
     this.disablePathAllowlist = opts.disablePathAllowlist === true;
+    this.surface = opts.surface ?? 'vm';
+    // Step 3.2（按面隔离）：非 vm 面不编译参数级正则。
+    //
+    // 为什么在**编译期**清空而不是在 evaluate 里加 if：清空后相关循环自然空转，
+    // evaluate 的判定顺序与代码路径完全不变 —— 这样 vm 面的行为等价性是**结构性**保证的
+    // （同一份代码、同一条路径），而不是靠"记得在每个 if 前面加 surface 判断"。
+    // 加 if 的写法一旦漏一处，就是某组策略在上游面上仍然生效并误伤，且不显形。
+    const paramPoliciesEnabled = this.surface === 'vm';
     // U-P0-1「先归一后匹配」：模式侧与入参侧必须走**同一条**归一通路，否则
     // 「表写 `C:\Users\a\.\x`、入参写 `C:\Users\a\x`」这类形态落差会再次出现
     // （与注册表域 `matchRegistryAllowlist` 的「两侧先归一」同一纪律）。
     // ARCH-17 在同一通路上补**模式侧 env 展开**（先展开后归一）：默认白名单改为
     // `%USERPROFILE%\**` 之后，不展开就等于该条恒不匹配 —— deny 侧同批加上，
     // 否则运维把 `%USERPROFILE%` 写进黑名单会静默失效（那是新的漏，不是修漏）。
-    this.pathDenyRe = base.pathDenylist.map((p) => globToRegex(normalizePath(expandPolicyPathPattern(p))));
-    this.pathAllowRe = base.pathAllowlist.map((p) => globToRegex(normalizePath(expandPolicyPathPattern(p))));
-    this.cmdDenyRe = base.commandDenylist.map((p) => new RegExp(p, 'i'));
+    this.pathDenyRe = paramPoliciesEnabled
+      ? base.pathDenylist.map((p) => globToRegex(normalizePath(expandPolicyPathPattern(p))))
+      : [];
+    this.pathAllowRe = paramPoliciesEnabled
+      ? base.pathAllowlist.map((p) => globToRegex(normalizePath(expandPolicyPathPattern(p))))
+      : [];
+    this.cmdDenyRe = paramPoliciesEnabled ? base.commandDenylist.map((p) => new RegExp(p, 'i')) : [];
+  }
+
+  /** 本实例服务的能力面（供装配层与单测核对，避免"以为隔离了其实没有"）。 */
+  get surfaceScope(): CapabilitySurface {
+    return this.surface;
   }
 
   get config(): PolicyConfig {
@@ -692,7 +761,12 @@ export class CorePolicyEngine implements PolicyEngine {
     // ≡ `HKLM:\SOFTWARE\**`），再由 `matchRegistryAllowlist` 做**大小写敏感**比对 ——
     // D9 的「写法不影响成败」由此真正落到同一结论。
     const regValues = values.filter((v) => looksLikeRegistryPath(v.value));
-    if (regValues.length > 0) {
+    // Step 3.2（按面隔离）：非 vm 面跳过注册表范围判定。
+    // 判据是 `looksLikeRegistryPath(value)` —— 即「**参数值**长得像注册表路径」。
+    // 上游面的参数里出现 `HKLM:\…` 只可能是**文本内容**
+    // （`desktop.input.type {text:'HKLM:\SOFTWARE\X'}` 是往输入框里打字，不是改注册表），
+    // 用写名单去卡它会让「输入一段含注册表路径的说明文字」变成不可能。
+    if (this.surface === 'vm' && regValues.length > 0) {
       // S-5（docs/design/s5-registry-write-allowlist-pairing.md §③(a)）：写动词判定必须覆盖
       // **末段**形态。真实能力 ID `system.registry.write` 的动词位于末段且**无尾点**，
       // 而 HEAD 正则 `/\.(write|set|create|delete|remove)\./i` 要求动词**两侧都有点** ⇒ 恒 false
@@ -732,10 +806,20 @@ export class CorePolicyEngine implements PolicyEngine {
     }
 
     // 4c. 进程黑名单
-    const procDeny = new Set([
-      ...this.cfg.processDenylist,
-      ...(req.capabilityPolicy?.processDenylist ?? []),
-    ]);
+    //
+    // Step 3.2：非 vm 面跳过。理由与 path/command 同源 —— 本判定的语义是
+    // 「**这个参数**指定的进程名是不是受保护的」，要求参数**就是**进程名。
+    // 上游面的同名参数不是进程名：`desktop.window.launch {app:'notepad.exe'}`
+    // 的 `app` 是**要启动**的应用（黑名单里躺着 `lsass`/`csrss` 这类受保护进程，
+    // 而启动一个普通应用与"操作受保护进程"是两件事）。
+    // ⚠ 这**不是**给上游面开洞：受保护进程的真正防护在 vm 面（`system.process.terminate`
+    // 等），上游面根本没有"操作任意进程"的能力面。
+    const procDeny = this.surface === 'vm'
+      ? new Set([
+          ...this.cfg.processDenylist,
+          ...(req.capabilityPolicy?.processDenylist ?? []),
+        ])
+      : new Set<string>();
     for (const { key, value } of values) {
       if (!/\b(process|name|processName|target)\b/i.test(key)) continue;
       const norm = value.trim().toLowerCase().replace(/\.exe$/, '');
@@ -772,6 +856,50 @@ export class CorePolicyEngine implements PolicyEngine {
 
     // 6. 需要审批
     //
+    // ──────────────────────────────────────────────────────────────────────
+    // 6a. **能力级名单覆盖**（V-NEXT 3.3，owner 2026-11-24 裁定）
+    //
+    // ⚠ 先厘清语义，此处极易与步骤 2/3 的 denylist 混淆：
+    //   步骤 2/3 的 pathDenylist / commandDenylist = **参数级、命中即拒**（POLICY_DENIED）
+    //   本节的两个名单 = **能力级、命中即"要不要人看过"**（不改变是否允许，只改变审批）
+    //
+    // 优先级（owner 明确要求）：capabilityApprovalDenylist > capabilityApprovalAllowlist。
+    // 两边同时命中 ⇒ 走审批。理由：名单制的价值在于"危险那条必须在场"，
+    // 若白名单能压掉黑名单，只要有人把通配写宽（`storage.*`），黑名单里逐条点名的
+    // 危险能力就被静默豁免 —— 那是 fail-open，比没有名单更糟。
+    //
+    // ⚠ **本名单不拦 dry-run**（这一条是踩过坑才定的，别"优化"掉）：
+    // 初版把本判定放在 dry-run 之前，结果打挂了三个既有测试 ——
+    // `system.power.control` 声明了 `supportsDryRun: true`，其 description 明确写着
+    // 「关机/重启/休眠/睡眠。**必须先 dry-run**」。也就是说：
+    //   - 黑名单说「这条要人看」→ 关心的是**真实执行**
+    //   - dry-run 说「只看计划、零变更」→ 恰恰是**为了让人看清楚再决定**
+    // 两者方向一致，不是对立。若黑名单拦 dry-run，等于把「先看计划再确认」这条
+    // 安全流程本身掐断 —— 用户无法取得计划，只能盲批。那比不拦更危险。
+    //
+    // 为什么这**不**重新引入 U-P0-3 的漏洞：U-P0-3 的病根是「dry-run 免批**只**由
+    // 调用方自报的 `dryRun` 参数决定」。现在仍是**双条件**（调用方意图 + 服务端
+    // `supportsDryRun` 声明），名单不改变这个结构。被点名的能力若**没有**声明
+    // `supportsDryRun`，传 dryRun 一样要审批 —— 名单的效力不受影响。
+    // ──────────────────────────────────────────────────────────────────────
+    // ⚠ 两个来源取**并集**：
+    //   ① 全局配置 `PolicyConfig`（运维可配、走 mergePolicy 并集、覆盖面最广）
+    //   ② 能力自带 `capabilityPolicy`（个别能力定义里声明）
+    // 只读 ② 的话，名单就得写进 112 个能力定义里 —— 等于没有全局开关，
+    // 且改一条要动 definitions.ts（能力定义本该只描述"做什么"，不承载运维策略）。
+    const approvalDeny = [
+      ...this.cfg.capabilityApprovalDenylist,
+      ...(req.capabilityPolicy?.capabilityApprovalDenylist ?? []),
+    ];
+    const approvalAllow = [
+      ...this.cfg.capabilityApprovalAllowlist,
+      ...(req.capabilityPolicy?.capabilityApprovalAllowlist ?? []),
+    ];
+    const inApprovalDeny = approvalDeny.some((p) => matchesCapability(p, req.capabilityId));
+    const inApprovalAllow = approvalAllow.some((p) => matchesCapability(p, req.capabilityId));
+
+    // 6a. dry-run 免审批（原有语义，**仍在能力级黑名单之前**）
+    //
     // D11：dry-run 免审批 —— 不改变系统状态（仅返回执行计划）时不拦审批，
     // 否则 Skill 规定的「L3 先 dry-run 再确认」流程在审批闸前就断掉、无法取得计划。
     // 放在路径/命令/注册表等安全校验之后，故 dry-run 仍不能绕过黑名单与白名单。
@@ -802,6 +930,43 @@ export class CorePolicyEngine implements PolicyEngine {
           };
         }
       }
+    }
+
+    // 6b. 能力级**强制审批**名单（命中即审批，与 risk 无关）
+    //
+    // ⚠ 位置很关键：必须在 6a（dry-run）**之后**、6c（免审批名单）**之前**。
+    // 放在 dry-run 之前会打挂 `system.power.control` 这类「声明了 supportsDryRun
+    // 且 description 写着必须先 dry-run」的能力（实测踩过，见上文 6a 段注释）。
+    // 放在 6c 之前才能保证 owner 要求的「黑名单优先级更高」。
+    //
+    // 条件里**没有** `riskAtLeast(req.risk,'L2')` —— 这正是本名单的意义：
+    // 把 risk 标注为 L0/L1、但实际值得人看一眼的能力也拉进审批。
+    if (inApprovalDeny && !req.approved) {
+      return {
+        allowed: false,
+        matchedRule: POLICY_CAPABILITY_APPROVAL_DENY_MATCHED_RULE,
+        requiresApproval: true,
+        error: makeError(
+          'APPROVAL_REQUIRED',
+          `能力 ${req.capabilityId} 在强制审批名单内，需人工审批后执行`,
+          { details: { capabilityId: req.capabilityId, risk: req.risk, list: 'capabilityApprovalDenylist' } },
+        ),
+      };
+    }
+
+    // 6c/6d. risk 驱动的审批判定（原有语义）
+    if (riskAtLeast(req.risk, 'L2') && !req.approved) {
+      // 6c. 能力级**免审批**名单（仅对 L2 生效，**L3 不豁免**）
+      //
+      // 为什么 L3 不豁免：L3 的语义是"可能导致系统不可用或数据全损，需审批 + 二次确认"。
+      // 用配置项豁免 L3 等于把风险模型里最强的那档架空 —— 那不该由一份名单决定。
+      // 确需放行某条 L3，正确做法是下调它的 risk 并在注释里写明理由（留痕、可审计），
+      // 而不是往白名单里加一行（无人知道为什么它被豁免）。
+      if (inApprovalAllow && !riskAtLeast(req.risk, 'L3')) {
+        return { allowed: true, matchedRule: POLICY_CAPABILITY_APPROVAL_ALLOW_MATCHED_RULE, requiresApproval: false };
+      }
+
+      // 6d. 默认审批
       return {
         allowed: false,
         matchedRule: POLICY_APPROVAL_REQUIRED_MATCHED_RULE,

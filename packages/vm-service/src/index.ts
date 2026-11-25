@@ -176,3 +176,26 @@ export {
 export type { PolicyGateHealthView, ChannelProbeInput, DelegationRequiredInput } from './policy-gate.js';
 export { DelegationScopeRegistry } from './delegation-scope.js';
 export type { DelegationScopeEntry, ScopeLookupResult } from './delegation-scope.js';
+// Step 3.1：统一闸门（策略→审批→执行→审计）的抽取件。
+// 导出它是因为上游两路（Step 3.2 的 `/mcp/browser`、`/mcp/desktop`）此后要复用同一份判定；
+// 闸若不可导出，两路就只能抄一遍 —— 那正是本步要消灭的漂移源。
+export { gateAndExecute } from './gateway.js';
+export type { GateCall, GateDeps, ExecutionSegment } from './gateway.js';
+// Step 3.2：上游工具面闸门 + 面策略登记。
+//
+// 为什么单列一个模块而不是复用 `gateAndExecute`：实测（2026-11-24）上游面**无法**走 vm 面
+// 的闸 —— ①`GateCall.cap` 要 `CapabilityDefinition`，上游只有 `CapabilityEntry`；
+// ②上游 id 不在 `CAPABILITY_DOMAINS`，注册即抛错；③引擎第 1 步 `registry.has()`，
+// 58 项会被 100% 判 `UNKNOWN_CAPABILITY`（详见 `upstream-gate.ts` 文件头的实测表）。
+// 故它复用**判定语义与设施**，但走面适配过的路径。
+export { gateUpstreamAndExecute, evaluateUpstreamCall } from './upstream-gate.js';
+export type {
+  UpstreamCall,
+  UpstreamGateDeps,
+  UpstreamPolicyMode,
+  UpstreamVerdict,
+} from './upstream-gate.js';
+// 面策略登记表：哪个面有哪几组**参数级**策略。隔离行为落在 `CorePolicyEngine` 的
+// `surface` 选项，本文件只管声明与查询（分工理由见模块头注）。
+export { SURFACE_SCOPE, scopeOf, hasNoParameterPolicies, listSurfaces } from './surface-policy.js';
+export type { ParameterPolicyScope } from './surface-policy.js';

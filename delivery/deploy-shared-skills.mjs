@@ -10,9 +10,12 @@
  *    不复制、不覆盖用户自有技能；
  *  - 幂等：已指向本共享源视为就位；已存在且非 symlink 则跳过并告警（绝不删除/覆盖）；
  *    共享根中仓库未提供的技能一律保留（用户扩展技能不受影响）；
- *  - **host-only 排除**（HOST_ONLY_SKILLS）：宿主侧技能在交付链两段式均被排除——
+ *  - **host-only 排除**（HOST_ONLY_SKILLS）：**仅**「还没进 Windows 时才有意义」的分派层技能
+ *    （当前只有 `hos-win-skill`）在交付链两段式均被排除——
  *    仓库侧不发布（skip-host-only）、共享根历史误分发残留清理（remove）、
- *    各 Agent 目录历史 junction 摘除（remove-link），VM 内 Agent 绝不应见到它们。
+ *    各 Agent 目录历史 junction 摘除（remove-link）。
+ *    **其余 9 个 skill（含 `agent-browser-skill` / `agent-desktop-skill`）全部下发 VM** ——
+ *    它们是 Windows 操作指引，宿主 Agent 与 VM 内 codebuddy-lite 两端共用。
  *
  * 纯函数 plan* 与副作用 apply / publish 分离 → 单元测试只调 plan，不触碰真实 Agent 目录。
  *
@@ -28,16 +31,32 @@ import { join, resolve } from 'node:path';
 export const DEFAULT_SHARED_SKILLS_ROOT = 'C:/WinVMBridge/shared-skills';
 
 /**
- * Host-only 技能名单：宿主侧技能，**绝不**分发到 VM 共享根与各 VM Agent 技能目录。
+ * Host-only 技能名单：**仅宿主侧**技能，不分发到 VM 共享根与各 VM Agent 技能目录。
  *
- * 背景：`hos-win-skill` 的受众是宿主（鸿蒙）Agent 的「要不要走 winvm 通道」任务分派预判；
- * VM 内 Agent 的一切操作以 `winvm-orchestrator` 为唯一入口。SKILL.md 内的作用域声明
- * 只是缓解（VM 内 Agent 仍能读到全文），本名单在**交付链**做根治性排除：
+ * 判据（唯一）——**这个 skill 是否只在"还没进 Windows"时才有意义**：
+ *  - `hos-win-skill`：受众是宿主（鸿蒙）Agent 的「要不要走 winvm 通道」**任务分派预判**，
+ *    外加「宿主经隧道调 VM 的链路特殊性」（手工 SSH 转发争抢端口、直连 VM IP 连不上、
+ *    隧道黑洞判据、A2A 委派真实形态）。VM 内 Agent 已经在 Windows 里、
+ *    且是**直连回环无隧道**，这两件事对它都不成立 ⇒ 下发是纯噪声，且易诱导它照错执行
+ *    （正文里 `winvm-plugin tunnel *`、`~/.winvm/**` 等路径在 VM 内**不存在**）。
+ *  - **其余 9 个 skill 全部下发**：它们是**Windows 操作指引**（总控 + 五域 + MCP 参考 +
+ *    `agent-browser-skill` + `agent-desktop-skill`），指引"到了 Windows 怎么用工具干活"，
+ *    宿主 Agent 与 VM 内 codebuddy-lite **两端共用**。
+ *
+ * ⚠ 历史修正（2026-11-24，owner 裁定）：本名单曾包含 `agent-browser-skill` 与
+ * `agent-desktop-skill`，理由是"VM 内 Agent 绝不应见到宿主侧技能"。该判断**只对 hos-win-skill 成立**——
+ * 那两个恰恰是 `browser.*`(33) 与 `desktop.*`(25) 工具面**唯一的操作手册**
+ * （`references/` 各 33 / 75 份逐工具参数表），把它们挡在 VM 外等于"给了钥匙不给地图"。
+ * 现已移出名单，两个 SKILL.md 亦已改为**端点自适**表述。
+ *
+ * 排除在交付链**两段式**执行：
  *  - 发布段：仓库侧不发布（skip-host-only）、共享根历史误分发残留清理（remove）；
  *  - 链接段：各 Agent 目录中指向共享源的历史 junction/symlink 摘除（remove-link）。
- * 新增宿主侧技能时加入本名单（两侧交付脚本与测试同源引用，勿在别处硬编码名单）。
+ *
+ * ⚠ 新增技能时先按上面的判据分类：**"还没进 Windows 时才有意义" ⇒ 加本名单；"到了 Windows 怎么干" ⇒ 不加**。
+ * 两侧交付脚本与测试同源引用，勿在别处硬编码名单。
  */
-export const HOST_ONLY_SKILLS = ['hos-win-skill', 'agent-browser-skill', 'agent-desktop-skill'];
+export const HOST_ONLY_SKILLS = ['hos-win-skill'];
 
 /**
  * 解析各候选 Agent 的原生 skills 目录（支持 %ENV% 展开）。
@@ -61,6 +80,12 @@ export function resolveAgentSkillDirs(env = process.env) {
       dir: userProfile ? expand(`${userProfile}\\.workbuddy\\skills`) : null,
     },
     {
+      /* ⚠ 命名撞车警示（V-NEXT 2026-11-23）：本 `id` 是**Skill 部署目标**标识
+       * （把共享 skills 同步到 `{HERMES_HOME}/skills`，供 Hermes 侧 Agent 复用），
+       * 与 VM 侧已删除的 **LLM provider** `hermes-agent`（`@winvm/adapter-agent-hermes`）
+       * 是**两件毫不相干的事**，只是历史上取了同名。
+       * 前者**必须保留**（删了 ⇒ 浏览器/桌面 stdio 上游的技能包不再同步到 Hermes，属静默功能缺失）；
+       * 后者已随 provider 收敛为 workbuddy 而删除。改本 `id` 前请先 grep 下游消费点。 */
       id: 'hermes-agent',
       label: 'Hermes Agent',
       dir: hermesHome ? expand(`${hermesHome}\\skills`) : null,

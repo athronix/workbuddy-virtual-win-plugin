@@ -114,8 +114,13 @@ export function resolveWorkBuddyPaths(
 /**
  * 把中性传输声明渲染为 WorkBuddy mcpServers 条目。
  *
- * 注意：SSH 隧道模式采用**本地端口转发**而非 stdio+ssh ——
- * 同一条隧道可同时承载 MCP /mcp 与 A2A /a2a，纯 stdio 方案做不到。
+ * V-NEXT（2026-11-23）：`ssh-tunnel` 分支已删。隧道由宿主侧常驻 `oh-tunnel.mjs` 承载并映射到
+ * 本地回环端口，因此连接器一律声明为 `streamable-http` + `http://127.0.0.1:<port>`；
+ * 「ssh」是隧道的实现细节，不再进传输声明（原分支也只消费 `localPort` 一个字段）。
+ *
+ * `mcpPath` 让多个 connector 复用**同一个**本地端口的**不同工具面**（默认 `/mcp`）：
+ * 主能力面 `/mcp`、agent-browser `/mcp/browser`、agent-desktop `/mcp/desktop`
+ * 全部落在同一个 localPort 上，无需为每个工具面各开一条隧道。
  */
 export function renderConnectorEntry(
   connector: ConnectorDecl,
@@ -130,22 +135,22 @@ export function renderConnectorEntry(
   }
 
   switch (transport.kind) {
-    case 'ssh-tunnel':
-      return {
-        ...base,
-        type: 'streamableHttp',
-        // `mcpPath` 让多个 connector 复用**同一条**隧道的不同工具面（默认 `/mcp`）。
-        // 例：主能力面 `/mcp`、agent-browser `/mcp/browser`、agent-desktop `/mcp/desktop`
-        // 全部落在同一个 localPort 上，无需为每个工具面各开一条 SSH 连接。
-        url: `http://127.0.0.1:${transport.localPort}${connector.mcpPath ?? '/mcp'}`,
-      };
-    case 'streamable-http':
-      return {
+    case 'streamable-http': {
+      const entry: Record<string, unknown> = {
         ...base,
         type: 'streamableHttp',
         url: `${transport.url.replace(/\/+$/, '')}${connector.mcpPath ?? '/mcp'}`,
-        headers: { Authorization: `Bearer \${${transport.tokenEnv}}` },
       };
+      /* 只在**显式配置** tokenEnv 时才写 headers。
+       * 历史缺陷（V-NEXT 修复）：此处曾无条件输出 `Bearer ${<tokenEnv>}`，tokenEnv 为
+       * undefined 时渲染成字面量 `Bearer ${undefined}` —— 宿主会真把它当凭据发出去，
+       * 服务端若启用 enforceBearer 则当场 401，且报错信息完全指不到根因。
+       * 回环地址（隧道映射）本就无需凭据，缺席即不写该键。 */
+      if (transport.tokenEnv) {
+        entry['headers'] = { Authorization: `Bearer \${${transport.tokenEnv}}` };
+      }
+      return entry;
+    }
     case 'stdio':
       return {
         ...base,
@@ -340,11 +345,16 @@ export class WorkBuddyRenderer implements HostRenderer {
     }
 
     /* ---- 5. 风险与后置提示 ---- */
-    if (transport.kind === 'ssh-tunnel') {
-      // D7：旧文案引导用户「手工建立系统 ssh 本地转发隧道」，与本项目机制（宿主侧常驻
-      // tunnel-daemon，winvm-plugin tunnel status/ensure 管理健康）矛盾。改为描述真实机制。
+    /* 回环基址 ⇒ 该连接器由宿主侧常驻隧道承载（V-NEXT：ssh-tunnel 声明已并入
+     * streamable-http + 127.0.0.1，改由 URL 形态判定，提示语义不变）。
+     * D7：旧文案引导用户「手工建立系统 ssh 本地转发隧道」，与真实机制（宿主侧常驻
+     * tunnel-daemon，winvm-plugin tunnel status/ensure 管理健康）矛盾，故描述真实机制。 */
+    const isLoopbackBacked =
+      transport.kind === 'streamable-http' &&
+      /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?(\/|$)/.test(transport.url);
+    if (isLoopbackBacked) {
       warnings.push(
-        `SSH 隧道模式：宿主侧由常驻 tunnel-daemon（进程内 ssh2）承载，调用工具前请确认隧道在线` +
+        `隧道承载模式：宿主侧由常驻 tunnel-daemon（进程内 ssh2）承载，调用工具前请确认隧道在线` +
           `（winvm-plugin tunnel status），离线则 tunnel ensure 拉起；无需手工建立系统 ssh 本地转发隧道。`,
       );
       warnings.push('VM 侧服务必须仅监听 127.0.0.1；严禁将 VM 服务暴露到公网。');
@@ -368,7 +378,7 @@ export class WorkBuddyRenderer implements HostRenderer {
       jsonPatches,
       postActions: [
         '重启 WorkBuddy 以加载新插件与连接器',
-        ...(transport.kind === 'ssh-tunnel'
+        ...(isLoopbackBacked
           ? [
               `确认 VM 隧道在线：winvm-plugin tunnel status（离线则 winvm-plugin tunnel ensure）`,
             ]

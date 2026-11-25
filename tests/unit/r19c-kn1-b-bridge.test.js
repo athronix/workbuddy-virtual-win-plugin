@@ -333,8 +333,17 @@ describe('K-N1 B-4 委派账本反查先行 → K5 审批回执反查不二次�
 describe('K-N1 B-5 appendDtid / buildMcpConfig：拼接正确 + 缺席逐字节回归', () => {
   const URL = 'http://127.0.0.1:18443/mcp';
   const URL_Q = 'http://127.0.0.1:18443/mcp?x=1';
-  /** T01 之前（git 608d4e0~1）的旧实现输出快照 —— 逐字节回归护栏 */
-  const LEGACY_OUT = (ep) => JSON.stringify({ mcpServers: { winvm: { type: 'streamableHttp', url: ep } } });
+  /**
+   * T01 之前（git 608d4e0~1）的旧实现输出快照 —— 逐字节回归护栏。
+   *
+   * ⚠ 3.6b 等价搬迁（2026-11-24）：原 `LEGACY_OUT` 钉「**整串**恰含一个 winvm 条目」，
+   * 3.6b 后配置必须是 3 个条目，整串断言必然失败。处置**不是删除断言**（那等于关护栏），
+   * 而是拆成两条更强断言：`winvm` 条目逐字节相等（原先混着比整串）+ `mcpServers`
+   * 键集恰为三条（原断言完全没有这一层）。
+   */
+  const LEGACY_WINVM = (ep) => JSON.stringify({ winvm: { type: 'streamableHttp', url: ep } });
+  const winvmOnly = (out) => JSON.stringify({ winvm: JSON.parse(out).mcpServers.winvm });
+  const SERVER_KEYS = ['winvm', 'winvm-browser', 'winvm-desktop'];
 
   test('无 query → ?dtid=；已有 query → &dtid=', () => {
     assert.equal(appendDtid(URL, 'tr_1'), 'http://127.0.0.1:18443/mcp?dtid=tr_1');
@@ -350,19 +359,28 @@ describe('K-N1 B-5 appendDtid / buildMcpConfig：拼接正确 + 缺席逐字节�
     assert.equal(appendDtid('', 'tr_1'), '', '空 endpoint 不拼 query');
   });
 
-  test('buildMcpConfig：dtid 缺席逐字节等于旧实现（回归护栏）', () => {
-    assert.equal(buildMcpConfig(URL), LEGACY_OUT(URL));
-    assert.equal(buildMcpConfig(URL, undefined), LEGACY_OUT(URL));
-    assert.equal(buildMcpConfig(URL, ''), LEGACY_OUT(URL), '空字符串 dtid 等同缺席');
+  test('buildMcpConfig：dtid 缺席 winvm 条目逐字节等于旧实现（回归护栏）', () => {
+    assert.equal(winvmOnly(buildMcpConfig(URL)), LEGACY_WINVM(URL));
+    assert.equal(winvmOnly(buildMcpConfig(URL, undefined)), LEGACY_WINVM(URL));
+    assert.equal(winvmOnly(buildMcpConfig(URL, '')), LEGACY_WINVM(URL), '空字符串 dtid 等同缺席');
     assert.equal(buildMcpConfig(''), JSON.stringify({ mcpServers: {} }));
     assert.equal(buildMcpConfig(undefined), JSON.stringify({ mcpServers: {} }));
+    // 3.6b：三条目必须同时在位（补上 /mcp/browser 与 /mcp/desktop 的 58 项工具）
+    assert.deepEqual(Object.keys(JSON.parse(buildMcpConfig(URL)).mcpServers), SERVER_KEYS);
   });
 
-  test('buildMcpConfig：dtid 存在 → 仅 url 追加，结构其余逐字不变', () => {
+  test('buildMcpConfig：dtid 存在 → 三条目 url 均追加，结构其余逐字不变', () => {
     const out = buildMcpConfig(URL, DTID);
-    assert.equal(out, `{"mcpServers":{"winvm":{"type":"streamableHttp","url":"http://127.0.0.1:18443/mcp?dtid=${DTID}"}}}`);
     const parsed = JSON.parse(out);
-    assert.deepEqual(Object.keys(parsed.mcpServers), ['winvm'], '服务名不变（CLI 侧配置键零漂移）');
+    // winvm 条目与旧实现逐字节相等（含 dtid 分支）
+    assert.equal(winvmOnly(out), LEGACY_WINVM(`http://127.0.0.1:18443/mcp?dtid=${DTID}`));
+    // 三条目共用同一个 dtid（P-1：否则闸看到的 isInnerDelegation 不一致）
+    assert.deepEqual(Object.keys(parsed.mcpServers), SERVER_KEYS, '服务名键集恰为三条（CLI 侧配置键）');
+    for (const key of SERVER_KEYS) {
+      assert.ok(String(parsed.mcpServers[key].url).includes(`dtid=${DTID}`), `${key} 必须共用同一 dtid`);
+    }
+    assert.equal(parsed.mcpServers['winvm-browser'].url, `http://127.0.0.1:18443/mcp/browser?dtid=${DTID}`);
+    assert.equal(parsed.mcpServers['winvm-desktop'].url, `http://127.0.0.1:18443/mcp/desktop?dtid=${DTID}`);
     assert.deepEqual(Object.keys(parsed.mcpServers.winvm).sort(), ['type', 'url']);
   });
 });

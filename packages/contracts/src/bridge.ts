@@ -308,6 +308,24 @@ export interface HealthStatus {
     readonly enabled: boolean;
     readonly shadow: boolean;
   };
+  /**
+   * Step 4.4（**纯附加可选**）：本次生效的 **planner** 名。
+   *
+   * 病灶：改动前「这台机用的哪种规划」只能从 `provider.id` 反推 —— 而 id 是历史字符串
+   * （`workbuddy-deterministic` / `workbuddy`），名字里既不含「template」也不含「cli-agent」。
+   * 运维要看懂它必须手里有一张映射表，而那张表只存在于源码里。
+   *
+   * 为什么与 `provider.id` **并存**而不是替换：
+   *  - `provider.id` 是**既有观测面**（看板 / 告警规则 / 历史日志都在用），改名或删除等于
+   *    在用户侧制造一次无收益的断崖；
+   *  - 两者回答的是**不同问题**：`id` 答「哪个实现包在跑」，`planner` 答「用哪种规划策略」。
+   *    当前二者一一对应（`template`→`workbuddy-deterministic`），但这是**今天的**对应关系，
+   *    不是契约 —— 将来若让某个 planner 在两种实现间切换，合并成一个字段就会立刻说谎。
+   *
+   * 恒落（含 degraded）：值取「本次实际装配成功的 planner」，装配失败时回落到**配置面**声明值。
+   * 因为「打算用哪个」与「起来了没有」（`provider.state`）是两个正交事实。
+   */
+  readonly planner?: 'template' | 'cli-agent';
 }
 
 /** 产出物（A2A artifact / MCP artifacts） */
@@ -700,6 +718,19 @@ export const POLICY_DRY_RUN_BYPASS_MATCHED_RULE = 'allow:dry-run-bypass';
 
 /** U-P0-3（A1）：审批闸拦截的哨兵值（与 `recordBlockedApprovalAudit` 写入的 matchedRule 同源） */
 export const POLICY_APPROVAL_REQUIRED_MATCHED_RULE = 'approval-required';
+
+/**
+ * V-NEXT 3.3：命中「能力级**强制审批**名单」时的哨兵值。
+ *
+ * 与 `POLICY_APPROVAL_REQUIRED_MATCHED_RULE` 分开的理由：两者都是 `APPROVAL_REQUIRED`，
+ * 但**触发原因不同**，审计要能分辨「因为 risk ≥ L2」还是「因为它在点名名单里」。
+ * 混成一个值的话，运维看着一堆 `approval-required` 无法判断名单是否真的生效 ——
+ * 而「名单配了却没生效」正是这类配置最典型的静默失效。
+ */
+export const POLICY_CAPABILITY_APPROVAL_DENY_MATCHED_RULE = 'approval-required:capability-denylist';
+
+/** V-NEXT 3.3：命中「能力级**免审批**名单」时的哨兵值（同样要与默认审批区分开）。 */
+export const POLICY_CAPABILITY_APPROVAL_ALLOW_MATCHED_RULE = 'allow:capability-allowlist';
 
 export interface PolicyEvaluateInput {
   readonly capabilityId: CapabilityId;

@@ -100,8 +100,16 @@ describe('A2-17 · 哈希敏感性（绑定判据语义双向钉）', () => {
   });
 });
 
-describe('A2-17 · 接线形态守卫（server.ts 源码面，k5-replay E 组同范式）', () => {
-  const src = readFileSync(join(ROOT, 'packages/vm-service/src/server.ts'), 'utf8');
+describe('A2-17 · 接线形态守卫（闸门面源码，k5-replay E 组同范式）', () => {
+  // ⚠ Step 3.1：`/mcp` handler 的「策略→审批→执行→审计」段（含 token 创建点与
+  // ARCH-09 预览绑定闸）已逐行搬进 `gateway.ts` 的 `gateAndExecute()`。
+  // 故观测面 = server.ts + gateway.ts 合并文本；判据**逐字未改**（仍是"唯一创建点带
+  // previewHash / 拒绑早于策略评估 / 三态 fail-closed"），只是不再假设它住在哪个文件。
+  // 只看 server.ts 会把「搬家」误报成「创建点消失」。
+  const src =
+    readFileSync(join(ROOT, 'packages/vm-service/src/server.ts'), 'utf8') +
+    '\n' +
+    readFileSync(join(ROOT, 'packages/vm-service/src/gateway.ts'), 'utf8');
 
   test('token 唯一创建点带 previewHash（派生自 preview+impact 同源输入）', () => {
     const i = src.indexOf('pendingApprovals.set(id, {');

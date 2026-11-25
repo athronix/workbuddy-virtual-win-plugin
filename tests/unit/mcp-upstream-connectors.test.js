@@ -19,19 +19,19 @@ import {
   DEFAULT_DESKTOP_TOOL_ALLOWLIST,
 } from '../../packages/vm-service/dist/mcp-upstream.js';
 
-const SSH_TUNNEL = Object.freeze({
-  kind: 'ssh-tunnel',
-  host: '192.168.1.50',
-  user: 'vmuser',
-  remotePort: 18443,
-  localPort: 18443,
+/* V-NEXT（2026-11-23）：声明形态由 `ssh-tunnel` 改为 `streamable-http` + 本地回环基址。
+ * 语义等价性正体现在下方 url 断言**逐字未变**（仍是 http://127.0.0.1:18443/mcp*）——
+ * 旧分支实际只消费 localPort 一个字段，渲染出来的就是同一个地址。 */
+const LOOPBACK = Object.freeze({
+  kind: 'streamable-http',
+  url: 'http://127.0.0.1:18443',
 });
 
 function connector(overrides = {}) {
   return {
     id: 'winvm-desktop',
     displayName: 'Windows VM · desktop',
-    transports: [SSH_TUNNEL],
+    transports: [LOOPBACK],
     disabledTools: [],
     timeoutMs: 120_000,
     ...overrides,
@@ -63,13 +63,13 @@ function plugin(overrides = {}) {
 
 describe('mcpPath：多工具面复用同一条隧道', () => {
   test('缺省仍是 /mcp（旧行为零回归）', () => {
-    const e = renderConnectorEntry(connector({ id: 'winvm' }), SSH_TUNNEL);
+    const e = renderConnectorEntry(connector({ id: 'winvm' }), LOOPBACK);
     assert.equal(e['url'], 'http://127.0.0.1:18443/mcp');
   });
 
   test('显式 mcpPath 拼在同一个 localPort 上', () => {
-    const desk = renderConnectorEntry(connector({ mcpPath: '/mcp/desktop' }), SSH_TUNNEL);
-    const brow = renderConnectorEntry(connector({ id: 'winvm-browser', mcpPath: '/mcp/browser' }), SSH_TUNNEL);
+    const desk = renderConnectorEntry(connector({ mcpPath: '/mcp/desktop' }), LOOPBACK);
+    const brow = renderConnectorEntry(connector({ id: 'winvm-browser', mcpPath: '/mcp/browser' }), LOOPBACK);
     assert.equal(desk['url'], 'http://127.0.0.1:18443/mcp/desktop');
     assert.equal(brow['url'], 'http://127.0.0.1:18443/mcp/browser');
     // 关键：两条 connector 共用同一 localPort ⇒ 只需一条 SSH 隧道

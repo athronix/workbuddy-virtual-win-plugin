@@ -17,8 +17,6 @@ export interface PluginManifest {
   readonly license?: string;
 }
 
-export type SkillDomain = 'system' | 'app' | 'storage' | 'gui';
-
 export interface SkillBundle {
   readonly id: string;
   readonly name: string;
@@ -31,7 +29,11 @@ export interface SkillBundle {
   readonly references?: Readonly<Record<string, string>>;
   /** 多步流程：相对路径 → 内容 */
   readonly workflows?: Readonly<Record<string, string>>;
-  readonly domains?: readonly SkillDomain[];
+  /* V-NEXT（2026-11-23）删去 `domains?: readonly SkillDomain[]`。
+   * 理由：能力分类的**唯一事实源**是能力 id 的点分前缀（`system.power.control` 的 `system`
+   * 段），由 `CapabilityRegistry.domains()` 从 id 派生；`SkillDomain` 是同一事实的**第二份
+   * 手写拷贝**，且已漂移（枚举 4 个 vs 实际 6 个前缀 —— 少了 `appops` 与 `meta`）。
+   * 两份定义必然漂移 ⇒ 删掉手写那份，分类统一走派生。 */
   /** 总控 Skill 为 true（V1 中仅 winvm-orchestrator） */
   readonly entry?: boolean;
   readonly version?: string;

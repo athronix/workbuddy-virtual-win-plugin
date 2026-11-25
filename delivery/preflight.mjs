@@ -111,24 +111,19 @@ export function checkHostDeps({ home = homedir(), platform = process.platform, m
  * 安装脚本自身就运行在 VM 内部，故依赖直接本地探测（shell 解析 PATH）。
  *
  * cli 解析优先级：显式传入 cli 优先；未传时按 provider 取默认
- *   workbuddy→codebuddy / hermes-agent→hermes，其它回落 'codebuddy'。
+ *   workbuddy→codebuddy，其它（含 workbuddy-deterministic）回落 'codebuddy'。
+ *   V-NEXT 起 `hermes-agent` provider 已删除，故无 hermes 分支。
  *
  * @param {{provider?:string, cli?:string, minNode?:string}} [opts]
  * @returns {{ok:boolean, checks:Check[]}}
  */
 export function checkLocalVmDeps({ provider = 'workbuddy-deterministic', cli, minNode = '18.0.0' } = {}) {
-  // 显式 cli 优先于 provider 默认；未传时按 provider 解析
-  const agentCli =
-    cli ??
-    (provider === 'workbuddy'
-      ? 'codebuddy'
-      : provider === 'hermes-agent'
-        ? 'hermes'
-        : 'codebuddy');
+  // 显式 cli 优先于 provider 默认；未传时按 provider 解析（V-NEXT：只剩 workbuddy 一族）
+  const agentCli = cli ?? 'codebuddy';
 
-  // LLM 类 provider（workbuddy / hermes-agent）运行时 spawn 对应 CLI → 缺失即阻断；
+  // LLM 类 provider（workbuddy）运行时 spawn 对应 CLI → 缺失即阻断；
   // workbuddy-deterministic 为确定性执行器，运行时不 spawn codebuddy → 仅 WARNING，不阻断。
-  const isLlmProvider = provider === 'workbuddy' || provider === 'hermes-agent';
+  const isLlmProvider = provider === 'workbuddy';
 
   const checks = [];
 
@@ -215,7 +210,7 @@ export function checkLocalVmDeps({ provider = 'workbuddy-deterministic', cli, mi
  * @returns {{verdict:string, blocking:boolean, detail:string, remedy:string}}
  */
 export function evaluateAgentLogin({ provider = 'workbuddy-deterministic', cliExists = false, configDirExists = false, markerFiles = [] } = {}) {
-  const isLlm = provider === 'workbuddy' || provider === 'hermes-agent';
+  const isLlm = provider === 'workbuddy';
   if (!isLlm) {
     return {
       verdict: 'not-applicable',

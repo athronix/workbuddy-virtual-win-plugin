@@ -509,19 +509,28 @@ describe('T5 判据④ --token-env 真给值时请求带 Bearer 头', () => {
     assert.throws(() => applyBearerHeader({}, ENV, {}), /未找到 bearer token 环境变量/, '有名无值必须抛（禁止静默裸请求）');
   });
 
-  test('ssh-tunnel 分支：凭据校验**前置到建隧道之前**（T2 D-11 顺序不回归）', async () => {
+  /* V-NEXT（2026-11-23）：`ssh-tunnel` 声明形态已删，但「凭据校验前置」的**不变量**仍然成立
+   * （streamable-http 分支同样在建连前调 applyBearerHeader）。原用例用 ssh-tunnel 声明来证明
+   * 「抛错时还没起 SSH 进程」，现在没有 SSH 进程可起了 —— 改为直接钉住语义本身：
+   * 有名无值 ⇒ 抛凭据错，且**绝不发起任何网络请求**（用必然连不上的地址 + 短超时兜底，
+   * 若实现退化成「先连后校验」，这里会因 Connection refused / timeout 而失败）。 */
+  test('凭据校验前置：有名无值 ⇒ 抛凭据错且不发起网络连接（T2 D-11 语义不回归）', async () => {
     const ENV = 'WINVM_T5_TOKEN_UNSET';
     delete process.env[ENV];
+    // 1 号端口：保留端口，确定无监听 ⇒ 若真去连接必 ECONNREFUSED
     await assert.rejects(
       () =>
         establishTransport(
-          { kind: 'ssh-tunnel', host: '127.0.0.1', user: 't5-nobody', remotePort: 1, localPort: 1, tokenEnv: ENV },
+          { kind: 'streamable-http', url: 'http://127.0.0.1:1', tokenEnv: ENV, timeoutMs: 1_000 },
           { path: '/a2a' },
         ),
       (e) => {
         assert.ok(e instanceof TransportError, `须是 TransportError，实测 ${e?.name}`);
         assert.match(e.message, /bearer token/);
-        assert.ok(!/隧道|tunnel|ssh:/i.test(e.message), '报错必须在建隧道**之前** ⇒ 消息不得含隧道相关字样');
+        assert.ok(
+          !/ECONNREFUSED|Connection refused|fetch failed|timeout/i.test(e.message),
+          `★ 报错必须是凭据错而非网络错 ⇒ 证明校验发生在建连之前；实测：${e.message}`,
+        );
         return true;
       },
     );

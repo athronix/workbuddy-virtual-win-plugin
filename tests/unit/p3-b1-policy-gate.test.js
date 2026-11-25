@@ -30,10 +30,21 @@ import { DelegationScopeRegistry } from '@winvm/vm-service';
 import { CapabilityRegistry, CorePolicyEngine } from '@winvm/core';
 import { defineCapability } from '@winvm/contracts';
 
-const SRC = readFileSync(
-  fileURLToPath(new URL('../../packages/vm-service/src/server.ts', import.meta.url)),
-  'utf8',
-);
+/**
+ * 闸门面源码（server.ts + gateway.ts 合并）。
+ *
+ * ⚠ Step 3.1：`/mcp` handler 的整段「策略→审批→执行→审计」——含 N-9 窄窗计数、
+ * (c) `shouldReturnDelegationRequired` 收口、`scopeAllowedCapabilities` 留存——
+ * 已逐行搬进 `gateway.ts` 的 `gateAndExecute()`。
+ *
+ * 观测面合并，判据逐字未改。**顺序锁仍然有效**：`isDirectWithActiveTurn` 与
+ * `shouldReturnDelegationRequired` 都在 gateway.ts 内，合并后相对顺序不变
+ * （server 在前、gateway 在后，两处都在 gateway 段内）。
+ */
+const SRC =
+  readFileSync(fileURLToPath(new URL('../../packages/vm-service/src/server.ts', import.meta.url)), 'utf8') +
+  '\n' +
+  readFileSync(fileURLToPath(new URL('../../packages/vm-service/src/gateway.ts', import.meta.url)), 'utf8');
 
 /* ==================== ① policy-gate 纯函数真值表 ==================== */
 
@@ -443,17 +454,36 @@ test('constants.ts 灰度钉：双闸缺省 shadow（升级窗口安全档）；
 
 /* ==================== ⑥ CL3 源码钉：deterministic 第三调用点 goal→step→execute feed ==================== */
 
-const ADAPTER_SRC = readFileSync(
-  fileURLToPath(new URL('../../packages/adapter-agent-workbuddy/src/index.ts', import.meta.url)),
-  'utf8',
-);
+/**
+ * ⚠ 观测面 = `index.ts` + `template-planner.ts` **合并文本**（Step 4.2 等价搬迁，2026-11-24）
+ *
+ * 背景：Step 4.2 把 `runGoal` 的模板逻辑（含 `step()` 与 `scopeFeed`）搬到了
+ * `template-planner.ts`，`index.ts` 只留一行转发。本守卫原本只读 `index.ts`，
+ * 于是「代码搬走了」被它读成「代码被删了」⇒ 假红。
+ *
+ * **处置不是改小断言，而是扩大观测面**（与 Step 3.1 抽 `gateway.ts` 时同一处置）：
+ * - 改小断言（把 `policyGateWiring === 'on'` 那几条删掉）⇒ 守卫变摆设，
+ *   **下次真删了注入点也不会红**；
+ * - 扩大观测面 ⇒ 守卫仍要求「这些形态必须存在」，只是不再假设它们住在哪个文件。
+ *
+ * 判据本身**一字未改**，唯一调整是锚点正则兼容新形态：
+ * `this.policyGateWiring` → `this.(deps.)?policyGateWiring`（搬运时多了 deps 层）。
+ */
+const ADAPTER_SRC =
+  readFileSync(fileURLToPath(new URL('../../packages/adapter-agent-workbuddy/src/index.ts', import.meta.url)), 'utf8') +
+  '\n' +
+  readFileSync(
+    fileURLToPath(new URL('../../packages/adapter-agent-workbuddy/src/template-planner.ts', import.meta.url)),
+    'utf8',
+  );
 
 test('deterministic 第三调用点接线钉：execute 评估喂 req.scope 两键 + step 仅 on 态取 goal 声明', () => {
   // 第三调用点（in-process）把宿主声明 scope 喂进策略评估
   assert.match(ADAPTER_SRC, /\.\.\.\(req\.scopeMaxRisk \? \{ maxRisk: req\.scopeMaxRisk \}/, 'execute evaluate 喂声明 maxRisk');
   assert.match(ADAPTER_SRC, /req\.scopeAllowedCapabilities && req\.scopeAllowedCapabilities\.length > 0/, 'execute evaluate 喂声明白名单');
   // step 的 scopeFeed：仅 `on` 态 + 仅 maxRiskDeclared===true（框架回退默认绝不喂=零断崖）
-  assert.match(ADAPTER_SRC, /this\.policyGateWiring === 'on'\s*\?\s*\{/, 'scopeFeed 仅 on 态');
+  // ⚠ 锚点兼容 `this.policyGateWiring` 与 `this.deps.policyGateWiring`（Step 4.2 搬运后多了 deps 层）
+  assert.match(ADAPTER_SRC, /this\.(?:deps\.)?policyGateWiring === 'on'\s*\?\s*\{/, 'scopeFeed 仅 on 态');
   assert.match(ADAPTER_SRC, /goal\.maxRiskDeclared === true && goal\.maxRisk \? \{ scopeMaxRisk: goal\.maxRisk \}/, 'goal→step 只取声明 maxRisk');
   // E-2 显形：APPROVAL_REQUIRED 分支 augment suspendSupported（纯附加，硬拒路径不贴）
   assert.match(ADAPTER_SRC, /suspendSupported: false/, 'E-2 结构性能力缺失显形');

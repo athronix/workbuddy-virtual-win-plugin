@@ -11,8 +11,6 @@ export {
   applyBearerHeader,
   HttpJsonRpcChannel,
   StdioJsonRpcChannel,
-  establishSshTunnel,
-  renderSshCommand,
   parseSseChunk,
   TransportError,
 } from './transport/index.js';
@@ -22,7 +20,6 @@ export type {
   ManagedTransport,
   EstablishOptions,
 } from './transport/index.js';
-export type { TunnelHandle, EstablishTunnelOptions } from './transport/ssh-tunnel.js';
 export type { HttpChannelOptions } from './transport/http-channel.js';
 export type { StdioChannelOptions } from './transport/stdio-channel.js';
 
@@ -90,14 +87,22 @@ export {
 export type { SessionProbe, SessionMonitorOptions } from './session/health.js';
 
 /* ------------------------------ 桥接 ------------------------------ */
+/**
+ * Step 4.4：`bridge/loader.ts` → `bridge/registry.ts`。
+ *
+ * 删掉的是**动态 import 机制**（配置里的包名字符串 ⇒ 运行期任意模块加载目标），
+ * 留下的是同一张进程内工厂注册表 —— e2e/单测的替身注入通道靠它活着。
+ * 对外导出名（`loadProvider` / `registerProviderFactory` / …）**逐字未变**，
+ * 故所有既有调用点零改动；变的只是「没有注册表命中时不再偷偷 import」。
+ */
 export {
   loadProvider,
   registerProviderFactory,
   unregisterProviderFactory,
   listRegisteredFactoryIds,
   ProviderLoadError,
-} from './bridge/loader.js';
-export type { AgentProviderConfig, ProviderEntry, ProviderFactory } from './bridge/loader.js';
+} from './bridge/registry.js';
+export type { AgentProviderConfig, ProviderEntry, ProviderFactory } from './bridge/registry.js';
 
 /* ------------------------------ 配置 ------------------------------ */
 export {

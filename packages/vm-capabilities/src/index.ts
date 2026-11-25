@@ -19,6 +19,8 @@ import { WINDOWS_CAPABILITIES, CAPABILITIES_BY_DOMAIN } from './registry/definit
 export { PsBridge, detectPowerShell, defaultScriptPath, PsBridgeError } from './ps-bridge.js';
 export type { PsBridgeOptions, PsCallResult, PsCallOptions, PsmodFingerprint } from './ps-bridge.js';
 export { WINDOWS_CAPABILITIES, CAPABILITIES_BY_DOMAIN } from './registry/definitions.js';
+export { VM_CAPABILITIES, UNIFIED_CAPABILITIES } from './registry/unified.js';
+export { DEFAULT_DESKTOP_TOOL_ALLOWLIST, DESKTOP_TOOLS, BROWSER_TOOLS } from './registry/upstream-tools.js';
 
 /** 平台标识：本能力层仅适用 Windows */
 export const PLATFORM = 'windows';

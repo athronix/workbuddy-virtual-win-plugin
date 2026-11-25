@@ -24,6 +24,8 @@ import {
   type BridgeContext,
   type CacheHealth,
   type CapabilityDefinition,
+  /** Step 3.2：统一表条目（上游面闸的工具索引元素）。 */
+  type CapabilityEntry,
   type CapabilityId,
   type ExecutedResult,
   type GoalRequest,
@@ -43,7 +45,7 @@ import {
   HashChainAuditSink,
   SessionMonitor,
   createFileLogger,
-  loadProvider,
+  listRegisteredFactoryIds,
   newId,
   newTraceId,
   hashApprovalPreview,
@@ -54,7 +56,10 @@ import {
   resolveNetCfgPrewarmTimeoutMs,
   resolveEnforceBearerFailClosed,
   resolvePolicyGateWiring,
-  resolveDelegationRequiredPolicy,
+  /** Step 3.2：上游工具面闸门灰度（`WINVM_UPSTREAM_POLICY`，缺省 on）。 */
+  resolveUpstreamPolicyMode,
+  resolveDelegationRequiredPolicyWithWarning,
+  ENV_DELEGATION_REQUIRED_POLICY,
   resolveServiceConfig,
   validateServiceConfig,
   foldK6Verdict,
@@ -64,7 +69,11 @@ import {
 } from '@winvm/core';
 import { A2AServer, TaskStore, type DelegationObserver, type DelegationTerminalSnapshot } from '@winvm/a2a-framework';
 import { McpServer, type McpTool, type McpToolResult } from '@winvm/mcp-framework';
-import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime } from '@winvm/vm-capabilities';
+import { WINDOWS_CAPABILITIES, PsBridgeSessionProbe, createWindowsRuntime, UNIFIED_CAPABILITIES } from '@winvm/vm-capabilities';
+/** Step 3.2：上游工具面闸门（`/mcp/browser`、`/mcp/desktop`）。 */
+import { gateUpstreamAndExecute, type UpstreamGateDeps } from './upstream-gate.js';
+/** Step 4.4：`agent.planner` → 静态注册 + 查表（替代 `loadProvider` 的动态 import）。 */
+import { loadAgentProvider, DEFAULT_PLANNER } from './agent-assembly.js';
 import { raceHealthSubProbes, resolveHealthProbeTimeoutMs, resolvePsBridgeHealthState } from './health-probe.js';
 import { deriveCapabilitiesProfile } from './capabilities-profile.js';
 import { DelegationScopeRegistry, type DelegationScopeEntry } from './delegation-scope.js';
@@ -98,6 +107,15 @@ import {
   type ApprovalDecisionSink,
 } from './approval-replay.js';
 import { PendingApprovalRegistry, type ApprovalTokenMap } from './pending-approvals.js';
+// Step 3.1（统一闸门抽取）：把原内联在 `McpTool.handler` 闭包里的
+// 「策略 → 审批 → 执行 → 审计」段落提为模块级 `gateAndExecute()`，本文件只做依赖装配 + 转调。
+// 目的不是"文件更短"，而是让闸成为**可被多方调用的单元** —— 上游 `/mcp/browser`、
+// `/mcp/desktop` 两路（Step 3.2）此后复用同一份判定，而不是各抄一遍再各自漂移。
+import {
+  gateAndExecute,
+  type ExecutionSegment as GatewayExecutionSegment,
+  type GateDeps,
+} from './gateway.js';
 import {
   BEARER_UNAUTHORIZED_BODY,
   buildSecurityHealth as buildSecurityHealthSnapshot,
@@ -707,14 +725,41 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     },
   } as unknown as BridgeContext;
 
-  /* ---- 加载 provider（失败 → degraded，仅 meta.*） ---- */
+  /* ---- 加载 provider（失败 → degraded，仅 meta.*） ----
+   *
+   * Step 4.4：改走 `loadAgentProvider()`（`./agent-assembly.js`）。
+   *
+   * 改动前这里调 `loadProvider(cfg.agent, bridgeCtx)`，而 `loadProvider` 会按
+   * `cfg.agent.providers[id].package` 做 `await import(...)` —— 即**配置里的一行字符串
+   * 就是运行期任意模块的加载目标**。现在生产者只有两个，改为装配层静态 import +
+   * 按 planner 名注册工厂，再统一查表（生产/测试共用同一条查表逻辑）。
+   *
+   * `listRegisteredFactoryIds()` 传进去是为了「**替身优先**」：e2e/单测先
+   * `registerProviderFactory(id, 桩)`，装配层见到 id 已注册就不再覆盖成真实 adapter。
+   */
   let provider: AgentServiceProvider | undefined;
   let providerError: string | undefined;
+  /**
+   * 本次生效的 planner 名（`template` / `cli-agent`）。
+   *
+   * 为什么要留住它：改动后 `/health.provider.id` 仍报 provider id（观测面零漂移），
+   * 但**运维真正需要知道的是「这台机现在用哪种规划」** —— 那是 `planner`，不是 id。
+   * 两者都暴露，才不用让看板去查 id→planner 的映射表。
+   */
+  let activePlanner: 'template' | 'cli-agent' | undefined;
   try {
     await runtime.bridge.start().catch(() => undefined);
-    provider = await loadProvider(cfg.agent, bridgeCtx);
+    const loaded = await loadAgentProvider(cfg.agent, bridgeCtx, {
+      registeredIds: listRegisteredFactoryIds(),
+    });
+    provider = loaded.provider;
+    activePlanner = loaded.planner;
     sessionMonitor.start();
-    logger.info('provider 已就绪', { provider: provider.id, kind: provider.kind });
+    logger.info('provider 已就绪', {
+      provider: provider.id,
+      kind: provider.kind,
+      planner: activePlanner,
+    });
   } catch (e) {
     providerError = (e as Error).message;
     logger.error('provider 加载失败，服务进入 degraded（仅 meta.* 可用）', { error: providerError });
@@ -1103,25 +1148,11 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    *   重放路径不传 → 本段内部按 `approved:true` 自行评估（命中黑名单照样拒绝，**不放行**）。
    * - `replayed=true` 时审计 traceId 带 `-replay` 后缀，使「被拦 → 批准 → 重放执行」在链上可串。
    */
-  interface ExecutionSegment {
-    readonly traceId: string;
-    readonly approved: boolean;
-    readonly approvalId?: string;
-    readonly verdict?: PolicyVerdict;
-    readonly replayed?: boolean;
-    /**
-     * K-N1（**纯附加**）：所属委派 traceId（`/mcp?dtid=` 解析值，或重放路径从
-     * pendingApprovals 留存值取回）。存在时 provider 侧审计落 `channel:'a2a'` +
-     * `ext.delegationId`（通道 2 精确归因）；缺席逐字节旧行为（`channel:'mcp'`，无 ext）。
-     */
-    readonly delegationId?: string;
-    /**
-     * 批1（**纯附加**，E-1/M2 双闸接线）：本次调用所属委派的最小权限 scope
-     * （宿主声明部分；装配层回查 delegation-scope / 重放取 token 留存值）。
-     * 缺席=无声明（纯宿主直调 / 灰度未执法）⇒ evaluate 两键不喂、provider 收不到，逐字旧行为。
-     */
-    readonly scope?: DelegationScopeEntry;
-  }
+  // Step 3.1：`ExecutionSegment` **定义已上移到 `./gateway.js`**（单一来源）。
+  // 理由：`gateExecute`（gateway）与 `executeCapability`/`replay`（本文件）共同消费它，
+  // 两处各留一份 = 改一处忘另一处就产生**静默类型漂移**（结构类型下 TS 不会报错，
+  // 只是某条路径少传字段而运行期观察到 `undefined`）。故此处只做别名导入。
+  type ExecutionSegment = GatewayExecutionSegment;
 
   /**
    * 批1 灰度执法判定（F-3 处方件，单点函数 ⇒ shadow/on/off 三态语义全仓一处）：
@@ -1142,8 +1173,20 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
    * 守卫挡死，批1 亲验返工教训），只把「(c) 根治表述带窄窗限定」显形到 /health。
    */
   const policyGateCounters = { directWithActiveTurn: 0 };
-  /** 批1 出路(c)：直调审批闸收口「须走委派」（缺省 on；off=回滚到旧死令牌行为）。 */
-  const delegationRequiredPolicy = resolveDelegationRequiredPolicy(process.env);
+  /** 批1 出路(c)：直调审批闸收口「须走委派」（缺省 on；off=已废弃的回滚态）。
+   *  V-NEXT（2026-11-23）：改用带废弃告警的解析入口 —— 数据面仍只消费 `enabled` 一个位，
+   *  但读到 `off` 时会在启动期打一条醒目 WARN（回滚位保留，同时不再静默）。 */
+  const delegationPolicyResolution = resolveDelegationRequiredPolicyWithWarning(process.env);
+  const delegationRequiredPolicy = delegationPolicyResolution.enabled;
+  if (delegationPolicyResolution.deprecatedOff) {
+    logger.warn(
+      `⚠ 已废弃的回滚位被启用：${ENV_DELEGATION_REQUIRED_POLICY}=off ⇒ MCP 直调 L2/L3 将退回` +
+        '「注册死令牌」旧行为（P0-1 形态：宿主批准后仍恒返 APPROVAL_REQUIRED）。' +
+        '该取值已标记 deprecated，将在下一主版本移除；仅在排障回退时临时使用，' +
+        '确认后请删除该环境变量。',
+      { env: ENV_DELEGATION_REQUIRED_POLICY, value: 'off' },
+    );
+  }
 
   /**
    * K5：把「provider.execute + 结果映射」抽成命名函数，供 MCP handler 与服务端重放**共用同一段
@@ -1448,6 +1491,45 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     return toExecutedResult(p.capabilityId, result);
   };
 
+  /* ================================ 统一闸门接线（Step 3.1） ================================ */
+
+  /**
+   * `gateAndExecute()` 的**依赖装配**（闭包 → 显式契约）。
+   *
+   * 位置纪律：必须在 `evaluateScoped` / `executeCapability` 的**定义之后**（本块位于文件末尾
+   * 段的 `replay` 之后，两者都已 `function`/`const` 就绪）—— 否则拿到的是未初始化绑定。
+   *
+   * 为什么在这里一次性装好而不是每次调用现拼：装配项 21 个，逐次调用现拼会让 `handler`
+   * 膨胀回原来的量级，且每次调用都多分配一个对象（MCP 是热路径）。
+   *
+   * ⚠ 这份清单**同时是 gate 的完整依赖面**。新增依赖必须同时改这里与 `GateDeps`，
+   * TS 的结构检查会兜住漏项（少一项即编译失败，不会运行期静默 `undefined`）。
+   */
+  const gateDeps: GateDeps = {
+    audit,
+    pendingApprovals,
+    evaluateScoped,
+    executeCapability,
+    ledgerReg,
+    scopeRegistry,
+    scopeLookupKeys,
+    isInnerDelegation,
+    isDirectWithActiveTurn,
+    shouldReturnDelegationRequired,
+    approvalCoordinator,
+    policyGateWiring,
+    policyGateCounters,
+    delegationRequiredPolicy,
+    buildPreview,
+    collectImpact,
+    deriveUnderlying,
+    hashApprovalPreview,
+    recordPolicyDeniedAudit,
+    recordBlockedApprovalAudit,
+    newId,
+    logger,
+  };
+
   /* ================================ MCP ================================ */
 
   const mcpTools: McpTool[] = exposedCapabilities.map((cap) => ({
@@ -1478,275 +1560,17 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
       openWorldHint: false,
     },
     handler: async (params, ctx) => {
-      const { __approvalId, ...rest } = params;
-      const approvalId = typeof __approvalId === 'string' ? __approvalId : undefined;
-      // K4 安全点：token 必须已被宿主批准（hostApproved===true）才放行续跑。
-      // 注册时 hostApproved=false，宿主经 A2A approval.reply 批准后由协调器置 true。
-      let approved = approvalId !== undefined && pendingApprovals.get(approvalId)?.hostApproved === true;
-
-      // ARCH-09（A2-17 · 批6 补建，用户终裁 A）：预览↔执行哈希绑定。
-      // 「批准过的那个预览」与「这次要执行的参数」必须是同一件事：放行前对**本次请求**
-      // 重算 preview 哈希，与 token 留存值比对——换目标路径/换包名/翻 dryRun 一律拒绑，
-      // 降级为**重新审批**（approved=false ⇒ 走既有 requiresApproval 拦截语义：
-      // 新 token 新 approvalId，零新错误码、零契约扩展；旧 token 保持已批准态等 TTL 自然收口）。
-      // 判别性边界（设计判断，登记 notes）：比对**仅在续跑轮**（approvalId 在场）发生——
-      // 首轮拦截无留存值可比，语义上不成立；宿主侧第三面对账（approval.receipt /
-      // lookupByApprovalId.previewHash ↔ 本值）见 host-a2a-bridge/approval-audit.ts。
-      if (approved && approvalId) {
-        const tok = pendingApprovals.get(approvalId);
-        if (tok) {
-          // fail-closed：token 缺合法 previewHash ⇒ 无绑定证据（只可能是装配漂移，生产
-          // 唯一创建点必带此字段），storedHash='' 与任何重算 hash 都不等 ⇒ 同样拒绑重审，
-          // 「续跑永远要求重审」比「静默无绑定放行」更可观测。
-          const storedHash = typeof tok.previewHash === 'string' && tok.previewHash.length === 64
-            ? tok.previewHash
-            : '';
-          const resumePreview = buildPreview(cap, rest);
-          const resumeImpact = collectImpact(rest);
-          const resumeHash = hashApprovalPreview({
-            capabilityId: cap.id,
-            risk: cap.risk,
-            preview: resumePreview,
-            impact: resumeImpact,
-          });
-          if (resumeHash !== storedHash) {
-            approved = false; // 预览已非批准时那份 ⇒ 拒绑重审（绝不静默按新参数放行）
-            logger.warn('ARCH-09 预览绑定校验失败：续跑参数与已批准预览不一致 ⇒ 拒绝放行，要求重新审批', {
-              approvalId,
-              capabilityId: cap.id,
-              expectedHashPrefix: tok.previewHash.slice(0, 12),
-              actualHashPrefix: resumeHash.slice(0, 12),
-            });
-          }
-        }
-      }
-
-      // ===== 批1（F-2 通道判据 + scope 回查）=====
-      // 「委派内层」判据全部取**服务端事实**，绝不信任调用方自报参数：
-      //   - dtid 在场（单次 -p / 旧版桥带标）；
-      //   - 常驻形态 dtid 不生效（prepareMcpConfig 会话级共享，bridge 两处亲验）⇒
-      //     协调器活动委派槽兜底（beginTask/endTask 包裹整个委派 turn，常驻会话物理串行
-      //     ⇒ 同一时刻至多一个活动 turn；与 raise 的 input-required 挂接**同一份事实**，
-      //     不新增串台面）。
-      // 误判方向的 fail-safe 性（设计自查）：纯宿主直调恰撞并发委派 turn 的毫秒窗口 ⇒
-      // 被当作内层（走注册令牌旧路径/回查错 scope）——不放宽任何放行（审批闸与
-      // hostApproved 照旧），最坏=逐字旧行为。反方向（内层被判直调）在本判据下不可能
-      // 发生于常驻（turn 包裹整个委派期）。
-      const channelProbe = {
-        delegationId: ctx.delegationId,
-        activeTaskId: approvalCoordinator.getActiveTaskId(),
-      };
-      const innerDelegation = isInnerDelegation(channelProbe);
-      const segScope =
-        policyGateWiring === 'off'
-          ? undefined
-          : scopeRegistry.lookup(scopeLookupKeys(channelProbe))?.entry;
-
-      const verdict = evaluateScoped(cap, rest, approved, approvalId, segScope, ctx.traceId);
-
-      if (!verdict.allowed) {
-        if (verdict.requiresApproval) {
-          // 批10 N-9（纯观测，零行为改动）：纯直调（无 dtid）恰撞常驻委派 turn 窗口
-          // （活动槽在场）⇒ 被按 inner 处理、下面 (c) 不触发、走注册令牌窄窗 ⇒ 计数。
-          // 判据走 policy-gate 纯函数（生产与单测同源）；先于 (c) 判定计数——
-          // 窄窗的实况正是「(c) 在场却不收口」，与收口分支互斥。
-          if (isDirectWithActiveTurn({ ...channelProbe, requiresApproval: true })) {
-            policyGateCounters.directWithActiveTurn += 1;
-            logger.warn('批10 N-9 观测：纯直调命中审批闸且活动委派槽在场（窄窗：被按内层处理，(c) 不触发）', {
-              capabilityId: cap.id,
-              activeTaskId: channelProbe.activeTaskId,
-              traceId: ctx.traceId,
-              directWithActiveTurn: policyGateCounters.directWithActiveTurn,
-            });
-          }
-          // ===== 批1 出路(c)：纯宿主直调命中审批闸 ⇒ 服务端策略收口「须走委派」 =====
-          // 病灶（P0-1）：直调场景无任何可达批准入口（approval.reply 需 taskId；raise 的
-          // 生产调用点在委派桥内）——旧行为是注册一个**永远批不下来**的死 approvalId 令牌，
-          // 宿主照文档批准→续跑→再拦截=信任核弹死循环。(c) 策略化把事实说破：L2/L3 一律
-          // 经委派审批（收窄承诺，非扩实现），回执给可行动指引。
-          // 判据=服务端事实（!innerDelegation），伪造无门（调用方无法伪造协调器活动槽）。
-          // 灰度：WINVM_DELEGATION_REQUIRED_POLICY=off 退回旧死令牌行为（回滚保险）。
-          // 决策纯函数 policy-gate.shouldReturnDelegationRequired（生产与单测同源）。
-          if (shouldReturnDelegationRequired({ inner: innerDelegation, requiresApproval: true, policyEnabled: delegationRequiredPolicy })) {
-            logger.info('批1(c)：纯宿主直调命中审批闸 ⇒ 策略收口 DELEGATION_REQUIRED（不再注册死令牌）', {
-              capabilityId: cap.id,
-              risk: cap.risk,
-              traceId: ctx.traceId,
-            });
-            // (c) 拒绝同样必须入审计链（S-4 同款纪律：终态拒绝零审计=取证盲区）。
-            void recordPolicyDeniedAudit(
-              audit,
-              logger,
-              {
-                traceId: ctx.traceId,
-                capabilityId: cap.id,
-                risk: cap.risk,
-                params: rest,
-                startedAtMs: Date.now(),
-                matchedRule: 'policy:delegation-required',
-                errorCode: 'DELEGATION_REQUIRED',
-                errorMessage: 'L2/L3 须经委派审批（a2a.delegate），MCP 直调通道不予批准',
-              },
-              () => newId('aud'),
-              { channel: 'mcp' },
-            );
-            return {
-              isError: true,
-              structuredContent: {
-                traceId: ctx.traceId,
-                ok: false,
-                error: {
-                  code: 'DELEGATION_REQUIRED',
-                  message:
-                    `能力 ${cap.id}（风险 ${cap.risk}）须经**委派审批通道**执行：MCP 直调` +
-                    '命中 L2/L3 审批闸时服务端不再发放续跑令牌（旧令牌无宿主批准入口、永远批不下来）。' +
-                    '请改用 a2a.delegate 发起（宿主批准 → 服务端重放闭环），或确认低风险替代能力。' +
-                    '如需退回旧行为（发放直调令牌）：WINVM_DELEGATION_REQUIRED_POLICY=off。',
-                  retryable: false,
-                },
-                risk: cap.risk,
-                guidance: { via: 'a2a.delegate', reason: 'host-direct-approval-gate' },
-              },
-            };
-          }
-          const id = newId('apr');
-          const impact = collectImpact(rest);
-          const preview = buildPreview(cap, rest);
-          pendingApprovals.set(id, {
-            approvalId: id,
-            capabilityId: cap.id,
-            risk: cap.risk,
-            params: rest,
-            preview,
-            createdAtMs: Date.now(),
-            // K4：注册时恒为「待宿主批准」，杜绝未批准即放行。
-            hostApproved: false,
-            // ARCH-09（A2-17）：预览哈希留存=续跑绑定判据（输入与拦截展示给宿主的
-            // preview/impact 同源同函数 ⇒「批什么执行什么」由构造保证，不靠约定）。
-            previewHash: hashApprovalPreview({
-              capabilityId: cap.id,
-              risk: cap.risk,
-              preview,
-              impact,
-            }),
-            // K5：留存 traceId / impact / 真实意图 —— 供服务端重放（traceId 派生 -replay）
-            // 与宿主审批卡片展示（impact/underlying 由协调器并入 approval-request）。
-            traceId: ctx.traceId,
-            impact,
-            underlying: deriveUnderlying(cap.id, rest),
-            // K-N1：留存委派归因 —— 批准后服务端重放（异步、无 HTTP 上下文）仍可把
-            // executed 条目精确归因回原委派回合。
-            ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
-            // 批1 F-2：留存委派 scope —— 批准后**服务端重放必须用这份留存值复评最小权限**
-            //（「批准」批的是 scope 内的动作，重放不得越出宿主授权范围；与 K5「参数只取留存值」
-            // 同纪律——VM 内任何角色无法在批准后扩权）。仅委派内层拦截才有 scope（宿主直调
-            // 的 token 已在上面被 (c) 收口、走不到这里；或 delegationRequiredPolicy=off 时
-            // segScope 缺席 ⇒ 两键不写，逐字旧行为）。
-            ...(segScope?.allowedCapabilities && segScope.allowedCapabilities.length > 0
-              ? { scopeAllowedCapabilities: segScope.allowedCapabilities }
-              : {}),
-            ...(segScope?.maxRisk ? { scopeMaxRisk: segScope.maxRisk } : {}),
-          });
-
-          // K5 取证盲区闭合：被拦调用**必须入审计**（旧实现只在执行成功/失败时落条目，
-          // 拦截路径无痕 → 事后无法证明「该调用到过、且从未执行」）。
-          // best-effort：审计写失败不得影响拦截结果（拦截语义优先）。
-          // K-N1：blocked 经**专用通道**登记进账本（不污染 executed 计数）——
-          // 「委派内层到过但被拦」也是**非零活动证据**，桥侧据此绝不改判。
-          void recordBlockedApprovalAudit(
-            audit,
-            logger,
-            {
-              traceId: ctx.traceId,
-              approvalId: id,
-              capabilityId: cap.id,
-              risk: cap.risk,
-              params: rest,
-              startedAtMs: Date.now(),
-            },
-            () => newId('aud'),
-            {
-              channel: ctx.delegationId ? 'a2a' : 'mcp',
-              ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
-              onRecorded: (record) => {
-                // CL-K3R：blocked 登记改走**注册表分发**（补 V-3）——
-                //   - `ctx.delegationId` 存在（单次 -p / dtid 注入）→ 精确落到该委派账本（R1，与旧行为等价）；
-                //   - 缺席（常驻路径：mcp.json 会话级共享，dtid 不生效）→ 按 `inWindow && isExposed`
-                //     窗口归因分发，使常驻路径的「到过且被拦」不再恒空（旧实现是恒空操作）。
-                ledgerReg.recordBlocked(record.seq, id, cap.id, {
-                  ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
-                  risk: cap.risk,
-                });
-              },
-            },
-          );
-
-          return {
-            isError: false,
-            structuredContent: {
-              traceId: ctx.traceId,
-              ok: false,
-              error: { code: 'APPROVAL_REQUIRED', message: verdict.error?.message ?? '需审批' },
-              approval: {
-                approvalId: id,
-                risk: cap.risk,
-                capabilityId: cap.id,
-                preview: buildPreview(cap, rest),
-                impact,
-                resumeHint: '确认后以 __approvalId 重发同一请求',
-                // P3-b3 M8（audit §3.2 M8）：审批卡 TTL 槽——卡片文案此前无"多久失效"位，
-                // 用户隔天下批准点下去恒返 APPROVAL_REQUIRED 而无归因。纯附加：
-                // ttl=Infinity（未启过期清扫）⇒ expiresAtMs 不写（缺席即旧形状）。
-                ...(Number.isFinite(pendingApprovals.ttl)
-                  ? { expiresAtMs: Date.now() + pendingApprovals.ttl, ttlMs: pendingApprovals.ttl }
-                  : {}),
-              },
-            },
-          };
-        }
-        // S-4 同上：审批路径下的策略硬拒绝也必须入审计链。
-        // 它是终态拒绝而非待审批，故不登记进 ledger（onRecorded 省略）——避免被计为 blocked/wild。
-        void recordPolicyDeniedAudit(
-          audit,
-          logger,
-          {
-            traceId: ctx.traceId,
-            capabilityId: cap.id,
-            risk: cap.risk,
-            params: rest,
-            startedAtMs: Date.now(),
-            matchedRule: verdict.matchedRule ?? 'policy-denied',
-            errorCode: verdict.error?.code ?? 'POLICY_DENIED',
-            ...(verdict.error?.message ? { errorMessage: verdict.error.message } : {}),
-          },
-          () => newId('aud'),
-          { channel: ctx.delegationId ? 'a2a' : 'mcp', ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}) },
-        );
-        return {
-          isError: true,
-          structuredContent: {
-            traceId: ctx.traceId,
-            ok: false,
-            error: verdict.error ?? { code: 'POLICY_DENIED', message: '被策略拒绝' },
-            risk: cap.risk,
-          },
-        };
-      }
-
-      if (approvalId) pendingApprovals.delete(approvalId);
-
-      // K5：执行段抽成命名函数（与重放共用），本路径按既有语义逐字保持
-      return executeCapability(cap, rest, {
-        traceId: ctx.traceId,
-        approved,
-        ...(approvalId ? { approvalId } : {}),
-        verdict,
-        // K-N1：dtid 存在 → 归因委派（channel 'a2a' + ext.delegationId 精确入账本）
-        ...(ctx.delegationId ? { delegationId: ctx.delegationId } : {}),
-        // 批1：handler 已用 evaluateScoped 评估（verdict 透传，不二次评估），scope 仅供
-        // 下游观测/审计归因参考（实际执法已在 verdict 里定死）。
-        ...(segScope ? { scope: segScope } : {}),
-      });
+      // Step 3.1（统一闸门抽取）：本 handler 的**原内联实现**已逐行搬到 `./gateway.js`
+      // 的 `gateAndExecute()`，此处只做依赖装配 + 转调。
+      //
+      // 为什么装配写在调用点而不是在 gateway 内部自取：这些设施全是 `createService()`
+      // 的局部变量（闭包），gateway 是模块级函数，只能由持有者显式传入。装配清单即
+      // `GateDeps` 契约，逐项可对照（`audit` / `pendingApprovals` / `evaluateScoped` /
+      // `executeCapability` / `ledgerReg` / `scopeRegistry` / …）。
+      //
+      // ⚠ 行为等价性由 `tests/unit/step31-gateway-parity.test.js` 的**逐行对比**保证：
+      // 搬运前后 handler 语义必须一字不差（本步是纯搬运，不含任何优化）。
+      return gateAndExecute(gateDeps, { cap, params, ctx });
     },
   }));
 
@@ -2126,6 +1950,127 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     return server;
   }
 
+  /* ===================== 上游工具面闸门接线（Step 3.2） ===================== */
+  //
+  // 位置纪律：必须在 `upstreamMcp()` **定义之后**（本块要闭包引用它做执行体），
+  // 且在 HTTP 段**之前**（路由要用 `upstreamGates`）。
+  //
+  // 病灶回顾（改这里之前先读）：改动前上游两路是
+  //   `const s = await upstreamMcp(id); await s.handleRequest(...)` —— 直接执行，
+  // **不过策略、不过审批、不落审计**。58 个工具裸奔，其中 `browser.meta.eval`
+  // （页内执行任意 JS，L2）最危险。
+  //
+  // 为什么不是给上游也造 `CapabilityDefinition` 走 `gateAndExecute`：
+  // 见 `upstream-gate.ts` 文件头的三处实测硬冲突。核心一条是策略引擎的
+  // `registry.has()` 会把 58 项全判 `UNKNOWN_CAPABILITY` ⇒ 那不是修安全，是把功能改挂。
+
+  /** 上游闸灰度（缺省 on；`off` 逐字回滚到"直接透传"，`shadow` 只观测不拦）。 */
+  const upstreamPolicyMode = resolveUpstreamPolicyMode(process.env);
+  if (upstreamPolicyMode !== 'on') {
+    // 非 on 态必须在启动期**显形**：`off` 等于 58 个工具重新裸奔，
+    // `shadow` 等于"会拦但不拦"。两种都不该在无人知情的情况下长期存在
+    // （与 `WINVM_DELEGATION_REQUIRED_POLICY=off` 的启动期 WARN 同一纪律）。
+    logger.warn('⚠ 上游工具面闸门未处于执法态：58 个工具的策略/审批判定被弱化', {
+      env: 'WINVM_UPSTREAM_POLICY',
+      value: upstreamPolicyMode,
+      impact:
+        upstreamPolicyMode === 'off'
+          ? '完全跳过判定与审计（逐字回到改动前的裸奔行为）'
+          : '完整判定并写审计，但拦截不生效（仅观测）',
+    });
+  }
+
+  /**
+   * 面 → `tool 名 → 统一表条目` 的索引。
+   *
+   * 为什么预建索引而不是每次 `UNIFIED_CAPABILITIES.find(...)`：上游是热路径
+   * （每次工具调用都要查一次），112 条线性扫 × 每次调用没必要。更重要的原因是
+   * **一致性**：索引只建一次 ⇒ 运行期不会出现"这次查得到、下次查不到"。
+   *
+   * ⚠ `tool ?? id` 的取法与 `contracts` 的 `resolveToolName()` **同语义**：
+   * `vm` 面条目不带 `tool`，其工具名就是 id 本身；上游两面的 `tool` 必填。
+   * 这里只索引上游两面（vm 面走 `mcpTools` 那条既有路径，不经过本索引）。
+   */
+  const upstreamToolIndex = new Map<string, Map<string, CapabilityEntry>>();
+  for (const entry of UNIFIED_CAPABILITIES) {
+    if (entry.surface === 'vm') continue;
+    const bySurface = upstreamToolIndex.get(entry.surface) ?? new Map<string, CapabilityEntry>();
+    const toolName = entry.tool ?? entry.id;
+    if (bySurface.has(toolName)) {
+      // 同一工具名映射到两个统一表条目 ⇒ 策略规则二义（哪条 risk 说了算？）。
+      // 这是配置错误，且后果是"按其中一个 risk 判、另一个被绕开"——必须在加载期炸掉。
+      // 与 `upstream-tools.ts` 的 `defineDesktopTools()` 加载期校验同一纪律。
+      throw new Error(
+        `[upstream-gate] ${entry.surface} 面工具名 "${toolName}" 映射到多个统一表条目：` +
+          `"${bySurface.get(toolName)?.id}" 与 "${entry.id}"。每条上游工具必须有唯一规则来源。`,
+      );
+    }
+    bySurface.set(toolName, entry);
+    upstreamToolIndex.set(entry.surface, bySurface);
+  }
+
+  /**
+   * 每个上游面**一个**策略引擎实例（`surface` 决定参数级策略是否生效）。
+   *
+   * 为什么每面各建一个而不是共用一个：引擎在构造期编译参数级正则，
+   * `surface` 是该实例的**构造参数**。共用就无法让两面各自隔离。
+   *
+   * 为什么不复用 vm 面那个 `policy` 实例：那会把 vm 的文件系统/命令/注册表/进程策略
+   * 套到上游参数上 —— 实测会误伤（`browser.nav.open` 的任何 http url 都过不了
+   * `pathAllowlist`；`desktop.input.type` 输入含 `C:\Windows\...` 的文字会被
+   * `pathDenylist` 拒）。详见 `surface-policy.ts` 的实测表。
+   */
+  const upstreamGates: Partial<Record<string, UpstreamGateDeps>> = {};
+  for (const surfaceId of upstreamRegistry.ids()) {
+    // `id` 的类型是 `string`（上游可配），但统一表只认 `Surface` 三值。
+    // 不匹配 ⇒ 该上游不在本闸的管辖面内，**跳过装配但不静默**：
+    // 下面路由会对"已注册上游却没有 gate"的情况 fail-closed（见路由分支）。
+    if (surfaceId !== 'browser' && surfaceId !== 'desktop') continue;
+    const surface = surfaceId;
+    const toolIndex = upstreamToolIndex.get(surface);
+    upstreamGates[surface] = {
+      // ⚠ 只把**参数级**策略按面隔离；能力级判定（risk 审批 / 能力黑名单 / dry-run
+      // 双条件）由同一份 `cfg.policy` 驱动，对任何面恒生效 —— 这是本设计的边界。
+      engine: new CorePolicyEngine({ registry, config: cfg.policy, surface }),
+      audit,
+      lookupEntry: (s, toolName) => (s === surface ? toolIndex?.get(toolName) : undefined),
+      execute: async (toolName, args) => {
+        const upstreamServer = await upstreamMcp(surface);
+        const res = await upstreamServer.handleRequest(
+          { jsonrpc: '2.0', id: newTraceId(), method: 'tools/call', params: { name: toolName, arguments: args } },
+          // dtid 从调用上下文透传（委派归因）。此处拿到的是**闸已判定过**的调用，
+          // 故不再额外做断连侦测：中止信号由外层 HTTP 路由的 `watchClientDisconnect` 管，
+          // 而 `handleRequest` 的 signal 语义是"宿主断连⇒中止在途执行"，与判定无关。
+          buildMcpRequestContext(undefined, undefined),
+        );
+        // `handleRequest` 可能返回 null（通知类请求）。工具调用不应走到那里，
+        // 但类型上是可能的 —— 显式映射成错误而不是让 undefined 流出去。
+        if (res === null) {
+          return { isError: true, structuredContent: { ok: false, error: { code: 'NO_RESPONSE', message: '上游未返回结果' } } };
+        }
+        if (res['error']) {
+          const err = res['error'] as { code?: number; message?: string };
+          return {
+            isError: true,
+            structuredContent: { ok: false, error: { code: String(err.code ?? 'UPSTREAM_ERROR'), message: err.message ?? '上游错误' } },
+          };
+        }
+        const result = res['result'] as McpToolResult | undefined;
+        return result ?? { isError: true, structuredContent: { ok: false, error: { code: 'NO_RESULT', message: '上游结果为空' } } };
+      },
+      mode: upstreamPolicyMode,
+      newId,
+      logger,
+    };
+  }
+  logger.info('上游工具面闸门已装配', {
+    mode: upstreamPolicyMode,
+    surfaces: Object.keys(upstreamGates),
+    rules: Object.fromEntries(
+      Object.keys(upstreamGates).map((s) => [s, upstreamToolIndex.get(s as 'browser' | 'desktop')?.size ?? 0]),
+    ),
+  });
+
   /* ================================ HTTP ================================ */
 
   const server = createServer((req, res) => {
@@ -2238,29 +2183,100 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
           return;
         }
 
-        // ---- MCP 上游代理（纯附加）：POST /mcp/browser、POST /mcp/desktop ----
+        // ---- MCP 上游代理：POST /mcp/browser、POST /mcp/desktop ----
         // 与 `/mcp` 同构：同一套断连侦测、同一套 JSON-RPC 语义，只是工具面来自 stdio 上游。
         // 守卫已在上方统一执行（本路径不在豁免表内 ⇒ 默认 fail-closed 受保护）。
+        //
+        // Step 3.2（★ 安全核心）：`tools/call` **必须过闸**。
+        // 改动前这里是 `upstreamServer.handleRequest(parsed, ...)` 直接执行 ——
+        // 不过策略、不过审批、不落审计，58 个工具裸奔（含 `browser.meta.eval`，
+        // 页内执行任意 JS / L2）。现在拆成三条路径：
+        //   ① 非 `tools/call`（`tools/list` / `initialize` / `ping` / 通知）→ 原样透传。
+        //      这些不动系统状态（`browser.meta.eval` 是 `tools/call` 的一种，也在闸内），
+        //      套策略没有意义，且会打断 MCP 握手；
+        //   ② 无法识别为工具调用（缺 `params.name`）→ 交回上游自行报错（保持协议语义）；
+        //   ③ 真正的 `tools/call` → 走 `gateUpstreamAndExecute`（策略 → 审计 → 执行）。
         const upstreamId = path.startsWith('/mcp/') ? path.slice('/mcp/'.length) : '';
         if (upstreamId && req.method === 'POST') {
           if (!upstreamRegistry.get(upstreamId)) {
             sendJson(res, 404, { error: `unknown mcp upstream: ${upstreamId}` });
             return;
           }
+          // 已注册的上游若没有对应的闸（面未登记）⇒ **fail-closed**，绝不放行。
+          // 这条兜住「上游可配新增面，但统一表/策略面没跟上」的情形：
+          // 那种情况下没有规则可依据，放行就是 fail-open（比不改更危险）。
+          const gate = upstreamGates[upstreamId];
+          if (!gate) {
+            logger.warn('上游已注册但未装配闸门 ⇒ fail-closed 拒绝（请检查统一表与面策略登记）', {
+              upstream: upstreamId,
+              hint: 'UNIFIED_CAPABILITIES 需含该面的条目，且 SURFACE_SCOPE 需登记该面',
+            });
+            sendJson(res, 403, {
+              jsonrpc: '2.0',
+              id: null,
+              error: {
+                code: -32001,
+                message:
+                  `upstream "${upstreamId}" 未接入策略闸（该面未在统一能力表/面策略中登记）⇒ ` +
+                  '按 fail-closed 拒绝执行。',
+              },
+            });
+            return;
+          }
           const upstreamDisconnect = watchClientDisconnect(res);
           try {
             const body = await readBody(req);
             const parsed = body ? JSON.parse(body) : null;
+            // 只拦 `tools/call`；其余方法原样透传（理由见上方 ①）。
+            const method = isRecord(parsed) ? parsed['method'] : undefined;
+            const callParams = isRecord(parsed) && isRecord(parsed['params']) ? parsed['params'] : undefined;
+            const toolName = callParams?.['name'];
             const upstreamServer = await upstreamMcp(upstreamId);
-            const result = await upstreamServer.handleRequest(
-              parsed,
-              buildMcpRequestContext(undefined, upstreamDisconnect.signal),
-            );
-            if (result === null) {
-              res.writeHead(202).end();
+
+            if (method !== 'tools/call' || typeof toolName !== 'string') {
+              // 非工具调用（或形状不合法）：交回上游，保持它的协议错误语义。
+              const passthrough = await upstreamServer.handleRequest(
+                parsed,
+                buildMcpRequestContext(undefined, upstreamDisconnect.signal),
+              );
+              if (passthrough === null) {
+                res.writeHead(202).end();
+                return;
+              }
+              sendJson(res, 200, passthrough);
               return;
             }
-            sendJson(res, 200, result);
+
+            const args = isRecord(callParams?.['arguments'])
+              ? (callParams['arguments'] as Record<string, unknown>)
+              : {};
+            // K-N1 通道 2：`/mcp/<id>?dtid=<委派traceId>` 与 `/mcp` 同语义
+            // （桥拼 config 时对三个端点都带 dtid）⇒ 委派归因不能在上游面丢失。
+            const dtid = url.searchParams.get('dtid') ?? undefined;
+            const traceId = newTraceId();
+
+            const gated = await gateUpstreamAndExecute(gate, {
+              surface: upstreamId as 'browser' | 'desktop',
+              toolName,
+              args,
+              ctx: { traceId, ...(dtid ? { delegationId: dtid } : {}) },
+            });
+
+            // 闸返回的是 `McpToolResult`（content/structuredContent/isError），
+            // 需包成 JSON-RPC 的 `result` 信封 —— 与 `McpServer.callTool` 的收尾同形，
+            // 否则宿主侧解析会因形状不同而静默降级。
+            const rpcId = isRecord(parsed) ? (parsed['id'] ?? null) : null;
+            sendJson(res, 200, {
+              jsonrpc: '2.0',
+              id: rpcId,
+              result: {
+                ...(gated.content ? { content: gated.content } : { content: [] }),
+                ...(gated.structuredContent !== undefined
+                  ? { structuredContent: gated.structuredContent }
+                  : {}),
+                isError: gated.isError === true,
+              },
+            });
             return;
           } catch (e) {
             const msg = (e as Error)?.message ?? String(e);
@@ -2529,6 +2545,18 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
 
     return {
       ok: provider !== undefined && bridgeHealth.state === 'ready',
+      /**
+       * ★ Step 4.4（**纯附加**）：本次生效的 planner 名。
+       *
+       * 改动前「用哪个执行体」的唯一线索是 `provider.id`，而 id 是个历史字符串
+       * （`workbuddy-deterministic` / `workbuddy`）—— 看板上读到它，还得再查一次映射表
+       * 才知道「这台机用的是模板还是 VM 内 native agent」。本字段直接把那个答案报出来。
+       *
+       * 恒落（即使 degraded）：降级时 `activePlanner` 可能为 undefined，此时回落到
+       * **配置面**声明的值 —— 「我们打算用哪个」与「实际起来了没有」（`provider.state`）
+       * 是两个正交事实，缺一个都会让排障少一条线索。
+       */
+      planner: activePlanner ?? cfg.agent.planner ?? DEFAULT_PLANNER,
       provider: providerHealth?.provider ?? {
         id: cfg.agent.provider,
         state: 'unavailable' as const,

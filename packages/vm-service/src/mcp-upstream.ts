@@ -22,6 +22,10 @@
 
 import { McpClient, type McpCallResult, type McpToolInfo } from '@winvm/mcp-framework';
 import { StdioJsonRpcChannel, type StdioChannelOptions } from '@winvm/core';
+// V-NEXT 阶段 2.4（方案 A）：白名单常量已下沉到 vm-capabilities（本包已依赖它，反向 import 会成环）。
+// 这里既 import 又 re-export：`export ... from` 只转发、**不建本地绑定**，
+// 而下方 `defaultUpstreamSpecs()` 要用到该值，所以两件事都得写。
+import { DEFAULT_DESKTOP_TOOL_ALLOWLIST } from '@winvm/vm-capabilities';
 
 /** 一个上游 stdio MCP server 的声明。 */
 export interface UpstreamSpec {
@@ -61,58 +65,24 @@ export interface UpstreamStatus {
 /**
  * agent-desktop 默认暴露的高频子集（25 个，四组闭环）。
  *
- * v2.2.0 按场景调宽（原 10 项＝「观察→定位→交互→等待」最小面，实测缺口见各组注释）：
+ * ## ⚠ 本常量已**下沉**到 `@winvm/vm-capabilities`（V-NEXT 阶段 2.4，owner 2026-11-24 裁定方案 A）
  *
- *   A 目标发现与窗口（5）：snapshot / find / screenshot / list_apps / list_windows
- *      —— 观察面基础，缺一不可。
- *   B 启动与窗口管理（4）：launch / focus_window / maximize / resize_window
- *      —— 原白名单只有「看窗口」没有「开应用/切窗口/摆窗口」：多窗口场景下
- *         click 的坐标会因窗口位置漂移而打错目标；maximize 是最廉价的坐标稳定器。
- *   C 指针与滚动（5）：click / double_click / right_click / hover / scroll / scroll_to
- *      —— 列表项打开要 double_click，上下文菜单要 right_click，长页/树要 scroll；
- *         scroll_to 让「滚动到某元素」一次到位，避免盲滚多次截图。
- *   D 键盘与表单（4）：type / set_value / press / check / uncheck / select / toggle
- *      —— 复选框/单选/下拉在真实业务里比纯 type 更高频，且都天然幂等。
- *   E 读取与等待（3）：get / is / wait
- *      —— get 读元素值（校验「输入框里到底是什么」），is 做存在/可见/可用断言，
- *         两者让「操作后校验」不必再截图做视觉比对。
+ * 原先定义在本文件，但统一能力表（`vm-capabilities/src/registry/unified.ts`）要给 desktop 面
+ * 补 25 条带 `risk` 的条目，就必须读这份白名单 —— 而本包 `package.json` **已经依赖**
+ * `@winvm/vm-capabilities`，反向 import 会**成环**，dep-lint 必拦。
  *
- * 仍**不**默认暴露：破坏性动作（close_app / drag / clipboard_set / clipboard_clear /
- * sandbox_*）、鼠标原始事件（mouse_down/up/move/click/wheel）、通知与会话管理、
- * trace 导出。需要时按 SKILL 「解禁三步」显式加白名单，不要整体放开 75 个。
+ * 所以「下沉」而非「复制」：白名单是**可达面**的唯一事实源，统一表是同一份事实的投影。
+ * 复制两份的代价不是多写 25 行，而是「加白名单忘了加统一表」⇒ 审批闸对该工具
+ * **静默无规则（fail-open）**。
+ *
+ * 本处改为 **re-export**，保持既有 import（含 `tests/unit/mcp-upstream-connectors.test.js`
+ * 从 `dist/mcp-upstream.js` 取该常量的写法）逐字不变 —— 那是本仓库的对外形状，
+ * 下沉不该让调用方跟着改 import 路径。
+ *
+ * 分组构成、为什么是 25 而不是 75、以及「仍不默认暴露哪些」的完整说明，
+ * 见 `vm-capabilities/src/registry/upstream-tools.ts` 的常量注释（单一出处）。
  */
-export const DEFAULT_DESKTOP_TOOL_ALLOWLIST: readonly string[] = Object.freeze([
-  // A 目标发现与窗口
-  'desktop_snapshot',
-  'desktop_find',
-  'desktop_screenshot',
-  'desktop_list_apps',
-  'desktop_list_windows',
-  // B 启动与窗口管理
-  'desktop_launch',
-  'desktop_focus_window',
-  'desktop_maximize',
-  'desktop_resize_window',
-  // C 指针与滚动
-  'desktop_click',
-  'desktop_double_click',
-  'desktop_right_click',
-  'desktop_hover',
-  'desktop_scroll',
-  'desktop_scroll_to',
-  // D 键盘与表单
-  'desktop_type',
-  'desktop_set_value',
-  'desktop_press',
-  'desktop_check',
-  'desktop_uncheck',
-  'desktop_select',
-  'desktop_toggle',
-  // E 读取与等待
-  'desktop_get',
-  'desktop_is',
-  'desktop_wait',
-]);
+export { DEFAULT_DESKTOP_TOOL_ALLOWLIST } from '@winvm/vm-capabilities';
 
 /** 默认上游清单（与 `delivery/vm-service.config.json` 的说明保持同步）。 */
 export function defaultUpstreamSpecs(): readonly UpstreamSpec[] {

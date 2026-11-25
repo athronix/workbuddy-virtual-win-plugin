@@ -425,6 +425,43 @@ export function resolvePolicyGateWiring(env: EnvView = process.env): PolicyGateW
   return POLICY_GATE_WIRING_DEFAULT;
 }
 
+/* ============ Step 3.2 · 上游工具面闸门（`/mcp/browser`、`/mcp/desktop`） ============ */
+
+/**
+ * 上游工具面（58 项）接入闸门的灰度开关。
+ *
+ * 病灶：改动前 `POST /mcp/browser` 与 `POST /mcp/desktop` 直接
+ * `upstreamServer.handleRequest()` —— **不过策略、不过审批、不落审计**。
+ * 58 个工具因此裸奔，其中 `browser.meta.eval`（页内执行任意 JS，risk=L2）最危险。
+ *
+ * 为什么与 `POLICY_GATE_WIRING` **分成两个开关**而不是复用：
+ * 两者作用面不同、风险不同、回滚时机也不同。复用会让「想单独回滚上游面」
+ * 变成必须连 vm 面一起回滚（vm 面的双闸执法已稳定，不该被上游的灰度节奏拖着走）。
+ *
+ * 三态（词表刻意与 `PolicyGateWiringMode` 同构，降低运维认知成本）：
+ *  - `on`（**缺省**）：完整判定 + 审计 + 拦截。
+ *    默认取 `on` 而非 `shadow` 的理由与 vm 面不同：vm 面当年从 shadow 起是因为
+ *    「回退值当声明」会造成断崖（旧宿主桥的 maxRisk 填充值）。上游面**没有**这个包袱 ——
+ *    它的判据只有「能力级风险/名单」，与调用方声明无关，不存在断崖风险；
+ *    而它此前的状态是**完全无防护**，多留在 shadow 一天就是多裸奔一天。
+ *  - `shadow`：完整判定并**写审计**（含"本应拦截"），但放行执行。
+ *    仅在观测到误伤时临时切入，用于回答「执法会拒掉哪些」。
+ *  - `off`：完全跳过，逐字回到改动前的透传行为（一键回滚）。
+ *
+ * 非法值回退 `on`：绝不因为一个坏 env 退回「无防护」。
+ * ⚠ 这一条与 `resolvePolicyGateWiring` 的「非法回退 shadow」方向相反，是**有意的**：
+ * 那个开关的回退目标是「保守观测」，这个开关的回退目标必须是「保守执法」。
+ */
+export const ENV_UPSTREAM_POLICY_MODE = 'WINVM_UPSTREAM_POLICY';
+export type UpstreamPolicyModeResolved = 'off' | 'shadow' | 'on';
+export const UPSTREAM_POLICY_MODE_DEFAULT: UpstreamPolicyModeResolved = 'on';
+
+export function resolveUpstreamPolicyMode(env: EnvView = process.env): UpstreamPolicyModeResolved {
+  const raw = env[ENV_UPSTREAM_POLICY_MODE]?.trim().toLowerCase();
+  if (raw === 'off' || raw === 'shadow' || raw === 'on') return raw;
+  return UPSTREAM_POLICY_MODE_DEFAULT;
+}
+
 /* ============ 批1 · (c) 策略化收口开关（直调 L2/L3 → 须走委派） ============ */
 
 /**
@@ -438,9 +475,50 @@ export function resolvePolicyGateWiring(env: EnvView = process.env): PolicyGateW
  *
  * 开关缺省 `on`：现状（死令牌）无任何正向价值，收口=同一拦截路径换成可行动回执，
  * 无可用性断崖（不像双闸执法有"回退值当声明"风险，那个走 shadow 灰度）。
- * 保留 `off` 档 = 纯回滚保险（部署面可显式退回旧死令牌行为，非法值回退 on）。
+ *
+ * ## V-NEXT（2026-11-23）：本开关**已标记废弃（deprecated）**，但**保留可用**
+ *
+ * 为什么不删：`(c)` 收口本身是**安全修复**（替换 P0-1「批准即删令牌 ⇒ 恒返
+ * APPROVAL_REQUIRED 死循环」）。改安全路径的代码却同时撤掉「能退回已知可用旧态」
+ * 的那根绳，是单方面撤承诺 —— 且它已被 5 处运维/设计文档当**承诺面**引用
+ * （`OPS-OVERVIEW` 环境变量总表 :528 与 :306、`deploy-strategy` :93、
+ * `INTERFACES` :221、`SECURITY-GOVERNANCE` :126 + `K5-server-replay-approval` :94）。
+ *
+ * 为什么仍算「消掉认知税」：合法取值只有 `true`（缺省/on）与被废弃的 `false`（off）。
+ * `resolveDelegationRequiredPolicyWithWarning()` 在读到 `off` 时返回
+ * `deprecatedOff: true`，由**启动期**打一条醒目 WARN（见 server.ts 装配点）。
+ * 于是：运行时分支只剩一条主路径（数据面不带双分支语义），而回滚位仍然有效 ——
+ * 配了 `off` 依旧能退回旧行为，只是日志会明说「你用的是废弃路径」。
+ *
+ * 移除计划：下一个主版本（V-NEXT 之后）连同 5 处文档承诺一起删；届时须先确认
+ * 真机连续两个版本无回滚需求。
  */
 export const ENV_DELEGATION_REQUIRED_POLICY = 'WINVM_DELEGATION_REQUIRED_POLICY';
+
+/**
+ * 解析结果：`enabled` 是**唯一**被数据面消费的语义位；
+ * `deprecatedOff` 只用于启动期告警，不参与任何判定。
+ */
+export interface DelegationRequiredPolicyResolution {
+  /** true=收口（缺省）；false = 已废弃的回滚态 */
+  readonly enabled: boolean;
+  /** 是否读到了被废弃的 `off` 取值（供启动期 WARN，不影响判定） */
+  readonly deprecatedOff: boolean;
+}
+
+/**
+ * 带废弃告警的解析入口（V-NEXT 起 server.ts 使用本函数，不再用下面那个薄封装）。
+ * 语义与旧 `resolveDelegationRequiredPolicy` **逐字等价**（同 `parseBoolean(..., true)`），
+ * 只是额外把「读到了 off」这个事实显形出来。
+ */
+export function resolveDelegationRequiredPolicyWithWarning(
+  env: EnvView = process.env,
+): DelegationRequiredPolicyResolution {
+  const enabled = parseBoolean(env[ENV_DELEGATION_REQUIRED_POLICY], true);
+  return { enabled, deprecatedOff: enabled === false };
+}
+
+/** @deprecated 用 {@link resolveDelegationRequiredPolicyWithWarning}。保留仅为不打断既有引用/单测。 */
 export function resolveDelegationRequiredPolicy(env: EnvView = process.env): boolean {
   return parseBoolean(env[ENV_DELEGATION_REQUIRED_POLICY], true);
 }

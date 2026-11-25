@@ -41,7 +41,6 @@ import {
   readFileSync,
   writeFileSync,
   rmSync,
-  cpSync,
   readdirSync,
   statSync,
 } from 'node:fs';
@@ -170,18 +169,20 @@ export function resolveVmConn({ argv = {}, env = {}, dotEnv = {}, persisted = {}
 }
 
 /**
- * 默认 SSH 私钥探测链（与 setup.mjs 一致）：未显式提供任何凭据时，
+ * 默认 SSH 私钥探测链（与 setup.mjs / install-host.mjs 一致）：未显式提供任何凭据时，
  * 探测 ~/.ssh 下默认私钥（ed25519 → ecdsa → rsa），返回首个存在的绝对路径。
  * 使 command/server/health 等 ad-hoc 子命令无需手动传 --vm-key 即可建立进程内 ssh2 隧道。
+ *
+ * 阶段 5 / Step 5.1：实现已迁至 `delivery/connect-channel.mjs`（三副本唯一收敛点）。
+ * 这里曾返回 `''` 而 install-host 返回 `undefined`——两者在 `if (probed)` 下恰好等价，
+ * 所以分叉一直没爆；但它是真实缺陷面（任何一处改成严格比较就会静默改行为）。
+ * 现统一为 connect-channel 的语义（不存在 → `undefined`）。
+ *
+ * ⚠ 投放闭包：本文件被 deploy-winvm-plugin 单独投放到插件缓存，故 `connect-channel.mjs`
+ * 必须同步登记进 deploy 的 extraFiles 与 pack-release 的 HOST/VM 清单，否则缓存侧 import 炸。
+ * connect-channel 本身只 import node 内置模块，故不引入新的二阶闭包。
  */
-function probeDefaultSshKey() {
-  const candidates = ['id_ed25519', 'id_ecdsa', 'id_rsa'];
-  for (const name of candidates) {
-    const fp = join(homedir(), '.ssh', name);
-    if (existsSync(fp)) return fp;
-  }
-  return '';
-}
+import { probeDefaultSshKey } from './connect-channel.mjs';
 
 function loadVmConn(argv) {
   const env = process.env;

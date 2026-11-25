@@ -67,6 +67,27 @@ const readReq = (path) => ({
 /** 三段实测状态表的单元格：只取三个可观测判定字段 */
 const verdict = (v) => ({ allowed: v.allowed, matchedRule: v.matchedRule, requiresApproval: v.requiresApproval });
 
+/**
+ * 「要审批」有两种哨兵值，本文件**都接受**（V-NEXT 3.3 引入能力级强制审批名单后）：
+ *
+ *   - `approval-required`                        ← 由 **risk ≥ L2** 触发（原有路径，本文件的主测对象）
+ *   - `approval-required:capability-denylist`    ← 由 **能力级强制审批名单** 命中触发（3.3 新增）
+ *
+ * 为什么不能硬钉旧值、也不能把新哨兵改回去：
+ *   1. 本文件测的能力 `system.registry.write` **恰好在 3.3 的 14 条初始黑名单里**
+ *      （理由见 defaults.ts：写注册表能改自启动/Run 键，必须让人看过），
+ *      于是它现在**先**命中名单、在 6b 档就返回，走不到 6d 的 risk 判定。
+ *      硬钉 `'approval-required'` 等于要求「名单对本能力不生效」——与 3.3 的设计目标相反。
+ *   2. 把新哨兵改回旧值同样不行：那会抹掉「本次审批是**名单**要求还是 **risk** 要求」
+ *      这一审计分辨力，而 3.3 的价值恰恰是「即使 risk 被误标成 L1 也必须审批」。
+ *   3. 两种值在**语义上等价**都是「需人工审批后执行」（`requiresApproval === true`、
+ *      `error.code === 'APPROVAL_REQUIRED'`），本文件真正要钉的是这个，而不是字面量。
+ *
+ * ⇒ 断言改为「落在审批哨兵集合内」，同时**继续逐字钉住** `allowed/requiresApproval/error.code`
+ *   这三个不可含糊的字段（下面每条用例都保留了）。
+ */
+const APPROVAL_RULES = new Set(['approval-required', 'approval-required:capability-denylist']);
+
 /* ==================== 契约 §④-1：matchedRule 域必须从 Read 切到 Write ==================== */
 
 describe('S-5 · 断言1 — system.registry.write 的判定域是 registryWriteAllowlist', () => {
@@ -114,11 +135,9 @@ describe('S-5 · 断言1 — system.registry.write 的判定域是 registryWrite
 describe('S-5 · 断言2 — 默认配置（含 (b) 补表）四链路逐格成立', () => {
   test('写 HKLM:\\SOFTWARE\\Foo **未批** → approval-required / requiresApproval=true', () => {
     const v = engine().evaluate(writeReq('HKLM:\\SOFTWARE\\Foo', false));
-    assert.deepEqual(
-      verdict(v),
-      { allowed: false, matchedRule: 'approval-required', requiresApproval: true },
-      '文档 §② (A+B) 行：L2 审批语义首次**真正成立**（此前只是隐式碰巧经读表放行）',
-    );
+    assert.equal(v.allowed, false, '文档 §② (A+B) 行：必须拒');
+    assert.equal(v.requiresApproval, true, '文档 §② (A+B) 行：L2 审批语义首次**真正成立**（此前只是隐式碰巧经读表放行）');
+    assert.ok(APPROVAL_RULES.has(v.matchedRule), `须落在审批哨兵集合内，实际 ${v.matchedRule}`);
     assert.equal(v.error.code, 'APPROVAL_REQUIRED');
   });
 
@@ -128,10 +147,10 @@ describe('S-5 · 断言2 — 默认配置（含 (b) 补表）四链路逐格成�
   });
 
   test('写 HKCU:\\** 同链路成立（未批 → 审批；批准后 → 放行）', () => {
-    assert.deepEqual(
-      verdict(engine().evaluate(writeReq('HKCU:\\Software\\Foo', false))),
-      { allowed: false, matchedRule: 'approval-required', requiresApproval: true },
-    );
+    const no = engine().evaluate(writeReq('HKCU:\\Software\\Foo', false));
+    assert.equal(no.allowed, false);
+    assert.equal(no.requiresApproval, true);
+    assert.ok(APPROVAL_RULES.has(no.matchedRule), `须落在审批哨兵集合内，实际 ${no.matchedRule}`);
     assert.equal(engine().evaluate(writeReq('HKCU:\\Software\\Foo', true)).allowed, true);
   });
 
@@ -147,7 +166,10 @@ describe('S-5 · 断言2 — 默认配置（含 (b) 补表）四链路逐格成�
 
   test('阶段顺序锁：已批的越权写**不可能**变成 approval-required', () => {
     const v = engine().evaluate(writeReq('HKLM:\\SYSTEM\\Foo', true));
-    assert.notEqual(v.matchedRule, 'approval-required', '文档 §①：白名单 miss 永远不「升级成需批准」');
+    // ⚠ 这里**不能**写成 `notEqual(v.matchedRule, 'approval-required')`：3.3 之后审批哨兵有**两个**
+    // 取值，单值 notEqual 会被 `approval-required:capability-denylist` 静默绕过（假绿）。
+    // 必须对**整个审批哨兵集合**取反，才真正钉住「miss 在审批闸之前」。
+    assert.ok(!APPROVAL_RULES.has(v.matchedRule), `文档 §①：白名单 miss 永远不「升级成需批准」，实际 ${v.matchedRule}`);
     assert.equal(v.requiresApproval, false);
   });
 

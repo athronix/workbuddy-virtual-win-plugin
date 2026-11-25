@@ -108,12 +108,16 @@ const META: CapabilityDefinition[] = [
     name: '列出可用能力',
     description: '列出当前已注册并暴露的能力清单',
     risk: 'L0',
-    // B-4（Phase 5 残项，照 D5 healthCheck 先例）：由 Node 侧注册表直供真实能力清单
-    //     （provider 拦截 __meta.capabilityList，返回 {ok,capabilities:[{id,name,risk}],count,domains}，
-    //     暴露面 = WINDOWS_CAPABILITIES ∩ provider.declareCapabilities()，与 MCP tools/list 同源同口径）。
+    // B-4（Phase 5 残项，照 D5 healthCheck 先例）：由 Node 侧直供真实能力清单
+    //     （provider 拦截 __meta.capabilityList）。
     //     旧绑定 __meta.listModules 实返 **ps1 文件名（模块面）**而非能力 ID 清单，名实落差
     //     在实现侧（批10 G4 仅在 SKILL 措辞面规避）。ps-bridge 的 listModules switch 分支
     //     **保留不动**（内部诊断面，注册表不再路由到它）。
+    // V-NEXT 2.5（方案 B）：数据源从 `WINDOWS_CAPABILITIES` 换成 `UNIFIED_CAPABILITIES`
+    //     ⇒ 回执 {ok,capabilities:[{id,name,risk,surface}],count,domains}，count = 112
+    //     （vm 54 + browser 33 + desktop 25 = 三条 tools/list 路由之和）。
+    //     vm 面仍受 provider.declareCapabilities() 约束；browser/desktop 两面的可达性
+    //     由服务端上游挂载 + 白名单决定，与 provider 声明无关（详见 buildCapabilityList 注释）。
     module: '__meta',
     fn: 'capabilityList',
     input: obj({}),

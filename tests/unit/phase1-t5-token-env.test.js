@@ -2,23 +2,26 @@
  * Phase 1 · T5 行为守卫（判据④）—— `--token-env` 客户端凭据通路真正生效
  *
  * 钉死 §7.4-T5 判据④：「`--token-env` 真给值时隧道请求带 header」。
- * 与设计 §5 第 3 条 / ENG-23 一致：`applyBearerHeader` 是**两条远程传输分支的唯一实现**，
+ * 与设计 §5 第 3 条 / ENG-23 一致：`applyBearerHeader` 是远程传输分支的**唯一实现**，
  * 本文件把它从「CLI 解析」到「线上请求头」整条链路一次打穿：
  *
  *   A 形态层：`buildTransport` 仅在显式给出 `--token-env` 时才产出 `tokenEnv` 键
  *             （缺席即旧行为：回环场景不带凭据 —— 与 `requireLoopbackBind` 不可关相呼应）。
  *   B 纯函数层：`applyBearerHeader` 三态（T2 交付；本批把它**固化为持久测试**——
  *             T2 的判据⑥ 当时只以证据脚本验证、未落 `tests/unit`，见 notes 观察 O-2）。
- *   C 装配层：`establishTransport` 两条分支都把凭据交给 `HttpJsonRpcChannel`；
- *             ssh-tunnel 分支的校验**前置**到建隧道之前（有名无值 ⇒ 抛的是凭据错，
- *             且错误串中不含任何隧道字样 ⇒ 证明没起 SSH 进程、无隧道泄漏，T2 D-11）。
+ *   C 装配层：`establishTransport` 把凭据交给 `HttpJsonRpcChannel`，
+ *             且校验**前置**到建连之前（有名无值 ⇒ 抛的是凭据错，
+ *             且错误串中不含任何网络字样 ⇒ 证明没发起连接、无句柄泄漏，T2 D-11）。
  *   D 线上层：起一个 127.0.0.1 的回显 HTTP 服务，真实 `fetch` 一次，断言
  *             `authorization: Bearer <token>` 落到线上（这是判据④的字面要求）。
  *   E 文案层：`--help` 的 `--token-env` 说明不得再宣称「默认 WINVM_BEARER_TOKEN」
  *             （旧文案与实现矛盾：实现默认**不启用**凭据）。
  *
- * 纪律：不连 VM、不起 SSH（C 组只验证「抛在起进程之前」这一点）；
+ * 纪律：不连 VM、不起 SSH（C 组只验证「抛在建连之前」这一点）；
  *       D 组用 node 内置 http 服务，端口回环、随用例关闭。
+ *
+ * V-NEXT（2026-11-23）：`ssh-tunnel` 声明形态已删，C 组原以「SSH 子进程未起」为泄漏判据，
+ * 现改为「未发起网络连接」；不变量（校验先于建连）保持不变。
  *
  * 运行（逐文件，绝不整批 glob）：
  *   node --test tests/unit/phase1-t5-token-env.test.js
@@ -99,43 +102,45 @@ describe('T5 判据④ applyBearerHeader 三态（凭据语义唯一实现）', 
   });
 });
 
-/* ============================ C 装配层：ssh-tunnel 校验前置（无泄漏） ============================ */
+/* ============================ C 装配层：凭据校验先于建连（无泄漏） ============================ */
 
-describe('T5 判据④ establishTransport：凭据校验前置到建隧道之前（T2 D-11）', () => {
-  const tunnelDecl = {
-    kind: 'ssh-tunnel',
-    host: '127.0.0.1',
-    user: 'nobody',
-    remotePort: 18443,
-    localPort: 0,
-    identityFile: '/nonexistent/t5-key',
+describe('T5 判据④ establishTransport：凭据校验前置到建连之前（T2 D-11）', () => {
+  /* V-NEXT（2026-11-23）：声明形态由 `ssh-tunnel` 改为 `streamable-http`。
+   * 原用例证明「抛错时 SSH 隧道子进程还没起」；现在没有 SSH 子进程可起，但**不变量相同**：
+   * tokenEnv 有名无值时必须在**任何网络动作之前**抛凭据错。
+   * 用 1 号端口（保留端口，确定无监听）+ 短超时兜底：若实现退化成「先连后校验」，
+   * 这里就会看到 ECONNREFUSED / timeout 而不是凭据错。 */
+  const lazyDecl = {
+    kind: 'streamable-http',
+    url: 'http://127.0.0.1:1',
     tokenEnv: 'WINVM_T5_NO_SUCH_VAR',
+    timeoutMs: 1_000,
   };
 
-  test('有名无值 ⇒ 抛的是凭据错且错误串无任何隧道字样 ⇒ 未起 SSH 进程、无隧道泄漏', async () => {
-    const err = await establishTransport(tunnelDecl, { path: '/a2a' }).then(
+  test('有名无值 ⇒ 抛的是凭据错且错误串无任何网络字样 ⇒ 未发起连接、无句柄泄漏', async () => {
+    const err = await establishTransport(lazyDecl, { path: '/a2a' }).then(
       () => undefined,
       (e) => e,
     );
     assert.ok(err instanceof TransportError, `应抛 TransportError，实得 ${String(err)}`);
     assert.match(err.message, /WINVM_T5_NO_SUCH_VAR|bearer/i, '必须是凭据错误');
     assert.ok(
-      !/隧道|tunnel|SSH|ssh|Connection refused|进程提前退出/i.test(err.message),
-      '★ 若错误串里出现隧道/SSH 字样，说明校验发生在 establishSshTunnel **之后** —— ' +
-        '那条路径会同时泄漏隧道子进程并把凭据故障伪装成网络故障',
+      !/ECONNREFUSED|Connection refused|fetch failed|timeout|连接被拒绝/i.test(err.message),
+      '★ 若错误串里出现网络字样，说明校验发生在建连**之后** —— ' +
+        '那条路径会把凭据故障伪装成网络故障，运维根本指不到根因',
     );
   });
 
-  test('装配次序形态钉：ssh-tunnel 分支的凭据调用点位于建隧道之前（不发真实 SSH 连接）', () => {
-    // 本用例刻意**不**跑 tokenEnv 缺席的 establishTransport —— 那会真的尝试建 SSH 隧道
-    // （连到不存在的主机），把离线守卫变成网络用例。次序改由源码形态钉死。
+  test('装配次序形态钉：凭据校验调用点先于任何 channel 构造（不发真实请求）', () => {
+    // 本用例刻意**不**跑 tokenEnv 缺席的 establishTransport —— 那会真的发起 HTTP 请求。
+    // 次序改由源码形态钉死。
     const iApply = TRANSPORT_SRC.indexOf('const headers = applyBearerHeader(opts.headers, decl.tokenEnv)');
-    const iTunnel = TRANSPORT_SRC.indexOf('await establishSshTunnel(');
-    assert.ok(iApply > 0 && iTunnel > 0, '两处调用点都须在场');
-    assert.ok(iApply < iTunnel, '★ 凭据校验必须先于建隧道：否则态 3 抛错时隧道已起而句柄未回，close() 永不执行 ⇒ 泄漏');
-    // streamable-http 分支同样消费同一函数（单一实现，不得漂移出第二份 header 拼装）
+    const iChannel = TRANSPORT_SRC.indexOf('new HttpJsonRpcChannel(');
+    assert.ok(iApply > 0 && iChannel > 0, '两处调用点都须在场');
+    assert.ok(iApply < iChannel, '★ 凭据校验必须先于 channel 构造：否则态 3 抛错时连接已起而句柄未回，close() 永不执行 ⇒ 泄漏');
+    // V-NEXT：只剩一条远程分支，故 applyBearerHeader 调用点恰 1 处（原为 2 处）
     const uses = TRANSPORT_SRC.match(/applyBearerHeader\(opts\.headers, decl\.tokenEnv\)/g) ?? [];
-    assert.equal(uses.length, 2, `两条远程分支各一处，实得 ${uses.length}`);
+    assert.equal(uses.length, 1, `单一远程分支恰一处，实得 ${uses.length}`);
     // 凭据拼装只允许一处代码写入点（`out['authorization'] =` 在 applyBearerHeader 内）；
     // 分支里再出现 authorization 赋值 = 第二份实现漂移（正是 T2 要根治的病灶）。
     const assignSites = TRANSPORT_SRC.match(/(?:out|headers)\[(?:'|")authorization(?:'|")\]\s*=/g) ?? [];

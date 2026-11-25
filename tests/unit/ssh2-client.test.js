@@ -644,13 +644,62 @@ describe('分发白名单对账：winvm-plugin/setup 的相对 import 必须逐�
     assert.ok(deps.includes('account-resolve.mjs'), 'account-resolve 静态依赖应在');
     assert.ok(deps.includes('ssh2-backend.mjs'), '迭代21 D-2：ssh2-backend 静态依赖必须已登记');
     const ih = read('install-host.mjs');
-    // 隧道/ssh2 运行面五件：integrity 对账面 + 插件缓存 extraFiles + 仓库 delivery extraFiles（三处齐备）
-    for (const f of ['winvm-plugin.mjs', 'ssh2-backend.mjs', 'ssh2-client.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'oh-tunnel.mjs']) {
-      const listed = (ih.match(new RegExp(`['"]${f.replace('.', '\\.')}['"]`, 'g')) || []).length;
-      assert.ok(listed >= 3, `${f} 必须在 install-host 三处名单齐备（integrity + 两处 extraFiles），实际 ${listed}`);
+
+    /* ⚠ 判据重写（阶段 5 / Step 5.1）——原判据两重假绿，必须说明白，别改回去。
+     *
+     * 原写法：`(ih.match(new RegExp("'" + f + "'", 'g')) || []).length >= 3`，即
+     * 「该文件名的引号形态在**全文件**出现 ≥ 3 次」，注释说这代表 integrity 台账 + 两处 extraFiles。
+     *
+     * 实测（本步用结构化提取戳穿）：
+     *   ① `winvm-plugin.mjs` 的清单成员**只出现 1 次**（integrity 台账）。
+     *      它根本不在任何 extraFiles 里 —— 因为它是 `deployWinvmPlugin` 的**主文件**（第 1 步单独
+     *      `cpSync`），本就不该出现在 extraFiles（重复登记属冗余）。所以 `>=3` 从来不可能由
+     *      真清单满足。
+     *   ② 它能凑到 3，靠的是**注释里的文件名** + **spawn 的调用点路径**
+     *      （`join(repoRoot, 'delivery', 'winvm-plugin.mjs')`）。本步把 spawn 改经 `ensureChannel`
+     *      后调用点消失 ⇒ 计数掉到 2 ⇒ 判红，而真登记面一处没少。
+     *
+     * 即：**既能假绿（注释凑数）、也能假红（删无关调用点）**，属项目记忆里"门禁假绿三类"
+     * 的「查次数 + 查注释」叠加。故改为**按真实投放机制分组的结构化清单判定**：
+     *   · 主文件（winvm-plugin.mjs）    → 只要求 integrity 台账在册（≥1）
+     *   · 附带文件（extraFiles 类）      → 要求台账 ≥1 且 extraFiles ≥2（缓存 + 仓库两处）
+     */
+    function listedInArrays(source) {
+      const out = [];
+      // 形态一：`for (const rel of ['a', 'b'])`  —— integrity 对账台账
+      for (const m of source.matchAll(/for \(const rel of \[([^\]]+)\]\)/g)) {
+        out.push(...[...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]));
+      }
+      // 形态二：`extraFiles: ['a', 'b']`  —— deployWinvmPlugin 投放名单
+      for (const m of source.matchAll(/extraFiles: \[([^\]]+)\]/g)) {
+        out.push(...[...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]));
+      }
+      return out;
     }
+
+    const ledger = listedInArrays(ih);
+    const countIn = (f) => ledger.filter((x) => x === f).length;
+
+    // 台账必须真的抽到三处清单（1 integrity + 2 extraFiles）。这是判据自身的健康检查：
+    // 若有人把 extraFiles 改成变量引用而绕过正则，这里会报红提醒补判据（而不是静默假绿）。
+    const arraysFound = (ih.match(/for \(const rel of \[/g) || []).length
+      + (ih.match(/extraFiles: \[/g) || []).length;
+    assert.equal(arraysFound, 3, `install-host 应恰有 3 处登记清单（1 integrity + 2 extraFiles），实测 ${arraysFound}`);
+
+    // 主文件：只入 integrity 台账（不进 extraFiles —— 它由 deployWinvmPlugin 第 1 步单独投放）
+    assert.ok(countIn('winvm-plugin.mjs') >= 1, 'winvm-plugin.mjs 必须在 integrity 对账台账在册');
+
+    // 附带文件：台账 + 两处 extraFiles，三处齐备
+    for (const f of ['ssh2-backend.mjs', 'ssh2-client.mjs', 'ssh2-resolve.mjs', 'tunnel-daemon.mjs', 'oh-tunnel.mjs']) {
+      assert.ok(countIn(f) >= 3, `${f} 必须在 install-host 三处清单齐备（integrity + 两处 extraFiles），实测 ${countIn(f)}`);
+    }
+    // 阶段 5 / Step 5.1 新增：connect-channel.mjs 是 winvm-plugin 与 setup 的静态依赖，
+    // 必须与其余附带文件同等登记（本步的回归点就在这一行）。
+    assert.ok(countIn('connect-channel.mjs') >= 3,
+      `connect-channel.mjs 必须在三处清单齐备（winvm-plugin 静态 import 它），实测 ${countIn('connect-channel.mjs')}`);
+
     // account-resolve=既有面（integrity + 插件缓存两处；仓库 delivery 自拷贝跳过属原设计）
-    assert.ok((ih.match(/'account-resolve\.mjs'/g) || []).length >= 2, 'account-resolve 登记不得回退');
+    assert.ok(countIn('account-resolve.mjs') >= 2, 'account-resolve 登记不得回退');
   });
 
   test('setup.mjs 相对依赖（ssh2-backend 静态）在 pack-release VM_DELIVERY 白名单在册', () => {

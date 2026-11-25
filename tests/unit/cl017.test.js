@@ -125,7 +125,14 @@ describe('CL-017 D11 · dry-run 免审批', () => {
     });
     assert.equal(r.allowed, false, '仅凭调用方自报 dryRun 绝不再免批');
     assert.equal(r.requiresApproval, true);
-    assert.equal(r.matchedRule, 'approval-required');
+    // ⚠ 不逐字钉 `'approval-required'`：V-NEXT 3.3 起 `system.registry.write` 在**能力级强制审批名单**里，
+    // 于是在 6b 档就返回 `'approval-required:capability-denylist'`（不再走 6d 的 risk 判定）。
+    // 本条要证的是「自报 dryRun 换不到免批」，两个哨兵都满足该语义 ⇒ 接受两者集合。
+    // 若强行钉旧值，等于要求「名单对本能力不生效」，与 3.3 设计目标相反。
+    assert.ok(
+      ['approval-required', 'approval-required:capability-denylist'].includes(r.matchedRule),
+      `须落在审批哨兵集合内，实际 ${r.matchedRule}`,
+    );
     assert.equal(r.error?.code, 'APPROVAL_REQUIRED');
   });
 });

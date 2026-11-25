@@ -67,8 +67,8 @@
  *
  * provider / cli 取值来源优先级：显式 --provider/--cli 参数 > 环境变量
  *   WINVM_VM_PROVIDER > 配置文件 agent.provider；CLI 运行时按 provider 取：
- *   workbuddy→WINVM_WORKBUDDY_CLI（默认 codebuddy）/ hermes-agent→WINVM_HERMES_CLI（默认 hermes）。
- * 可用 provider：workbuddy-deterministic（确定性）/ workbuddy（codebuddy LLM）/ hermes-agent（Hermes Agent LLM）。
+ *   workbuddy→WINVM_WORKBUDDY_CLI（默认 codebuddy）。V-NEXT 起 `hermes-agent` provider 已删。
+ * 可用 provider：workbuddy-deterministic（确定性）/ workbuddy（codebuddy LLM）。
  *
  * 共享 Skills 根取值优先级：--skills-root > 环境变量 WINVM_SKILLS_ROOT >
  *   所选 provider 的 options.skillsRoot > C:/WinVMBridge/shared-skills。
@@ -593,10 +593,10 @@ async function main() {
     process.env['WINVM_VM_PROVIDER'] ??
     cfg?.agent?.provider ??
     'workbuddy-deterministic';
-  // CLI 运行时按所选 LLM provider 解析：workbuddy→WINVM_WORKBUDDY_CLI(默认 codebuddy) / hermes-agent→WINVM_HERMES_CLI(默认 hermes)
-  const isLlmProvider = provider === 'workbuddy' || provider === 'hermes-agent';
-  const cliEnvVar = provider === 'hermes-agent' ? 'WINVM_HERMES_CLI' : 'WINVM_WORKBUDDY_CLI';
-  const cliDefault = provider === 'hermes-agent' ? 'hermes' : 'codebuddy';
+  // CLI 运行时按所选 LLM provider 解析；V-NEXT 起 provider 收敛为 workbuddy 单值
+  const isLlmProvider = provider === 'workbuddy';
+  const cliEnvVar = 'WINVM_WORKBUDDY_CLI';
+  const cliDefault = 'codebuddy';
   const cli = args.cli ?? process.env[cliEnvVar] ?? cliDefault;
   if (!cfg?.agent?.providers?.[provider]) {
     console.error(
@@ -607,12 +607,12 @@ async function main() {
   console.log(`VM Agent   : agent.provider=${provider}${isLlmProvider ? `（LLM 运行时=${cli}）` : ''}`);
   // M7（Phase 3 批4）：能力降级横幅——deploy 期按已知 provider 静态预告「安全/运维特性差异」，
   // 与运行时 /health.capabilitiesProfile（SPI 自省派生）互补：此处是「装机前告知」，health 是「运行实况」。
-  // 病灶（PM §3）：hermes-agent 无审批真值反查、deterministic 无 LLM 自主规划，但 kind 相同/相近易被误认为
+  // 病灶（PM §3）：不同 provider 的能力面并不相同，但 kind 相同/相近易被误认为
   // 「安全特性跟通道走」的静默降级。三档能力画像为部署期常量（新增 provider 须同步本表，与 orchestrator SKILL 对照表同源）。
+  // V-NEXT（2026-11-23）：`hermes-agent` 已删（provider 收敛为 workbuddy 一族），故画像表只剩两档。
   const PROFILE = {
     'workbuddy-deterministic': { llm: false, persistentSession: false, warmup: false, truthLayer: false, note: '确定性执行器：无 LLM 自主规划/无常驻会话预热/无审批真值层' },
     'workbuddy': { llm: true, persistentSession: true, warmup: true, truthLayer: true, note: 'codebuddy LLM：全特性（常驻会话+预热+审批真值三态）' },
-    'hermes-agent': { llm: true, persistentSession: false, warmup: false, truthLayer: false, note: 'Hermes LLM：⚠ 无常驻会话预热/无审批真值层（L2/L3 审批续跑与真值反查不可用）' },
   };
   const prof = PROFILE[provider];
   if (prof && (!prof.persistentSession || !prof.warmup || !prof.truthLayer)) {
@@ -822,7 +822,7 @@ async function main() {
   runtime.server.port = args.port;
   runtime.agent = runtime.agent ?? {};
   runtime.agent.provider = provider;
-  // 把 CLI 运行时注入所选 LLM provider 的 options（workbuddy / hermes-agent 通用）
+  // 把 CLI 运行时注入所选 LLM provider 的 options（V-NEXT：只剩 workbuddy 一族）
   if (isLlmProvider && runtime.agent.providers?.[provider]) {
     runtime.agent.providers[provider] = {
       ...runtime.agent.providers[provider],

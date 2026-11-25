@@ -15,7 +15,9 @@
  *  - ssh2 客户端通过依赖注入（opts.ssh2Client）传入，默认动态 import('ssh2')，
  *    使本模块「加载 / 单元测试」不依赖真实 ssh2 是否安装（无网沙箱即可测）。
  *  - 导出的 TunnelHandle 形态：{ pid:undefined, stop, on, localPort, alive,
- *    baseUrl, close, exited }，可被上层与 core 后端复用。
+ *    baseUrl, close, exited }。（V-NEXT 起这是**本模块自有**的句柄契约：
+ *    它不再被 @winvm/core 的传输层消费——core 的 ssh-tunnel 传输已删，
+ *    上层一律经 `streamable-http` + `http://127.0.0.1:<localPort>` 访问。）
  *
  * 稳定性契约（P0-02 崩溃缺陷修复后新增，务必遵守）：
  *  - **本类任何情况下都不会因 emit('error') 让宿主进程崩溃**。

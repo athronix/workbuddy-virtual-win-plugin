@@ -134,16 +134,26 @@ const HOST_DELIVERY = [
   // 迭代21 / D-2：ssh2 共享执行体 + 后端三级开关（winvm-plugin.mjs/setup.mjs 的相对 import 硬依赖，
   // 与 ssh2-resolve 同登记方式=漂移即 copyEntry fail-loud）
   'delivery/ssh2-client.mjs', 'delivery/ssh2-backend.mjs',
+  // 阶段 5 / Step 5.1：通道层单一职责模块。install-host / winvm-plugin / setup 三处
+  // 都从它 import 私钥探测与 vm-conn 读写 —— 漏登记 = 包内 import 直接炸（闭包断裂）。
+  // 它只 import node 内置模块，故不引入二阶闭包。
+  'delivery/connect-channel.mjs',
   'delivery/oh-tunnel.mjs', 'delivery/tunnel-daemon.mjs', 'delivery/winvm-plugin.mjs',
   'delivery/hooks', 'delivery/env.example',
 ];
 const VM_DELIVERY = [
   'delivery/deploy-vm.mjs', 'delivery/setup.mjs', 'delivery/install-vm.mjs',
+  // 阶段 5 / Step 5.2：VM 原生 PowerShell 入口壳（找 node -> 调 install-vm.mjs）。
+  // 它只在 VM 包/整体包有意义（宿主侧不用 ps1 装 VM）。
+  'delivery/install.ps1',
   'delivery/deploy-shared-skills.mjs', 'delivery/link-workspace.mjs',
   'delivery/deploy-winvm-plugin.mjs', 'delivery/path-util.mjs', 'delivery/preflight.mjs',
   // 迭代21 / D-2：setup.mjs（VM 相位执行体在本包内跑）与 install-vm 部署的 winvm-plugin 均
   // 相对 import 这两个文件；VM 包 ssh2 不可达时 auto 落二进制=零冲击。
   'delivery/ssh2-client.mjs', 'delivery/ssh2-backend.mjs', 'delivery/ssh2-resolve.mjs',
+  // 阶段 5 / Step 5.1：setup.mjs 从 connect-channel import `resolveTunnelIdentityFile`，
+  // VM 相位（TUNNEL）在本包内执行 —— 缺它 = VM 侧 import 炸。
+  'delivery/connect-channel.mjs',
   'delivery/env.example',
   // install-vm.mjs 的**非 import 硬依赖**（读文件生成 runtime.json；迭代1 教训：dry-run 抓不到这类缺失）
   'delivery/vm-service.config.json',
@@ -170,21 +180,30 @@ const PACKAGE_REQUIRED = {
     // 迭代21 / D-2：插件缓存运行态硬依赖（winvm-plugin 静态 import ssh2-backend；
     // ssh2-client 动态 import + 其静态 import ssh2-resolve）——漂移=缓存炸 import（历轮已知大坑）
     'delivery/ssh2-backend.mjs', 'delivery/ssh2-client.mjs', 'delivery/ssh2-resolve.mjs',
+    // 阶段 5 / Step 5.1：install-host 与 winvm-plugin 均静态 import connect-channel，
+    // 缺失=包内 import 炸（V1 结构断言在此 fail-loud）
+    'delivery/connect-channel.mjs',
     'delivery/hooks/hooks.json', 'delivery/env.example', 'package.json', '.env.example',
     'node_modules/@winvm/host-sdk/package.json', 'node_modules/ssh2/package.json',
   ],
   vm: [
     'delivery/deploy-vm.mjs', 'delivery/setup.mjs', 'delivery/install-vm.mjs',
+    // 阶段 5 / Step 5.2：ps1 壳的包内存在性（漏收=打包 fail-loud）
+    'delivery/install.ps1',
     'delivery/ssh2-client.mjs', 'delivery/ssh2-backend.mjs', 'delivery/ssh2-resolve.mjs',
+    // 阶段 5 / Step 5.1：setup.mjs 静态 import connect-channel（VM 相位在其内执行）
+    'delivery/connect-channel.mjs',
     'delivery/vm-service.config.json', 'delivery/env.example', 'package.json', '.env.example',
     'qa/probes/qa-probe.ps1', 'qa/probes/lead-md5-3.ps1',
   ],
   overall: [
     'delivery/install-host.mjs', 'delivery/deploy-vm.mjs', 'delivery/setup.mjs',
-    'delivery/install-vm.mjs', 'delivery/vm-service.config.json', 'delivery/bootstrap.mjs',
+    'delivery/install-vm.mjs', 'delivery/install.ps1', 'delivery/vm-service.config.json', 'delivery/bootstrap.mjs',
     'delivery/uninstall.mjs', 'delivery/env.example', 'package.json', '.env.example',
     // 迭代21 / D-2：ssh2 运行面在 overall 包的存在性（漏收=打包 fail-loud）
     'delivery/ssh2-client.mjs', 'delivery/ssh2-backend.mjs', 'delivery/ssh2-resolve.mjs',
+    // 阶段 5 / Step 5.1：overall 同时含 host 与 vm 两相位执行体，通道层模块两侧都要
+    'delivery/connect-channel.mjs',
     'docs/DEPLOYMENT.md', 'docs/RELEASE-V1.4.0.md', 'docs/issues.md',
     // V1.4.5 收编项（Prompt 总集三篇）的包内存在性（漏收=打包 fail-loud）
     'docs/deploy/deploy-strategy.md', 'docs/deploy/deploy-prompts.md', 'docs/deploy/undeploy-prompts.md',
@@ -328,7 +347,13 @@ function genVmScript(dest, version) {
     '  read -r -p "无参数：将执行 deploy-vm.mjs --apply --skip-build（真部署到 VM，使用包内已构建 dist）。确认？[y/N] " ans',
     '  case "$ans" in y|Y) set -- --apply --skip-build ;; *) echo "已取消（可传 --dry-run 预览）"; exit 0 ;; esac',
     'fi',
-    'echo "node=$NODE_BIN  目标：打包推送 VM 载荷 → install-vm → 起服务 → QA 探针"',
+    // 阶段 5 / Step 5.2 实测结论（勿再加 --skip-install 到这里）：
+    // 计划书原话是「deploy-vm.sh 默认加 --skip-install」，但实测该参数在本层**无作用**——
+    // deploy-vm.mjs 只解析 --apply/--skip-build/--uninstall/--env，VM 内的 install-vm 调用
+    // 由 setup.mjs 的 buildVmInstallPs1 **硬编码** `--skip-install --skip-build`（setup.mjs:768）。
+    // 也就是说发布包路径早已默认化；在此追加会得到一个被静默忽略的假参数（"看起来生效了"），
+    // 比不加更糟。故保留原样，并在此处留证。
+    'echo "node=$NODE_BIN  目标：打包推送 VM 载荷 → install-vm（已含 --skip-install）→ 起服务 → QA 探针"',
     'exec "$NODE_BIN" delivery/deploy-vm.mjs "$@"',
   ]);
 }
@@ -881,7 +906,7 @@ function main() {
       '',
       '## 完整功能验证清单（部署后逐项过）',
       '1. `curl http://127.0.0.1:18443/health`：provider=ready、session.state=healthy',
-      '2. MCP 直调 `meta.capability.list`：count=54',
+      '2. MCP 直调 `meta.capability.list`：count=112（三面合计 vm 54 + browser 33 + desktop 25；V-NEXT 2.5 前为 54）',
       '3. MCP 直调 `system.info.get`：实调返回',
       '4. A2A `a2a.delegate`（system.info.get）：streaming 终态 ok',
       '5. `gui.session.status`：healthy / locked=false',

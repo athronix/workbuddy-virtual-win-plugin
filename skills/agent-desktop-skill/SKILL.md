@@ -7,7 +7,14 @@ description: "Windows VM 桌面应用自动化的工具选型与用法速查（a
 
 # agent-desktop-skill：Windows 桌面应用自动化
 
-> 服务形态：VM 内 `agent-desktop mcp`（stdio）由 **vm-service 反向代理**成 `POST /mcp/desktop`，宿主侧 connector = `connector:winvm-desktop`，与 winvm 主连接器**共用同一条 SSH 隧道**。
+> 服务形态：VM 内 `agent-desktop mcp`（stdio）由 **vm-service 反向代理**成 `POST /mcp/desktop`，与 winvm 主工具面**共用同一条 SSH 隧道**（宿主）或**同一个回环端口**（VM 内）。
+>
+> **端点自适（本 skill 两端共用，按你所在一端读）**：
+> - **鸿蒙宿主 Agent**：经 `connector:winvm-desktop` → 本地 `127.0.0.1:18443/mcp/desktop`（**由常驻隧道守护进程转发，勿手工建 SSH 转发**）；
+> - **VM 内 Agent（codebuddy-lite）**：经 `mcpServers.winvm-desktop` → 同一 `127.0.0.1:18443/mcp/desktop`（**VM 内是直连回环，无隧道**）。
+>
+> 工具名、参数、白名单机制、Session 1 判据、失败判据**两端完全一致** —— 下面的 §0–§11 与端无关。
+> 唯一例外：**§5 的「解禁白名单」只有宿主/VM 内**两边都需改**服务端**（`DEFAULT_DESKTOP_TOOL_ALLOWLIST`），改宿主侧 `disabledTools` 无效。
 > 全部 75 个工具的逐条参数与示例在 `references/`，本文只讲「什么时候用哪个、怎么用对」。
 
 ## 0. 一句话规则

@@ -50,7 +50,7 @@ relatedSkills:
 > **发现类能力（M6 声明位）**：`meta.capability.list`（L0，全域通用）是服务端元能力，
 > 用于运行期核对当前 provider **实际暴露的能力面**（provider degraded 时收窄至仅
 > `meta.*`）。下表为本域**预期**清单；若不确定目标能力此刻是否可用，以 MCP `tools/list`
-> 的能力 ID 级暴露面为权威，或先 `meta.capability.list` 自检再决定直调/委派（B-4 后该工具由 Node 侧注册表直供，返回 `{capabilities:[{id,name,risk}],count}`，与 tools/list 同源一致）——未暴露能力
+> 的能力 ID 级暴露面为权威，或先 `meta.capability.list` 自检再决定直调/委派（V-NEXT 2.5 后该工具由 Node 侧统一表直供，返回 `{capabilities:[{id,name,risk,surface}],count}`，count 为三面合计 **112**（vm 54 + browser 33 + desktop 25）；与 tools/list 同源一致，此处指「三面 tools/list 之和」——`/mcp` 54、`/mcp/browser` 33、`/mcp/desktop` 25，并非单指 `/mcp` 一个路由）——未暴露能力
 > 不会进入工具清单，直调得到 JSON-RPC `-32602`（未知工具）而非契约错误码；
 > `CAPABILITY_NOT_EXPOSED` 仅在批准后重放路径出现，`PROVIDER_UNAVAILABLE` 指已暴露能力的
 > provider 未就绪态（均与"未暴露直调"无涉——不重试，先核对暴露面）。

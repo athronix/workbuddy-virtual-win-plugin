@@ -214,7 +214,9 @@ export function buildIntegrityFilePairs(cacheRoot, repoRoot) {
   //     对不上：多算=缓存缺文件 MISSING，少算=多投放的文件无人对账）
   //    迭代21 / D-2：winvm-plugin.mjs 新增静态 import './ssh2-backend.mjs' + 动态 import
   //    './ssh2-client.mjs'（其静态依赖 ssh2-resolve.mjs 已在册）——漏投=插件缓存炸 import。
-  for (const rel of ['winvm-plugin.mjs', 'oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs']) {
+  //    阶段 5 / Step 5.1：winvm-plugin.mjs 与 setup.mjs 现在静态 import './connect-channel.mjs'，
+  //    必须同在台账（漏登记=缓存侧 import 炸；多投放不入账=新鲜度对账报"无人对账的文件"）。
+  for (const rel of ['winvm-plugin.mjs', 'oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs', 'connect-channel.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs']) {
     pushFile(join(repoRoot, 'delivery', rel), join(cacheRoot, rel), rel);
   }
 
@@ -274,14 +276,19 @@ function resolveA2aTimeoutFromEnv() {
  *
  * 目的（I1 / Q4 裁定）：把探测结果在**部署期**固化进 `vm-conn.json`（及连接器 identityFile），
  * 使宿主侧 health/server/command 无需每次手动 `--vm-key`，也不必仅依赖运行时兜底探测。
+ *
+ * 阶段 5 / Step 5.1：实现已迁至 `delivery/connect-channel.mjs`（三副本唯一收敛点）。
+ * 本地不再持有副本——三份历史实现曾在返回值上分叉（`undefined` / `''` / 对象），
+ * 靠"注意保持一致"的注释是维持不住的，只有单一实装才能保证不分叉。
  */
-function probeDefaultSshKey() {
-  for (const name of ['id_ed25519', 'id_ecdsa', 'id_rsa']) {
-    const fp = join(homedir(), '.ssh', name);
-    if (existsSync(fp)) return fp;
-  }
-  return undefined;
-}
+import {
+  probeDefaultSshKey,
+  resolveVmConnection,
+  writeVmConnConfig,
+  removeVmConnConfig,
+  copySsh2Runtime,
+  ensureChannel,
+} from './connect-channel.mjs';
 
 /** 读取 JSON 文件（不存在/损坏 → null）。 */
 function readJsonSafe(p) {
@@ -299,30 +306,14 @@ function readJsonSafe(p) {
  *   3) 环境变量 `WINVM_HOST` / `WINVM_USER` / `WINVM_VM_SSH_PORT` / `WINVM_SERVICE_PORT`（或 `WINVM_VM_PORT`）
  * host / user 全缺时返回 `{ missing: true }`，由调用方**报错退出**（绝不静默回落默认值）。
  * 端口缺失时回落 22 / remotePort（默认 18443）。
- * @returns {{host:string,user:string,sshPort:number,servicePort:number,missing:boolean}}
+ *
+ * 阶段 5 / Step 5.1：实现已迁至 `delivery/connect-channel.mjs` 并从那里 import
+ * （见文件头 import 块）。本文件不再持有连接解析的副本——它是通道层职责，
+ * 与「装插件」这件事无关，混在一起会让「只想摆文件不建通道」的部署路径难以成立。
+ *
+ * @returns {{host:string,user:string,sshPort:number,servicePort:number,
+ *            identityFile:string|undefined,identitySource:string,missing:boolean}}
  */
-function resolveVmConnection(args, home) {
-  const persisted = readJsonSafe(join(home, '.workbuddy', 'winvm', 'vm-conn.json')) || {};
-  const env = process.env;
-  const numOr = (v, d) => {
-    const n = Number(v);
-    return Number.isFinite(n) && n > 0 ? n : d;
-  };
-  const host = args.vmHost ?? args.host ?? persisted.host ?? env['WINVM_HOST'] ?? '';
-  const user = args.vmUser ?? args.user ?? persisted.user ?? env['WINVM_USER'] ?? '';
-  const sshPort = numOr(args.vmSshPort ?? persisted.sshPort ?? env['WINVM_VM_SSH_PORT'], 22);
-  const servicePort = numOr(
-    args.vmPort ?? persisted.servicePort ?? env['WINVM_SERVICE_PORT'] ?? env['WINVM_VM_PORT'],
-    args.remotePort ?? 18443,
-  );
-  return {
-    host: host ? String(host) : '',
-    user: user ? String(user) : '',
-    sshPort,
-    servicePort,
-    missing: !host || !user,
-  };
-}
 
 /* ------------------------------ 参数 ------------------------------ */
 
@@ -450,66 +441,10 @@ function installBridgeDeps(bridgeDest, repoRoot, deps, dryRun) {
 }
 
 /* ------------------------------ ssh2 运行时依赖离线分发（CL-015 T11 / P0-01） ------------------------------
- * @winvm/core 依赖 ssh2（及其纯 JS 传递依赖 asn1 / bcrypt-pbkdf / tweetnacl），
- * 但 collectWinvmDeps 仅收集 @winvm/*，故 ssh2 必须单独落地到插件缓存 node_modules，
- * 否则鸿蒙宿主（无系统 ssh）上进程内 ssh2 隧道 import('ssh2') 必失败。
- *  - 源优先级：<repoRoot>/vendor/ssh2（离线预置，若为包目录） → <repoRoot>/node_modules/ssh2。
- *  - 仅复制 dependencies 传递链（纯 JS）；optional 原生依赖（cpu-features / nan）缺失即跳过（ssh2 回落纯 JS，功能不受影响）。
- *  - 扁平落地到 <pluginRoot>/node_modules/<name>，版本相同则跳过（幂等）。
- *  - 对所有平台 best-effort 执行（失败仅告警）：仅新增数据文件，win32/darwin 不使用 ssh2 后端（守卫），惰性无害（NFR-2/A5）。
+ * 阶段 5 / Step 5.1：实现已迁至 `delivery/connect-channel.mjs`（`copySsh2Runtime`），本文件仅调用。
+ * 它属「通道备料」而非「插件安装」：ssh2 是隧道后端的运行时依赖，与插件清单/连接器注册无关。
+ * 迁出后本文件不再持有 `resolveSsh2Source` / `ssh2TransitiveDeps` 的实现副本。
  */
-
-/** 解析 ssh2 主包目录：vendor/ssh2 优先（离线预置），否则 node_modules/ssh2。 */
-function resolveSsh2Source(repoRoot) {
-  const vendor = join(repoRoot, 'vendor', 'ssh2');
-  if (existsSync(join(vendor, 'package.json'))) return vendor;
-  const nm = join(repoRoot, 'node_modules', 'ssh2');
-  return existsSync(nm) ? nm : null;
-}
-
-/** 递归收集 ssh2 的纯 JS 传递依赖名（不含 ssh2 自身，不含 optional 原生依赖）。 */
-function ssh2TransitiveDeps(repoRoot, pkgDir, seen = new Set()) {
-  const pjPath = join(pkgDir, 'package.json');
-  if (!existsSync(pjPath)) return seen;
-  let deps = {};
-  try {
-    deps = JSON.parse(readFileSync(pjPath, 'utf8')).dependencies ?? {};
-  } catch {
-    return seen;
-  }
-  for (const name of Object.keys(deps)) {
-    if (name === 'ssh2' || seen.has(name)) continue;
-    seen.add(name);
-    const dir = join(repoRoot, 'node_modules', name);
-    if (existsSync(join(dir, 'package.json'))) ssh2TransitiveDeps(repoRoot, dir, seen);
-  }
-  return seen;
-}
-
-/** 把 ssh2 + 传递依赖扁平落地到 depsDest（顶层 node_modules）。dryRun 仅预览。 */
-function copySsh2Runtime(depsDest, repoRoot, dryRun) {
-  const src = resolveSsh2Source(repoRoot);
-  if (!src) {
-    console.log('  ⚠ 未找到 ssh2 源（vendor/ssh2 与 node_modules/ssh2 均不存在）；隧道将不可用（运行时报三要素引导）。');
-    return;
-  }
-  const names = ['ssh2', ...ssh2TransitiveDeps(repoRoot, src)];
-  if (dryRun) {
-    for (const n of names) console.log(`ssh2 依赖   : ${n}  [dry-run 未复制]`);
-    return;
-  }
-  mkdirSync(depsDest, { recursive: true });
-  for (const n of names) {
-    const s = existsSync(join(repoRoot, 'vendor', n)) ? join(repoRoot, 'vendor', n) : join(repoRoot, 'node_modules', n);
-    const d = join(depsDest, n);
-    if (!existsSync(join(s, 'package.json'))) {
-      console.log(`  ⚠ 跳过 ${n}（源不存在；可能为 optional 原生依赖，缺失不影响功能）`);
-      continue;
-    }
-    cpSync(s, d, { recursive: true });
-  }
-  console.log(`ssh2 依赖   : 已落地 ${names.length} 个包到 ${depsDest}（含纯 JS 传递依赖；optional 原生依赖跳过）`);
-}
 
 /* ------------------------------ 正式注册（WorkBuddy 插件注册表） ------------------------------
  * WorkBuddy 用 ~/.workbuddy/plugins/installed_plugins.json 记录"已正式安装"的插件（schema {version, plugins}）。
@@ -950,14 +885,14 @@ async function buildPlugin(args, skillsRoot, effectiveVmKey) {
       displayName: 'Windows 虚拟机',
       transports: [
         {
-          kind: 'ssh-tunnel',
-          host: args.host,
-          user: args.user,
-          localPort: args.localPort,
-          remotePort: args.remotePort,
-          identityFile: effectiveVmKey || undefined,
-          serverAliveInterval: 30,
-          serverAliveCountMax: 3,
+          /* V-NEXT：声明形态从 `ssh-tunnel` 改为 `streamable-http` + 本地回环基址。
+           * 隧道由宿主侧常驻 oh-tunnel.mjs 承载并转发到 127.0.0.1:localPort，渲染器只消费
+           * 这个地址；原 `ssh-tunnel` 声明的 host/user/remotePort/identityFile/serverAlive*
+           * 六字段在渲染路径上零读取（真正的建连在 oh-tunnel.mjs 里读 vm-conn.json）。
+           * host/user 仍由下方 writeVmConnConfig() 单独落盘，不从这里取。 */
+          kind: 'streamable-http',
+          url: `http://127.0.0.1:${args.localPort}`,
+          timeoutMs: 120000,
         },
       ],
       disabledTools: highRiskTools(),
@@ -983,24 +918,28 @@ async function main() {
   const skillsRoot = join(repoRoot, 'skills');
 
   /* ---- I1 / Q4：部署期固化默认 SSH 私钥（把探测结果写入 vm-conn.json + 连接器声明）----
-   * 显式 `--vm-key` 优先；否则走默认私钥探测链（与 winvm-plugin.mjs 一致）。
-   * 全部缺失时保持 undefined，交由运行时（winvm-plugin）兜底探测。 */
-  const explicitVmKey = args.vmKey;
-  /* e2e2R5（11-12）：探测链与既有事实的优先级=D5 同款修正——既有 vm-conn.json.identityFile
+   * 显式 `--vm-key` 优先；否则走默认私钥探测链。全部缺失时保持 undefined，
+   * 交由运行时（winvm-plugin）兜底探测。
+   *
+   * e2e2R5（11-12）：探测链与既有事实的优先级=D5 同款修正——既有 vm-conn.json.identityFile
    * （运行期被 host/user 同族问题修过的持久化事实，含 R4 快照恢复值）优先于盲探测序
-   * （id_ed25519→ecdsa→rsa 固定序会把 winvm 专用钥环境回写成中毒值=两层钥语义分裂根因）。 */
-  const persistedVmKey = (() => {
-    try {
-      const v = JSON.parse(readFileSync(join(args.home, '.workbuddy', 'winvm', 'vm-conn.json'), 'utf8')).identityFile;
-      return v && existsSync(v) ? v : undefined;
-    } catch { return undefined; }
-  })();
-  const effectiveVmKey = explicitVmKey || persistedVmKey || probeDefaultSshKey();
-  const vmKeyNote = explicitVmKey
-    ? `${explicitVmKey}（显式 --vm-key）`
-    : effectiveVmKey
-      ? `${effectiveVmKey}（${effectiveVmKey === persistedVmKey ? '既有 vm-conn.json' : '探测'}）`
-      : '未探测到，将走运行时兜底（winvm-plugin 调用时探测）';
+   * （id_ed25519→ecdsa→rsa 固定序会把 winvm 专用钥环境回写成中毒值=两层钥语义分裂根因）。
+   *
+   * 阶段 5 / Step 5.1：这套优先级（含"持久化优先于盲探测"与"持久化路径须仍存在"两条修正）
+   * 已收进 `connect-channel.mjs` 的 `resolveVmConnection`。此处**不再手写第二份**——
+   * 原先这里有一个 `persistedVmKey` 立即执行函数，实际是同一套优先级的第 4 份副本，
+   * 两份一旦分叉就会出现"提示说用 A、实际用 B"的静默错位。
+   */
+  const conn0 = resolveVmConnection(args, args.home);
+  const effectiveVmKey = conn0.identityFile;
+  const vmKeyNote = {
+    flag: `${effectiveVmKey}（显式 --vm-key）`,
+    persisted: `${effectiveVmKey}（既有 vm-conn.json）`,
+    env: `${effectiveVmKey}（env WINVM_VM_KEY）`,
+    probe: `${effectiveVmKey}（探测）`,
+    default: `${effectiveVmKey}（探测）`,
+    none: '未探测到，将走运行时兜底（winvm-plugin 调用时探测）',
+  }[conn0.identitySource] ?? '未探测到，将走运行时兜底（winvm-plugin 调用时探测）';
 
   const ctx = {
     homeDir: args.home,
@@ -1208,14 +1147,10 @@ async function main() {
    * ⇒ agent-desktop 能读真实桌面（SSH 直启只能拿到空桌面）。
    * 上游未安装时这两个路由返回 502，**不影响**主连接器与 A2A 通道。 */
   const upstreamTransport = {
-    kind: 'ssh-tunnel',
-    host: args.host,
-    user: args.user,
-    localPort: args.localPort,
-    remotePort: args.remotePort,
-    identityFile: effectiveVmKey || undefined,
-    serverAliveInterval: 30,
-    serverAliveCountMax: 3,
+    /* V-NEXT：同主连接器，改 streamable-http + 回环基址；三个工具面只靠 `mcpPath` 区分。 */
+    kind: 'streamable-http',
+    url: `http://127.0.0.1:${args.localPort}`,
+    timeoutMs: 180000,
   };
   plugin.extraConnectors = [
     {
@@ -1359,9 +1294,13 @@ async function main() {
     // account-resolve.mjs 同属「winvm-plugin 的同目录运行时依赖」（P2-4 怪癖 B 根治）：缓存侧
     // 只有 winvm-plugin.mjs 单文件，缺它会 ERR_MODULE_NOT_FOUND；名单随本文件一起投放，
     // 使排除名单的单一事实源（delivery/account-resolve.mjs）在宿主缓存侧同样在场。
-    deployWinvmPlugin({ targetDir: paths.pluginRoot, side: 'host', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs'] });
+    //
+    // 阶段 5 / Step 5.1：`connect-channel.mjs` 必须入列 —— winvm-plugin.mjs 与 setup.mjs
+    // 现在 `import { probeDefaultSshKey }` 从这里取，缺它 = 缓存侧 import 直接炸
+    // （本仓「漏投=插件缓存炸 import」的历史病灶，install-host.mjs:215 注释已记过同款）。
+    deployWinvmPlugin({ targetDir: paths.pluginRoot, side: 'host', dryRun: false, log: (m) => console.log(`管理命令     : ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs', 'connect-channel.mjs', 'hooks/hooks.json', 'hooks/session-start.sh', 'account-resolve.mjs'] });
     // 仓库 delivery 部署：不写 .winvm-context.json（避免 side:host 随 tar 发到 VM；VM 侧由 install-vm 写 side:vm）
-    deployWinvmPlugin({ targetDir: join(repoRoot, 'delivery'), side: 'host', dryRun: false, writeContext: false, log: (m) => console.log(`管理命令(仓库): ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs'] });
+    deployWinvmPlugin({ targetDir: join(repoRoot, 'delivery'), side: 'host', dryRun: false, writeContext: false, log: (m) => console.log(`管理命令(仓库): ${m}`), repoRoot, extraFiles: ['oh-tunnel.mjs', 'ssh2-resolve.mjs', 'ssh2-client.mjs', 'ssh2-backend.mjs', 'tunnel-daemon.mjs', 'connect-channel.mjs'] });
     /* ---- 沙箱白名单注入（T07 / P0-R4）：把本插件运行期写路径加入 settings.json 的
      * sandbox.extraAllowWrite，使 OH/Linux 沙箱内的 WorkBuddy 可写插件缓存与 winvm 运行目录。
      * 非致命：失败仅告警，不影响安装主干。 */
@@ -1384,21 +1323,33 @@ async function main() {
     }
     /* ---- 持久化 VM 连接配置（vm-conn.json）----
      * 使宿主侧 winvm-plugin health/server/command 无需每次传 --vm-host/--vm-user。
-     * 取值优先级：显式 --vm-* > 现有 --host/--user（来自 WINVM_HOST/WINVM_USER）> 默认值。 */
+     * 取值优先级：显式 --vm-* > 现有 --host/--user（来自 WINVM_HOST/WINVM_USER）> 默认值。
+     *
+     * 阶段 5 / Step 5.1：**调用点保留，实现迁出**。这个落盘是冷装通路的必要条件：
+     * `--no-tunnel` 时隧道留待 WorkBuddy 启动钩子 `tunnel ensure` 拉起，而那一步依赖
+     * 此处写下的 vm-conn.json。若本安装器不写，就再没有第二写者（connect-channel 只在被
+     * 显式调用时写）⇒ 冷装必失败。故不按计划书原话删除，只把实现单份化。
+     *
+     * 同时用 `conn0`（已由 connect-channel 解析，含 persisted/env 回退）而不是
+     * `args.vmHost ?? args.host` 这类裸 flags——后者会漏掉"环境变量给了 host/user
+     * 但 flags 没给"的情形，写出 `host=undefined` 的坏配置（历史上有过）。 */
     try {
-      const connHost = args.vmHost ?? args.host;
-      const connUser = args.vmUser ?? args.user;
-      const connSshPort = args.vmSshPort ?? 22;
-      const connServicePort = args.vmPort ?? args.remotePort;
-      const connPath = writeVmConnConfig({ host: connHost, user: connUser, sshPort: connSshPort, servicePort: connServicePort, identityFile: effectiveVmKey }, args.home);
-      console.log(`VM 连接配置 : 已写入 ${connPath}（host=${connHost} user=${connUser} port=${connServicePort}）`);
+      const connPath = writeVmConnConfig({
+        host: conn0.host,
+        user: conn0.user,
+        sshPort: conn0.sshPort,
+        servicePort: conn0.servicePort,
+        identityFile: effectiveVmKey,
+      }, args.home);
+      console.log(`VM 连接配置 : 已写入 ${connPath}（host=${conn0.host} user=${conn0.user} port=${conn0.servicePort}）`);
     } catch (e) {
       console.log(`  ⚠ 写入 VM 连接配置失败（可忽略，手动指定 --vm-host/--vm-user 仍可用）：${e.message}`);
     }
     /* ---- ssh2 运行时依赖离线分发（T11 / P0-01）----
      * 把 ssh2 + 纯 JS 传递依赖扁平落地到插件缓存根 node_modules；
      * 使鸿蒙宿主上进程内隧道 import('ssh2') 可由 ESM 向上查找命中（pluginRoot/node_modules/ssh2）。
-     * best-effort、失败仅告警；win32/darwin 不使用 ssh2 后端，文件惰性无害。 */
+     * best-effort、失败仅告警；win32/darwin 不使用 ssh2 后端，文件惰性无害。
+     * 阶段 5 / Step 5.1：实现在 connect-channel.mjs（copySsh2Runtime），此处仅调用。 */
     try {
       copySsh2Runtime(join(paths.pluginRoot, 'node_modules'), repoRoot, false);
     } catch (e) {
@@ -1421,17 +1372,31 @@ async function main() {
     /* ---- 常驻隧道 daemon 拉起（T12 / G2）----
      * 仅鸿蒙宿主（或因 WINVM_TUNNEL_BACKEND=ssh2 强制）且非 --no-tunnel 时，
      * 安装尾零人工动作拉起进程内 ssh2 隧道 daemon（detached + unref，父退出后存活）。
-     * 使用 `tunnel ensure`（幂等：已在运行则跳过，不产生第二实例），使本步对任意（重）安装都安全。
+     * 幂等：已在运行则跳过，不产生第二实例，对任意（重）安装都安全。
      * 失败仅告警，不影响安装主干；用户可手动 `winvm-plugin tunnel ensure` 补拉。
      * 同时写「启动服务标记」tunnel-autostart.json，供 WorkBuddy 启动钩子（或用户手动）确认
-     * 本插件需随 WorkBuddy 启动自动拉起隧道——即"注册为 WorkBuddy 启动服务"。 */
+     * 本插件需随 WorkBuddy 启动自动拉起隧道——即"注册为 WorkBuddy 启动服务"。
+     *
+     * 阶段 5 / Step 5.1：拉起与取证已收进 `connect-channel.mjs` 的 `ensureChannel`。
+     * 收进的理由是**判据**：旧实现只看 `winvm-plugin tunnel ensure` 的退出码就打印"已拉起"。
+     * 但退出码 0 只说明"命令跑完了"，不说明通道真的能连——daemon 可能起来了却卡在
+     * 重连退避里（pid 活、端口不监听），此时退出码仍是 0。而 `health=200` 同样不是判据
+     * （HTTP 长连接与 TCP 可达是两件事，项目红线 6）。`ensureChannel` 改用**三段取证**：
+     * ① pidfile 进程存活 ② state=RUNNING 且属主 pid 与 pidfile 一致 ③ 裸 TCP 可连，
+     * 三者同时成立才算通道就绪；否则如实汇报 verdict，不谎报成功。 */
     if (!args.noTunnel && (process.platform === 'ohos' || process.platform === 'openharmony' || process.env['WINVM_TUNNEL_BACKEND'] === 'ssh2')) {
       try {
-        const wvPlugin = join(repoRoot, 'delivery', 'winvm-plugin.mjs');
-        const r = spawnSync(process.execPath, [wvPlugin, 'tunnel', 'ensure'], { stdio: 'inherit', env: process.env });
-        if (r.status !== 0) console.log('  ⚠ 隧道 daemon 拉起失败（不影响安装，可手动 winvm-plugin tunnel ensure）');
-        else console.log('常驻隧道   : 已拉起（零人工动作；winvm-plugin tunnel status 查看）');
+        const ch = await ensureChannel({
+          vm: { host: conn0.host, user: conn0.user, sshPort: conn0.sshPort, servicePort: conn0.servicePort, identityFile: effectiveVmKey },
+          home: args.home,
+          localPort: conn0.servicePort,
+          dryRun: args.dryRun,
+          log: (m) => console.log(m),
+        });
+        console.log(`常驻隧道   : ${ch.ok ? '已就绪（三段取证通过）' : `⚠ 未就绪（verdict=${ch.verdict}；可手动 winvm-plugin tunnel ensure 补拉）`}`);
         // 写启动服务标记：声明本插件需在 WorkBuddy 启动时自动 ensure 隧道（注册为启动服务）。
+        // 注意：**无论本次是否拉起成功都写** —— 它的语义是"本插件需要随 WorkBuddy 启动 ensure"，
+        // 不是"本次已成功"。失败时更需要它（下次启动可自愈）。
         try {
           const autoPath = join(args.home, '.workbuddy', 'winvm', 'tunnel-autostart.json');
           mkdirSync(dirname(autoPath), { recursive: true });
@@ -1443,6 +1408,9 @@ async function main() {
       } catch (e) {
         console.log(`  ⚠ 隧道 daemon 拉起异常（可手动 winvm-plugin tunnel ensure）：${e.message}`);
       }
+    } else if (args.noTunnel) {
+      // 冷装语义显式化：不建通道 ≠ 没装好。vm-conn.json 已落盘，启动钩子稍后 ensure。
+      console.log('常驻隧道   : 已按 --no-tunnel 跳过（vm-conn.json 已落盘，WorkBuddy 启动钩子会 ensure）');
     }
   }
 
@@ -1624,32 +1592,20 @@ if (process.argv[1] && resolve(process.argv[1]) === __filename) {
   });
 }
 
-/**
- * 持久化 VM 连接配置到 ~/.workbuddy/winvm/vm-conn.json。
- * 宿主侧 winvm-plugin health/server/command 会经 loadVmConn 读取它，免去每次传 --vm-host/--vm-user。
- * @param {{host:string,user:string,sshPort?:number,servicePort?:number}} cfg
- * @param {string} [home] 目标用户主目录（默认当前用户）；测试可注入临时目录。
- * @returns {string} 写入的文件路径
+/* ⚠ 阶段 5 / Step 5.1 变更（勿回退）：下方 `writeVmConnConfig` / `removeVmConnConfig` 的
+ * **实现体已迁至 `delivery/connect-channel.mjs`**，此处仅**再导出**以保持既有调用契约：
+ *   - `tests/unit/deploy-conn-side.test.js` 一直从本文件 import 这两个名字；
+ *   - `install-host.mjs` 内部（安装尾落盘 / `--uninstall` 清理）继续调用它们。
+ *
+ * 为什么**保留调用点而不是按计划书原话删除**：
+ * 计划书 5.1 原写「从 install-host 删除 writeVmConnConfig 调用，改为读 vm-conn.json 拿端口」，
+ * 但那会切断**冷装通路**——`--no-tunnel` 路径（鸿蒙宿主首次部署、隧道留待启动钩子 ensure）
+ * 恰恰要求「先落配置、暂不建通道」。此时若安装器不写 vm-conn.json，就再也没有第二个写者
+ * （`connect-channel.mjs` 只在被显式调用时写），`winvm-plugin tunnel ensure` 随启动钩子跑起来时
+ * 无连接信息可用 ⇒ 冷装必失败。故本步据实改为「**实现单份化 + 调用点保留**」，
+ * 判据相应从「`writeVmConnConfig` 计数归零」改为「**定义只有一处**」（见 qa/accept-step51.mjs ②）。
+ *
+ * 再导出是纯转发，不构成第二实现：`export { writeVmConnConfig } from './connect-channel.mjs'`
+ * 与本地 `function` 的区别是前者不含任何逻辑分支，不存在漂移空间。
  */
-export function writeVmConnConfig({ host, user, sshPort = 22, servicePort = 18443, identityFile }, home = homedir()) {
-  const connPath = join(home, '.workbuddy', 'winvm', 'vm-conn.json');
-  mkdirSync(dirname(connPath), { recursive: true });
-  // D5：**合并写入**（读旧 payload → 覆盖本次提供的字段 → 其余保留），不再整包覆盖，
-  // 避免丢失 identityFile 等既有字段（旧实现只写 host/user/sshPort/servicePort，会清掉其它键）。
-  const prev = readJsonSafe(connPath) || {};
-  const payload = { ...prev };
-  if (host !== undefined) payload.host = host;
-  if (user !== undefined) payload.user = user;
-  payload.sshPort = sshPort; // 端口带默认值，始终写入
-  payload.servicePort = servicePort;
-  if (identityFile !== undefined) payload.identityFile = identityFile;
-  writeFileSync(connPath, JSON.stringify(payload, null, 2) + '\n', 'utf8');
-  return connPath;
-}
-
-/** 移除持久化的 VM 连接配置；不存在则视为已清理（返回 false）。 */
-export function removeVmConnConfig(home = homedir()) {
-  const connPath = join(home, '.workbuddy', 'winvm', 'vm-conn.json');
-  if (existsSync(connPath)) { rmSync(connPath, { force: true }); return true; }
-  return false;
-}
+export { writeVmConnConfig, removeVmConnConfig } from './connect-channel.mjs';

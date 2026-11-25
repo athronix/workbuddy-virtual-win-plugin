@@ -32,6 +32,23 @@ export interface PolicyConfig {
   readonly defaultMaxRisk: RiskLevel;
   /** 网络端点白名单（HTTP 模式下生效） */
   readonly endpointAllowlist?: readonly string[];
+  /**
+   * 能力 ID 级「强制审批」名单（V-NEXT 3.3，owner 2026-11-24 裁定）。
+   *
+   * ⚠ 与上面的 `pathDenylist`/`commandDenylist` **不是同一语义**：
+   * 那几个是**参数级、命中即拒**；本字段是**能力级、命中即审批**（批准后照常执行）。
+   *
+   * 语义与优先级详见 `contracts/src/capability.ts` 的同名字段注释。要点：
+   * - 名单 **> \** 默认 risk 推导（能把 L0/L1 拉进审批）
+   * - 名单 **不能**让 L3 免审批（那是拿配置绕开风险模型）
+   * - `capabilityApprovalDenylist` **优先于** `capabilityApprovalAllowlist`
+   */
+  readonly capabilityApprovalDenylist: readonly string[];
+  /**
+   * 能力 ID 级「免审批」名单（V-NEXT 3.3）。**仅对 L2 生效，L3 不豁免**。
+   * 当前按 owner 裁定**留空**（先只上黑名单，白名单后续按需再加）。
+   */
+  readonly capabilityApprovalAllowlist: readonly string[];
 }
 
 export const DEFAULT_POLICY: PolicyConfig = {
@@ -134,6 +151,72 @@ export const DEFAULT_POLICY: PolicyConfig = {
   ],
 
   defaultMaxRisk: 'L1',
+
+  // ────────────────────────────────────────────────────────────────────────
+  // V-NEXT 3.3：能力级**强制审批**名单（owner 2026-11-24 裁定，初始值从宽）
+  //
+  // ## 入选标准（三条全部满足才进）
+  //   ① 后果**不可逆**或难以回滚（删文件、卸软件、断网、结束进程）
+  //   ② 影响面**超出单次操作**（改服务启动类型、关机、改系统设置）
+  //   ③ 误操作**不会立刻被发现**（用户看界面正常，几小时后才出问题）
+  //
+  // 为什么从宽：owner 明确要求「先给个初始列表，可以放松一点，后续可以再加」。
+  // 名单的本质风险**不对称** —— 漏掉一条 = 危险动作免审批直接执行（不可逆）；
+  // 多列一条 = 多一次点击确认（成本可忽略）。故此处宁可多列，且**不宜**为了
+  // 「操作顺畅」把它清空。要放宽请改用 `capabilityApprovalAllowlist`（留痕、可审计），
+  // 而不是删这里的行（删了没人知道曾经为什么需要）。
+  //
+  // ## 与 risk 的关系
+  // 这里多数条目 risk 已是 L2/L3（本来就要审批），列进来是**显式留痕**：
+  // 审计里 `matchedRule` 会显示 `approval-required:capability-denylist`，
+  // 运维据此能看出「名单真的生效了」，而不是只看到一堆默认的 `approval-required`。
+  // 真正被**提升**的是 risk 标注为 L1 的那几条（见下标注）。
+  //
+  // ## 明确不列（避免名单变成噪音）
+  //   - 纯读能力（`*.list` / `*.get` / `*.query` / `*.read` 等只读动词）
+  //   - 可完全回滚的单次写（`storage.file.copy`、`storage.dir.manage` 的建目录）
+  //   - 查询类 `app.inventory.list` / `app.winget.search`
+  //
+  // ⚠ 措辞纪律：本注释**刻意**不写某个「审计快照」相关的英文单词（连测试文件名也不写全）。
+  // `tests/unit/phase2-*truth.test.js` 用大小写不敏感的正则扫**全仓 src** 找
+  // 「消费侧」，那个正则是粗筛（注释也算命中）。本文件一旦出现该词，就会被判
+  // 「名单外文件新增消费」而红 —— 我第一版在这里举例列举纯读动词时写了该词，
+  // 直接把 `defaults.ts` 推进了该测试的 `outside` 列表（实测）。
+  // 正确处置是**改注释措辞**，而**不是**把本文件加进该测试的白名单 ——
+  // 那会连真正的消费一起放行，把守卫变成摆设。
+  // ────────────────────────────────────────────────────────────────────────
+  capabilityApprovalDenylist: [
+    // —— 存储：删除/回收站（不可逆） ——
+    'storage.file.delete',
+    'storage.recycle.manage', // 清空回收站 = 连恢复的机会都没了
+    'storage.archive.manage', // 归档常伴随移动/覆盖
+
+    // —— 应用：卸载/降级/改包状态（重装成本高，且可能带走用户数据） ——
+    'app.winget.uninstall',
+    'app.appx.manage', // 含 Remove-AppxPackage，会连带清 app data
+
+    // —— 系统：关机/重启/结束进程（中断在跑的任务，可能丢未保存数据） ——
+    'system.power.control',
+    'system.process.terminate',
+
+    // —— 系统：服务与计划任务（影响面超出单次操作，且改了不会立刻显形） ——
+    'system.service.configure', // 改启动类型为 disabled 后，重启才发现服务没了
+    'system.service.control', // 停掉关键服务会连带其它功能失效
+    'system.task.scheduled',
+
+    // —— 系统：注册表写 / 用户管理 / 环境变量（易造成不可见的长期影响） ——
+    'system.registry.write',
+    'system.user.manage',
+    'system.env.manage', // 改 PATH 之类，当前会话看不出问题，下次登录才炸
+
+    // —— 系统：网络配置（断网后连远程修复的通道都没了） ——
+    'system.network.config',
+  ],
+
+  // V-NEXT 3.3：能力级**免审批**名单。按 owner 裁定**先留空**（后续按需再加）。
+  // 注意：此处留空 ≠ 关闭该机制。机制已在引擎内生效且有单测钉住，
+  // 只是当前没有任何条目命中。要加时**只加 L2 的**（L3 不豁免，见引擎 6c）。
+  capabilityApprovalAllowlist: [],
 };
 
 /** 合并用户配置与默认配置：数组字段做并集，标量字段用户优先 */
@@ -150,6 +233,16 @@ export function mergePolicy(base: PolicyConfig, override?: Partial<PolicyConfig>
     registryWriteAllowlist: union(base.registryWriteAllowlist, override.registryWriteAllowlist),
     registryReadAllowlist: union(base.registryReadAllowlist, override.registryReadAllowlist),
     defaultMaxRisk: override.defaultMaxRisk ?? base.defaultMaxRisk,
+    // V-NEXT 3.3：两个审批名单同走**并集**语义（与其它数组字段一致）。
+    // ⚠ 并集意味着「只能加不能减」——配置侧无法用 override 删掉默认黑名单里的条目。
+    // 这是**有意**的：若 override 能减，某个环境悄悄清空黑名单就等于关掉整道闸，
+    // 而这条链路上没有第二处能发现它。要放宽某一条请用 capabilityApprovalAllowlist
+    // （显式、留痕），而不是期望「配个空数组把它清掉」。
+    capabilityApprovalDenylist: union(base.capabilityApprovalDenylist, override.capabilityApprovalDenylist),
+    capabilityApprovalAllowlist: union(
+      base.capabilityApprovalAllowlist,
+      override.capabilityApprovalAllowlist,
+    ),
     ...(override.endpointAllowlist !== undefined
       ? { endpointAllowlist: override.endpointAllowlist }
       : base.endpointAllowlist !== undefined

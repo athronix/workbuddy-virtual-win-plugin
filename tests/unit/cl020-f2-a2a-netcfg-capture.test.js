@@ -39,10 +39,7 @@ const ADAPTER = readFileSync(
   join(ROOT, 'packages', 'adapter-agent-workbuddy', 'src', 'index.ts'),
   'utf8',
 );
-const HERMES = readFileSync(
-  join(ROOT, 'packages', 'adapter-agent-hermes', 'src', 'index.ts'),
-  'utf8',
-);
+/* V-NEXT（2026-11-23）：hermes provider 已删，故不再读 `adapter-agent-hermes/src/index.ts`。 */
 const WORKBUDDY_LLM = readFileSync(
   join(ROOT, 'packages', 'adapter-agent-workbuddy-llm', 'src', 'index.ts'),
   'utf8',
@@ -131,11 +128,7 @@ describe('CL-020 F2 · 静态源码守卫', () => {
     );
   });
 
-  test('hermes / workbuddy-llm 的 execute 为 this.executor.execute(req) 委托（单 hook 全覆）', () => {
-    assert.ok(
-      /return this\.executor\.execute\(req\)/.test(HERMES),
-      'hermes execute 应委托 this.executor.execute(req)',
-    );
+  test('workbuddy-llm 的 execute 为 this.executor.execute(req) 委托（单 hook 全覆）', () => {
     assert.ok(
       /return this\.executor\.execute\(req\)/.test(WORKBUDDY_LLM),
       'workbuddy-llm execute 应委托 this.executor.execute(req)',

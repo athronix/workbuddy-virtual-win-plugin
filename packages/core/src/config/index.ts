@@ -13,7 +13,7 @@ import { isAbsolute, resolve } from 'node:path';
 
 import type { TransportDecl } from '@winvm/contracts';
 
-import type { AgentProviderConfig } from '../bridge/loader.js';
+import type { AgentProviderConfig } from '../bridge/registry.js';
 import type { PolicyConfig } from '../policy/defaults.js';
 import {
   expandEnvPath,
@@ -81,7 +81,7 @@ export interface SecurityConfig {
    * ARCH-07 / ENG-23 后的真实语义（旧事实：全仓唯一读取点只是回环检查的文案，值从未被消费）：
    * - 服务端：与 `enforceBearer` **双条件**共同决定是否挂 bearer 守卫（§4 O-9，与 dry-run
    *   bypass 双条件同构，防「以为开了」）；
-   * - 客户端：`streamable-http` 与 `ssh-tunnel` 两条远程传输分支经同一个 `applyBearerHeader`
+   * - 客户端：`streamable-http` 远程传输分支经 `applyBearerHeader`
    *   消费同名变量（T2 落地）；有名无值 ⇒ **fail-loud 抛错**，不静默降级成裸请求。
    */
   readonly tokenEnv?: string;
@@ -173,6 +173,11 @@ export const DEFAULT_SERVICE_CONFIG: ServiceConfig = {
   server: { host: '127.0.0.1', port: 18443 },
   transport: { preferred: [] },
   agent: {
+    /**
+     * ★ Step 4.4：唯一生产装配键。出厂 `template` 与改动前
+     * `provider:'workbuddy-deterministic'` 指向同一个执行体（行为零变化）。
+     */
+    planner: 'template',
     provider: 'workbuddy-deterministic',
     providers: {
       'workbuddy-deterministic': {
@@ -363,10 +368,31 @@ export function validateServiceConfig(cfg: ServiceConfig, env: EnvView = process
     );
   }
 
-  if (!cfg.agent.providers[cfg.agent.provider]) {
+  /**
+   * Step 4.4：装配合法性校验。
+   *
+   * 改动前只有一条判据：`agent.provider` 必须出现在 `agent.providers` 里
+   * （因为那时 `providers[id].package` 就是动态 import 的目标，查不到就真的加载不了）。
+   *
+   * 现在**装配路径不读 `providers`**（见 `agent-assembly.ts`），那条判据不再描述事实。
+   * 但也不能直接删 —— 测试替身形态**依赖**它：`registerProviderFactory(id)` + 
+   * `providers[id]` 占位 entry 是 e2e 的唯一注入方式，若这里不校验，打错 id 的测试
+   * 会以「planner 未注册」这种**看不出根因**的方式失败（错误信息指错方向）。
+   *
+   * 故改为**两路都接受**：
+   *  - 有 `planner`（合法值）⇒ 通过。`providers` 只承载 options，缺 entry 很正常
+   *    （生产装配不读它，`options` 缺省即空对象）；
+   *  - 无 `planner` ⇒ 回到旧判据（`provider` 必须在 `providers` 内），兼容老配置与测试替身。
+   *
+   * `planner` 值非法**不在此判**：那是 `resolvePlanner()` 的职责（它会抛带合法值清单的错误）。
+   * 这里若也判一次，同一条事实就有两个判据源 —— 未来加 planner 时必然只改一处。
+   */
+  const agentHasPlanner = typeof cfg.agent.planner === 'string' && cfg.agent.planner.trim() !== '';
+  if (!agentHasPlanner && !cfg.agent.providers[cfg.agent.provider]) {
     errors.push(
-      `agent.provider="${cfg.agent.provider}" 未在 agent.providers 中定义。` +
-        `可用：${Object.keys(cfg.agent.providers).join(', ') || '(空)'}`,
+      `agent.provider="${cfg.agent.provider}" 未在 agent.providers 中定义，且未配置 agent.planner。` +
+        `可用 provider：${Object.keys(cfg.agent.providers).join(', ') || '(空)'}；` +
+        `或直接写 agent.planner ∈ ('template'|'cli-agent')。`,
     );
   }
   if (cfg.server.port < 1 || cfg.server.port > 65535) {
@@ -405,6 +431,16 @@ export async function loadServiceConfig(path: string): Promise<ServiceConfig> {
     server: { ...DEFAULT_SERVICE_CONFIG.server, ...(parsed.server ?? {}) },
     transport: { preferred: parsed.transport?.preferred ?? [] },
     agent: {
+      /**
+       * Step 4.4：`planner` 是**新主键**，但解析时不能简单 `parsed.planner ?? default`
+       * —— 否则老配置文件（只有 `agent.provider`、没有 `planner`）会被静默改配成出厂
+       * `template`，而它原本可能选的是 `workbuddy`（cli-agent）。那等于「升级即改行为」。
+       *
+       * 故此处**只透传 `planner` 的原值（可能是 undefined）**，「缺 `planner` 时按
+       * `agent.provider` 旧键反推」这一步交给 `agent-assembly.resolvePlanner()`
+       * —— 判据单点，不在两个地方各写一遍（两处判据必然漂移）。
+       */
+      ...(parsed.agent?.planner ? { planner: parsed.agent.planner } : {}),
       provider: parsed.agent?.provider ?? DEFAULT_SERVICE_CONFIG.agent.provider,
       providers: { ...DEFAULT_SERVICE_CONFIG.agent.providers, ...(parsed.agent?.providers ?? {}) },
     },

@@ -132,9 +132,14 @@ describe('P3-b3 · audit.receipt 桥工具（M4）', () => {
 });
 
 describe('P3-b3 · 直调审批载荷 TTL 槽（M8）', () => {
-  test('server.ts APPROVAL_REQUIRED 载荷含条件 ttl 键源（静态钉：expiresAtMs 表达式在位且受 Infinity 保护）', async () => {
+  test('闸门面 APPROVAL_REQUIRED 载荷含条件 ttl 键源（静态钉：expiresAtMs 表达式在位且受 Infinity 保护）', async () => {
     const { readFileSync } = await import('node:fs');
-    const src = readFileSync(join(ROOT, 'packages', 'vm-service', 'src', 'server.ts'), 'utf8');
+    // ⚠ Step 3.1：APPROVAL_REQUIRED 载荷（含 M8 TTL 槽）已搬进 gateway.ts 的 gateAndExecute()。
+    // 观测面取合并文本，判据逐字不变（仍是"有限 TTL 才写 expiresAtMs"）。
+    const src =
+      readFileSync(join(ROOT, 'packages', 'vm-service', 'src', 'server.ts'), 'utf8') +
+      '\n' +
+      readFileSync(join(ROOT, 'packages', 'vm-service', 'src', 'gateway.ts'), 'utf8');
     assert.match(
       src,
       /Number\.isFinite\(pendingApprovals\.ttl\)[\s\S]{0,160}expiresAtMs: Date\.now\(\) \+ pendingApprovals\.ttl/,

@@ -1,7 +1,7 @@
 /**
  * 传输抽象（ARCHITECTURE.md §5）
  *
- * 三种传输对上层完全透明：ssh-tunnel（默认）、streamable-http、stdio。
+ * 两种传输对上层完全透明：streamable-http、stdio。
  * 每种传输最终都归一为一个可通信的 JSON-RPC 通道。
  */
 
