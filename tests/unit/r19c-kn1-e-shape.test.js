@@ -86,7 +86,12 @@ const MCP_ROUTE = sliceRoute(SERVER, "if (path === '/mcp' && req.method === 'POS
 const RECEIPT_ROUTE = sliceRoute(
   SERVER,
   "if (path === '/audit/receipt' && req.method === 'GET')",
-  "if (path === '/a2a' && req.method === 'POST')",
+  // 终点用**紧邻的下一个路由块**（MCP 上游代理的段首注释），而非再往后的 `/a2a`。
+  // 2026-11-25 修正：Step 3.2 在 receipt 与 /a2a 之间插入了 `/mcp/browser`+`/mcp/desktop`
+  // 上游代理块，其中含 `sendJson(res, 404, unknown mcp upstream)`。旧终点（`/a2a`）于是把
+  // 整段上游代理切进 RECEIPT_ROUTE，让「未命中不得 404」这条断言**误伤别人的 404** ⇒ 假红。
+  // 与下方 ADMIN_ROUTE 的注释同一类坑：**切片终点必须钉真实路由边界，不能跨过新插入的路由**。
+  "// ---- MCP 上游代理：POST /mcp/browser、POST /mcp/desktop ----",
 );
 const ADMIN_ROUTE = sliceRoute(
   SERVER,

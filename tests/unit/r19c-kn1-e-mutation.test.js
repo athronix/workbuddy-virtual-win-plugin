@@ -89,11 +89,17 @@ function slice(src, startMark, endMark) {
 
 const MCP_ROUTE = (s) =>
   slice(s.SERVER, "if (path === '/mcp' && req.method === 'POST')", "if (path === '/audit/receipt'");
+// 终点用**紧邻的下一个路由块**（MCP 上游代理段首注释），而非再往后的 `/a2a`。
+// 2026-11-25 修正（与 r19c-kn1-e-shape.test.js 同源同因）：Step 3.2 在 receipt 与 /a2a
+// 之间插入了 `/mcp/browser`+`/mcp/desktop` 上游代理块，其中含 `sendJson(res, 404, unknown
+// mcp upstream)`。旧终点（`/a2a`）把整段上游代理切进 RCP()，使 `e5_status_codes` 这条守卫
+// **在未变异的基线上就不通过** —— 表现为 mutation 测试的「前置条件失败」，把人引向
+// 「守卫写错了」而实际是**切片终点漂了**。
 const RCP = (s) =>
   slice(
     s.SERVER,
     "if (path === '/audit/receipt' && req.method === 'GET')",
-    "if (path === '/a2a' && req.method === 'POST')",
+    "// ---- MCP 上游代理：POST /mcp/browser、POST /mcp/desktop ----",
   );
 // 终点用**兜底** 404（8 空格缩进），而非路由内 env 门控的 404（12 空格）——后者会立刻命中并切空业务段
 const ADMIN = (s) =>
