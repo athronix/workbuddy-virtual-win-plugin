@@ -32,6 +32,10 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 // 迭代21 / D-2：VM SSH 后端三级开关（零依赖纯逻辑，可静态导入；ssh2-client 按需动态导入）
 import { resolveSshBackend } from './ssh2-backend.mjs';
+// 阶段 5.1（部署解耦）：私钥探测链下沉到 connect-channel.mjs（单一事实源）。
+// ★ 必须是 import 而非仅 `export ... from`：re-export 只在导出表里挂名，**不建立模块内绑定**，
+//   本文件内 ssh2Creds()（:320）与 OH 宿主隧道分支（:1321）都会 ReferenceError。
+import { resolveTunnelIdentityFile } from './connect-channel.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -1100,7 +1104,7 @@ export function forwardVmStartEvidence(out, log) {
  *
  * @returns {{identityFile: string|undefined, source: 'env'|'default'|'none'}}
  */
-export { resolveTunnelIdentityFile } from './connect-channel.mjs';
+export { resolveTunnelIdentityFile };
 
 /** 本地 TCP 端口是否可连（HEALTH 失败时区分「未监听」vs「监听但无 HTTP」）。 */
 function checkTcpOpen(port, timeoutMs = 3000) {
