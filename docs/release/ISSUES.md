@@ -4,6 +4,35 @@
 > **发布迭代铁律（用户 2026-10-18 裁定）**：每个迭代重新部署新版本前，**必须清空历史部署**（`deploy-all.sh --wipe`）；不清场的重装只是"补部署"，不构成迭代验收；功能验证矩阵必须在该迭代的清空重装态上取数。
 > 关联文档：`docs/release/DESIGN-V1.4.0.md`（发布设计）、`docs/release/RELEASE-V1.4.0.md`（发布说明）、`docs/05-peripherals/DEPLOYMENT.md`（部署 runbook §9）。
 
+## 迭代 V1.4.38 · V-NEXT 五阶段交付（2026-11-26，本地打包完成，**待部署**）
+
+> **状态：打包 ✅ / 真机部署 ⏸ 未执行**。本迭代把架构复审六步（`docs/design/proj-arch-review/`）
+> 的五阶段成果首次装入发布包。此前 VM 上跑的一直是 **2026-11-20** 的旧构建。
+
+**打包事实**：commit `f8c5c83` → tag `V1.4.38`（打在 `0acfd63`，见 I-38.2）
+| 包 | 文件 | 大小 | total-sha256 |
+|---|---|---|---|
+| host | 1039 | 7485K | `19289362…` |
+| vm | 499 | 3367K | `a22ec01e…` |
+| overall | 1102 | 8972K | `afcbc267…` |
+| overall-zip | — | 3521K | `f329bfcd…` |
+| deploy-skill-zip | 32 | 248K | `f9790fb0…` |
+
+`pack-release` 自校验 **28 项全 ✓**（V1~V11）。
+
+| ID | 级别 | 现象 / 内容 | 根因 / 处置 | 状态 |
+|---|---|---|---|---|
+| **I-38.1** | P0（安全） | **上游 58 工具在真机上完全裸奔**：`POST /mcp/browser` 调 `agent_browser_eval`（= `browser.meta.eval`，**risk=L2 页内执行任意 JS**）**未过闸直接执行成功**，返回 `{"result":2,"success":true}` | 阶段 3.2 的修复（`tools/call` 强制过 `gateUpstreamAndExecute`）只存在于工作区，VM 上是 2026-11-20 旧构建（`gateAndExecute`=False、`upstreamGates`=False）。**修复代码本身 23/23 单测全绿**，缺的只是部署 | **待部署关闭** |
+| **I-38.2** | P3（可复现性） | tag `V1.4.38` 指向 `0acfd63`，但包内 `MANIFEST` 记录 `commit: f8c5c83` | 先打包（记 HEAD=`f8c5c83`）→ 再提交证据文件 → 此时 HEAD 前进到 `0acfd63`。**代码零差异**（`git diff f8c5c83 0acfd63` 只有 `qa/release/V1.4.38-pack.txt` 一个文件 1746 行新增）。⇒ 用 tag 重新打包会得到 sha256 **不同**的包，评审时勿误判为事故 | **登记，不阻塞**；判据=「比 sha256 前先比代码 diff」 |
+| **I-38.3** | P2（能力面） | VM 侧 `shared-skills` 只有 **7** 个，规划应为 **9** | 旧逻辑下发 7 个领域 skill；3.6a 把 `HOST_ONLY_SKILLS` 收窄为 `['hos-win-skill']` 后应下发 9。`planSkillPublish` 实测：add 2（`agent-browser-skill`/`agent-desktop-skill`）、refresh 7、skip-host-only 1 ⇒ 部署后为 9 | **待部署关闭** |
+| **I-38.4** | P2（文档漂移） | 记忆与计划书记载「审批黑名单内容为空、待 owner 拍板」 | **过时**。实测 `DEFAULT_POLICY`：`capabilityApprovalDenylist` **14 条**、`pathDenylist` **13 条**、`commandDenylist` **15 条**、`capabilityApprovalAllowlist` 0 条（刻意先只上黑名单）。3.3 不是阻塞项 | **已更正记忆** |
+| **I-38.5** | P3（判据缺陷） | 新增的 `vnext-build-artifacts.test.js` 第 ④ 条首版**假绿**：把所有 `gateAndExecute(` 调用点删掉后计数 6→2，判据 `>=2` 仍 PASS | 残留 2 处 = **import 语句** + **一行注释** ⇒ 红线 8「查子串/查次数/查注释」三类凑数方式的合集。重写为「剥注释 + 排除 import 行，只统计带括号调用行」后突变即红 | **已修**（4/4 PASS） |
+
+> **部署前置提醒（红线 7）**：`deploy.sh` 装的是 **release tag 的包**，不是工作区源码。
+> 本迭代已打 tag 但**尚未推送远程、尚未上架 release、尚未部署**。
+> 部署后必须立即复验 I-38.1（`agent_browser_eval` 应返回 `DELEGATION_REQUIRED` 而非 `result:2`）
+> 与 I-38.3（`shared-skills` 应为 9）—— 这两条是本迭代的核心验收判据。
+
 ## V1.4.0
 
 ### 迭代 1（2026-10-18）——首发打包 + 清空重装 + 真机验证
