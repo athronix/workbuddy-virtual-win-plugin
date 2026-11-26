@@ -41,13 +41,37 @@
 |---|---|---|---|---|
 | **I-38.6** | **P0（阻断）** | V1.4.38 真机部署在 **4a prepare-vm 崩**：`ReferenceError: resolveTunnelIdentityFile is not defined`（`setup.mjs:320`）| 阶段 5.1 把私钥探测链下沉到 `connect-channel.mjs` 时，`setup.mjs` 只写了 `export { resolveTunnelIdentityFile } from './connect-channel.mjs'`。**`export … from` 只在导出表挂名，不建立模块内绑定**，而 `ssh2Creds()`（:320）与 OH 宿主隧道分支（:1321）都直接调用它 ⇒ 一调就炸。**修法**：补 `import` 建立本地绑定，re-export 改为本地转发。**守卫** `tests/unit/setup-reexport-binding.test.js` 4/4，判据全行为性（加载+实调），已在真实缺陷态反向验证会红 | **已修并部署** |
 | **I-38.7** | **P0（安全语义）** | V1.4.39 部署后 `POST /mcp/browser` 调 `agent_browser_eval`（`browser.meta.eval` / **L2**）返回 `{"ok":false,"error":{"code":"POLICY_DENIED","message":"能力未注册：browser.meta.eval"},"matchedRule":"registry:unknown-capability"}` —— **不再裸奔，但 58 个上游工具 100% 硬拒** | 装配处 `server.ts:2044` 写的是 `new CorePolicyEngine({ registry, config, surface })`，把**只装 vm 面 54 项的 registry** 注入了上游面引擎；`evaluate()` 第 1 步 `registry.has()` 必然查不到上游 id。这正是 `upstream-gate.ts` 文件头预言并被专门绕开的**冲突 ③（原文标注「最致命」）**，闸门内部绕开了、**装配处漏了**。**修法**：上游面引擎**不传 registry**（上游条目的注册性由 `lookupEntry`/统一表 toolIndex 保证，无需二次核实）。**守卫**：`step32-upstream-gate.test.js` 新增「禁止注入 registry」断言（24/24），已突变反证会红 | **已修，验收中** |
-| **I-38.8** | P2（发布链） | `download-verify.sh:18` 硬编码 `REPO="sanway-tech/workbuddy-virtual-win-plugin"`（分发权威仓），而母项目 `git remote` 与 `publish-release.mjs` 默认都指向 **`athronix`**（开发源仓）⇒ 首次部署在 2a 步 `DOWNLOAD_FAILED 双源均不可达`，日志 13 行全 404 | 两个仓是**两个分发通道**：sanway-tech 才是取包源（V1.4.37 及以前都在这里）。发版时必须**同时**推到两个仓的 GitHub+Gitee 共 4 个端点，否则新机安装断链。本次已把 V1.4.38/V1.4.39 补齐到 4 端点 | **已修（流程）**；建议下轮把 `REPO` 收敛为单一常量并加双仓一致性检查 |
+| **I-38.8** | P2（发布链） | `download-verify.sh:18` 硬编码 `REPO="sanway-tech/workbuddy-virtual-win-plugin"`（分发权威仓），而母项目 `git remote` 与 `publish-release.mjs` 默认都指向 **`athronix`**（开发源仓）⇒ 首次部署在 2a 步 `DOWNLOAD_FAILED 双源均不可达`，日志 13 行全 404 | 两个仓是**两个分发通道**：sanway-tech 才是取包源（V1.4.37 及以前都在这里）。发版时必须**同时**推到两个仓的 GitHub+Gitee 共 4 个端点，否则新机安装断链 | **已修（流程 + 脚本）**：脚本侧 `REPO` 改 `VM_REPO` 可覆盖、失败时打印 `REPO/TAG/HTTP code` 并区分「404 是 tag 缺席还是仓错」vs「可达但传输层失败」。**⚠ 但「4 端点齐备」此前并不成立 —— 见 I-38.11** |
 | **I-38.9** | P2（判据缺陷） | `vnext-build-artifacts.test.js` 与 `step32-upstream-gate.test.js` 在 I-38.7 缺陷期**全绿**，没能抓到装配错误 | 前者只查「符号是否出现在 dist」，`export … from`/import 都能满足；后者只钉「必须传 surface」「不许复用 policy 实例」，**漏了「不许传 registry」**。教训：**「守住了 A 错误」不等于「守住了这个函数的正确性」**，装配类缺陷要按「每个构造参数该不该在场」逐项钉 | **已补断言**（24/24，含突变反证） |
+
+| **I-38.11** | **P1（发布面缺口）** | V1.4.39/V1.4.40 **在 athronix 双端没有任何 release 对象**：`athronix` Gitee release 列表最高只到 **V1.4.38**（共 19 个），GitHub 侧最高也到 V1.4.38；两个 tag 的 4 个下载 URL **全部 404**。当前真实齐备的只有 `sanway-tech` × GitHub/Gitee（实测 `200`/`206`） | **误判来源**：tag 确实已推到 athronix Gitee（`ls-remote` 可见 `V1.4.40 → 449f4cc`），于是「tag 在 ⇒ 以为整条链在」。**tag ≠ release ≠ 资产**，三段独立。**另有两个叠加坑**：① athronix GitHub 的 SSH 钥无 push 权（`Permission denied (publickey)`），该端点从来没被推过；② `~/.workbuddy/credentials.env` 里带连字符的键（`GITHUB_PAT_SANWAY-TECH` 等 3 个）**shell 无法 source**（报 `command not found`），这几个 token 一直在文件里但从未被加载。**权限已核实**：`GITHUB_PAT` 对 athronix 仓 `permissions.push=true / admin=true` ⇒ 补推**无障碍**。**已补推并实测**：V1.4.39/V1.4.40 两个 tag × athronix × GitHub/Gitee 共 **4 个 release**（各 4 资产）已补齐；8 端点（2 tag × 2 仓 × 2 托管）**全部 200/206**，且 `.sha256` 内容与本地**逐字节 SAME**（`V1.4.39=b8ee74cb…` / `V1.4.40=5c378144…`）。**残留**：`credentials.env` 的 3 个连字符键需改名 `_SANWAY_TECH`，否则 `sanway-tech` 两个 token 始终无法被 shell 加载（本次借 `GITHUB_PAT` + `GITEE_ACCESS_TOKEN` 绕过） | **已修（实测闭环）**；键名问题待改 |
 
 > **V1.4.39 验收判据（部署后立即跑）**：
 > ① `agent_browser_eval` 须返回 **`DELEGATION_REQUIRED`**（而非 `POLICY_DENIED/registry:unknown-capability`，更非 `result:2`）；
 > ② `shared-skills` 须为 **9**（关闭 I-38.3）；
 > ③ VM `server.js` 的 `MTIME` 须晚于本轮改动，且 `HAS_gateUpstreamAndExecute=True`、`HAS_DELEGATION_REQUIRED=True`。
+
+## 迭代 V1.4.40 · 上游面引擎 registry 误注入修复（2026-11-26）
+
+> **状态：打包 ✅ / 上架 ✅（4 端点）/ 部署 ❌ 被 I-38.10 阻断**。
+> 代码与包均已验证无误，卡在 VM 侧 sshd 挂死，**非本迭代代码问题**。
+
+| ID | 级别 | 现象 / 内容 | 根因 / 处置 | 状态 |
+|---|---|---|---|---|
+| **I-38.10** | **P0（阻断，环境）** | 12:40 起 VM `172.16.100.2:22` **TCP 能连（3-21ms）但 SSH banner 零字节**，`Connection timed out during banner exchange`。连续 6 次×18s + 前后共约 11 分钟，**13/13 全超时**。导致 deploy 4a 步 7 次 `ssh2 ready 超时` → 回落二进制 ssh 也 `scp 失败：TIMEOUT` → `DB-3 node=MISSING`、`DB-7 全 MISSING`、`DB-2 ssh:MISSING`（**全是连不上导致的假阴性**，不是 VM 真缺 node） | **三段取证定界**：① ICMP ping 0% 丢包 1-2ms ✅；② TCP :22 connect 3-21ms ✅；③ banner **零字节超时** ❌。⇒ 网络与凭据均正常，**是 sshd 本身挂死**（accept 但不 fork 出会话）。**同机对照**：`5985` WinRM **OPEN 且有 `Server: Microsoft-HTTPAPI/2.0` 响应** ⇒ 主机活着、非死机；`3389` RDP **TIMEOUT**、`18443` 隧道端口 TIMEOUT。**已知排除**：`undeploy.sh` 默认 `--remove-ssh-tunnel no`，且 `undeploy-2-vm.sh`/`vm-remove-local.ps1` 对 sshd **只读状态不修改**（sshd 只在第 3 步 `--purge-sshd` 里动），故卸载不是元凶 | **待 owner 介入**（见下） |
+
+### I-38.10 恢复路径（红线 1：绝不自行重启 VM）
+
+| 路径 | 可行性 | 说明 |
+|---|---|---|
+| **A. VM 控制台手动重启 sshd** | ★ 首选 | 在 hypervisor/VM 控制台执行 `Restart-Service sshd`（或 `Start-Service sshd`）。**不需要重启整机**，风险最低 |
+| **B. VM 控制台重启整机** | 备选 | 若 sshd 无法单独恢复。会清掉内存态，但本迭代部署尚未开始，无残留可丢 |
+| **C. WinRM 远程修复** | ❌ 当前不可用 | `WWW-Authenticate: Negotiate`（Basic 未开），且 `User` 是**空口令** —— Windows 策略下空口令账户**不可用于任何网络登录**，Negotiate 也没法用 |
+| **D. 继续等待自愈** | 已证伪 | 11 分钟 13 次探测零成功率，无自愈迹象 |
+
+> **恢复后立即执行**（SSH 一通就跑，不必重跑整链）：
+> `cd ~/.workbuddy/skills/winvm-plugin-deploy && VMDEPLOY_FORCE_FETCH=1 RELEASE_TAG=V1.4.40 bash scripts/deploy.sh`
+> 然后跑 V1.4.39/40 的三条验收判据（重点是 ① `agent_browser_eval` → `DELEGATION_REQUIRED`）。
 
 ## V1.4.0
 
