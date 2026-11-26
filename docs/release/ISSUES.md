@@ -29,9 +29,25 @@
 | **I-38.5** | P3（判据缺陷） | 新增的 `vnext-build-artifacts.test.js` 第 ④ 条首版**假绿**：把所有 `gateAndExecute(` 调用点删掉后计数 6→2，判据 `>=2` 仍 PASS | 残留 2 处 = **import 语句** + **一行注释** ⇒ 红线 8「查子串/查次数/查注释」三类凑数方式的合集。重写为「剥注释 + 排除 import 行，只统计带括号调用行」后突变即红 | **已修**（4/4 PASS） |
 
 > **部署前置提醒（红线 7）**：`deploy.sh` 装的是 **release tag 的包**，不是工作区源码。
-> 本迭代已打 tag 但**尚未推送远程、尚未上架 release、尚未部署**。
-> 部署后必须立即复验 I-38.1（`agent_browser_eval` 应返回 `DELEGATION_REQUIRED` 而非 `result:2`）
-> 与 I-38.3（`shared-skills` 应为 9）—— 这两条是本迭代的核心验收判据。
+> V1.4.38 已推送双端 4 个端点（athronix/sanway-tech × GitHub/Gitee）并上架，**已部署**（2026-11-26 12:20，`DEPLOY=PASS` 206s，探针 34/34）。
+> 部署后复验结论：**I-38.1 从「裸奔」变成「100% 硬拒」—— 安全性前进了一步，但未达设计意图**，故开 I-38.6/I-38.7 并以 V1.4.39 修复。
+
+## 迭代 V1.4.39 · V1.4.38 的部署阻断修复（2026-11-26）
+
+> **状态：打包 ✅ / 上架 ✅ / 部署 ✅（2026-11-26 12:20）**。
+> 本迭代只修缺陷、不加功能，两条都是 V1.4.38 部署时被真机打出来的。
+
+| ID | 级别 | 现象 / 内容 | 根因 / 处置 | 状态 |
+|---|---|---|---|---|
+| **I-38.6** | **P0（阻断）** | V1.4.38 真机部署在 **4a prepare-vm 崩**：`ReferenceError: resolveTunnelIdentityFile is not defined`（`setup.mjs:320`）| 阶段 5.1 把私钥探测链下沉到 `connect-channel.mjs` 时，`setup.mjs` 只写了 `export { resolveTunnelIdentityFile } from './connect-channel.mjs'`。**`export … from` 只在导出表挂名，不建立模块内绑定**，而 `ssh2Creds()`（:320）与 OH 宿主隧道分支（:1321）都直接调用它 ⇒ 一调就炸。**修法**：补 `import` 建立本地绑定，re-export 改为本地转发。**守卫** `tests/unit/setup-reexport-binding.test.js` 4/4，判据全行为性（加载+实调），已在真实缺陷态反向验证会红 | **已修并部署** |
+| **I-38.7** | **P0（安全语义）** | V1.4.39 部署后 `POST /mcp/browser` 调 `agent_browser_eval`（`browser.meta.eval` / **L2**）返回 `{"ok":false,"error":{"code":"POLICY_DENIED","message":"能力未注册：browser.meta.eval"},"matchedRule":"registry:unknown-capability"}` —— **不再裸奔，但 58 个上游工具 100% 硬拒** | 装配处 `server.ts:2044` 写的是 `new CorePolicyEngine({ registry, config, surface })`，把**只装 vm 面 54 项的 registry** 注入了上游面引擎；`evaluate()` 第 1 步 `registry.has()` 必然查不到上游 id。这正是 `upstream-gate.ts` 文件头预言并被专门绕开的**冲突 ③（原文标注「最致命」）**，闸门内部绕开了、**装配处漏了**。**修法**：上游面引擎**不传 registry**（上游条目的注册性由 `lookupEntry`/统一表 toolIndex 保证，无需二次核实）。**守卫**：`step32-upstream-gate.test.js` 新增「禁止注入 registry」断言（24/24），已突变反证会红 | **已修，验收中** |
+| **I-38.8** | P2（发布链） | `download-verify.sh:18` 硬编码 `REPO="sanway-tech/workbuddy-virtual-win-plugin"`（分发权威仓），而母项目 `git remote` 与 `publish-release.mjs` 默认都指向 **`athronix`**（开发源仓）⇒ 首次部署在 2a 步 `DOWNLOAD_FAILED 双源均不可达`，日志 13 行全 404 | 两个仓是**两个分发通道**：sanway-tech 才是取包源（V1.4.37 及以前都在这里）。发版时必须**同时**推到两个仓的 GitHub+Gitee 共 4 个端点，否则新机安装断链。本次已把 V1.4.38/V1.4.39 补齐到 4 端点 | **已修（流程）**；建议下轮把 `REPO` 收敛为单一常量并加双仓一致性检查 |
+| **I-38.9** | P2（判据缺陷） | `vnext-build-artifacts.test.js` 与 `step32-upstream-gate.test.js` 在 I-38.7 缺陷期**全绿**，没能抓到装配错误 | 前者只查「符号是否出现在 dist」，`export … from`/import 都能满足；后者只钉「必须传 surface」「不许复用 policy 实例」，**漏了「不许传 registry」**。教训：**「守住了 A 错误」不等于「守住了这个函数的正确性」**，装配类缺陷要按「每个构造参数该不该在场」逐项钉 | **已补断言**（24/24，含突变反证） |
+
+> **V1.4.39 验收判据（部署后立即跑）**：
+> ① `agent_browser_eval` 须返回 **`DELEGATION_REQUIRED`**（而非 `POLICY_DENIED/registry:unknown-capability`，更非 `result:2`）；
+> ② `shared-skills` 须为 **9**（关闭 I-38.3）；
+> ③ VM `server.js` 的 `MTIME` 须晚于本轮改动，且 `HAS_gateUpstreamAndExecute=True`、`HAS_DELEGATION_REQUIRED=True`。
 
 ## V1.4.0
 

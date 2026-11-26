@@ -2031,7 +2031,17 @@ export async function createService(config: ServiceConfig): Promise<ServiceRunti
     upstreamGates[surface] = {
       // ⚠ 只把**参数级**策略按面隔离；能力级判定（risk 审批 / 能力黑名单 / dry-run
       // 双条件）由同一份 `cfg.policy` 驱动，对任何面恒生效 —— 这是本设计的边界。
-      engine: new CorePolicyEngine({ registry, config: cfg.policy, surface }),
+      //
+      // ★ 绝不传 `registry`（2026-11-26 真机实证 / I-38.7）：
+      //   `CorePolicyEngine.evaluate()` 第 1 步是「registry 在场且不含该 id ⇒ 拒」，
+      //   而这里的 registry 只装 vm 面 54 项，上游 id（`browser.meta.eval` 等 58 个）
+      //   永远查不到 ⇒ 100% 回 `POLICY_DENIED / registry:unknown-capability`，
+      //   把「L2 应走 DELEGATION_REQUIRED 审批」变成「全量硬拒」。
+      //   这正是 `upstream-gate.ts` 文件头预言的冲突 ③（「最致命」），
+      //   闸门内部已按面适配绕开，但装配处漏传 —— 修法就是**不注入 registry**：
+      //   上游条目的注册性已由 `lookupEntry`（统一表 toolIndex）保证，
+      //   引擎不再需要第二次核实；`registry` 缺席时该分支按设计短路。
+      engine: new CorePolicyEngine({ config: cfg.policy, surface }),
       audit,
       lookupEntry: (s, toolName) => (s === surface ? toolIndex?.get(toolName) : undefined),
       execute: async (toolName, args) => {

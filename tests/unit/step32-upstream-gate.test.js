@@ -511,4 +511,38 @@ describe('Step 3.2 · 接线形态：上游分支确实走了闸', () => {
     const newEngineCount = (segment.match(/new CorePolicyEngine\(/g) ?? []).length;
     assert.equal(newEngineCount, 1, '应当只在循环体内 new 一次（每面各得一个实例），实际出现多处需人工确认');
   });
+
+  test('装配点**不得**给上游引擎传 registry（否则 58 个上游工具 100% 被判 UNKNOWN_CAPABILITY）', () => {
+    // ★ 2026-11-26 真机实证（I-38.7）：V1.4.39 部署后 `POST /mcp/browser` 调
+    //   `agent_browser_eval`（browser.meta.eval / L2）返回
+    //     { ok:false, error:{ code:"POLICY_DENIED", message:"能力未注册：browser.meta.eval" },
+    //       risk:"L2", matchedRule:"registry:unknown-capability" }
+    //   即「过闸了，但 100% 硬拒」—— 比裸奔更难察觉：既有闸门符号、也有审计、
+    //   调用方只看到「被拒绝」，像是策略生效，实际是**装配错传了 vm 面 registry**。
+    //
+    //   这正是 upstream-gate.ts 文件头预言的冲突 ③（原话标为「最致命」）：
+    //     「引擎第 1 步是 registry.has()，registry 只装 vm 面 54 项
+    //       ⇒ 58 个工具从『不过闸但能用』变成『过闸但 100% 被拒』」
+    //   闸门内部已按面适配绕开，但**装配处**漏了这一条。
+    //
+    //   为什么行为断言抓不到：`evaluate()` 一旦拿到 registry 就按设计拒绝，
+    //   而「拒绝」在「是否拦住了危险调用」这个口径下**看起来是对的**。
+    //   所以只能钉装配源码 —— 这也解释了为何 23 条单测在缺陷期全绿。
+    const start = SERVER.indexOf('上游工具面闸门接线');
+    assert.ok(start > 0, '找不到装配段锚点');
+    const segment = SERVER.slice(start, start + 6000);
+
+    const ctor = segment.match(/engine:\s*new CorePolicyEngine\(\{([^}]*)\}\)/s);
+    assert.ok(ctor, '装配必须有一处 `engine: new CorePolicyEngine({...})`');
+    const options = ctor[1];
+    assert.doesNotMatch(
+      options,
+      /\bregistry\b/,
+      '上游面引擎禁止注入 registry：该 registry 只装 vm 面 54 项，'
+      + '上游 58 个 id 必然查不到 ⇒ 全部回 registry:unknown-capability（I-38.7）。'
+      + '上游条目的注册性由 lookupEntry（统一表 toolIndex）保证，引擎不需要二次核实。',
+    );
+    // 正向保留：surface 必须在，否则参数级策略隔离失效。
+    assert.match(options, /\bsurface\b/, 'engine 选项必须含 surface（否则面隔离失效）');
+  });
 });
