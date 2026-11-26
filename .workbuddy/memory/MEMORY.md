@@ -41,12 +41,27 @@
 10. symlink 陷阱：`~/.workbuddy/skills/<name>` 为软链时 `cp -r` 备份的是链接、覆盖会写穿到源仓库 → 先 `readlink` 再删链重建（`install.sh` 已是唯一入口）。
 
 ## 基线红（不可当回归）
-**★ 2026-11-25 已清零**：`--quick` = `FILES=16 FAILED_FILES=0` 322/322 `GREEN`；全量 sweep = `FILES=142 FAILED_FILES=0` 2571/2569/0/2 `GREEN`；`verify-claims` 17/17；`selfcheck` ALL_GREEN 37。
+**★ 2026-11-25 已清零**：`--quick` = `FILES=16 FAILED_FILES=0` 322/322 `GREEN`；全量 sweep = `FILES=143 FAILED_FILES=0` 2575/2573/0/2 `GREEN`（11-26 加入 `vnext-build-artifacts` 后）；`verify-claims` 17/17；`selfcheck` ALL_GREEN 37；`dep-lint` GREEN。
 原基线 5 红（`p8-probe-fresh` / `r19c-kn1-e-mutation` / `r19c-kn1-e-shape` / `phase2-snapshot-truth` / `phase3-skill-claims-guard`）已全部按真因修掉，**现在若看到它们再红 = 新回归，不是基线**。
 判据仍只能**逐条比对失败清单**，不能只看 VERDICT。
 
+## 两条新增工程纪律（2026-11-26 自踩）
+- **核验落点前先 `grep -rln <符号>`，不要按「逻辑上应该在哪」猜路径。** 本轮同一毛病犯四遍：
+  3.6b 在 `adapter-agent-workbuddy-llm`（非 `adapter-agent-workbuddy`）、4.3 在独立 `cli-agent-planner.ts`（`bridge.js` 只有注释）、
+  2.4 在 `registry/unified.ts`（`desktop-allowlist.ts` 根本不存在）、5.1 在 `delivery/connect-channel.mjs`。
+  猜路径产生的 FAIL 是**假红**，白花一轮排查。
+- **`tsc -b` 不能靠 mtime 判新旧。** 它按 tsbuildinfo 的**内容 hash** 增量，内容未变时**不重写 dist**
+  ⇒ dist mtime 早于 src 完全正常。判断「是否最新」应跑 `tsc -b` 看有没有报错，不是比时间。
+- **写「符号出现 N 次」型判据时，先枚举除真实使用外还有谁会命中它**：import 语句、注释、同类命名变量，
+  三类都能凑数（本轮 `gateAndExecute >= 2` 就被 import + 一行注释凑过，突变把调用点全删仍 PASS）。
+
 ## 待办
-**★ 2026-11-25 架构复审六步（`docs/design/proj-arch-review/14-EXECUTION-PLAN.md`）已全部完成静态收口**（commit `653a195`+`b4d79fc`+`0435061`+`bb23681`+`9b6a003`+`fb8462d`）。唯一未闭环 = **发版 + 重部署**（属发布动作，需 owner 裁定）。
+**★ 2026-11-25/26 架构复审六步（`docs/design/proj-arch-review/14-EXECUTION-PLAN.md`）已全部完成静态收口 + 构建产物核验**（commit `653a195`+`b4d79fc`+`0435061`+`bb23681`+`9b6a003`+`fb8462d`+`f176d51`）。唯一未闭环 = **发版 + 重部署**（属发布动作，需 owner 裁定）。
+**★★ 发版的优先级已从「可选」变为「安全项」**（2026-11-26 真机实证）：VM 当前构建上
+`gateUpstreamAndExecute`=False、`upstreamGates`=False，且 `POST /mcp/browser` 调
+`agent_browser_eval`（= `browser.meta.eval`，**risk=L2 页内执行任意 JS**）**直接执行成功返回 result=2**
+⇒ **上游 58 个工具此刻在真机上完全裸奔**（无闸门/无审计）。修复代码在本地已完备
+（`step32-upstream-gate.test.js` 23/23），只差部署。**只要不重部署，这个洞就一直开着。**
 ① 第 1 步「从零通道」真·端到端演练（尚未做）；② **待裁定**：`INSTALL_PROMPT.md` 是否补 Gitee 双源（现 GitHub raw 单源，曾挂 6m47s）；③ 拆通道后 `WinRM 5985 OPEN` 但脚本无引导路径（能力缺口）。
 ④ **架构复审 14 条待处理**（`docs/design/proj-arch-review/05-OPTIMIZATION-PLAN.md`）：第一批「止血」A-1~A-5 约 1-2 天，做完即可让「隧道死代码」「domains 静默丢失」两件事在 30 秒内可见。**A-2 → B-1、A-4 → B-5 是唯一两条硬依赖**，其余可并行。
 ⑤ **V-NEXT 改造（22-23d，`11`+`12` 号文）**：阶段 1 删除(3d) → 2 统一 112 项(5d) → 3 闸门(4d) → 4 LLM 降级 planner(4d) → 5 部署解耦(3d) → 6 验收(2d)。**硬链：1→2→3→4，5 最末**。工期压到 10d 内则只做 1/2/3（安全+分类；4/5 只影响维护成本）；阶段 5 只做 5a（抽 `connect-channel.mjs`，1d）也能消灭最严重的错位。
