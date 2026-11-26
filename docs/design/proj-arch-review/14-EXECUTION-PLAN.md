@@ -2117,7 +2117,7 @@ bash scripts/selfcheck.sh 2>&1 | tail -3
 |---|---|---|---|
 | ① 静态门禁 | `node scripts/gate.mjs --quick` | `FILES=16 FAILED_FILES=0 TOTAL_TESTS=322 TOTAL_PASS=322 TOTAL_FAIL=0` `VERDICT: GREEN` | ✅ **GREEN**（此前长期 RED 2） |
 | ①b 全量单测 | `npm run test:unit` | **`files=141 failed=0`** rc=0 | ✅ **首次全绿**（原 `failed=3`，见下） |
-| ② 全量 sweep | `node scripts/gate.mjs` | **`FILES=142 FAILED_FILES=0 TOTAL_TESTS=2571 TOTAL_PASS=2569 TOTAL_FAIL=0 TOTAL_SKIP=2` `VERDICT: GREEN`**（rc=0，实测 5m06s，比预估 25-30min 快得多） | ✅ **GREEN** |
+| ② 全量 sweep | `node scripts/gate.mjs` | **`FILES=142 FAILED_FILES=0 TOTAL_TESTS=2571 TOTAL_PASS=2569 TOTAL_FAIL=0 TOTAL_SKIP=2` `VERDICT: GREEN`**（rc=0，实测 5m06s，比预估 25-30min 快得多）<br>**2026-11-26 复跑（加入 `vnext-build-artifacts` 后）：`FILES=143 FAILED_FILES=0` 2575/2573/0/2 `GREEN`** | ✅ **GREEN** |
 | ③ 自检 | `bash scripts/selfcheck.sh` | **`SELFCHECK=ALL_GREEN checks=37 fails=0`** | ✅ **ALL_GREEN** |
 
 > **三关全部实跑完成（2026-11-25），无一项是「预期」**。注意 ② 的 `FILES=142` 比 `--quick` 的 16 多出 126 件
@@ -2295,6 +2295,141 @@ winvm-system-admin
 1. **通道与既有能力面**：✅ 全通（34/34 + 38/38 + 三面 112 对账）—— 这是本次实测拿到的确凿证据。
 2. **五阶段交付物在真机生效**：⏸ **待发版 + 重部署**（不在「静态可验收」范围内，也不属本轮静态收口阻塞项）。
 
+#### 6.3 补验（2026-11-26）：**本地构建产物已具备全部五阶段符号（12/12 PASS）**
+
+上一段证明了「VM 上是旧包」。这一段回答「**如果现在发版，包里到底有没有五阶段的东西**」
+—— 否则可能发了版、装了包，结果还是旧行为。做法是 `tsc -b --force` 全量重建后**逐符号核验 dist**。
+
+```bash
+npx tsc -b tsconfig.build.json --force   # rc=0，五个包 src/dist 逐文件比对全部 OK
+```
+
+| # | 阶段 | 核验对象（**真实落点**） | 符号 | 实测 |
+|---|---|---|---|---|
+| 1 | 2.1 | `contracts/dist/unified.js` | `SURFACE_EXPECTED_COUNTS` | ✅ |
+| 2 | 2.2 | `vm-capabilities/dist/registry/unified.js` | `UNIFIED_CAPABILITIES` | ✅ |
+| 3 | 2.4 | `vm-capabilities/dist/registry/unified.js` | `DEFAULT_DESKTOP_TOOL_ALLOWLIST` | ✅ |
+| 4 | 2.4 | `contracts/dist/unified.js` | `DEFAULT_DESKTOP_TOOL_ALLOWLIST` | ✅ |
+| 5 | 3.1 | `vm-service/dist/gateway.js`（文件存在 18539B） | `gateAndExecute` | ✅ |
+| 6 | 3.2 | `vm-service/dist/server.js` | `gateAndExecute`（6 处） | ✅ |
+| 7 | 3.2 | `vm-service/dist/server.js` | `mcp/browser` 路由 | ✅ |
+| 8 | 3.6b | `adapter-agent-workbuddy-llm/dist/bridge.js` | `winvm-browser` → `winvm-desktop` | ✅ |
+| 9 | 4.3 | `adapter-agent-workbuddy-llm/dist/cli-agent-planner.js` | `'cli-agent'` | ✅ |
+| 10 | 5.1 | `delivery/connect-channel.mjs` | `writeVmConnConfig`（定义） | ✅ |
+| 11 | 5.1 | `delivery/install-host.mjs` | `writeVmConnConfig`（再导出） | ✅ |
+| 12 | 5.2 | `delivery/install-vm.mjs` | `skip-install` | ✅ |
+
+> **★ 两次「查错落点」的教训（同一类错误犯了两遍，值得单独记）**
+> 1. 3.6b 我先查 `adapter-agent-workbuddy/dist/index.js` → 实际在 **`adapter-agent-workbuddy-llm/src/bridge.ts:362`**
+> 2. 4.3 我先查 `bridge.js` 里的 `cli-agent` → 实际在独立文件 **`cli-agent-planner.ts`**（`bridge.js` 只有注释提及）
+> 3. 2.4 我先查 `registry/desktop-allowlist.js`（这文件根本不存在）→ 实际在 **`registry/unified.ts`**
+> 4. 5.1 我先查 `packages/core/dist/channel/connect-channel.js` → 实际在 **`delivery/connect-channel.mjs`**
+>
+> **共同根因**：按「逻辑上应该在哪」猜路径，而不是先 `grep -rln <符号>` 定位。
+> **纪律：核验前一律先 grep 符号定位落点，再断言存在性。** 猜路径产生的 FAIL 是假红，会浪费一轮排查。
+
+##### 三条目 mcpServers 的行为实测（不只是「符号在」）
+
+光有符号不够，还要验行为。用真实 dist 跑 `buildMcpConfig()` 三形态：
+
+| 输入端点 | 条目数 | 结果 |
+|---|---|---|
+| `…/mcp` | 3 | `winvm` / `winvm-browser` / `winvm-desktop` 各自 URL 正确 |
+| `…/mcp/`（尾斜杠） | **3** | ★ 仍出三条目 —— 旧尾正则 `/\/mcp$/` 在这形态下会**静默失效**只剩 1 条，此处证明用的是 `deriveMcpBase()` |
+| `…/mcp?x=1`（带 query） | 3 | query 保留且 dtid 追加其后：`…?x=1&dtid=…` |
+
+**三项突变反证**：
+| 突变 | 期望 | 实测 |
+|---|---|---|
+| A 尾斜杠端点 | 仍 3 条目（若退回 1 条即说明用了尾正则） | ✅ 3 |
+| B 非预期形态 `…/api` | **必须退回 1 条目 + 告警**，不猜不抛 | ✅ 1 条 + `[buildMcpConfig] endpoint 形态非预期…58 项工具` |
+| C 凭据形态 | 必须是 `Bearer ${ENV}` 引用，不得裸值 | ✅ `Bearer ${WINVM_TOKEN}`；裸字面量检测 `false` |
+
+> **C 项我第一次做错了，记下来**：初版判据是 `raw.includes("SECRET_TOKEN_VALUE")`，
+> 传进去的其实是**环境变量名**而非密钥值，输出 `Bearer ${SECRET_TOKEN_VALUE}` 是**正确形态**，
+> 却被我判成「泄漏」→ **假红**。
+> 正确判据是「Bearer 后必须是 `${…}` 而非字面量」＋「抽出 header 比对三条目一致」。
+
+##### VM 侧 skill 9 vs 7 的差异已定位为「纯版本差」
+
+| 项 | 值 | 说明 |
+|---|---|---|
+| 仓库 `skills/` 目录 | 10 | — |
+| `HOST_ONLY_SKILLS` | `['hos-win-skill']` | 3.6a 已收窄（原为 4 个） |
+| 应下发 VM | **9** | 含 `agent-browser-skill` / `agent-desktop-skill`（已实测在清单内） |
+| VM 实际 | **7** | 正好 = 旧逻辑的 7 个领域 skill |
+
+⇒ 差的就是那两个上游工具面，**代码侧已就绪，只是 VM 上还是旧包**。与前面 dist 的结论完全自洽。
+
+##### 已固化为单测：`tests/unit/vnext-build-artifacts.test.js`（4/4 PASS）
+
+上面这些核验不能只活在本文件里 —— 下次有人「以为发了版」时，需要一个能在 0.2 秒内
+回答「dist 里到底有没有」的东西。故落成单测，12 条锚定 + 3 条行为/反凑数断言。
+
+**★ 其中第 ④ 条第一版是假绿，被突变打穿后重写（这是本轮第二次「查次数」型假绿）**
+
+| 版本 | 判据 | 突变（把所有 `gateAndExecute(` 调用点换成 `__bypassed(`） | 结果 |
+|---|---|---|---|
+| 第一版 | `gateAndExecute` 出现次数 `>= 2` | 计数 6 → **2**，仍 `>= 2` ⇒ **照样 PASS** | ❌ **假绿** |
+| 重写后 | 剥注释 + 排除 import 行，只统计**带括号的调用行** `>= 1` | 调用行 4 → **0** ⇒ FAIL | ✅ 真红 |
+
+> 残留的那 2 处是：① `import { gateAndExecute } from './gateway.js'`；② 一行注释
+> 「为什么不是给上游也造 `CapabilityDefinition` 走 `gateAndExecute`」。
+> **import 和注释都能凑数** —— 这与红线 8「门禁假绿三类：查子串/查次数/查注释」完全同源：
+> 我写第一版判据时，正好把这三种凑数方式都放进去了。
+
+**四条突变反证（全部如期命中）**：
+| # | 突变 | 期望 | 实测 |
+|---|---|---|---|
+| A | `cli-agent-planner.js` 的 `'cli-agent'` → `'llm'` | ① 红 | ✅ 红 |
+| B | `server.js` 全部 `gateAndExecute(` → `__bypassed(` | ④ 红 | ✅ 红（**修补后**；修补前是假绿） |
+| C | 删 `gateway.js` 关键导出 | ①+④ 红 | ✅ 由其断言结构性保证 |
+| D | 还原 | 4/4 PASS | ✅ |
+
+#### ★★★ 真机实证：旧构建上 L2 工具确实在「裸奔」（这是 V-NEXT 存在的理由，已用实测坐实）
+
+前面都是静态核验。这一段是**在真机上实际打一发**，用行为证明 3.2 要修的问题真实存在。
+
+| 步骤 | 操作 | 结果 |
+|---|---|---|
+| 1 | 查 VM 旧构建是否含上游闸门 | `gateUpstreamAndExecute` = **False**、`upstreamGates` = **False** |
+| 2 | 从 `tools/list` 取真实工具名 | `agent_browser_eval`（对应统一表 `browser.meta.eval`，**risk=L2，页内执行任意 JS**） |
+| 3 | `POST /mcp/browser` 调 `agent_browser_eval {script:"1+1"}` | **成功执行并返回 `"result": 2`**，`success:true`，`exitCode:0` |
+
+**结论**：VM 当前跑的构建上，`browser.meta.eval` 这个 L2 工具**没有任何闸门、没有审计、直接执行成功**。
+这不是推测，是真机返回体：
+
+```json
+{"structuredContent":{"exitCode":0,"response":{"data":{"result":2},"success":true},"isError":false}}
+```
+
+> **这正是 `11-ARCHITECTURE-VNEXT.md` 判定「上游 58 工具裸奔必须收进闸」的现场证据。**
+> 3.2 的设计（`tools/call` 强制过 `gateUpstreamAndExecute`：策略 → 审计 → 执行）
+> 在**本地构建**里已就位（单测 `step32-upstream-gate.test.js` 21 项全绿，
+> 含「L0 放行」控制组、「L2 拦且类型为 DELEGATION_REQUIRED」、「不在表内 fail-closed」），
+> **但没部署到 VM** ⇒ 真机上这 58 个工具此刻仍然裸奔。
+>
+> **这条也回答了「为什么不能只做静态验收就宣布完成」**：静态能证明「代码是对的」，
+> 行为才能证明「线上是不是对的」。
+
+##### 顺带核清一处易误读的配置
+
+宿主 `~/.workbuddy/mcp.json` 实测 4 条目：
+
+| 条目 | url | `disabledTools` |
+|---|---|---|
+| `winvm` | `…:18443/mcp` | **8**（L2/L3 静态禁用，NFR-508） |
+| `winvm-a2a` | stdio（本地桥） | 0 |
+| `winvm-browser` | `…:18443/mcp/browser` | **0** |
+| `winvm-desktop` | `…:18443/mcp/desktop` | **0** |
+
+初看容易误判为「上游两面没做防护」。实际这是**分层设计**：上游两面的 L2/L3 收口
+不在宿主侧静态禁用，而在 **VM 侧闸门**（`upstream-gate.ts`：L2 及以上一律
+`DELEGATION_REQUIRED`，由委派审批兜住；未知工具 fail-closed 且 risk 保守取 L2）。
+`install-host.mjs:1145` 的注释也写明 `disabledTools: []` 是刻意的「纯附加」。
+⇒ **宿主零禁用 + VM 强闸** 是设计，不是漏洞；但**前提是 VM 侧那份闸真的部署上去了**
+—— 如上一节所示，目前**没有**。
+
 ---
 
 ## 8. 收口检查总表（一张表看全部）
@@ -2345,7 +2480,7 @@ winvm-system-admin
 | 5.3 | 三禁令全 0（**剥注释后**）+ `accept-step51/52` 全绿 | GREEN | 原文 `grep -ciE` 会假红（头注即含"capability"）；`net.connect` 是探活不算建连 |
 | 6.1 | 三关全绿 | **三关实测全绿**：静态 `GREEN 16/0`；全量 sweep `FILES=142 FAILED_FILES=0 TOTAL 2571/2569/0/2`；自检 `ALL_GREEN checks=37` | 已全部跑完，见 6.1 |
 | 6.2 | verify-claims 记录变化 | **ALL_MATCH 17/17**（原 DRIFT 10/17） | 更新断言而非放宽；三类的处置方式不同，见 6.2 |
-| 6.3 | 探针 34 项全通（deep 38）；真机三面 = 54/33/25 | **通道与既有面：真机 34/34 + 38/38，三面 54+33+25=112 与统一表逐面相等。五阶段改动本身：VM 侧仍是 11-20 旧构建（`gateway.js` 不存在 / `shared-skills` 7 个 / adapter 无 winvm-browser）⇒ 待发版重部署** | 判据原文「112 项探针」是笔误；★★ **探针全通 ≠ 阶段改动已生效**，见 6.3 取证表 |
+| 6.3 | 探针 34 项全通（deep 38）；真机三面 = 54/33/25 | **通道与既有面：真机 34/34 + 38/38，三面 54+33+25=112 与统一表逐面相等。本地构建产物：`tsc -b --force` rc=0 且 12/12 五阶段符号在 dist 中（含三条目行为实测 + 4 项突变），并固化为 `vnext-build-artifacts.test.js`（4/4，全量 sweep 已纳入）。★ 真机行为实证：旧构建上 L2 工具 `agent_browser_eval` 裸奔执行成功 ⇒ 3.2 要修的问题真实存在，但修复未部署** | 判据原文「112 项探针」是笔误；★★ **探针全通 ≠ 阶段改动已生效**；核验前先 `grep -rln` 定位落点，勿猜路径 |
 
 ---
 
