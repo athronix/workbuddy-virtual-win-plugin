@@ -9,7 +9,7 @@
 > **状态：打包 ✅ / 真机部署 ⏸ 未执行**。本迭代把架构复审六步（`docs/design/proj-arch-review/`）
 > 的五阶段成果首次装入发布包。此前 VM 上跑的一直是 **2026-11-20** 的旧构建。
 
-**打包事实**：commit `f8c5c83` → tag `V1.4.38`（打在 `0acfd63`，见 I-38.2）
+**打包事实**：打包时 HEAD=`f8c5c83` → **annotated tag `V1.4.38`**（tag 对象 `0acfd63` → 指向 commit `b1a9b2e`，见 I-38.2）
 | 包 | 文件 | 大小 | total-sha256 |
 |---|---|---|---|
 | host | 1039 | 7485K | `19289362…` |
@@ -23,7 +23,7 @@
 | ID | 级别 | 现象 / 内容 | 根因 / 处置 | 状态 |
 |---|---|---|---|---|
 | **I-38.1** | P0（安全） | **上游 58 工具在真机上完全裸奔**：`POST /mcp/browser` 调 `agent_browser_eval`（= `browser.meta.eval`，**risk=L2 页内执行任意 JS**）**未过闸直接执行成功**，返回 `{"result":2,"success":true}` | 阶段 3.2 的修复（`tools/call` 强制过 `gateUpstreamAndExecute`）只存在于工作区，VM 上是 2026-11-20 旧构建（`gateAndExecute`=False、`upstreamGates`=False）。**修复代码本身 23/23 单测全绿**，缺的只是部署 | **待部署关闭** |
-| **I-38.2** | P3（可复现性） | tag `V1.4.38` 指向 `0acfd63`，但包内 `MANIFEST` 记录 `commit: f8c5c83` | 先打包（记 HEAD=`f8c5c83`）→ 再提交证据文件 → 此时 HEAD 前进到 `0acfd63`。**代码零差异**（`git diff f8c5c83 0acfd63` 只有 `qa/release/V1.4.38-pack.txt` 一个文件 1746 行新增）。⇒ 用 tag 重新打包会得到 sha256 **不同**的包，评审时勿误判为事故 | **登记，不阻塞**；判据=「比 sha256 前先比代码 diff」 |
+| **I-38.2** | P3（可复现性） | 包内 `MANIFEST` 记 `commit: f8c5c83`，而 tag `V1.4.38` 指向 commit `b1a9b2e` | **先纠正一处口径**：`0acfd63` 是 **annotated tag 对象自身的 sha**，`V1.4.38^{commit}` = `b1a9b2e`；两者不矛盾。真实差异 = 打包（记 HEAD=`f8c5c83`）→ 再提交证据 `qa/release/V1.4.38-pack.txt` → HEAD 前进到 `b1a9b2e`。**代码零差异**（`git diff f8c5c83 b1a9b2e` 仅 1 文件 1746 行新增，无代码变更）。⇒ 用 tag 重新打包会得到 sha256 **不同**的包，评审时勿误判为事故 | **登记，不阻塞**；判据=「比 sha256 前先比代码 diff」 |
 | **I-38.3** | P2（能力面） | VM 侧 `shared-skills` 只有 **7** 个，规划应为 **9** | 旧逻辑下发 7 个领域 skill；3.6a 把 `HOST_ONLY_SKILLS` 收窄为 `['hos-win-skill']` 后应下发 9。`planSkillPublish` 实测：add 2（`agent-browser-skill`/`agent-desktop-skill`）、refresh 7、skip-host-only 1 ⇒ 部署后为 9 | **待部署关闭** |
 | **I-38.4** | P2（文档漂移） | 记忆与计划书记载「审批黑名单内容为空、待 owner 拍板」 | **过时**。实测 `DEFAULT_POLICY`：`capabilityApprovalDenylist` **14 条**、`pathDenylist` **13 条**、`commandDenylist` **15 条**、`capabilityApprovalAllowlist` 0 条（刻意先只上黑名单）。3.3 不是阻塞项 | **已更正记忆** |
 | **I-38.5** | P3（判据缺陷） | 新增的 `vnext-build-artifacts.test.js` 第 ④ 条首版**假绿**：把所有 `gateAndExecute(` 调用点删掉后计数 6→2，判据 `>=2` 仍 PASS | 残留 2 处 = **import 语句** + **一行注释** ⇒ 红线 8「查子串/查次数/查注释」三类凑数方式的合集。重写为「剥注释 + 排除 import 行，只统计带括号调用行」后突变即红 | **已修**（4/4 PASS） |
