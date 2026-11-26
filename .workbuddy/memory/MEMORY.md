@@ -9,8 +9,22 @@
 ## 一句话架构
 宿主 WB 插件（鸿蒙）→ Win11 VM `172.16.100.2`（用户 `User`，密码不落库）= 54 能力 / `/mcp` 直调 + `/a2a` 委派；VM 服务只听 `127.0.0.1:18443`（计划任务 `WinVMBridge.Service` 托管 `ps-bridge.ps1`，改 `psmod/*.ps1` 必重启）；另挂 `/mcp/browser`(33，**无白名单=全量**) 与 `/mcp/desktop`(**25**，VM 侧白名单；上游 agent-desktop 共 75) 两 stdio 上游，**共用同一条隧道只差 path**。⇒ 三面合计 **112**。部署唯一权威 = `winvm-plugin-deploy` skill。
 
-## 当前态（2026-11-23）
-- 母项目 **V1.4.37**（tag=`6665263`，双端一致）；技能仓 **v2.6.3**（HEAD=`83dcec8`，双端一致）；技能门禁 `ALL_GREEN checks=37 / ALL_CAUGHT 75/75`。
+## 当前态（2026-11-26）
+- **★ 发布面铁律（I-38.11 实测）**：发版必须**逐端点**验证，不能由日志外推。
+  `tag ≠ release ≠ 资产` 是三个独立对象 —— `git ls-remote --tags` 看到 tag 在，
+  **完全不能证明** release 存在。实测 V1.4.39/40 曾只有 `sanway-tech` 齐，
+  `athronix` 双端 4 个 URL 全 404（Gitee release 列表最高仅 V1.4.38）。
+  已验证方式：`curl -r 0-0` 逐端点取 http_code（200/206/404）+ 远端 `.sha256`
+  与本地逐字节比对。补齐命令：`publish-release.mjs --repo <owner/repo> --apply --mirror-gitee`
+  （走 HTTPS API，**不吃 SSH 权限**；`GITHUB_PAT` 对 athronix `admin/push=true`）。
+- **★ `credentials.env` 带连字符的键 shell 无法 source**：`GITHUB_PAT_SANWAY-TECH` /
+  `GITEE_PAT_SANWAY-TECH` / `GITHUB_GRAINED_PAT_SANWAY-TECH` 全报 `command not found`
+  ⇒ 这 3 个 token **从未被加载过**。绕过用 `GITHUB_PAT` + `GITEE_ACCESS_TOKEN`；
+  **待改**键名为 `_SANWAY_TECH`。
+- 母项目 **V1.4.40**（已发 8 端点、`HEAD` 见 git log；部署被 I-38.10 阻断）；技能仓 **v2.6.4+**（`HEAD=83c0809`）。
+  技能门禁 `ALL_GREEN checks=37 / fails=0`；全量单测 `files=143 failed=0`（`✖` 严格计数 0）。
+- ⚠ `deploy/skills/winvm-plugin-deploy` 是**指向** `~/Documents/projects/skills/winvm-plugin-deploy`
+  的 symlink（红线 10 形态），改技能只改源码仓一处即可。
 - v2.5.9 = **零配置上手**：默认 `172.16.100.2`/`User`/无密码 + `~/.winvm-pass` 自动认（文件存在才生效）+ 全仓禁裸 `/tmp`（鸿蒙只读）。
 - v2.6.2/2.6.3 = **安装链**：`scripts/install.sh` **默认装 release 包**（gitee 优先/github 兜底 + sha256/name/version 三重校验，校验全过才落地成真实目录），**`--from-local` 才 symlink 挂工作区**；覆盖 symlink 先记原指向再删链、绝不 `cp -R` 写穿。
 - 真机：`UNDEPLOY=PASS` 48s / `DEPLOY=PASS` 303s / `VERIFY=PASS`，探针 34/34、health=200；证据 `qa/real-test-2026-11-20-v1437.md`。
