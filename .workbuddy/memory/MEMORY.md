@@ -21,8 +21,16 @@
   `GITEE_PAT_SANWAY-TECH` / `GITHUB_GRAINED_PAT_SANWAY-TECH` 全报 `command not found`
   ⇒ 这 3 个 token **从未被加载过**。绕过用 `GITHUB_PAT` + `GITEE_ACCESS_TOKEN`；
   **待改**键名为 `_SANWAY_TECH`。
-- 母项目 **V1.4.40**（已发 8 端点、`HEAD` 见 git log；部署被 I-38.10 阻断）；技能仓 **v2.6.4+**（`HEAD=83c0809`）。
+- 母项目 **V1.4.40 已真机闭环**（`DEPLOY=PASS` 232s / 探针 34/34 / `health=200` / `browser=33 desktop=25`，
+  2026-11-26 19:49）；**I-38.1 / 38.3 / 38.7 / 38.10 全部关闭**。技能仓 **v2.6.4+**（`HEAD=83c0809`）。
   技能门禁 `ALL_GREEN checks=37 / fails=0`；全量单测 `files=143 failed=0`（`✖` 严格计数 0）。
+- **★ 上游闸门三向判别取证（判「闸门真生效」的唯一充分形态）**：
+  ① L2 工具（`agent_browser_eval`）→ `DELEGATION_REQUIRED`；
+  ② 低风险工具（`agent_browser_get_title`）→ **原始上游结果** `{exitCode,response,success}`、**无** `code/matchedRule` ⇒ 真执行未误伤；
+  ③ 未知工具 → `UNKNOWN_UPSTREAM_TOOL`（fail-closed）。
+  只验 ① 无法区分「按风险分级」与「另一种全拒」。
+- **★ 判据数值要从判据脚本读，别从台账/记忆抄**：`shared-skills` 现行判据是 **≥10**
+  （`deploy-5-verify.sh:148-150`），台账曾误写「应为 9」，实测 10。
 - ⚠ `deploy/skills/winvm-plugin-deploy` 是**指向** `~/Documents/projects/skills/winvm-plugin-deploy`
   的 symlink（红线 10 形态），改技能只改源码仓一处即可。
 - v2.5.9 = **零配置上手**：默认 `172.16.100.2`/`User`/无密码 + `~/.winvm-pass` 自动认（文件存在才生效）+ 全仓禁裸 `/tmp`（鸿蒙只读）。

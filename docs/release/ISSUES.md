@@ -22,9 +22,9 @@
 
 | ID | 级别 | 现象 / 内容 | 根因 / 处置 | 状态 |
 |---|---|---|---|---|
-| **I-38.1** | P0（安全） | **上游 58 工具在真机上完全裸奔**：`POST /mcp/browser` 调 `agent_browser_eval`（= `browser.meta.eval`，**risk=L2 页内执行任意 JS**）**未过闸直接执行成功**，返回 `{"result":2,"success":true}` | 阶段 3.2 的修复（`tools/call` 强制过 `gateUpstreamAndExecute`）只存在于工作区，VM 上是 2026-11-20 旧构建（`gateAndExecute`=False、`upstreamGates`=False）。**修复代码本身 23/23 单测全绿**，缺的只是部署 | **待部署关闭** |
+| **I-38.1** | P0（安全） | **上游 58 工具在真机上完全裸奔**：`POST /mcp/browser` 调 `agent_browser_eval`（= `browser.meta.eval`，**risk=L2 页内执行任意 JS**）**未过闸直接执行成功**，返回 `{"result":2,"success":true}` | 阶段 3.2 的修复（`tools/call` 强制过 `gateUpstreamAndExecute`）只存在于工作区，VM 上是 2026-11-20 旧构建（`gateAndExecute`=False、`upstreamGates`=False）。**修复代码本身 23/23 单测全绿**，缺的只是部署 | **✅ 已关闭（V1.4.40 真机实测）**：`agent_browser_eval` → `DELEGATION_REQUIRED`（见下验收表） |
 | **I-38.2** | P3（可复现性） | 包内 `MANIFEST` 记 `commit: f8c5c83`，而 tag `V1.4.38` 指向 commit `b1a9b2e` | **先纠正一处口径**：`0acfd63` 是 **annotated tag 对象自身的 sha**，`V1.4.38^{commit}` = `b1a9b2e`；两者不矛盾。真实差异 = 打包（记 HEAD=`f8c5c83`）→ 再提交证据 `qa/release/V1.4.38-pack.txt` → HEAD 前进到 `b1a9b2e`。**代码零差异**（`git diff f8c5c83 b1a9b2e` 仅 1 文件 1746 行新增，无代码变更）。⇒ 用 tag 重新打包会得到 sha256 **不同**的包，评审时勿误判为事故 | **登记，不阻塞**；判据=「比 sha256 前先比代码 diff」 |
-| **I-38.3** | P2（能力面） | VM 侧 `shared-skills` 只有 **7** 个，规划应为 **9** | 旧逻辑下发 7 个领域 skill；3.6a 把 `HOST_ONLY_SKILLS` 收窄为 `['hos-win-skill']` 后应下发 9。`planSkillPublish` 实测：add 2（`agent-browser-skill`/`agent-desktop-skill`）、refresh 7、skip-host-only 1 ⇒ 部署后为 9 | **待部署关闭** |
+| **I-38.3** | P2（能力面） | VM 侧 `shared-skills` 只有 **7** 个，规划应为 **9** | 旧逻辑下发 7 个领域 skill；3.6a 把 `HOST_ONLY_SKILLS` 收窄为 `['hos-win-skill']` 后应下发 9。`planSkillPublish` 实测：add 2（`agent-browser-skill`/`agent-desktop-skill`）、refresh 7、skip-host-only 1 ⇒ 部署后为 9 | **✅ 已关闭（V1.4.40 真机实测 = 10）**。注：`deploy-5-verify.sh:148-150` 的现行判据是 **≥10**（1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派 + 2 上游工具面），原台账写「应为 9」是旧口径，实际 10（9 个下发 + `hos-win-skill` 一并到位，`HOST_ONLY_SKILLS` 收窄后不再跳过） |
 | **I-38.4** | P2（文档漂移） | 记忆与计划书记载「审批黑名单内容为空、待 owner 拍板」 | **过时**。实测 `DEFAULT_POLICY`：`capabilityApprovalDenylist` **14 条**、`pathDenylist` **13 条**、`commandDenylist` **15 条**、`capabilityApprovalAllowlist` 0 条（刻意先只上黑名单）。3.3 不是阻塞项 | **已更正记忆** |
 | **I-38.5** | P3（判据缺陷） | 新增的 `vnext-build-artifacts.test.js` 第 ④ 条首版**假绿**：把所有 `gateAndExecute(` 调用点删掉后计数 6→2，判据 `>=2` 仍 PASS | 残留 2 处 = **import 语句** + **一行注释** ⇒ 红线 8「查子串/查次数/查注释」三类凑数方式的合集。重写为「剥注释 + 排除 import 行，只统计带括号调用行」后突变即红 | **已修**（4/4 PASS） |
 
@@ -48,17 +48,17 @@
 
 > **V1.4.39 验收判据（部署后立即跑）**：
 > ① `agent_browser_eval` 须返回 **`DELEGATION_REQUIRED`**（而非 `POLICY_DENIED/registry:unknown-capability`，更非 `result:2`）；
-> ② `shared-skills` 须为 **9**（关闭 I-38.3）；
+> ② connector skills 数须 **≥10**（**原写「须为 9」是旧口径**，现行判据见 `deploy-5-verify.sh:148-150`）；
 > ③ VM `server.js` 的 `MTIME` 须晚于本轮改动，且 `HAS_gateUpstreamAndExecute=True`、`HAS_DELEGATION_REQUIRED=True`。
 
 ## 迭代 V1.4.40 · 上游面引擎 registry 误注入修复（2026-11-26）
 
-> **状态：打包 ✅ / 上架 ✅（4 端点）/ 部署 ❌ 被 I-38.10 阻断**。
-> 代码与包均已验证无误，卡在 VM 侧 sshd 挂死，**非本迭代代码问题**。
+> **状态：打包 ✅ / 上架 ✅（8 端点）/ 部署 ✅ `DEPLOY=PASS` 232s 探针 34/34（2026-11-26 19:49）/ 三条验收判据全部通过 ✅**。
+> 代码与包均已验证无误，V1.4.40 已完成真机闭环。
 
 | ID | 级别 | 现象 / 内容 | 根因 / 处置 | 状态 |
 |---|---|---|---|---|
-| **I-38.10** | **P0（阻断，环境）** | 12:40 起 VM `172.16.100.2:22` **TCP 能连（3-21ms）但 SSH banner 零字节**，`Connection timed out during banner exchange`。连续 6 次×18s + 前后共约 11 分钟，**13/13 全超时**。导致 deploy 4a 步 7 次 `ssh2 ready 超时` → 回落二进制 ssh 也 `scp 失败：TIMEOUT` → `DB-3 node=MISSING`、`DB-7 全 MISSING`、`DB-2 ssh:MISSING`（**全是连不上导致的假阴性**，不是 VM 真缺 node） | **三段取证定界**：① ICMP ping 0% 丢包 1-2ms ✅；② TCP :22 connect 3-21ms ✅；③ banner **零字节超时** ❌。⇒ 网络与凭据均正常，**是 sshd 本身挂死**（accept 但不 fork 出会话）。**同机对照**：`5985` WinRM **OPEN 且有 `Server: Microsoft-HTTPAPI/2.0` 响应** ⇒ 主机活着、非死机；`3389` RDP **TIMEOUT**、`18443` 隧道端口 TIMEOUT。**已知排除**：`undeploy.sh` 默认 `--remove-ssh-tunnel no`，且 `undeploy-2-vm.sh`/`vm-remove-local.ps1` 对 sshd **只读状态不修改**（sshd 只在第 3 步 `--purge-sshd` 里动），故卸载不是元凶 | **待 owner 介入**（见下） |
+| **I-38.10** | **P0（阻断，环境）** | 12:40 起 VM `172.16.100.2:22` **TCP 能连（3-21ms）但 SSH banner 零字节**，`Connection timed out during banner exchange`。连续 6 次×18s + 前后共约 11 分钟，**13/13 全超时**。导致 deploy 4a 步 7 次 `ssh2 ready 超时` → 回落二进制 ssh 也 `scp 失败：TIMEOUT` → `DB-3 node=MISSING`、`DB-7 全 MISSING`、`DB-2 ssh:MISSING`（**全是连不上导致的假阴性**，不是 VM 真缺 node） | **三段取证定界**：① ICMP ping 0% 丢包 1-2ms ✅；② TCP :22 connect 3-21ms ✅；③ banner **零字节超时** ❌。⇒ 网络与凭据均正常，**是 sshd 本身挂死**（accept 但不 fork 出会话）。**同机对照**：`5985` WinRM **OPEN 且有 `Server: Microsoft-HTTPAPI/2.0` 响应** ⇒ 主机活着、非死机；`3389` RDP **TIMEOUT**、`18443` 隧道端口 TIMEOUT。**已知排除**：`undeploy.sh` 默认 `--remove-ssh-tunnel no`，且 `undeploy-2-vm.sh`/`vm-remove-local.ps1` 对 sshd **只读状态不修改**（sshd 只在第 3 步 `--purge-sshd` 里动），故卸载不是元凶 | **✅ 已解除（2026-11-26 19:44，owner 重启 sshd）**（见下） |
 
 ### I-38.10 恢复路径（红线 1：绝不自行重启 VM）
 
@@ -69,9 +69,33 @@
 | **C. WinRM 远程修复** | ❌ 当前不可用 | `WWW-Authenticate: Negotiate`（Basic 未开），且 `User` 是**空口令** —— Windows 策略下空口令账户**不可用于任何网络登录**，Negotiate 也没法用 |
 | **D. 继续等待自愈** | 已证伪 | 11 分钟 13 次探测零成功率，无自愈迹象 |
 
+> **✅ 已解除（2026-11-26 19:44）**：owner 在 VM 侧重启 sshd 后，banner 立即恢复
+> `SSH-2.0-OpenSSH_for_Windows_10.4 Win32-OpenSSH-GitHub`，密钥登录通（`hostname` = `win-hos-ywang-sanway`）。
+> 从 12:40 首次失效到 19:44 恢复，**持续约 7 小时未自愈** ⇒ 进一步反证路径 D。
+> 恢复路径 A 有效且**不需要重启整机**，停机代价为零。
+
 > **恢复后立即执行**（SSH 一通就跑，不必重跑整链）：
 > `cd ~/.workbuddy/skills/winvm-plugin-deploy && VMDEPLOY_FORCE_FETCH=1 RELEASE_TAG=V1.4.40 bash scripts/deploy.sh`
 > 然后跑 V1.4.39/40 的三条验收判据（重点是 ① `agent_browser_eval` → `DELEGATION_REQUIRED`）。
+
+### V1.4.40 验收结果（2026-11-26 19:44–19:52 真机）
+
+| 判据 | 期望 | 实测 | 结论 |
+|---|---|---|---|
+| ① `agent_browser_eval`（`browser.meta.eval` / L2） | `DELEGATION_REQUIRED` | `{"code":"DELEGATION_REQUIRED","risk":"L2","surface":"browser","matchedRule":"approval-required","guidance":{"via":"a2a.delegate","reason":"upstream-no-replay"}}` | ✅ **I-38.1 + I-38.7 关闭** |
+| ② connector skills 数 | **≥10**（脚本口径见 `deploy-5-verify.sh:148-150`：1 总控 + 5 领域 + 1 MCP 参考 + 1 宿主分派 + 2 上游工具面） | **10**（含 `agent-browser-skill`/`agent-desktop-skill`/`hos-win-skill`） | ✅ **I-38.3 关闭** |
+| ③ VM `server.js` 构建真伪 | MTIME 晚于本轮改动 + 两个符号在 | `MTIME=2026-11-26 12:37:20`、`SIZE=156493`、`HAS_gateUpstreamAndExecute=True`、`HAS_DELEGATION_REQUIRED=True` | ✅ |
+| ③b 装配点参数（I-38.7 核心） | 上游面**不含** registry，vm 面**含** | `CTOR[0]={registry,config:cfg.policy}`（vm 面 :441）、`CTOR[1]={config:cfg.policy,surface}`（上游面 :1705） | ✅ |
+
+**三向判别取证**（证明闸门是「逐项判定」而非「全放行 / 全拒」，这是本迭代最关键的证据）：
+
+| 探测 | 输入 | 返回 | 说明 |
+|---|---|---|---|
+| L2 工具 | `agent_browser_eval` | `DELEGATION_REQUIRED` | 走审批通道，**不裸奔** |
+| 低风险工具 | `agent_browser_get_title` | `success:true`、`exitCode:0`、`engine:chrome` | **真执行**（返回原始上游结果，无策略错误）⇒ 未误伤 |
+| 不存在的工具 | `agent_browser_nonexistent_tool_xyz` | `UNKNOWN_UPSTREAM_TOOL` / `upstream:tool-not-in-unified-table` | fail-closed |
+
+> **演进轨迹**：V1.4.38 `{"result":2,"success":true}`（**裸奔**）→ V1.4.39 `POLICY_DENIED / registry:unknown-capability`（**100% 硬拒**）→ V1.4.40 **按风险分级**（L2 审批 / 低风险放行 / 未知拒绝）。中间态「有闸门符号、有审计、看着像生效」，比裸奔更难察觉。
 
 ## V1.4.0
 
