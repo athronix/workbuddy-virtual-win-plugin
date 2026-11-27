@@ -17,10 +17,15 @@
   已验证方式：`curl -r 0-0` 逐端点取 http_code（200/206/404）+ 远端 `.sha256`
   与本地逐字节比对。补齐命令：`publish-release.mjs --repo <owner/repo> --apply --mirror-gitee`
   （走 HTTPS API，**不吃 SSH 权限**；`GITHUB_PAT` 对 athronix `admin/push=true`）。
-- **★ `credentials.env` 带连字符的键 shell 无法 source**：`GITHUB_PAT_SANWAY-TECH` /
-  `GITEE_PAT_SANWAY-TECH` / `GITHUB_GRAINED_PAT_SANWAY-TECH` 全报 `command not found`
-  ⇒ 这 3 个 token **从未被加载过**。绕过用 `GITHUB_PAT` + `GITEE_ACCESS_TOKEN`；
-  **待改**键名为 `_SANWAY_TECH`。
+- **✅ `credentials.env` 键名已修（2026-11-27）**：原 `GITHUB_PAT_SANWAY-TECH` 等 3 个
+  **带连字符的键 shell 无法 source**（`command not found`，token 从未加载过）。已改为
+  **`_SANWAY_TECH`**：`GITHUB_PAT_SANWAY_TECH` / `GITEE_PAT_SANWAY_TECH` /
+  `GITHUB_GRAINED_PAT_SANWAY_TECH`。实测 `source` 零报错、长度 40/32/93 正常，
+  GitHub `push/admin=true`、Gitee `pull/push/admin=true`。
+  - ⚠ **只改键名、没加 `export` 前缀**：`publish-release.mjs:77` 兼容 `(?:export\s+)?`，
+    但 `skills/_dev/.../gitee_publish.py:37` 的正则是 `^\s*KEY\s*=` **不兼容 export**。加前缀会静默断链。
+  - ⚠ **该文件权限是 `660` 不是 `600`**（组 `file_manager` 可读）。**不要 chmod 600**——
+    会把自己锁死。改文件必须保留原 mode。
 - 母项目 **V1.4.40 已真机闭环**（`DEPLOY=PASS` 232s / 探针 34/34 / `health=200` / `browser=33 desktop=25`，
   2026-11-26 19:49）；**I-38.1 / 38.3 / 38.7 / 38.10 全部关闭**。技能仓 **v2.6.4+**（`HEAD=83c0809`）。
   技能门禁 `ALL_GREEN checks=37 / fails=0`；全量单测 `files=143 failed=0`（`✖` 严格计数 0）。
@@ -42,7 +47,7 @@
 
 ## 推送凭据（不看必卡，2026-11-23 实测）
 - **Gitee**：必须 `id_ed25519_gitee`（= sanway-tech）。`id_ed25519` 在 Gitee 是 **athronix**，推 sanway-tech 仓必 `Auth error: Access denied`。`~/.workbuddy/git-ssh.sh` 已修（加 `*gitee.com*` 分支）。
-- **GitHub**：SSH 钥、gh token、`GITHUB_PAT` **全是 athronix（无 push 权限）**；唯一能推的是 `credentials.env` 的 **`GITHUB_PAT_SANWAY-TECH`** → HTTPS + 临时凭据文件 + `-c core.sshCommand=`（**必须显式清空**，否则被 git-ssh.sh 导向 SSH）。GitHub 常 `Could not connect`(65s)，**必须重试循环 + `ls-remote` 比对 HEAD**，不能只看单次 rc。
+- **GitHub**：SSH 钥、gh token、`GITHUB_PAT` **全是 athronix（无 push 权限）**；唯一能推 sanway-tech 的是 `credentials.env` 的 **`GITHUB_PAT_SANWAY_TECH`**（原 `..._SANWAY-TECH`，2026-11-27 改名）→ HTTPS + 临时凭据文件 + `GIT_CONFIG_GLOBAL=<干净配置>`（**`~/.gitconfig` 的 `insteadOf` 会把 HTTPS 静默改写成 SSH**；`-c core.sshCommand=` 传空值会 `fatal: unable to fork`）。GitHub 常 `Could not connect`(65s)，**必须重试循环 + `ls-remote` 比对 HEAD**，不能只看单次 rc。
 - **Gitee attach_files** 不吃 `?access_token=`（报 `40001 登录失效`），**必须 `-F access_token=<tok>`**；create release 则两种都行。
 
 ## 十条红线（详见完整版）
@@ -61,6 +66,19 @@
 8. 门禁假绿三类：查子串 / 查次数 / 查注释（`strip_comments` 剥注释）→ 逐条锚定独有代码上文。**追加第四类**：同一行代码在多个分支复用（如 local/release 都有 `unlinkSync`）时，「全文件位置/存在性」断言必然假绿 → 断言要收进目标函数体按相对偏移比。
 9. 鸿蒙 `/tmp` 只读（`curl -o` 报 23，像网络问题）→ 跑完即弃的文件用 `${TMPDIR:-$HOME/wbtmp}`；**要长期留的回滚记录必须 `$HOME/wbtmp` 优先**（`TMPDIR` 在鸿蒙 = `el2/base/cache`，清缓存会整目录回收）；git 不在 PATH，用 `$HOME/.harmonybrew/opt/git/bin/git`。
 10. symlink 陷阱：`~/.workbuddy/skills/<name>` 为软链时 `cp -r` 备份的是链接、覆盖会写穿到源仓库 → 先 `readlink` 再删链重建（`install.sh` 已是唯一入口）。
+11. **★「push 假成功」（2026-11-27 实证，跨会话必守）**：`git push` 打了
+    `99c4900..83c0809  main -> main` **也可能远端根本没变**。实测技能仓两端的 main
+    停在 v2.5.9、本地 `ahead 9`，而前一天明明见过成功输出并 `ls-remote` 复核过。
+    ⇒ **凡「已推送」断言，必须用与 push 无关的第二通道读远端 SHA**：
+    `Gitee API /repos/{o}/{r}/branches/main`、`GitHub API /commits/main`、对端独立 `ls-remote`。
+    **不可接受**：只看 push 输出；只看自己 `git branch -vv` 的跟踪引用（本地缓存）。
+    **零成本硬信号**：`git branch -vv` 里出现 **`ahead N`** ⇒ 就是没推上去（不依赖网络）。
+12. **共享凭据文件改动三原则**：① 改前先 grep 所有读取实现的正则——
+    `publish-release.mjs:77` 兼容 `(?:export\s+)?`，但 `gitee_publish.py:37` 是 `^\s*KEY\s*=`
+    **不兼容 `export` 前缀**，加了会静默读不到；② 键名只能 `[A-Za-z_][A-Za-z0-9_]*`
+    （带 `-` 的 shell 无法 source，曾导致 3 个 token 从未被加载）；
+    ③ `~/.workbuddy/credentials.env` 权限是 **`660`**（组可读），**绝不 chmod 600**，
+    改写时用 `fs.writeFileSync(F,d,{mode:st.mode&0o777})` 保留原 mode。
 
 ## 基线红（不可当回归）
 **★ 2026-11-25 已清零**：`--quick` = `FILES=16 FAILED_FILES=0` 322/322 `GREEN`；全量 sweep = `FILES=143 FAILED_FILES=0` 2575/2573/0/2 `GREEN`（11-26 加入 `vnext-build-artifacts` 后）；`verify-claims` 17/17；`selfcheck` ALL_GREEN 37；`dep-lint` GREEN。
